@@ -22,6 +22,7 @@ import { supabase } from './supabaseClient';
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('products');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [products, setProducts] = useState([]);
   const [agents, setAgents] = useState([]);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -146,22 +147,46 @@ const Admin = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex" dir="rtl">
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row" dir="rtl">
+      {/* 🏙️ SIDEBAR OVERLAY (MOBILE) */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* 🏙️ SIDEBAR */}
-      <aside className="w-80 bg-white border-l border-slate-200 flex flex-col p-8">
-        <div className="flex items-center gap-3 mb-12">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden p-1 border border-slate-100">
-            <img src="/logo.png" alt="Groopy Logo" className="w-full h-full object-contain" />
+      <aside className={`
+        fixed inset-y-0 right-0 z-50 w-80 bg-white border-l border-slate-200 flex flex-col p-8 transition-transform duration-300 md:relative md:translate-x-0
+        ${isSidebarOpen ? 'translate-x-0' : 'translate-x-[100%] md:translate-x-0'}
+      `}>
+        <div className="flex items-center justify-between mb-12">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden p-1 border border-slate-100">
+              <img src="/logo.png" alt="Groopy Logo" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <h1 className="font-black text-xl text-slate-800 tracking-tight">ניהול קטלוג</h1>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">קטלוג מוצרים</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-black text-xl text-slate-800 tracking-tight">ניהול קטלוג</h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">קטלוג מוצרים</p>
-          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-2 text-slate-400 hover:text-slate-900 md:hidden"
+          >
+            <X size={24} />
+          </button>
         </div>
 
         <nav className="space-y-3">
           <button 
-            onClick={() => setActiveTab('products')}
+            onClick={() => { setActiveTab('products'); setIsSidebarOpen(false); }}
             className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
               activeTab === 'products' 
               ? 'bg-primary-500 text-white shadow-lg shadow-primary-200' 
@@ -176,7 +201,7 @@ const Admin = () => {
           </button>
 
           <button 
-            onClick={() => setActiveTab('agents')}
+            onClick={() => { setActiveTab('agents'); setIsSidebarOpen(false); }}
             className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
               activeTab === 'agents' 
               ? 'bg-primary-500 text-white shadow-lg shadow-primary-200' 
@@ -202,21 +227,36 @@ const Admin = () => {
       </aside>
 
       {/* 📜 MAIN CONTENT AREA */}
-      <main className="flex-1 p-12 overflow-y-auto">
-        <header className="flex items-center justify-between mb-12">
-          <div>
-             <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">
+      <main className="flex-1 p-6 md:p-12 overflow-y-auto w-full">
+        <header className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <div className="flex items-center gap-4 md:hidden">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm text-slate-600"
+              >
+                <div className="space-y-1.5 w-6">
+                  <div className="h-0.5 w-6 bg-current rounded-full" />
+                  <div className="h-0.5 w-4 bg-current rounded-full" />
+                  <div className="h-0.5 w-6 bg-current rounded-full" />
+                </div>
+              </button>
+            </div>
+            
+            <div className="text-right md:text-right flex-1 md:flex-none">
+               <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter mb-2">
                {activeTab === 'products' ? 'ניהול מוצרים' : 'רשת הסוכנים'}
              </h2>
              <p className="text-slate-400 font-bold text-sm">
                {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : `רשימת סוכנים וקישורי הפצה`}
              </p>
           </div>
+        </div>
 
-          <button 
-            onClick={() => activeTab === 'products' ? setIsAddingProduct(true) : setIsAddingAgent(true)}
-            className="btn-primary"
-          >
+        <button 
+          onClick={() => activeTab === 'products' ? setIsAddingProduct(true) : setIsAddingAgent(true)}
+          className="btn-primary"
+        >
             <Plus size={20} />
             {activeTab === 'products' ? 'מוצר חדש' : 'סוכן חדש'}
           </button>
@@ -236,8 +276,8 @@ const Admin = () => {
                 />
              </div>
 
-             <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
-                <table className="w-full text-right border-collapse">
+             <div className="bg-white rounded-[32px] border border-slate-200 overflow-x-auto shadow-sm scrollbar-hide">
+                <table className="w-full text-right border-collapse min-w-[800px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
                       <th className="px-8 py-5">תמונה/סוג</th>
@@ -267,7 +307,7 @@ const Admin = () => {
                           <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-[10px] font-black">{p.location || '-'}</span>
                         </td>
                         <td className="px-8 py-5">
-                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => setEditingProduct(p)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Edit size={18} /></button>
                             <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Trash2 size={18} /></button>
                           </div>

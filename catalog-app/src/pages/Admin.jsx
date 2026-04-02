@@ -50,6 +50,8 @@ const Admin = () => {
   const [orders, setOrders] = useState([]);
   const [confirmingOrderDelete, setConfirmingOrderDelete] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // New states for form inputs
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
@@ -226,9 +228,39 @@ const Admin = () => {
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (!error) {
       setOrders(orders.filter(o => o.id !== id));
+      setSelectedOrderIds(prev => prev.filter(orderId => orderId !== id));
       setConfirmingOrderDelete(null);
     } else {
       console.error('Error deleting order:', error);
+    }
+  }
+
+  const handleBulkDeleteOrders = async () => {
+    if (selectedOrderIds.length === 0) return;
+    
+    setIsBulkDeleting(true);
+    const { error } = await supabase.from('orders').delete().in('id', selectedOrderIds);
+    
+    if (!error) {
+      setOrders(orders.filter(o => !selectedOrderIds.includes(o.id)));
+      setSelectedOrderIds([]);
+    } else {
+      console.error('Error bulk deleting orders:', error);
+    }
+    setIsBulkDeleting(false);
+  }
+
+  const toggleOrderSelection = (id) => {
+    setSelectedOrderIds(prev => 
+      prev.includes(id) ? prev.filter(orderId => orderId !== id) : [...prev, id]
+    );
+  }
+
+  const toggleAllOrders = () => {
+    if (selectedOrderIds.length === orders.length) {
+      setSelectedOrderIds([]);
+    } else {
+      setSelectedOrderIds(orders.map(o => o.id));
     }
   }
 
@@ -647,10 +679,45 @@ const Admin = () => {
         {/* 🛍️ ORDERS TAB */}
         {activeTab === 'orders' && (
           <div className="space-y-6">
+             <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                   {selectedOrderIds.length > 0 && (
+                     <motion.div 
+                       initial={{ opacity: 0, x: 20 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-2xl border border-red-100"
+                     >
+                       <span className="text-xs font-black text-red-600">נבחרו {selectedOrderIds.length} הזמנות</span>
+                       <button 
+                         onClick={handleBulkDeleteOrders}
+                         disabled={isBulkDeleting}
+                         className="bg-red-500 text-white px-4 py-1.5 rounded-xl text-[10px] font-black hover:bg-red-600 transition-colors disabled:opacity-50"
+                       >
+                         {isBulkDeleting ? 'מוחק...' : 'מחק פריטים שנבחרו'}
+                       </button>
+                       <button 
+                        onClick={() => setSelectedOrderIds([])}
+                        className="text-slate-400 hover:text-slate-600"
+                       >
+                         <X size={14} />
+                       </button>
+                     </motion.div>
+                   )}
+                </div>
+             </div>
+
              <div className="bg-white rounded-[32px] border border-slate-200 overflow-x-auto shadow-sm scrollbar-hide">
                 <table className="w-full text-right border-collapse min-w-[900px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                      <th className="px-8 py-5 w-12 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={orders.length > 0 && selectedOrderIds.length === orders.length}
+                          onChange={toggleAllOrders}
+                          className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
+                        />
+                      </th>
                       <th className="px-8 py-5">תאריך והזמנה</th>
                       <th className="px-8 py-5">שם הלקוח</th>
                       <th className="px-8 py-5">סוכן</th>
@@ -661,7 +728,15 @@ const Admin = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {orders.map(order => (
-                      <tr key={order.id} className="group hover:bg-slate-50/50 transition-colors">
+                      <tr key={order.id} className={`group transition-colors ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'}`}>
+                        <td className="px-8 py-5 text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedOrderIds.includes(order.id)}
+                            onChange={() => toggleOrderSelection(order.id)}
+                            className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
+                          />
+                        </td>
                         <td className="px-8 py-5">
                           <div className="flex flex-col">
                             <span className="text-xs font-black text-slate-800">

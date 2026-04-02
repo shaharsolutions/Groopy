@@ -207,43 +207,6 @@ const CartDrawer = ({
                    </p>
                  </div>
                )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Pricing Summary */}
-                  <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm">
-                    <div className="flex justify-between items-center text-slate-400 font-bold text-sm mb-4">
-                      <span>סה״כ פריטים:</span>
-                      <span className="bg-slate-50 px-3 py-1 rounded-lg text-slate-800">{totalItems}</span>
-                    </div>
-                    <div className="flex justify-between items-end border-t border-slate-50 pt-6">
-                      <div>
-                        <span className="block text-xs font-black text-primary-500 uppercase tracking-wider mb-1">לתשלום סופי</span>
-                        <span className="text-4xl font-[1000] text-slate-900 tracking-tighter">₪{totalPrice.toFixed(2)}</span>
-                      </div>
-                      <div className="text-right">
-                        <TrendingDown size={32} className="text-primary-100 -mb-2" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SEND BUTTON */}
-                  <button 
-                    onClick={handleWhatsAppSend}
-                    className={`btn-primary w-full py-6 flex items-center justify-center gap-4 group relative overflow-hidden ${isSent ? 'bg-green-500' : ''}`}
-                  >
-                    <span className="relative z-10 font-black text-xl tracking-tight">
-                      {activeAgent ? `שליחת הזמנה לוואטסאפ של ${activeAgent.name}` : 'שליחת הזמנה לוואטסאפ'}
-                    </span>
-                    <Send size={24} className="relative z-10 -rotate-45 group-hover:translate-x-2 group-hover:-translate-y-2 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-white/10 translate-x-full group-hover:translate-x-0 transition-transform duration-700 skew-x-12" />
-                  </button>
-                  
-                  <p className="text-[10px] text-center text-slate-400 font-black px-6 leading-relaxed uppercase tracking-widest opacity-60">
-                    הלחיצה תפתח את אפליקציית הוואטסאפ עם ההזמנה המוכנה שלך
-                  </p>
-                </div>
-              )}
             </motion.div>
           </>
         )}

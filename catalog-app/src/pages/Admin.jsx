@@ -17,6 +17,7 @@ import {
   User,
   Check,
   Image,
+  Tag,
   Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,6 +36,11 @@ const Admin = () => {
   const [copyFeedback, setCopyFeedback] = useState(null);
   const [confirmingProductDelete, setConfirmingProductDelete] = useState(null);
   const [confirmingAgentDelete, setConfirmingAgentDelete] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState({ name: '' });
+  const [confirmingCategoryDelete, setConfirmingCategoryDelete] = useState(null);
 
   // New states for form inputs
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
@@ -62,6 +68,21 @@ const Admin = () => {
     
     if (agentsData) setAgents(agentsData);
     if (agentsError) console.error('Error fetching agents:', agentsError);
+
+    // 3. Fetch Categories
+    const { data: categoriesData, error: categoriesError } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name');
+    
+    if (categoriesData) setCategories(categoriesData);
+    if (categoriesError) {
+      console.warn('Error fetching categories (maybe table does not exist):', categoriesError);
+      // Fallback categories if table doesn't exist yet
+      if (categories.length === 0) {
+        setCategories([{ id: '1', name: 'בקבוקים' }, { id: '2', name: 'קופסאות אוכל' }]);
+      }
+    }
   }
 
   // Product Actions
@@ -122,6 +143,39 @@ const Admin = () => {
       setConfirmingAgentDelete(null);
     } else {
       console.error('Error deleting agent:', error);
+    }
+  }
+
+  // Category Actions
+  const handleAddCategory = async () => {
+    const category = { id: Date.now().toString(), ...newCategory };
+    const { error } = await supabase.from('categories').insert([category]);
+    if (!error) {
+      setCategories([...categories, category]);
+      setIsAddingCategory(false);
+      setNewCategory({ name: '' });
+    } else {
+      console.error('Error adding category:', error);
+    }
+  }
+
+  const handleDeleteCategory = async (id) => {
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    if (!error) {
+      setCategories(categories.filter(c => c.id !== id));
+      setConfirmingCategoryDelete(null);
+    } else {
+      console.error('Error deleting category:', error);
+    }
+  }
+
+  const handleUpdateCategory = async (updated) => {
+    const { error } = await supabase.from('categories').update(updated).eq('id', updated.id);
+    if (!error) {
+      setCategories(categories.map(c => c.id === updated.id ? updated : c));
+      setEditingCategory(null);
+    } else {
+      console.error('Error updating category:', error);
     }
   }
 
@@ -219,6 +273,21 @@ const Admin = () => {
             </div>
             <ChevronRight size={16} className={activeTab === 'agents' ? '' : 'text-slate-300'} />
           </button>
+
+          <button 
+            onClick={() => { setActiveTab('categories'); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
+              activeTab === 'categories' 
+              ? 'bg-primary-500 text-white shadow-lg shadow-primary-200' 
+              : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <Tag size={20} />
+              <span className="font-black text-sm">ניהול קטגוריות</span>
+            </div>
+            <ChevronRight size={16} className={activeTab === 'categories' ? '' : 'text-slate-300'} />
+          </button>
         </nav>
 
         <div className="mt-auto pt-8 border-t border-slate-100">
@@ -250,10 +319,12 @@ const Admin = () => {
             
             <div className="text-right md:text-right">
                <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter mb-2">
-                 {activeTab === 'products' ? 'ניהול מוצרים' : 'רשת הסוכנים'}
+                 {activeTab === 'products' ? 'ניהול מוצרים' : 
+                  activeTab === 'agents' ? 'רשת הסוכנים' : 'ניהול קטגוריות'}
                </h2>
                <p className="text-slate-400 font-bold text-sm whitespace-nowrap">
-                 {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : `רשימת סוכנים וקישורי הפצה`}
+                 {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : 
+                  activeTab === 'agents' ? `רשימת סוכנים וקישורי הפצה` : 'עריכת קטגוריות המוצרים בקטלוג'}
                </p>
             </div>
           </div>
@@ -268,11 +339,18 @@ const Admin = () => {
             </Link>
             
             <button 
-              onClick={() => activeTab === 'products' ? setIsAddingProduct(true) : setIsAddingAgent(true)}
+              onClick={() => {
+                if (activeTab === 'products') setIsAddingProduct(true);
+                else if (activeTab === 'agents') setIsAddingAgent(true);
+                else setIsAddingCategory(true);
+              }}
               className="btn-primary w-fit flex items-center justify-center gap-2"
             >
               <Plus size={20} />
-              <span className="whitespace-nowrap">{activeTab === 'products' ? 'מוצר חדש' : 'סוכן חדש'}</span>
+              <span className="whitespace-nowrap">
+                {activeTab === 'products' ? 'מוצר חדש' : 
+                 activeTab === 'agents' ? 'סוכן חדש' : 'קטגוריה חדשה'}
+              </span>
             </button>
           </div>
         </header>
@@ -431,6 +509,54 @@ const Admin = () => {
             )}
           </div>
         )}
+        {/* 📋 CATEGORIES TAB */}
+        {activeTab === 'categories' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {categories.map(cat => (
+              <motion.div 
+                layout
+                key={cat.id}
+                className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden"
+              >
+                <div className="flex items-center gap-5">
+                  <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center shadow-inner">
+                    <Tag size={28} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 tracking-tight">{cat.name}</h3>
+                  </div>
+                </div>
+
+                <div className="pt-6 mt-6 border-t border-slate-50 flex gap-4">
+                  {confirmingCategoryDelete === cat.id ? (
+                     <div className="w-full flex items-center justify-between gap-4 bg-red-50 p-4 rounded-2xl">
+                       <span className="font-black text-xs text-red-500">למחוק קטגוריה?</span>
+                       <div className="flex gap-2">
+                         <button onClick={() => handleDeleteCategory(cat.id)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-black">מחק</button>
+                         <button onClick={() => setConfirmingCategoryDelete(null)} className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-xs font-black">ביטול</button>
+                       </div>
+                     </div>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => setEditingCategory(cat)}
+                        className="flex-1 py-4 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                      >
+                        עריכה
+                      </button>
+                      <button 
+                        onClick={() => setConfirmingCategoryDelete(cat.id)}
+                        className="flex-1 py-4 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                      >
+                        מחיקה
+                      </button>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* 🗳️ ADD PRODUCT MODAL */}
@@ -486,8 +612,10 @@ const Admin = () => {
                     onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500"
                   >
-                    <option value="Bottles">בקבוקים</option>
-                    <option value="Lunch Boxes">קופסאות אוכל</option>
+                    <option value="">בחר קטגוריה...</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-2 col-span-2">
@@ -685,6 +813,19 @@ const Admin = () => {
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קטגוריה</label>
+                  <select 
+                    value={editingProduct.category}
+                    onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500"
+                  >
+                    <option value="">בחר קטגוריה...</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מק״ט</label>
                   <input 
                     type="text" 
@@ -715,6 +856,82 @@ const Admin = () => {
               <div className="mt-12 flex gap-4">
                  <button onClick={() => handleUpdateProduct(editingProduct)} className="btn-primary w-full py-5 text-lg">שמור שינויים</button>
                  <button onClick={() => setEditingProduct(null)} className="w-full bg-slate-100 font-black text-slate-500 py-5 rounded-2xl hover:bg-slate-200 transition-colors">ביטול</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* 🏷️ ADD CATEGORY MODAL */}
+      <AnimatePresence>
+        {isAddingCategory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-[40px] w-full max-w-md p-12 shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setIsAddingCategory(false)}
+                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
+                >
+                  <X size={32} />
+              </button>
+              
+              <h2 className="text-3xl font-black mb-8 tracking-tighter">הוספת קטגוריה</h2>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם הקטגוריה</label>
+                  <input 
+                    type="text" 
+                    value={newCategory.name}
+                    onChange={(e) => setNewCategory({ name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+              </div>
+
+              <div className="mt-12">
+                 <button onClick={handleAddCategory} className="btn-primary w-full py-5">צור קטגוריה</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🏷️ EDIT CATEGORY MODAL */}
+      <AnimatePresence>
+        {editingCategory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-[40px] w-full max-w-md p-12 shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setEditingCategory(null)}
+                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
+                >
+                  <X size={32} />
+              </button>
+              
+              <h2 className="text-3xl font-black mb-8 tracking-tighter">עריכת קטגוריה</h2>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם הקטגוריה</label>
+                  <input 
+                    type="text" 
+                    value={editingCategory.name}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+              </div>
+
+              <div className="mt-12 flex gap-4">
+                 <button onClick={() => handleUpdateCategory(editingCategory)} className="btn-primary w-full py-5">שמור שינויים</button>
+                 <button onClick={() => setEditingCategory(null)} className="w-full bg-slate-100 font-black text-slate-500 py-5 rounded-2xl">ביטול</button>
               </div>
             </motion.div>
           </div>

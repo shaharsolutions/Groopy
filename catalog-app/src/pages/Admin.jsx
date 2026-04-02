@@ -306,7 +306,7 @@ const Admin = () => {
                         <td className="px-8 py-5 font-black text-slate-800 text-sm">{p.name}</td>
                         <td className="px-8 py-5 font-bold text-slate-400 text-xs">{p.sku}</td>
                         <td className="px-8 py-5 font-black text-slate-900">{p.price.toFixed(2)}</td>
-                        <td className="px-8 py-5">
+                        <td className="px-8 py-5 whitespace-nowrap">
                           <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-[10px] font-black">{p.location || '-'}</span>
                         </td>
                         <td className="px-8 py-5">

@@ -279,8 +279,8 @@ const Catalog = () => {
             </div>
           </div>
 
-          {/* CATEGORIES CHIPS */}
-          <div className="flex flex-wrap justify-center gap-3 mt-10">
+          {/* CATEGORIES CHIPS - Scrollable on mobile */}
+          <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 mt-10 pb-4 md:pb-0 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
             {categories.map(cat => (
               <button
                 key={cat}

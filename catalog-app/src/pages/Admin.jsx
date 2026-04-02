@@ -329,12 +329,12 @@ const Admin = () => {
             </div>
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-wrap md:flex-nowrap gap-3 md:gap-4 w-full md:w-auto">
             <Link 
               to="/"
-              className="bg-white border border-slate-200 text-slate-600 px-6 py-4 rounded-2xl font-black text-sm flex items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
+              className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-600 px-5 md:px-6 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-slate-50 transition-all shadow-sm group"
             >
-              <Eye size={20} />
+              <Eye size={20} className="group-hover:scale-110 transition-transform" />
               <span className="whitespace-nowrap">חזרה לקטלוג</span>
             </Link>
             
@@ -344,7 +344,7 @@ const Admin = () => {
                 else if (activeTab === 'agents') setIsAddingAgent(true);
                 else setIsAddingCategory(true);
               }}
-              className="btn-primary w-fit flex items-center justify-center gap-2"
+              className="flex-1 md:flex-none btn-primary w-full md:w-fit flex items-center justify-center gap-2"
             >
               <Plus size={20} />
               <span className="whitespace-nowrap">
@@ -369,6 +369,11 @@ const Admin = () => {
                 />
              </div>
 
+             <div className="flex md:hidden items-center justify-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-widest pb-4">
+                <span>החלק ימינה לצפייה בפרטים</span>
+                <ChevronRight size={12} className="animate-pulse" />
+             </div>
+             
              <div className="bg-white rounded-[32px] border border-slate-200 overflow-x-auto shadow-sm scrollbar-hide">
                 <table className="w-full text-right border-collapse min-w-[800px]">
                   <thead>
@@ -562,11 +567,11 @@ const Admin = () => {
       {/* 🗳️ ADD PRODUCT MODAL */}
       <AnimatePresence>
         {isAddingProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-2xl p-12 shadow-2xl relative"
+              className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-auto shadow-primary-500/10"
             >
               <button 
                 onClick={() => setIsAddingProduct(false)}
@@ -649,11 +654,11 @@ const Admin = () => {
       {/* 👤 ADD AGENT MODAL */}
       <AnimatePresence>
         {isAddingAgent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-12 shadow-2xl relative"
+              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => setIsAddingAgent(false)}
@@ -715,11 +720,11 @@ const Admin = () => {
       {/* ✏️ EDIT AGENT MODAL */}
       <AnimatePresence>
         {editingAgent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-12 shadow-2xl relative"
+              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => setEditingAgent(null)}
@@ -778,11 +783,11 @@ const Admin = () => {
       {/* ✏️ EDIT PRODUCT MODAL */}
       <AnimatePresence>
         {editingProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-2xl p-12 shadow-2xl relative"
+              className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => setEditingProduct(null)}
@@ -864,11 +869,11 @@ const Admin = () => {
       {/* 🏷️ ADD CATEGORY MODAL */}
       <AnimatePresence>
         {isAddingCategory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-12 shadow-2xl relative"
+              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => setIsAddingCategory(false)}
@@ -902,11 +907,11 @@ const Admin = () => {
       {/* 🏷️ EDIT CATEGORY MODAL */}
       <AnimatePresence>
         {editingCategory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-12 shadow-2xl relative"
+              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => setEditingCategory(null)}

@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Package, MapPin, Plus } from 'lucide-react';
+import { Package, Plus } from 'lucide-react';
 
-const ProductCard = ({ product, idx, addToCart }) => {
+const ProductCard = ({ product, idx, addToCart, onImageClick }) => {
   return (
     <motion.div
       layout
@@ -13,7 +13,10 @@ const ProductCard = ({ product, idx, addToCart }) => {
       className="bg-white rounded-[32px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group flex flex-col h-full"
     >
       {/* Image Box */}
-      <div className="relative aspect-[1/1] bg-slate-50 overflow-hidden m-2 rounded-[24px]">
+      <div 
+        className="relative aspect-[1/1] bg-slate-50 overflow-hidden m-2 rounded-[24px] cursor-pointer"
+        onClick={() => onImageClick && onImageClick(product.image, product.name)}
+      >
         {product.image ? (
           <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
         ) : (
@@ -28,12 +31,6 @@ const ProductCard = ({ product, idx, addToCart }) => {
           <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-[900] text-slate-400 shadow-sm border border-white/50">
             {product.sku}
           </div>
-          {product.location && (
-            <div className="bg-primary-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-lg shadow-primary-200">
-              <MapPin size={10} />
-              {product.location}
-            </div>
-          )}
         </div>
       </div>
 

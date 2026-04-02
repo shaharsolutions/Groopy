@@ -8,7 +8,6 @@ import {
   Send, 
   ShoppingBag, 
   Package, 
-  MapPin, 
   ChevronRight, 
   ArrowLeft,
   ChevronDown,
@@ -37,6 +36,19 @@ const Catalog = () => {
   const [customerName, setCustomerName] = useState('');
   const [isSent, setIsSent] = useState(false);
   const [formError, setFormError] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedProductName, setSelectedProductName] = useState('');
+
+  // 🖼️ Image Handlers
+  const openImageModal = (imageUrl, productName) => {
+    setSelectedImage(imageUrl);
+    setSelectedProductName(productName);
+  };
+
+  const closeImageModal = () => {
+    setSelectedImage(null);
+    setSelectedProductName('');
+  };
   
   // 👔 AGENT SYSTEM
   const [activeAgent, setActiveAgent] = useState(null);
@@ -308,6 +320,7 @@ const Catalog = () => {
                 product={product} 
                 idx={idx} 
                 addToCart={addToCart} 
+                onImageClick={openImageModal}
               />
             ))}
           </AnimatePresence>
@@ -346,6 +359,48 @@ const Catalog = () => {
         isSent={isSent}
         activeAgent={activeAgent}
       />
+
+      {/* 🖼️ IMAGE MODAL */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-slate-900/60 backdrop-blur-2xl"
+            onClick={closeImageModal}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 50 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative max-w-5xl w-full max-h-full bg-white rounded-[48px] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/20 flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button UI */}
+              <button 
+                onClick={closeImageModal}
+                className="absolute top-8 left-8 z-10 w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl flex items-center justify-center text-slate-900 hover:bg-white hover:scale-110 active:scale-95 transition-all duration-500 shadow-2xl border border-white"
+              >
+                <X size={28} />
+              </button>
+              
+              {/* Info Badge */}
+              <div className="absolute top-8 right-8 z-10 px-8 py-4 bg-white/90 backdrop-blur-md rounded-2xl border border-white shadow-2xl">
+                <p className="text-slate-900 font-[900] text-lg tracking-tight">{selectedProductName}</p>
+              </div>
+
+              {/* Full Image */}
+              <img 
+                src={selectedImage} 
+                alt={selectedProductName} 
+                className="w-full h-full object-contain max-h-[85vh] p-4 md:p-12 cursor-default"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 🏛️ FOOTER */}
       <footer className="mt-40 border-t border-slate-100 bg-slate-50/50 py-24">

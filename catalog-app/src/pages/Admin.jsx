@@ -623,13 +623,23 @@ const Admin = () => {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור לתמונה (URL)</label>
                   <input 
                     type="text" 
                     placeholder="https://example.com/image.jpg"
                     value={newProduct.image}
                     onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מיקום במחסן</label>
+                  <input 
+                    type="text" 
+                    placeholder="לדוגמה: מדף א1"
+                    value={newProduct.location}
+                    onChange={(e) => setNewProduct({...newProduct, location: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
@@ -839,12 +849,21 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור לתמונה</label>
                   <input 
                     type="text" 
                     value={editingProduct.image}
                     onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מיקום במחסן</label>
+                   <input 
+                    type="text" 
+                    value={editingProduct.location}
+                    onChange={(e) => setEditingProduct({...editingProduct, location: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>

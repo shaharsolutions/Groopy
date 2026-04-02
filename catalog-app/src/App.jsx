@@ -51,7 +51,7 @@ const AdminLoginWrapper = () => {
       >
         <div className="flex flex-col items-center mb-12">
           <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 overflow-hidden p-2">
-            <img src="/logo.png" alt="Groopy Logo" className="w-full h-full object-contain" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-widest uppercase text-center">כניסת מנהל</h1>
           <p className="text-slate-400 font-bold text-sm mt-2">אנא הזן את הסיסמה לגישה למערכת</p>

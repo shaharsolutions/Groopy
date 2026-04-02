@@ -16,7 +16,8 @@ import {
   Phone,
   User,
   Check,
-  Image
+  Image,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
@@ -257,13 +258,23 @@ const Admin = () => {
             </div>
           </div>
 
-        <button 
-          onClick={() => activeTab === 'products' ? setIsAddingProduct(true) : setIsAddingAgent(true)}
-          className="btn-primary w-fit flex items-center justify-center gap-2"
-        >
-            <Plus size={20} />
-            <span className="whitespace-nowrap">{activeTab === 'products' ? 'מוצר חדש' : 'סוכן חדש'}</span>
-          </button>
+          <div className="flex gap-4">
+            <Link 
+              to="/"
+              className="bg-white border border-slate-200 text-slate-600 px-6 py-4 rounded-2xl font-black text-sm flex items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <Eye size={20} />
+              <span className="whitespace-nowrap">חזרה לקטלוג</span>
+            </Link>
+            
+            <button 
+              onClick={() => activeTab === 'products' ? setIsAddingProduct(true) : setIsAddingAgent(true)}
+              className="btn-primary w-fit flex items-center justify-center gap-2"
+            >
+              <Plus size={20} />
+              <span className="whitespace-nowrap">{activeTab === 'products' ? 'מוצר חדש' : 'סוכן חדש'}</span>
+            </button>
+          </div>
         </header>
 
         {/* 📋 PRODUCTS TAB */}

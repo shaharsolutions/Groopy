@@ -258,10 +258,10 @@ const Admin = () => {
 
         <button 
           onClick={() => activeTab === 'products' ? setIsAddingProduct(true) : setIsAddingAgent(true)}
-          className="btn-primary"
+          className="btn-primary w-fit flex items-center justify-center gap-2"
         >
             <Plus size={20} />
-            {activeTab === 'products' ? 'מוצר חדש' : 'סוכן חדש'}
+            <span className="whitespace-nowrap">{activeTab === 'products' ? 'מוצר חדש' : 'סוכן חדש'}</span>
           </button>
         </header>
 

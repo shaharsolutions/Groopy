@@ -56,14 +56,20 @@ const Catalog = () => {
     if (productsData) setProducts(productsData);
     if (productsError) console.error('Error loading products:', productsError);
 
-    // 2. Identify Agent from URL (Greedy Regex approach)
+    // 2. Identify Agent from URL (Hardened Greedy approach)
     let agentId = null;
-    const url = window.location.href;
-    const agentMatch = url.match(/[?&]agent=([^&#]+)/);
+    const rawUrl = window.location.href;
     
-    if (agentMatch && agentMatch[1]) {
-      agentId = agentMatch[1];
-      console.log('Found Agent ID via logic:', agentId);
+    // Look for agent= in the entire string, whether it's in search or hash
+    const agentMatches = [
+      ...rawUrl.matchAll(/[?&]agent=([^&#]+)/g)
+    ];
+    
+    if (agentMatches.length > 0) {
+      // Get the last match found (usually the most relevant one in nested URLs)
+      const rawId = agentMatches[agentMatches.length - 1][1];
+      agentId = decodeURIComponent(rawId);
+      console.log('Detected Agent ID:', agentId);
     }
 
     if (agentId) {
@@ -75,14 +81,13 @@ const Catalog = () => {
       
       if (agentData) {
         setActiveAgent(agentData);
-        console.log('Agent Data Loaded Successfully:', agentData.name);
+        console.log('✅ Agent Connected:', agentData.name);
       } else {
-        console.warn('Agent ID not found in database:', agentId);
+        console.warn('❌ Agent ID not found in DB:', agentId);
         setActiveAgent(null);
       }
-      if (agentError) console.error('Supabase Agent Fetch Error:', agentError);
+      if (agentError) console.error('Supabase Error:', agentError);
     } else {
-      console.log('No agent identifier found in current URL');
       setActiveAgent(null);
     }
   }

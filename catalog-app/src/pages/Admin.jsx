@@ -232,8 +232,8 @@ const Admin = () => {
       {/* 📜 MAIN CONTENT AREA */}
       <main className="flex-1 p-6 md:p-12 overflow-y-auto w-full">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
-          <div className="flex items-center justify-between w-full md:w-auto">
-            <div className="flex items-center gap-4 md:hidden">
+          <div className="flex items-center justify-between gap-6 w-full md:w-auto">
+            <div className="flex items-center md:hidden">
               <button 
                 onClick={() => setIsSidebarOpen(true)}
                 className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm text-slate-600"
@@ -246,15 +246,15 @@ const Admin = () => {
               </button>
             </div>
             
-            <div className="text-right md:text-right flex-1 md:flex-none">
+            <div className="text-right md:text-right">
                <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter mb-2">
-               {activeTab === 'products' ? 'ניהול מוצרים' : 'רשת הסוכנים'}
-             </h2>
-             <p className="text-slate-400 font-bold text-sm">
-               {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : `רשימת סוכנים וקישורי הפצה`}
-             </p>
+                 {activeTab === 'products' ? 'ניהול מוצרים' : 'רשת הסוכנים'}
+               </h2>
+               <p className="text-slate-400 font-bold text-sm whitespace-nowrap">
+                 {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : `רשימת סוכנים וקישורי הפצה`}
+               </p>
+            </div>
           </div>
-        </div>
 
         <button 
           onClick={() => activeTab === 'products' ? setIsAddingProduct(true) : setIsAddingAgent(true)}

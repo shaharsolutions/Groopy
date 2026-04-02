@@ -159,7 +159,7 @@ const Catalog = () => {
       message += `${index + 1}. *${item.name}*\n`;
       message += `   מק"ט: ${item.sku} | כמות: ${item.quantity} | מחיר: ₪${item.price.toFixed(2)}\n`;
       if (index < cart.length - 1) {
-        message += `───────────────\n`;
+        message += `────────\n`;
       }
     });
     

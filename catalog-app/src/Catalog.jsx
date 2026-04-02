@@ -56,8 +56,22 @@ const Catalog = () => {
     if (productsData) setProducts(productsData);
     if (productsError) console.error('Error loading products:', productsError);
 
-    // 2. Identify Agent from URL
-    const agentId = searchParams.get('agent');
+    // 2. Identify Agent from URL (Support both standard and HashRouter params)
+    let agentId = searchParams.get('agent');
+    
+    // Fallback parsing for HashRouter if useSearchParams missed it
+    if (!agentId && window.location.hash.includes('agent=')) {
+      try {
+        const hashParts = window.location.hash.split('?');
+        if (hashParts.length > 1) {
+          const hashParams = new URLSearchParams(hashParts[1]);
+          agentId = hashParams.get('agent');
+        }
+      } catch (e) {
+        console.error('Error parsing hash params:', e);
+      }
+    }
+
     if (agentId) {
       const { data: agentData, error: agentError } = await supabase
         .from('agents')
@@ -65,8 +79,13 @@ const Catalog = () => {
         .eq('id', agentId)
         .single();
       
-      if (agentData) setActiveAgent(agentData);
+      if (agentData) {
+        setActiveAgent(agentData);
+        console.log('Active Agent identifies:', agentData.name);
+      }
       if (agentError) console.error('Error identified agent:', agentError);
+    } else {
+      setActiveAgent(null);
     }
   }
 

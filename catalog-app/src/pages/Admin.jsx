@@ -32,7 +32,8 @@ const Admin = () => {
   const [isAddingAgent, setIsAddingAgent] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [copyFeedback, setCopyFeedback] = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, type: null, id: null, title: '' });
+  const [confirmingProductDelete, setConfirmingProductDelete] = useState(null);
+  const [confirmingAgentDelete, setConfirmingAgentDelete] = useState(null);
 
   // New states for form inputs
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
@@ -80,13 +81,14 @@ const Admin = () => {
     }
   }
 
-  const handleDeleteProduct = (id, name) => {
-    setDeleteConfirm({
-      show: true,
-      type: 'product',
-      id,
-      title: name
-    });
+  const handleDeleteProduct = async (id) => {
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (!error) {
+      setProducts(products.filter(p => p.id !== id));
+      setConfirmingProductDelete(null);
+    } else {
+      console.error('Error deleting product:', error);
+    }
   }
 
   const handleUpdateProduct = async (updated) => {
@@ -112,35 +114,14 @@ const Admin = () => {
     }
   }
 
-  const handleDeleteAgent = (id, name) => {
-    setDeleteConfirm({
-      show: true,
-      type: 'agent',
-      id,
-      title: name
-    });
-  }
-
-  const handleConfirmedDelete = async () => {
-    const { type, id } = deleteConfirm;
-    
-    if (type === 'product') {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (!error) {
-        setProducts(products.filter(p => p.id !== id));
-      } else {
-        console.error('Error deleting product:', error);
-      }
-    } else if (type === 'agent') {
-      const { error } = await supabase.from('agents').delete().eq('id', id);
-      if (!error) {
-        setAgents(agents.filter(a => a.id !== id));
-      } else {
-        console.error('Error deleting agent:', error);
-      }
+  const handleDeleteAgent = async (id) => {
+    const { error } = await supabase.from('agents').delete().eq('id', id);
+    if (!error) {
+      setAgents(agents.filter(a => a.id !== id));
+      setConfirmingAgentDelete(null);
+    } else {
+      console.error('Error deleting agent:', error);
     }
-
-    setDeleteConfirm({ show: false, type: null, id: null, title: '' });
   }
 
   const handleUpdateAgent = async (updated) => {
@@ -329,11 +310,30 @@ const Admin = () => {
                         <td className="px-8 py-5 whitespace-nowrap">
                           <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-[10px] font-black">{p.location || '-'}</span>
                         </td>
-                        <td className="px-8 py-5">
-                          <div className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setEditingProduct(p)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Edit size={18} /></button>
-                            <button onClick={() => handleDeleteProduct(p.id, p.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Trash2 size={18} /></button>
-                          </div>
+                         <td className="px-8 py-5">
+                          <AnimatePresence mode="wait">
+                            {confirmingProductDelete === p.id ? (
+                              <motion.div 
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="flex items-center gap-2 bg-red-50 p-2 rounded-xl"
+                              >
+                                <span className="text-[10px] font-black text-red-500 whitespace-nowrap">למחוק?</span>
+                                <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-500 text-white p-1.5 rounded-lg hover:bg-red-600 transition-colors"><Check size={14} /></button>
+                                <button onClick={() => setConfirmingProductDelete(null)} className="bg-slate-200 text-slate-500 p-1.5 rounded-lg hover:bg-slate-300 transition-colors"><X size={14} /></button>
+                              </motion.div>
+                            ) : (
+                              <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                              >
+                                <button onClick={() => setEditingProduct(p)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Edit size={18} /></button>
+                                <button onClick={() => setConfirmingProductDelete(p.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Trash2 size={18} /></button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </td>
                       </tr>
                     ))}
@@ -378,20 +378,32 @@ const Admin = () => {
                      <Share2 size={14} className="opacity-40 group-hover/link:opacity-100" />
                    </button>
                    
-                   <div className="flex gap-4 pt-2">
-                     <button 
-                       onClick={() => setEditingAgent(agent)}
-                       className="flex-1 py-3 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
-                     >
-                       עריכת סוכן
-                     </button>
-                     <button 
-                      onClick={() => handleDeleteAgent(agent.id, agent.name)}
-                      className="flex-1 py-3 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
-                     >
-                       מחיקת סוכן
-                     </button>
-                   </div>
+                    <div className="flex gap-4 pt-2">
+                     {confirmingAgentDelete === agent.id ? (
+                       <div className="w-full flex items-center justify-center gap-4 bg-red-50 py-3 rounded-xl border border-red-100">
+                         <span className="font-black text-[10px] text-red-500 tracking-widest">מחיקה?</span>
+                         <div className="flex gap-2">
+                           <button onClick={() => handleDeleteAgent(agent.id)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-[10px] font-black hover:bg-red-600 transition-colors">כן</button>
+                           <button onClick={() => setConfirmingAgentDelete(null)} className="bg-slate-200 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black hover:bg-slate-300 transition-colors">בטל</button>
+                         </div>
+                       </div>
+                     ) : (
+                       <>
+                         <button 
+                           onClick={() => setEditingAgent(agent)}
+                           className="flex-1 py-3 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                         >
+                           עריכת סוכן
+                         </button>
+                         <button 
+                          onClick={() => setConfirmingAgentDelete(agent.id)}
+                          className="flex-1 py-3 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                         >
+                           מחיקת סוכן
+                         </button>
+                       </>
+                     )}
+                    </div>
                 </div>
 
                 <div className="absolute top-4 left-4 flex gap-2">
@@ -692,47 +704,6 @@ const Admin = () => {
               <div className="mt-12 flex gap-4">
                  <button onClick={() => handleUpdateProduct(editingProduct)} className="btn-primary w-full py-5 text-lg">שמור שינויים</button>
                  <button onClick={() => setEditingProduct(null)} className="w-full bg-slate-100 font-black text-slate-500 py-5 rounded-2xl hover:bg-slate-200 transition-colors">ביטול</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-      {/* ⚠️ DELETE CONFIRMATION MODAL */}
-      <AnimatePresence>
-        {deleteConfirm.show && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/60 backdrop-blur-md">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl text-center relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-full h-2 bg-red-500/10" />
-              
-              <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
-                <Trash2 size={42} />
-              </div>
-
-              <h2 className="text-3xl font-black mb-3 tracking-tighter text-slate-900">אישור מחיקה</h2>
-              <p className="text-slate-500 font-bold mb-10 leading-relaxed">
-                האם אתה בטוח שברצונך למחוק את <br/>
-                <span className="text-slate-900 text-lg">"{deleteConfirm.title}"</span>?<br/>
-                <span className="text-red-500/60 text-xs mt-2 block">פעולה זו אינה ניתנת לביטול</span>
-              </p>
-              
-              <div className="flex flex-col gap-3">
-                <button 
-                  onClick={handleConfirmedDelete}
-                  className="w-full bg-red-500 text-white font-black py-5 rounded-2xl hover:bg-red-600 transition-all shadow-xl shadow-red-200 active:scale-[0.98]"
-                >
-                  כן, מחק לצמיתות
-                </button>
-                <button 
-                  onClick={() => setDeleteConfirm({ show: false, type: null, id: null, title: '' })}
-                  className="w-full bg-slate-50 text-slate-400 font-black py-4 rounded-2xl hover:bg-slate-100 hover:text-slate-600 transition-all active:scale-[0.98]"
-                >
-                  ביטול
-                </button>
               </div>
             </motion.div>
           </div>

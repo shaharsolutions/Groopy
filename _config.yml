@@ -1,2 +1,5 @@
 exclude:
+  - catalog-app/node_modules
   - node_modules
+  - .DS_Store
+  - extract_images.py

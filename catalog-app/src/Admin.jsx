@@ -138,7 +138,7 @@ const Admin = () => {
     const base = import.meta.env.BASE_URL;
     // Ensure base starts and ends with / appropriately
     const fullBase = base.startsWith('/') ? base : `/${base}`;
-    const link = `${origin}${fullBase}${fullBase.endsWith('/') ? '' : '/'}?agent=${id}`;
+    const link = `${origin}${fullBase}${fullBase.endsWith('/') ? '' : '/'}#/?agent=${id}`;
     navigator.clipboard.writeText(link);
     setCopyFeedback(id);
     setTimeout(() => setCopyFeedback(null), 2000);

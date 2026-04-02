@@ -132,9 +132,9 @@ const Catalog = () => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 12 } : item);
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...product, quantity: 12 }];
     });
   };
 
@@ -143,7 +143,9 @@ const Catalog = () => {
   const updateQuantity = (id, delta) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const newQty = Math.max(0, item.quantity + delta);
+        // Adjust delta to 12 if it's 1 or -1 for consistency (or just multiply delta by 12)
+        const adjustedDelta = delta === 1 ? 12 : delta === -1 ? -12 : delta;
+        const newQty = Math.max(0, item.quantity + adjustedDelta);
         return { ...item, quantity: newQty };
       }
       return item;
@@ -169,7 +171,8 @@ const Catalog = () => {
     
     cart.forEach((item, index) => {
       message += `${index + 1}. *${item.name}*\n`;
-      message += `   מק"ט: ${item.sku} | כמות: ${item.quantity} | מחיר: ₪${item.price.toFixed(2)}\n`;
+      message += `   מק"ט: ${item.sku} | כמות: ${item.quantity} יחידות - (${item.quantity / 12} קרטון)\n`;
+      message += `   מחיר יחידה: ₪${item.price.toFixed(2)} | סה"כ לתשלום: ₪${(item.price * item.quantity).toFixed(2)}\n`;
       if (index < cart.length - 1) {
         message += `────────\n`;
       }

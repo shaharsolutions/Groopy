@@ -121,7 +121,10 @@ const CartDrawer = ({
                             >
                               <Minus size={14} className="md:w-[18px] md:h-[18px]" />
                             </button>
-                            <span className="w-8 md:w-10 text-center font-black text-base md:text-xl text-slate-900">{item.quantity}</span>
+                            <div className="flex flex-col items-center">
+                              <span className="w-8 md:w-10 text-center font-black text-base md:text-xl text-slate-900 leading-none">{item.quantity}</span>
+                              <span className="text-[8px] font-black text-slate-400 uppercase">יח'</span>
+                            </div>
                             <button 
                               onClick={() => updateQuantity(item.id, 1)}
                               className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
@@ -130,7 +133,7 @@ const CartDrawer = ({
                             </button>
                           </div>
                           <div className="text-right">
-                             <div className="text-[10px] font-black text-slate-400 uppercase mb-0.5">סה״כ פריט</div>
+                             <div className="text-[10px] font-black text-slate-400 uppercase mb-0.5">{item.quantity / 12} קרטון</div>
                              <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{(item.price * item.quantity).toFixed(2)}</div>
                           </div>
                         </div>

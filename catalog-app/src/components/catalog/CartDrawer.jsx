@@ -235,8 +235,8 @@ const CartDrawer = ({
                 </div>
               </div>
               <div className="flex items-center gap-2 pr-4 relative z-10">
-                <div className="bg-white/10 hover:bg-white/20 p-4 rounded-2xl font-black text-sm tracking-tight transition-all">
-                  סיום הזמנה
+                <div className="bg-white/10 hover:bg-white/20 p-4 rounded-2xl font-black text-sm tracking-tight transition-all text-white">
+                  לעגלה
                 </div>
                 <ChevronDown className="-rotate-90 text-primary-400" size={24} />
               </div>

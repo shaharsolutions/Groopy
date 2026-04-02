@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Package, Plus } from 'lucide-react';
 
-const ProductCard = ({ product, idx, addToCart, onImageClick }) => {
+const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
   return (
     <motion.div
       layout
@@ -10,11 +10,11 @@ const ProductCard = ({ product, idx, addToCart, onImageClick }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: idx * 0.05 }}
       key={product.id}
-      className="bg-white rounded-[32px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group flex flex-col h-full"
+      className="bg-white rounded-[40px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group flex flex-col h-full"
     >
       {/* Image Box */}
       <div 
-        className="relative aspect-[1/1] bg-slate-50 overflow-hidden m-2 rounded-[24px] cursor-pointer"
+        className="relative aspect-[1/1] bg-slate-50 overflow-hidden m-10 rounded-[32px] cursor-pointer shadow-inner"
         onClick={() => onImageClick && onImageClick(product.image, product.name)}
       >
         {product.image ? (
@@ -35,7 +35,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick }) => {
       </div>
 
       {/* Info Content */}
-      <div className="p-6 pt-2 flex flex-col flex-1">
+      <div className="p-8 pt-0 flex flex-col flex-1">
         <span className="text-[10px] font-black text-accent-500 uppercase tracking-widest mb-2">
           {product.category === 'Bottles' ? 'Premium Bottles' : 'Food Storage'}
         </span>
@@ -53,9 +53,24 @@ const ProductCard = ({ product, idx, addToCart, onImageClick }) => {
           </div>
           <button 
             onClick={() => addToCart(product)}
-            className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center hover:bg-primary-600 hover:scale-110 active:scale-95 shadow-xl shadow-slate-100 hover:shadow-primary-100 transition-all duration-300"
+            className={`
+              flex items-center justify-center gap-2 px-4 py-3 rounded-2xl transition-all duration-300
+              ${cartCount > 0 
+                ? 'bg-accent-600 text-white shadow-accent-200' 
+                : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
+              }
+              hover:scale-105 active:scale-95 shadow-xl
+            `}
           >
-            <Plus size={24} />
+            <div className="flex items-center gap-1.5">
+              <Plus size={16} strokeWidth={4} />
+              <span className="font-bold text-sm whitespace-nowrap">הוספה</span>
+            </div>
+            {cartCount > 0 && (
+              <span className="bg-white text-accent-600 min-w-[22px] h-5.5 px-1 rounded-lg flex items-center justify-center text-[10px] font-black shadow-sm">
+                {cartCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

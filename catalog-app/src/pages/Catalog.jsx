@@ -321,6 +321,7 @@ const Catalog = () => {
                 idx={idx} 
                 addToCart={addToCart} 
                 onImageClick={openImageModal}
+                cartCount={cart.find(item => item.id === product.id)?.quantity || 0}
               />
             ))}
           </AnimatePresence>

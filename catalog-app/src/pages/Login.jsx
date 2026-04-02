@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -88,12 +89,12 @@ const LoginPage = ({ onLogin }) => {
           </button>
         </form>
 
-        <a 
-          href="/" 
+        <Link 
+          to="/" 
           className="mt-10 group flex items-center justify-center gap-2 text-slate-500 hover:text-white font-black text-xs uppercase tracking-widest transition-all"
         >
           <ChevronLeft className="group-hover:-translate-x-1 transition-transform" /> חזרה לקטלוג
-        </a>
+        </Link>
       </motion.div>
     </div>
   );

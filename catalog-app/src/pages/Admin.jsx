@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Users, 
   Package, 
@@ -220,12 +221,12 @@ const Admin = () => {
         </nav>
 
         <div className="mt-auto pt-8 border-t border-slate-100">
-           <a 
-            href="/"
+           <Link 
+            to="/"
             className="flex items-center gap-3 text-slate-400 hover:text-slate-900 font-bold text-xs transition-colors"
            >
              <ChevronRight /> חזרה לממשק הלקוח
-           </a>
+           </Link>
         </div>
       </aside>
 

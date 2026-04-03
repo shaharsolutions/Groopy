@@ -412,28 +412,31 @@ const Catalog = () => {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 50 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative max-w-5xl w-full max-h-full bg-white rounded-[48px] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/20 flex items-center justify-center"
+              className="relative max-w-5xl w-full max-h-[90vh] bg-white rounded-[48px] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Close Button UI */}
-              <button 
-                onClick={closeImageModal}
-                className="absolute top-8 left-8 z-10 w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl flex items-center justify-center text-slate-900 hover:bg-white hover:scale-110 active:scale-95 transition-all duration-500 shadow-2xl border border-white"
-              >
-                <X size={28} />
-              </button>
-              
-              {/* Info Badge */}
-              <div className="absolute top-8 right-8 z-10 px-8 py-4 bg-white/90 backdrop-blur-md rounded-2xl border border-white shadow-2xl">
-                <p className="text-slate-900 font-[900] text-lg tracking-tight">{selectedProductName}</p>
+              {/* Modal Header: Title and Close Button */}
+              <div className="p-6 md:p-10 pb-0 flex items-center justify-between gap-6 relative z-10">
+                <div className="px-8 py-4 bg-slate-50/50 backdrop-blur-md rounded-[24px] border border-slate-100 shadow-sm">
+                  <p className="text-slate-900 font-[900] text-xl md:text-2xl tracking-tighter">{selectedProductName}</p>
+                </div>
+                
+                <button 
+                  onClick={closeImageModal}
+                  className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl flex items-center justify-center text-slate-800 hover:text-slate-900 hover:scale-110 active:scale-95 transition-all duration-500 shadow-xl border border-white"
+                >
+                  <X size={28} />
+                </button>
               </div>
 
-              {/* Full Image */}
-              <img 
-                src={selectedImage} 
-                alt={selectedProductName} 
-                className="w-full h-full object-contain max-h-[85vh] p-4 md:p-12 cursor-default"
-              />
+              {/* Image Content Container */}
+              <div className="flex-1 flex items-center justify-center p-8 md:p-12 overflow-hidden min-h-0">
+                <img 
+                  src={selectedImage} 
+                  alt={selectedProductName} 
+                  className="max-w-full max-h-full object-contain cursor-default select-none"
+                />
+              </div>
             </motion.div>
           </motion.div>
         )}

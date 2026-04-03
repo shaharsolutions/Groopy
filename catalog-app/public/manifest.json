@@ -8,14 +8,14 @@
   "theme_color": "#863bff",
   "icons": [
     {
-      "src": "groopy-logo.png",
+      "src": "groopy-square.svg",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/svg+xml"
     },
     {
-      "src": "groopy-logo.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "groopy-square.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     }
   ]
 }

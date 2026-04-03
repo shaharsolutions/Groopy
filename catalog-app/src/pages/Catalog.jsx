@@ -255,17 +255,11 @@ const Catalog = () => {
     <div className="min-h-screen bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
       {/* 🧭 PREMIUM NAVIGATION */}
       <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-3xl border-b border-slate-100">
-        <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="container mx-auto px-6 h-32 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden">
+            <div className="flex items-center">
+              <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50">
                 <img src={`${import.meta.env.BASE_URL}groopy-logo.png`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-l from-slate-900 to-slate-600 tracking-tighter leading-none mb-0.5">
-                  Groopy
-                </h1>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">קטלוג מוצרים</span>
               </div>
             </div>
 

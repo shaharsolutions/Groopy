@@ -1,0 +1,4 @@
+{
+  "buildCommand": "cd catalog-app && npm install && npm run build",
+  "outputDirectory": "catalog-app/dist"
+}

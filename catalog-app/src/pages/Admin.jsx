@@ -316,7 +316,18 @@ const Admin = () => {
       }
     } else {
       console.error('Error canceling order:', error);
-      alert('שגיאה בתהליך הביטול');
+      // Fallback: try to update only status if notes column is missing
+      const { error: statusOnlyError } = await supabase.from('orders').update({ 
+        status: 'Canceled'
+      }).eq('id', orderToCancel.id);
+
+      if (!statusOnlyError) {
+        setOrders(orders.map(o => o.id === orderToCancel.id ? { ...o, status: 'Canceled' } : o));
+        setOrderToCancel(null);
+        alert('ההזמנה בוטלה, אך ההערות לא נשמרו. ייתכן שחסרה עמודת "notes" בבסיס הנתונים (SQL: ALTER TABLE orders ADD COLUMN notes JSONB)');
+      } else {
+        alert('שגיאה בתהליך הביטול: ' + (error.message || 'שגיאה לא ידועה'));
+      }
     }
     setIsSubmittingNote(false);
   }
@@ -348,7 +359,7 @@ const Admin = () => {
       setNewNoteText('');
     } else {
       console.error('Error adding note:', error);
-      alert('שגיאה בשמירת ההערה. ייתכן ששדה "הערות" לא קיים בבסיס הנתונים.');
+      alert('שגיאה בשמירת ההערה. ייתכן ששדה "notes" לא קיים בבסיס הנתונים. נא להוסיף אותו ב-Supabase (סוג JSONB)');
     }
     setIsSubmittingNote(false);
   };

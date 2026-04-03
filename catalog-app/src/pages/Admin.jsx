@@ -60,6 +60,15 @@ const Admin = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedProductName, setSelectedProductName] = useState('');
 
+  // 📝 Notes States
+  const [adminName, setAdminName] = useState(localStorage.getItem('groopy_admin_name') || '');
+  const [newNoteText, setNewNoteText] = useState('');
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+
+  // 🚫 Cancellation States
+  const [orderToCancel, setOrderToCancel] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+
   // 🖼️ Image Handlers
   const openImageModal = (imageUrl, productName) => {
     setSelectedImage(imageUrl);
@@ -265,6 +274,13 @@ const Admin = () => {
   }
 
   const handleUpdateOrderStatus = async (id, status) => {
+    if (status === 'Canceled') {
+      const order = orders.find(o => o.id === id);
+      setOrderToCancel(order);
+      setCancelReason('');
+      return;
+    }
+
     const { error } = await supabase.from('orders').update({ status }).eq('id', id);
     if (!error) {
       setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
@@ -272,6 +288,70 @@ const Admin = () => {
       console.error('Error updating order status:', error);
     }
   }
+
+  const confirmCancellation = async () => {
+    if (!orderToCancel) return;
+
+    setIsSubmittingNote(true);
+    const updatedNotes = [...(orderToCancel.notes || [])];
+    
+    if (cancelReason.trim()) {
+      updatedNotes.push({
+        text: `🚫 סיבת ביטול: ${cancelReason}`,
+        author: adminName || 'מערכת',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const { error } = await supabase.from('orders').update({ 
+      status: 'Canceled',
+      notes: updatedNotes
+    }).eq('id', orderToCancel.id);
+
+    if (!error) {
+      setOrders(orders.map(o => o.id === orderToCancel.id ? { ...o, status: 'Canceled', notes: updatedNotes } : o));
+      setOrderToCancel(null);
+      if (selectedOrder?.id === orderToCancel.id) {
+        setSelectedOrder({ ...selectedOrder, status: 'Canceled', notes: updatedNotes });
+      }
+    } else {
+      console.error('Error canceling order:', error);
+      alert('שגיאה בתהליך הביטול');
+    }
+    setIsSubmittingNote(false);
+  }
+
+  const handleAddNote = async () => {
+    if (!newNoteText.trim() || !adminName.trim() || !selectedOrder) return;
+
+    setIsSubmittingNote(true);
+    const newNote = {
+      text: newNoteText,
+      author: adminName,
+      timestamp: new Date().toISOString()
+    };
+
+    const updatedNotes = [...(selectedOrder.notes || []), newNote];
+    
+    // Save admin name to localStorage
+    localStorage.setItem('groopy_admin_name', adminName);
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ notes: updatedNotes })
+      .eq('id', selectedOrder.id);
+
+    if (!error) {
+      const updatedOrder = { ...selectedOrder, notes: updatedNotes };
+      setSelectedOrder(updatedOrder);
+      setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
+      setNewNoteText('');
+    } else {
+      console.error('Error adding note:', error);
+      alert('שגיאה בשמירת ההערה. ייתכן ששדה "הערות" לא קיים בבסיס הנתונים.');
+    }
+    setIsSubmittingNote(false);
+  };
 
   const copyAgentLink = (id) => {
     const origin = window.location.origin;
@@ -1276,7 +1356,7 @@ const Admin = () => {
                 </p>
               </div>
 
-              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
+              <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
                 {selectedOrder.items.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
@@ -1291,6 +1371,72 @@ const Admin = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* 📝 NOTES SECTION */}
+              <div className="mt-8 pt-8 border-t border-slate-100">
+                <h3 className="text-lg font-black mb-4 flex items-center gap-2">
+                  <Edit size={20} className="text-primary-500" />
+                  הערות ומעקב
+                </h3>
+                
+                {/* Previous Notes */}
+                <div className="space-y-3 mb-6 max-h-[200px] overflow-y-auto pr-2 scrollbar-hide">
+                  {selectedOrder.notes && selectedOrder.notes.length > 0 ? (
+                    selectedOrder.notes.map((note, nIdx) => (
+                      <div key={nIdx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-right">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="flex items-center gap-1.5 text-[10px] font-black text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+                            <User size={10} /> {note.author}
+                          </span>
+                          <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                            <Clock size={10} /> {new Date(note.timestamp).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-700 leading-relaxed">{note.text}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 opacity-50">
+                      <p className="text-xs font-bold text-slate-400">אין הערות להזמנה זו</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Add New Note Form */}
+                <div className="space-y-4 bg-slate-50/50 p-4 rounded-[28px] border border-slate-100 shadow-inner">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 mb-1">מי כותב ההערה?</label>
+                      <input 
+                        type="text" 
+                        placeholder="השם שלך..."
+                        value={adminName}
+                        onChange={(e) => setAdminName(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm outline-none focus:border-primary-500 transition-all" 
+                      />
+                    </div>
+                    <div className="col-span-2 md:col-span-1 flex items-end">
+                      <button 
+                        onClick={handleAddNote}
+                        disabled={isSubmittingNote || !newNoteText.trim() || !adminName.trim()}
+                        className="w-full btn-primary py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isSubmittingNote ? 'שומר...' : 'הוסף הערה'}
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 mb-1">תוכן ההערה</label>
+                      <textarea 
+                        placeholder="כתוב כאן הערה, עדכון או הנחיות עבודה..."
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm outline-none focus:border-primary-500 transition-all h-20 resize-none" 
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-8 pt-8 border-t border-slate-100 flex items-center justify-between">
@@ -1310,6 +1456,56 @@ const Admin = () => {
                     className="bg-slate-100 text-slate-500 px-6 py-3 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors"
                   >
                     סגור
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* 🚫 CANCELLATION MODAL */}
+      <AnimatePresence>
+        {orderToCancel && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl relative"
+            >
+              <div className="mb-6 text-center">
+                <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-red-500 mx-auto mb-4">
+                  <AlertCircle size={32} />
+                </div>
+                <h2 className="text-2xl font-black tracking-tighter text-slate-900">ביטול הזמנה</h2>
+                <p className="text-slate-400 font-bold text-xs mt-1">האם אתה בטוח שברצונך לבטל את ההזמנה של {orderToCancel.customer_name}?</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2 text-right">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">סיבת הביטול (אופציונלי)</label>
+                  <textarea 
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="למה ההזמנה בוטלה?..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none focus:border-red-500 transition-all h-24 resize-none" 
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={confirmCancellation}
+                    disabled={isSubmittingNote}
+                    className="flex-1 bg-red-500 text-white py-4 rounded-2xl font-black text-sm hover:bg-red-600 transition-colors shadow-lg shadow-red-200"
+                  >
+                    {isSubmittingNote ? 'מבטל...' : 'אישור ביטול'}
+                  </button>
+                  <button 
+                    onClick={() => setOrderToCancel(null)}
+                    disabled={isSubmittingNote}
+                    className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors"
+                  >
+                    חזרה
                   </button>
                 </div>
               </div>

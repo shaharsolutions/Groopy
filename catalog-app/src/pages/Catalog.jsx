@@ -192,26 +192,26 @@ const Catalog = () => {
       setIsSubmitting(false);
     });
 
-    let message = `*הזמנה חדשה מקטלוג Groopy*\n\n`;
-    message += `*שם הלקוח:* ${customerName}\n\n`;
+    let message = `\u200F*הזמנה חדשה מקטלוג Groopy*\n\n`;
+    message += `\u200F*שם הלקוח:* ${customerName}\n\n`;
     if (activeAgent) {
-      message += `*דרך סוכן:* ${activeAgent.name}\n\n`;
+      message += `\u200F*דרך סוכן:* ${activeAgent.name}\n\n`;
     }
-    message += `*פירוט המוצרים:*\n`;
+    message += `\u200F*פירוט המוצרים:*\n`;
     
     cart.forEach((item, index) => {
-      message += `*${index + 1}. ${item.name}*\n`;
-      message += `מק"ט: ${item.sku}\n`;
-      message += `כמות: ${item.quantity} יחידות (${item.quantity / 12} קרטון)\n`;
-      message += `מחיר יחידה: ₪${item.price.toFixed(2)}\n`;
+      message += `\u200F*${index + 1}. ${item.name}*\n`;
+      message += `\u200Fמק"ט: ${item.sku}\n`;
+      message += `\u200Fכמות: ${item.quantity} יחידות (${item.quantity / 12} קרטון)\n`;
+      message += `\u200Fמחיר יחידה: ₪${item.price.toFixed(2)}\n`;
       
       if (index < cart.length - 1) {
-        message += `────────\n`;
+        message += `\u200F────────\n`;
       }
     });
     
-    message += `\n*סה"כ לתשלום: ₪${totalPrice.toFixed(2)}*\n\n`;
-    message += `נא ליצור איתי קשר לתיאום אספקה. תודה!`;
+    message += `\n\u200F*סה"כ לתשלום: ₪${totalPrice.toFixed(2)}*\n\n`;
+    message += `\u200Fנא ליצור איתי קשר לתיאום אספקה. תודה!`;
 
     const encoded = encodeURIComponent(message);
     

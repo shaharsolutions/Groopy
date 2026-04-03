@@ -33,7 +33,7 @@ const Catalog = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [customerName, setCustomerName] = useState('');
+  const [customerName, setCustomerName] = useState(() => localStorage.getItem('groopy_customer_name') || '');
   const [isSent, setIsSent] = useState(false);
   const [formError, setFormError] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
@@ -60,6 +60,13 @@ const Catalog = () => {
   useEffect(() => {
     fetchInitialData();
   }, [searchParams]);
+
+  // 💾 PERSIST CUSTOMER NAME
+  useEffect(() => {
+    if (customerName) {
+      localStorage.setItem('groopy_customer_name', customerName);
+    }
+  }, [customerName]);
 
   const fetchInitialData = async () => {
     // 1. Fetch Products

@@ -155,30 +155,35 @@ const Catalog = () => {
   const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleWhatsAppSend = async () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleWhatsAppSend = () => {
     if (!customerName.trim()) {
       setFormError('נא להזין שם לקוח כדי להמשיך');
       return;
     }
     
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setFormError('');
 
-    // 💾 SAVE TO SUPABASE
-    try {
-      const { error } = await supabase.from('orders').insert({
-        customer_name: customerName,
-        items: cart,
-        total_price: totalPrice,
-        agent_id: activeAgent?.id || null,
-        agent_name: activeAgent?.name || null,
-        status: 'New'
-      });
-      if (error) throw error;
-      console.log('✅ Order saved successfully to Supabase');
-    } catch (err) {
-      console.error('❌ Error saving order to Supabase:', err);
-      // We still proceed to WhatsApp even if saving fails, to not block the customer
-    }
+    // 💾 SAVE TO SUPABASE (BACKGROUND)
+    // We fire this in the background and don't await it to ensure immediate WhatsApp redirection
+    supabase.from('orders').insert({
+      customer_name: customerName,
+      items: cart,
+      total_price: totalPrice,
+      agent_id: activeAgent?.id || null,
+      agent_name: activeAgent?.name || null,
+      status: 'New'
+    }).then(({ error }) => {
+      if (error) console.error('❌ Error saving order to Supabase:', error);
+      else console.log('✅ Order saved successfully to Supabase');
+      setIsSubmitting(false);
+    }).catch(err => {
+      console.error('❌ Unexpected error saving order:', err);
+      setIsSubmitting(false);
+    });
 
     let message = `*הזמנה חדשה מקטלוג Groopy*\n\n`;
     message += `*שם הלקוח:* ${customerName}\n\n`;
@@ -379,6 +384,7 @@ const Catalog = () => {
         setFormError={setFormError}
         handleWhatsAppSend={handleWhatsAppSend}
         isSent={isSent}
+        isSubmitting={isSubmitting}
         activeAgent={activeAgent}
       />
 

@@ -28,6 +28,7 @@ const CartDrawer = ({
   setFormError, 
   handleWhatsAppSend, 
   isSent, 
+  isSubmitting,
   activeAgent 
 }) => {
   return (
@@ -194,16 +195,21 @@ const CartDrawer = ({
                    </div>
  
                    {/* SEND BUTTON */}
-                    <button 
-                      onClick={handleWhatsAppSend}
-                      className={`btn-primary w-full py-4 md:py-6 flex items-center justify-center gap-3 md:gap-4 group relative overflow-hidden ${isSent ? 'bg-green-500' : ''}`}
-                    >
-                      <Send size={20} className="md:w-[24px] md:h-[24px] relative z-10 group-hover:translate-x-[-8px] group-hover:translate-y-[-8px] transition-transform duration-500" />
-                      <span className="relative z-10 font-black text-lg md:text-xl tracking-tight">
-                         שליחת הזמנה לוואטסאפ
-                      </span>
-                      <div className="absolute inset-0 bg-white/10 translate-x-full group-hover:translate-x-0 transition-transform duration-700 skew-x-12" />
-                    </button>
+                     <button 
+                       onClick={handleWhatsAppSend}
+                       disabled={isSubmitting}
+                       className={`btn-primary w-full py-4 md:py-6 flex items-center justify-center gap-3 md:gap-4 group relative overflow-hidden ${isSent ? 'bg-green-500' : ''} ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                     >
+                       {isSubmitting ? (
+                         <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                       ) : (
+                         <Send size={20} className="md:w-[24px] md:h-[24px] relative z-10 group-hover:translate-x-[-8px] group-hover:translate-y-[-8px] transition-transform duration-500" />
+                       )}
+                       <span className="relative z-10 font-black text-lg md:text-xl tracking-tight">
+                          {isSubmitting ? 'מעבד הזמנה...' : 'שליחת הזמנה לוואטסאפ'}
+                       </span>
+                       <div className="absolute inset-0 bg-white/10 translate-x-full group-hover:translate-x-0 transition-transform duration-700 skew-x-12" />
+                     </button>
                    
                    <p className="text-[9px] text-center text-slate-400 font-black px-6 leading-tight uppercase tracking-widest opacity-60">
                      הלחיצה תפתח את אפליקציית הוואטסאפ

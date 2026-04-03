@@ -445,24 +445,32 @@ const Admin = () => {
     if (!selectedOrder) return;
 
     setIsSubmittingNote(true);
-    const subtotal = tempOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discountAmount = subtotal * (tempOrderDiscount / 100);
+    const subtotal = tempOrderItems.reduce((sum, item) => {
+      const price = Number(item.price) || 0;
+      const qty = Number(item.quantity) || 0;
+      return sum + (price * qty);
+    }, 0);
+    
+    const discountPct = Number(tempOrderDiscount) || 0;
+    const discountAmount = subtotal * (discountPct / 100);
     const newTotal = subtotal - discountAmount;
+
+    const requestBody = { 
+        items: tempOrderItems,
+        discount_pct: discountPct,
+        total_price: newTotal
+    };
 
     const { error } = await supabase
       .from('orders')
-      .update({ 
-        items: tempOrderItems,
-        discount_pct: tempOrderDiscount,
-        total_price: newTotal
-      })
+      .update(requestBody)
       .eq('id', selectedOrder.id);
 
     if (!error) {
       const updatedOrder = { 
         ...selectedOrder, 
         items: tempOrderItems, 
-        discount_pct: tempOrderDiscount,
+        discount_pct: discountPct,
         total_price: newTotal 
       };
       setSelectedOrder(updatedOrder);
@@ -470,7 +478,33 @@ const Admin = () => {
       setIsEditingOrder(false);
     } else {
       console.error('Error saving order edits:', error);
-      alert('שגיאה בשמירת השינויים');
+      
+      if (error.code === '42703' || error.message?.includes('discount_pct')) {
+        // Column missing error - try fallback save without discount_pct
+        const { error: fallbackError } = await supabase
+          .from('orders')
+          .update({ 
+            items: tempOrderItems,
+            total_price: newTotal
+          })
+          .eq('id', selectedOrder.id);
+
+        if (!fallbackError) {
+          const updatedOrder = { 
+            ...selectedOrder, 
+            items: tempOrderItems, 
+            total_price: newTotal 
+          };
+          setSelectedOrder(updatedOrder);
+          setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
+          setIsEditingOrder(false);
+          alert('השינויים נשמרו, אך אחוז ההנחה לא נשמר בבסיס הנתונים. נא להוסיף את העמודה "discount_pct" ב-Supabase (SQL: ALTER TABLE orders ADD COLUMN discount_pct NUMERIC DEFAULT 0)');
+        } else {
+          alert('שגיאה בשמירת השינויים: ' + (fallbackError.message || 'שגיאה כללית'));
+        }
+      } else {
+        alert('שגיאה בשמירת השינויים: ' + (error.message || 'שגיאה כללית'));
+      }
     }
     setIsSubmittingNote(false);
   };
@@ -792,7 +826,16 @@ const Admin = () => {
                   <td className="px-8 py-6">
                      <span className="font-bold text-slate-500 text-xs">{order.agent_name || 'ישיר'}</span>
                   </td>
-                  <td className="px-8 py-6 font-black text-slate-900">₪{order.total_price.toFixed(2)}</td>
+                  <td className="px-8 py-6">
+                    <div className="flex flex-col">
+                      <span className="font-black text-slate-900">₪{order.total_price.toFixed(2)}</span>
+                      {order.discount_pct > 0 && (
+                        <span className="text-[12px] font-bold text-green-600">
+                          {order.discount_pct}% הנחה
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-8 py-6">
                       <button 
                         onClick={(e) => {
@@ -1761,7 +1804,7 @@ const Admin = () => {
                       </button>
                     </div>
                     <div className="col-span-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 mb-1">תוכן ההערה</label>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest pr-2 mb-1.5">תוכן ההערה</label>
                       <textarea 
                         placeholder="כתוב כאן הערה, עדכון או הנחיות עבודה..."
                         value={newNoteText}
@@ -1779,7 +1822,7 @@ const Admin = () => {
                     <div className="flex flex-col gap-4">
                       <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <div className="flex-1">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">הנחת הזמנה (%)</label>
+                          <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">הנחת הזמנה (%)</label>
                           <input 
                             type="number" 
                             min="0"
@@ -1796,23 +1839,26 @@ const Admin = () => {
                         </div>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">סה״כ מעודכן לאחר הנחה</p>
                         <p className="text-3xl md:text-4xl font-black text-primary-600">
-                          ₪{(tempOrderItems.reduce((sum, i) => sum + (i.price * i.quantity), 0) * (1 - tempOrderDiscount / 100)).toFixed(2)}
+                          ₪{(tempOrderItems.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.quantity || 0)), 0) * (1 - (Number(tempOrderDiscount) || 0) / 100)).toFixed(2)}
                         </p>
                       </div>
                     </div>
                   ) : (
                     <>
                       {selectedOrder.discount_pct > 0 && (
-                        <div className="mb-2">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">סכום ביניים: ₪{(selectedOrder.total_price / (1 - selectedOrder.discount_pct / 100)).toFixed(2)}</p>
-                          <p className="text-[10px] font-black text-green-500 uppercase tracking-widest">הנחה: {selectedOrder.discount_pct}% (-₪{( (selectedOrder.total_price / (1 - selectedOrder.discount_pct / 100)) * (selectedOrder.discount_pct / 100) ).toFixed(2)})</p>
+                        <div className="mb-3">
+                          <p className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">
+                            סכום ביניים: ₪{(selectedOrder.items || []).reduce((sum, i) => sum + (Number(i.price) * Number(i.quantity)), 0).toFixed(2)}
+                          </p>
+                          <p className="text-xs md:text-sm font-black text-green-500 uppercase tracking-widest">
+                            הנחה: {selectedOrder.discount_pct}% (-₪{( ((selectedOrder.items || []).reduce((sum, i) => sum + (Number(i.price) * Number(i.quantity)), 0)) * (selectedOrder.discount_pct / 100) ).toFixed(2)})
+                          </p>
                         </div>
                       )}
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">סה״כ לתשלום</p>
-                      <p className="text-3xl md:text-4xl font-black text-slate-900">
-                        ₪{selectedOrder.total_price.toFixed(2)}
+                      <p className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1.5">סה״כ לתשלום</p>
+                      <p className="text-3xl md:text-5xl font-black text-slate-900">
+                        ₪{Number(selectedOrder.total_price || 0).toFixed(2)}
                       </p>
                     </>
                   )}

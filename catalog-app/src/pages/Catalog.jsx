@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, 
   ShoppingCart, 
@@ -19,7 +19,8 @@ import {
   Percent,
   Star,
   Flame,
-  UserCheck
+  UserCheck,
+  ArrowUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -27,6 +28,7 @@ import { supabase } from '../supabaseClient';
 import AgentBanner from '../components/catalog/AgentBanner';
 import ProductCard from '../components/catalog/ProductCard';
 import CartDrawer from '../components/catalog/CartDrawer';
+import BrandCarousel from '../components/catalog/BrandCarousel';
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
@@ -41,6 +43,12 @@ const Catalog = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedProductName, setSelectedProductName] = useState('');
   const [selectedBadge, setSelectedBadge] = useState(null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const mainRef = useRef(null);
+
+  const scrollToMain = () => {
+    mainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // 🖼️ Image Handlers
   const openImageModal = (imageUrl, productName) => {
@@ -64,12 +72,20 @@ const Catalog = () => {
     fetchInitialData();
   }, [searchParams]);
 
-  // 💾 PERSIST CUSTOMER NAME
   useEffect(() => {
     if (customerName) {
       localStorage.setItem('groopy_customer_name', customerName);
     }
   }, [customerName]);
+
+  // 🖱️ SCROLL TO TOP MONITOR
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const fetchInitialData = async () => {
     // 1. Fetch Products
@@ -284,7 +300,7 @@ const Catalog = () => {
             <h1 className="text-xl md:text-2xl lg:text-4xl font-[900] text-slate-900 tracking-tight leading-none mb-1">
               מצא את המוצר <span className="text-primary-500 underline decoration-accent-300 decoration-4 md:decoration-8 underline-offset-2">המושלם</span> עבורך
             </h1>
-            <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-wider">גרופי מתנות בע"מ - Uzspace & Superfood</p>
+            <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-wider">גרופי מתנות בע"מ</p>
           </div>
 
           {/* Left Section: Agent & Cart */}
@@ -352,6 +368,8 @@ const Catalog = () => {
             </div>
           </div>
 
+          <BrandCarousel />
+
           {/* QUICK FILTER BADGES */}
           <div className="grid grid-cols-3 gap-3 md:gap-6 mt-8 md:mt-10 mb-8 md:mb-10">
             {[
@@ -361,7 +379,10 @@ const Catalog = () => {
             ].map((badge) => (
               <button 
                 key={badge.id}
-                onClick={() => setSelectedBadge(selectedBadge === badge.id ? null : badge.id)}
+                onClick={() => {
+                  setSelectedBadge(selectedBadge === badge.id ? null : badge.id);
+                  scrollToMain();
+                }}
                 className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${
                   selectedBadge === badge.id 
                     ? `${badge.color.bg} ${badge.color.border} scale-[1.02] shadow-xl shadow-slate-200` 
@@ -375,13 +396,14 @@ const Catalog = () => {
               </button>
             ))}
           </div>
-
-          {/* CATEGORIES CHIPS - Scrollable on mobile */}
           <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 mt-4 pb-4 md:pb-0 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
             {categories.map(cat => (
               <button
                 key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => {
+                  setSelectedCategory(cat);
+                  scrollToMain();
+                }}
                 className={`px-8 py-3 rounded-2xl text-sm font-black transition-all duration-300 ${
                   selectedCategory === cat 
                     ? 'bg-slate-900 text-white shadow-2xl scale-105' 
@@ -396,7 +418,7 @@ const Catalog = () => {
       </section>
 
       {/* 📦 PRODUCT GRID */}
-      <main className="container mx-auto px-6 py-12">
+      <main ref={mainRef} className="container mx-auto px-6 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (
@@ -513,6 +535,21 @@ const Catalog = () => {
           </div>
         </div>
       </footer>
+
+      {/* 🚀 SCROLL TO TOP BUTTON */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.5, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 20 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-8 right-8 z-[60] w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white"
+          >
+            <ArrowUp size={24} strokeWidth={3} />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

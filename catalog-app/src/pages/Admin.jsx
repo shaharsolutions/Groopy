@@ -27,7 +27,10 @@ import {
   Flame,
   CheckCircle2,
   AlertCircle,
-  Zap
+  Zap,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
@@ -42,6 +45,8 @@ const Admin = () => {
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isAddingAgent, setIsAddingAgent] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
   const [copyFeedback, setCopyFeedback] = useState(null);
   const [confirmingProductDelete, setConfirmingProductDelete] = useState(null);
   const [confirmingAgentDelete, setConfirmingAgentDelete] = useState(null);
@@ -50,6 +55,14 @@ const Admin = () => {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '' });
   const [confirmingCategoryDelete, setConfirmingCategoryDelete] = useState(null);
+  
+  // Brands State
+  const [brands, setBrands] = useState([]);
+  const [editingBrand, setEditingBrand] = useState(null);
+  const [isAddingBrand, setIsAddingBrand] = useState(false);
+  const [newBrand, setNewBrand] = useState({ name: '', logo: '' });
+  const [isUpdatingBrand, setIsUpdatingBrand] = useState(false);
+  const [confirmingBrandDelete, setConfirmingBrandDelete] = useState(null);
   
   // Orders State
   const [orders, setOrders] = useState([]);
@@ -106,6 +119,14 @@ const Admin = () => {
     setSelectedProductName('');
   };
 
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const fetchData = async () => {
     // 1. Fetch Products
     const { data: productsData, error: productsError } = await supabase
@@ -148,6 +169,15 @@ const Admin = () => {
     
     if (ordersData) setOrders(ordersData);
     if (ordersError) console.error('Error fetching orders:', ordersError);
+
+    // 5. Fetch Brands
+    const { data: brandsData, error: brandsError } = await supabase
+      .from('brands')
+      .select('*')
+      .order('name');
+    
+    if (brandsData) setBrands(brandsData);
+    if (brandsError) console.warn('Error fetching brands (maybe table does not exist):', brandsError);
   }
 
   useEffect(() => {
@@ -222,14 +252,29 @@ const Admin = () => {
 
   const handleUpdateProduct = async (updated) => {
     setIsUpdatingProduct(true);
+    
+    // Explicit list of database columns to prevent sending unknown fields (like created_at)
+    const allowedFields = [
+      'name', 'sku', 'price', 'category', 'location', 
+      'description', 'image', 'is_new', 'is_clearing', 
+      'is_best_seller', 'is_hot_deal'
+    ];
+
+    const updateData = {};
+    allowedFields.forEach(field => {
+      if (updated[field] !== undefined) {
+        updateData[field] = updated[field];
+      }
+    });
+
     try {
-      const { error } = await supabase.from('products').update(updated).eq('id', updated.id);
+      const { error } = await supabase.from('products').update(updateData).eq('id', updated.id);
       if (!error) {
         setProducts(products.map(p => p.id === updated.id ? updated : p));
         setEditingProduct(null);
       } else {
         console.error('Error updating product:', error);
-        alert('שגיאה בעדכון המוצר');
+        alert('שגיאה בעדכון המוצר. ודא שהרצת את ה-SQL ב-Supabase (הוספת עמודות: is_new, is_best_seller, is_hot_deal).');
       }
     } finally {
       setIsUpdatingProduct(false);
@@ -323,6 +368,55 @@ const Admin = () => {
       }
     } finally {
       setIsUpdatingAgent(false);
+    }
+  }
+
+  // Brand Actions
+  const handleAddBrand = async () => {
+    if (!newBrand.name || !newBrand.logo) {
+      alert('נא להזין שם ולוגו');
+      return;
+    }
+    setIsUpdatingBrand(true);
+    try {
+      const { data, error } = await supabase.from('brands').insert([newBrand]).select();
+      if (!error) {
+        setBrands([...brands, data[0]]);
+        setIsAddingBrand(false);
+        setNewBrand({ name: '', logo: '' });
+      } else {
+        console.error('Error adding brand:', error);
+        alert('שגיאה בהוספת המותג. ודא שטבלת brands קיימת ב-Supabase.');
+      }
+    } finally {
+      setIsUpdatingBrand(false);
+    }
+  }
+
+  const handleDeleteBrand = async (id) => {
+    const { error } = await supabase.from('brands').delete().eq('id', id);
+    if (!error) {
+      setBrands(brands.filter(b => b.id !== id));
+      setConfirmingBrandDelete(null);
+    } else {
+      console.error('Error deleting brand:', error);
+      alert('שגיאה במחיקת המותג');
+    }
+  }
+
+  const handleUpdateBrand = async (updated) => {
+    setIsUpdatingBrand(true);
+    try {
+      const { error } = await supabase.from('brands').update(updated).eq('id', updated.id);
+      if (!error) {
+        setBrands(brands.map(b => b.id === updated.id ? updated : b));
+        setEditingBrand(null);
+      } else {
+        console.error('Error updating brand:', error);
+        alert('שגיאה בעדכון המותג');
+      }
+    } finally {
+      setIsUpdatingBrand(false);
     }
   }
 
@@ -597,11 +691,46 @@ const Admin = () => {
   const deferredSearchTerm = useDeferredValue(searchTerm);
   
   const filteredProducts = useMemo(() => {
-    return products.filter(p => 
-      p.name.toLowerCase().includes(deferredSearchTerm.toLowerCase()) || 
-      p.sku.toLowerCase().includes(deferredSearchTerm.toLowerCase())
-    );
-  }, [products, deferredSearchTerm]);
+    return products.filter(p => {
+      const matchesSearch = 
+        p.name.toLowerCase().includes(deferredSearchTerm.toLowerCase()) || 
+        p.sku.toLowerCase().includes(deferredSearchTerm.toLowerCase());
+      
+      const normalizedProductCat = 
+        (p.category === 'Bottles' || p.category === 'בקבוקים') ? 'בקבוקים' :
+        (p.category === 'Lunch Boxes' || p.category === 'קופסאות אוכל') ? 'קופסאות אוכל' :
+        p.category;
+
+      const matchesCategory = 
+        selectedCategory === 'All' || 
+        normalizedProductCat === selectedCategory;
+        
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, deferredSearchTerm, selectedCategory]);
+
+  const sortedProducts = useMemo(() => {
+    const sortableItems = [...filteredProducts];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        if (sortConfig.key === 'price') {
+          aValue = parseFloat(aValue) || 0;
+          bValue = parseFloat(bValue) || 0;
+        } else {
+          aValue = String(aValue || '').toLowerCase();
+          bValue = String(bValue || '').toLowerCase();
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredProducts, sortConfig]);
 
   const ordersStats = useMemo(() => ({
     new: orders.filter(o => o.status === 'New').length,
@@ -619,16 +748,34 @@ const Admin = () => {
 
   const productsTabContent = useMemo(() => (
     <div className="space-y-6">
-       <div className="relative mb-8 max-w-md">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="חיפוש מהיר..."
-            className="w-full bg-white border border-slate-200 rounded-2xl pr-12 pl-6 py-3 font-bold text-sm outline-none focus:border-primary-400 transition-all shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-       </div>
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="חיפוש מהיר..."
+              className="w-full bg-white border border-slate-200 rounded-2xl pr-12 pl-6 py-3 font-bold text-sm outline-none focus:border-primary-400 transition-all shadow-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+            {['All', ...new Set(categories.map(c => c.name))].map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${
+                  selectedCategory === cat 
+                    ? 'bg-slate-900 text-white shadow-lg' 
+                    : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                {cat === 'All' ? 'הכל' : cat}
+              </button>
+            ))}
+          </div>
+        </div>
 
        <div className="flex md:hidden items-center justify-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-widest pb-4">
           <span>החלק ימינה לצפייה בפרטים</span>
@@ -640,15 +787,47 @@ const Admin = () => {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
                 <th className="px-8 py-5">תמונה/סוג</th>
-                <th className="px-8 py-5">שם המוצר</th>
-                <th className="px-8 py-5">מק״ט</th>
-                <th className="px-8 py-5">מחיר (₪)</th>
-                <th className="px-8 py-5">מיקום</th>
+                <th 
+                  className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
+                  onClick={() => requestSort('name')}
+                >
+                  <div className="flex items-center gap-2 justify-end">
+                    {sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
+                    <span>שם המוצר</span>
+                  </div>
+                </th>
+                <th 
+                  className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
+                  onClick={() => requestSort('sku')}
+                >
+                  <div className="flex items-center gap-2 justify-end">
+                    {sortConfig.key === 'sku' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
+                    <span>מק״ט</span>
+                  </div>
+                </th>
+                <th 
+                  className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
+                  onClick={() => requestSort('price')}
+                >
+                  <div className="flex items-center gap-2 justify-end">
+                    {sortConfig.key === 'price' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
+                    <span>מחיר (₪)</span>
+                  </div>
+                </th>
+                <th 
+                  className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
+                  onClick={() => requestSort('location')}
+                >
+                  <div className="flex items-center gap-2 justify-end">
+                    {sortConfig.key === 'location' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
+                    <span>מיקום</span>
+                  </div>
+                </th>
                 <th className="px-8 py-5">פעולות</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProducts.map(p => (
+              {sortedProducts.map(p => (
                 <tr key={p.id} className="group hover:bg-slate-50/50 transition-colors">
                   <td className="px-8 py-6">
                     <div 
@@ -707,7 +886,7 @@ const Admin = () => {
           </table>
        </div>
     </div>
-  ), [filteredProducts, searchTerm, confirmingProductDelete]);
+  ), [sortedProducts, searchTerm, confirmingProductDelete, categories, selectedCategory, sortConfig]);
 
   const agentsTabContent = useMemo(() => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -833,6 +1012,58 @@ const Admin = () => {
       ))}
     </div>
   ), [categories, confirmingCategoryDelete]);
+
+  const brandsTabContent = useMemo(() => (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+      {brands.map(brand => (
+        <motion.div 
+          layout
+          key={brand.id}
+          className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden flex flex-col items-center text-center"
+        >
+          <div className="w-24 h-24 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center shadow-inner overflow-hidden mb-6">
+            {brand.logo ? (
+              <img src={brand.logo} alt={brand.name} className="w-full h-full object-contain p-2" />
+            ) : (
+              <Image size={32} />
+            )}
+          </div>
+          <h3 className="text-lg font-black text-slate-800 tracking-tight mb-6">{brand.name}</h3>
+
+          <div className="w-full pt-6 mt-auto border-t border-slate-50 flex gap-3">
+            {confirmingBrandDelete === brand.id ? (
+               <div className="w-full flex items-center justify-center gap-2 bg-red-50 p-2 rounded-2xl">
+                 <button onClick={() => handleDeleteBrand(brand.id)} className="bg-red-500 text-white p-2 rounded-xl"><Check size={14} /></button>
+                 <button onClick={() => setConfirmingBrandDelete(null)} className="bg-slate-200 text-slate-500 p-2 rounded-xl"><X size={14} /></button>
+               </div>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setEditingBrand(brand)}
+                  className="flex-1 p-3 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all font-black"
+                >
+                  <Edit size={16} className="mx-auto" />
+                </button>
+                <button 
+                  onClick={() => setConfirmingBrandDelete(brand.id)}
+                  className="flex-1 p-3 text-slate-400 hover:text-red-500 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all font-black"
+                >
+                  <Trash2 size={16} className="mx-auto" />
+                </button>
+              </>
+            )}
+          </div>
+        </motion.div>
+      ))}
+
+      {brands.length === 0 && (
+        <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 rounded-[40px] opacity-30">
+          <Image size={64} className="mx-auto mb-4" />
+          <p className="font-black text-xl">אין מותגים רשומים... עדיין</p>
+        </div>
+      )}
+    </div>
+  ), [brands, confirmingBrandDelete]);
 
   const ordersTabContent = useMemo(() => (
     <div className="space-y-6">
@@ -1144,6 +1375,21 @@ const Admin = () => {
             </div>
             <ChevronRight size={16} className={activeTab === 'categories' ? '' : 'text-slate-300'} />
           </button>
+
+          <button 
+            onClick={() => { setActiveTab('brands'); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
+              activeTab === 'brands' 
+              ? 'bg-primary-500 text-white shadow-lg shadow-primary-200' 
+              : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <Star size={20} />
+              <span className="font-black text-sm">ניהול מותגים</span>
+            </div>
+            <ChevronRight size={16} className={activeTab === 'brands' ? '' : 'text-slate-300'} />
+          </button>
         </nav>
 
         <div className="mt-auto pt-8 border-t border-slate-100">
@@ -1177,12 +1423,14 @@ const Admin = () => {
                <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter mb-2">
                  {activeTab === 'products' ? 'ניהול מוצרים' : 
                   activeTab === 'agents' ? 'רשת הסוכנים' : 
-                  activeTab === 'orders' ? 'ניהול הזמנות' : 'ניהול קטגוריות'}
+                  activeTab === 'orders' ? 'ניהול הזמנות' : 
+                  activeTab === 'brands' ? 'ניהול מותגים' : 'ניהול קטגוריות'}
                </h2>
                <p className="text-slate-400 font-bold text-sm whitespace-nowrap">
                  {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : 
                   activeTab === 'agents' ? `רשימת סוכנים וקישורי הפצה` : 
-                  activeTab === 'orders' ? `מעקב אחר הזמנות שבוצעו בוואטסאפ` : 'עריכת קטגוריות המוצרים בקטלוג'}
+                  activeTab === 'orders' ? `מעקב אחר הזמנות שבוצעו בוואטסאפ` : 
+                  activeTab === 'brands' ? `ניהול לוגואים של מותגים לקרוסלה` : 'עריכת קטגוריות המוצרים בקטלוג'}
                </p>
             </div>
           </div>
@@ -1193,6 +1441,7 @@ const Admin = () => {
                 onClick={() => {
                   if (activeTab === 'products') setIsAddingProduct(true);
                   else if (activeTab === 'agents') setIsAddingAgent(true);
+                  else if (activeTab === 'brands') setIsAddingBrand(true);
                   else setIsAddingCategory(true);
                 }}
                 className="flex-1 md:flex-none btn-primary w-full md:w-fit flex items-center justify-center gap-2"
@@ -1200,7 +1449,8 @@ const Admin = () => {
                 <Plus size={20} />
                 <span className="whitespace-nowrap">
                   {activeTab === 'products' ? 'מוצר חדש' : 
-                  activeTab === 'agents' ? 'סוכן חדש' : 'קטגוריה חדשה'}
+                  activeTab === 'agents' ? 'סוכן חדש' : 
+                  activeTab === 'brands' ? 'מותג חדש' : 'קטגוריה חדשה'}
                 </span>
               </button>
             )}
@@ -1220,6 +1470,7 @@ const Admin = () => {
         {activeTab === 'agents' && agentsTabContent}
         {activeTab === 'categories' && categoriesTabContent}
         {activeTab === 'orders' && ordersTabContent}
+        {activeTab === 'brands' && brandsTabContent}
       </main>
 
       {/* 🗳️ ADD PRODUCT MODAL */}
@@ -1304,7 +1555,7 @@ const Admin = () => {
                 <div className="space-y-2 col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">תיאור קצר</label>
                   <textarea 
-                    value={newProduct.description}
+                    value={newProduct.description || ''}
                     onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
@@ -1315,7 +1566,7 @@ const Admin = () => {
                     <input 
                       type="checkbox" 
                       id="new_product_is_clearing"
-                      checked={newProduct.is_clearing}
+                      checked={!!newProduct.is_clearing}
                       onChange={(e) => setNewProduct({...newProduct, is_clearing: e.target.checked})}
                       className="w-6 h-6 rounded-lg border-slate-300 text-purple-500 focus:ring-purple-500"
                     />
@@ -1327,7 +1578,7 @@ const Admin = () => {
                     <input 
                       type="checkbox" 
                       id="new_product_is_best_seller"
-                      checked={newProduct.is_best_seller}
+                      checked={!!newProduct.is_best_seller}
                       onChange={(e) => setNewProduct({...newProduct, is_best_seller: e.target.checked})}
                       className="w-6 h-6 rounded-lg border-slate-300 text-blue-500 focus:ring-blue-500"
                     />
@@ -1339,7 +1590,7 @@ const Admin = () => {
                     <input 
                       type="checkbox" 
                       id="new_product_is_hot_deal"
-                      checked={newProduct.is_hot_deal}
+                      checked={!!newProduct.is_hot_deal}
                       onChange={(e) => setNewProduct({...newProduct, is_hot_deal: e.target.checked})}
                       className="w-6 h-6 rounded-lg border-slate-300 text-orange-500 focus:ring-orange-500"
                     />
@@ -1403,7 +1654,7 @@ const Admin = () => {
                     <input 
                       type="text" 
                       placeholder="05XXXXXXXX"
-                      value={newAgent.phone}
+                      value={newAgent.phone || ''}
                       onChange={(e) => setNewAgent({...newAgent, phone: e.target.value})}
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                     />
@@ -1416,7 +1667,7 @@ const Admin = () => {
                     <input 
                       type="text" 
                       placeholder="URL לתמונה של הסוכן"
-                      value={newAgent.image}
+                      value={newAgent.image || ''}
                       onChange={(e) => setNewAgent({...newAgent, image: e.target.value})}
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                     />
@@ -1464,7 +1715,7 @@ const Admin = () => {
                   </label>
                   <input 
                     type="text" 
-                    value={editingAgent.name}
+                    value={editingAgent.name || ''}
                     onChange={(e) => setEditingAgent({...editingAgent, name: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
@@ -1475,7 +1726,7 @@ const Admin = () => {
                   </label>
                   <input 
                     type="text" 
-                    value={editingAgent.phone}
+                    value={editingAgent.phone || ''}
                     onChange={(e) => setEditingAgent({...editingAgent, phone: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
@@ -1486,7 +1737,7 @@ const Admin = () => {
                   </label>
                   <input 
                     type="text" 
-                    value={editingAgent.image}
+                    value={editingAgent.image || ''}
                     onChange={(e) => setEditingAgent({...editingAgent, image: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
@@ -1533,7 +1784,7 @@ const Admin = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המוצר</label>
                   <input 
                     type="text" 
-                    value={editingProduct.name}
+                    value={editingProduct.name || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
@@ -1542,15 +1793,15 @@ const Admin = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מחיר (₪)</label>
                   <input 
                     type="number" 
-                    value={editingProduct.price}
-                    onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value)})}
+                    value={editingProduct.price ?? ''}
+                    onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קטגוריה</label>
                   <select 
-                    value={editingProduct.category}
+                    value={editingProduct.category || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500"
                   >
@@ -1564,7 +1815,7 @@ const Admin = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מק״ט</label>
                   <input 
                     type="text" 
-                    value={editingProduct.sku}
+                    value={editingProduct.sku || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, sku: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
@@ -1573,7 +1824,7 @@ const Admin = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור לתמונה</label>
                   <input 
                     type="text" 
-                    value={editingProduct.image}
+                    value={editingProduct.image || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
@@ -1582,7 +1833,7 @@ const Admin = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מיקום במחסן</label>
                    <input 
                     type="text" 
-                    value={editingProduct.location}
+                    value={editingProduct.location || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, location: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
@@ -1590,7 +1841,7 @@ const Admin = () => {
                 <div className="space-y-2 col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">תיאור קצר</label>
                   <textarea 
-                    value={editingProduct.description}
+                    value={editingProduct.description || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
@@ -1601,7 +1852,7 @@ const Admin = () => {
                     <input 
                       type="checkbox" 
                       id="edit_product_is_clearing"
-                      checked={editingProduct.is_clearing}
+                      checked={!!editingProduct.is_clearing}
                       onChange={(e) => setEditingProduct({...editingProduct, is_clearing: e.target.checked})}
                       className="w-6 h-6 rounded-lg border-slate-300 text-purple-500 focus:ring-purple-500"
                     />
@@ -1613,7 +1864,7 @@ const Admin = () => {
                     <input 
                       type="checkbox" 
                       id="edit_product_is_best_seller"
-                      checked={editingProduct.is_best_seller}
+                      checked={!!editingProduct.is_best_seller}
                       onChange={(e) => setEditingProduct({...editingProduct, is_best_seller: e.target.checked})}
                       className="w-6 h-6 rounded-lg border-slate-300 text-blue-500 focus:ring-blue-500"
                     />
@@ -1625,7 +1876,7 @@ const Admin = () => {
                     <input 
                       type="checkbox" 
                       id="edit_product_is_hot_deal"
-                      checked={editingProduct.is_hot_deal}
+                      checked={!!editingProduct.is_hot_deal}
                       onChange={(e) => setEditingProduct({...editingProduct, is_hot_deal: e.target.checked})}
                       className="w-6 h-6 rounded-lg border-slate-300 text-orange-500 focus:ring-orange-500"
                     />
@@ -1743,6 +1994,113 @@ const Admin = () => {
         </div>
       )}
     </AnimatePresence>
+
+      {/* 🏷️ ADD BRAND MODAL */}
+      <AnimatePresence>
+        {isAddingBrand && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setIsAddingBrand(false)}
+                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
+                >
+                  <X size={32} />
+                </button>
+              
+              <h2 className="text-3xl font-black mb-8 tracking-tighter">הוספת מותג חדש</h2>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המותג</label>
+                  <input 
+                    type="text" 
+                    value={newBrand.name}
+                    onChange={(e) => setNewBrand({...newBrand, name: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור ללוגו (URL)</label>
+                  <input 
+                    type="text" 
+                    placeholder="https://example.com/logo.png"
+                    value={newBrand.logo}
+                    onChange={(e) => setNewBrand({...newBrand, logo: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+              </div>
+
+              <div className="mt-12">
+                 <button 
+                  onClick={handleAddBrand}
+                  disabled={isUpdatingBrand}
+                  className="btn-primary w-full py-5 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUpdatingBrand ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'שמור מותג'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🏷️ EDIT BRAND MODAL */}
+      <AnimatePresence>
+        {editingBrand && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setEditingBrand(null)}
+                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
+                >
+                  <X size={32} />
+                </button>
+              
+              <h2 className="text-3xl font-black mb-8 tracking-tighter">עריכת מותג</h2>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המותג</label>
+                  <input 
+                    type="text" 
+                    value={editingBrand.name}
+                    onChange={(e) => setEditingBrand({...editingBrand, name: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור ללוגו (URL)</label>
+                  <input 
+                    type="text" 
+                    value={editingBrand.logo}
+                    onChange={(e) => setEditingBrand({...editingBrand, logo: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+              </div>
+
+              <div className="mt-12">
+                 <button 
+                  onClick={() => handleUpdateBrand(editingBrand)}
+                  disabled={isUpdatingBrand}
+                  className="btn-primary w-full py-5 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUpdatingBrand ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'עדכן מותג'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* 🖼️ IMAGE MODAL */}
       <AnimatePresence>

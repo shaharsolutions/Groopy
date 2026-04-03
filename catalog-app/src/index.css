@@ -104,3 +104,21 @@ body {
 [dir="rtl"] {
   text-align: right;
 }
+
+@keyframes scroll-right {
+  0% { transform: translateX(25%); }
+  100% { transform: translateX(50%); }
+}
+
+@utility animate-scroll-right {
+  animation: scroll-right 13s linear infinite;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

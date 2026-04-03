@@ -438,11 +438,11 @@ const Catalog = () => {
               <img src={`${import.meta.env.BASE_URL}logo.png?v=2`} alt="" className="h-10 object-contain" />
             </div>
             <div className="flex gap-12 mt-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-              <span>Import</span>
+              <span>Supply</span>
               <span>•</span>
               <span>Distribution</span>
               <span>•</span>
-              <span>Supply</span>
+              <span>Import</span>
             </div>
           </div>
         </div>

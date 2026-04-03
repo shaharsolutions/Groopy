@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
+import React, { useState, useEffect, useMemo, useDeferredValue, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { 
   Users, 
@@ -52,6 +53,12 @@ const Admin = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  
+  // 📝 Edit Order States
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+  const [tempOrderItems, setTempOrderItems] = useState([]);
+  const [editingOrderSearch, setEditingOrderSearch] = useState('');
+  const [tempOrderDiscount, setTempOrderDiscount] = useState(0);
 
   // New states for form inputs
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
@@ -69,7 +76,7 @@ const Admin = () => {
   // 🚫 Cancellation States
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
-  const [activeStatusOrderId, setActiveStatusOrderId] = useState(null);
+  const [activeStatusMenu, setActiveStatusMenu] = useState({ id: null, rect: null });
 
   // 🖼️ Image Handlers
   const openImageModal = (imageUrl, productName) => {
@@ -129,6 +136,20 @@ const Admin = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Sync tempOrderItems when selectedOrder is set
+  useEffect(() => {
+    if (selectedOrder) {
+      setTempOrderItems(selectedOrder.items || []);
+      setTempOrderDiscount(selectedOrder.discount_pct || 0);
+      setIsEditingOrder(false); // Reset edit mode when changing orders
+      setEditingOrderSearch('');
+    } else {
+      setTempOrderItems([]);
+      setTempOrderDiscount(0);
+      setIsEditingOrder(false);
+    }
+  }, [selectedOrder]);
 
   // Product Actions
   const handleAddProduct = async () => {
@@ -387,6 +408,73 @@ const Admin = () => {
     }
   };
 
+  // 📝 Edit Order Handlers
+  const handleUpdateItemQuantity = (sku, delta) => {
+    setTempOrderItems(prev => prev.map(item => {
+      if (item.sku === sku) {
+        const newQty = Math.max(1, item.quantity + delta);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const handleRemoveItemFromOrder = (sku) => {
+    setTempOrderItems(prev => prev.filter(item => item.sku !== sku));
+  };
+
+  const handleAddItemToOrder = (product) => {
+    setTempOrderItems(prev => {
+      const existing = prev.find(item => item.sku === product.sku);
+      if (existing) {
+        return prev.map(item => 
+          item.sku === product.sku ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+      return [...prev, {
+        sku: product.sku,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        quantity: 1
+      }];
+    });
+  };
+
+  const handleSaveOrderEdits = async () => {
+    if (!selectedOrder) return;
+
+    setIsSubmittingNote(true);
+    const subtotal = tempOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const discountAmount = subtotal * (tempOrderDiscount / 100);
+    const newTotal = subtotal - discountAmount;
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ 
+        items: tempOrderItems,
+        discount_pct: tempOrderDiscount,
+        total_price: newTotal
+      })
+      .eq('id', selectedOrder.id);
+
+    if (!error) {
+      const updatedOrder = { 
+        ...selectedOrder, 
+        items: tempOrderItems, 
+        discount_pct: tempOrderDiscount,
+        total_price: newTotal 
+      };
+      setSelectedOrder(updatedOrder);
+      setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
+      setIsEditingOrder(false);
+    } else {
+      console.error('Error saving order edits:', error);
+      alert('שגיאה בשמירת השינויים');
+    }
+    setIsSubmittingNote(false);
+  };
+
   const copyAgentLink = (id) => {
     const origin = window.location.origin;
     const base = import.meta.env.BASE_URL;
@@ -412,6 +500,15 @@ const Admin = () => {
     total: orders.length
   }), [orders]);
 
+  const filteredProductsForEditing = useMemo(() => {
+    if (!editingOrderSearch.trim()) return [];
+    return products.filter(p => 
+      p.name.toLowerCase().includes(editingOrderSearch.toLowerCase()) || 
+      p.sku.toLowerCase().includes(editingOrderSearch.toLowerCase()) ||
+      p.category.toLowerCase().includes(editingOrderSearch.toLowerCase())
+    ).slice(0, 5); // Limit to 5 results for clarity in modal
+  }, [products, editingOrderSearch]);
+
   const productsTabContent = useMemo(() => (
     <div className="space-y-6">
        <div className="relative mb-8 max-w-md">
@@ -430,7 +527,7 @@ const Admin = () => {
           <ChevronRight size={12} className="animate-pulse" />
        </div>
        
-       <div className={`bg-white rounded-[32px] border border-slate-200 shadow-sm scrollbar-hide ${activeStatusOrderId ? 'overflow-visible z-20 relative' : 'overflow-x-auto'}`}>
+       <div className="bg-white rounded-[32px] border border-slate-200 overflow-x-auto shadow-sm scrollbar-hide">
           <table className="w-full text-right border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
@@ -650,7 +747,7 @@ const Admin = () => {
           </div>
        </div>
 
-       <div className={`bg-white rounded-[32px] border border-slate-200 shadow-sm scrollbar-hide ${activeStatusOrderId ? 'overflow-visible z-20 relative' : 'overflow-x-auto'}`}>
+       <div className="bg-white rounded-[32px] border border-slate-200 overflow-x-auto shadow-sm scrollbar-hide">
           <table className="w-full text-right border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
@@ -672,7 +769,7 @@ const Admin = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {orders.map((order, index) => (
-                <tr key={order.id} className={`group transition-colors ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'} ${activeStatusOrderId === order.id ? 'relative z-[70]' : ''}`}>
+                <tr key={order.id} className={`group transition-all duration-300 ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'}`}>
                   <td className="px-8 py-6 text-center">
                     <input 
                       type="checkbox" 
@@ -697,9 +794,13 @@ const Admin = () => {
                   </td>
                   <td className="px-8 py-6 font-black text-slate-900">₪{order.total_price.toFixed(2)}</td>
                   <td className="px-8 py-6">
-                    <div className="relative">
                       <button 
-                        onClick={() => setActiveStatusOrderId(activeStatusOrderId === order.id ? null : order.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          const rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+                          setActiveStatusMenu(prev => prev.id == order.id ? { id: null, rect: null } : { id: String(order.id), rect });
+                        }}
                         className="flex items-center gap-2 group transition-all active:scale-95"
                       >
                          {order.status === 'New' ? (
@@ -719,48 +820,8 @@ const Admin = () => {
                              <AlertCircle size={10} /> {order.status}
                            </span>
                          )}
-                         <ChevronRight size={10} className={`text-slate-300 transition-transform duration-300 ${activeStatusOrderId === order.id ? '-rotate-90' : 'rotate-90'}`} />
+                         <ChevronRight size={10} className={`text-slate-300 transition-transform duration-300 ${activeStatusMenu.id == order.id ? '-rotate-90' : 'rotate-90'}`} />
                       </button>
-
-                      {/* 🚀 TABLE STATUS DROPDOWN MENU - Dynamic Direction Based on Index */}
-                      <AnimatePresence>
-                        {activeStatusOrderId === order.id && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: index < 2 ? 10 : -10, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: index < 2 ? 10 : -10, scale: 0.95 }}
-                            className={`absolute ${index < 2 ? 'top-full' : 'bottom-full'} left-0 ${index < 2 ? 'mt-2' : 'mb-2'} w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[100] overflow-hidden`}
-                          >
-                             {[
-                               { id: 'New', label: 'חדש', color: 'text-blue-600', bg: 'hover:bg-blue-50', icon: Clock },
-                               { id: 'Completed', label: 'הושלם', color: 'text-green-600', bg: 'hover:bg-green-50', icon: CheckCircle2 },
-                               { id: 'Canceled', label: 'בוטל', color: 'text-red-600', bg: 'hover:bg-red-50', icon: AlertCircle }
-                             ].map((status) => (
-                               <button
-                                 key={status.id}
-                                 onClick={() => {
-                                   handleUpdateOrderStatus(order.id, status.id);
-                                   setActiveStatusOrderId(null);
-                                 }}
-                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${status.bg} ${order.status === status.id ? 'bg-slate-50' : ''}`}
-                               >
-                                  <status.icon size={16} className={status.color} />
-                                  <span className={`text-xs font-black ${status.color}`}>{status.label}</span>
-                                  {order.status === status.id && <Check size={14} className="mr-auto text-slate-300" />}
-                               </button>
-                             ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Backdrop to close dropdown in table row */}
-                      {activeStatusOrderId === order.id && (
-                        <div 
-                          className="fixed inset-0 z-50 bg-transparent" 
-                          onClick={() => setActiveStatusOrderId(null)} 
-                        />
-                      )}
-                    </div>
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex gap-2">
@@ -793,10 +854,68 @@ const Admin = () => {
           </table>
        </div>
     </div>
-  ), [orders, selectedOrderIds, isBulkDeleting, confirmingOrderDelete, activeStatusOrderId]);
+  ), [orders, selectedOrderIds, isBulkDeleting, confirmingOrderDelete, activeStatusMenu]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row" dir="rtl">
+      {/* 🚀 GLOBAL STATUS MENU PORTAL - Moved to Top for early rendering */}
+      {activeStatusMenu.id && activeStatusMenu.rect && createPortal(
+        <div key="status-menu-portal-root">
+          <div 
+            className="fixed inset-0 z-[999998] bg-slate-900/5 backdrop-blur-[2px]" 
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveStatusMenu({ id: null, rect: null });
+            }} 
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            style={{
+              position: 'fixed',
+              top: activeStatusMenu.rect.bottom + 8,
+              left: Math.max(16, Math.min(window.innerWidth - 208, activeStatusMenu.rect.left - 80)),
+              zIndex: 999999,
+              transformOrigin: 'top center'
+            }}
+            className="w-48 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-slate-100 p-2 overflow-hidden"
+          >
+              {[
+                { id: 'New', label: 'חדש', color: 'text-blue-600', bg: 'hover:bg-blue-50', icon: Clock },
+                { id: 'Completed', label: 'הושלם', color: 'text-green-600', bg: 'hover:bg-green-50', icon: CheckCircle2 },
+                { id: 'Canceled', label: 'בוטל', color: 'text-red-600', bg: 'hover:bg-red-50', icon: AlertCircle }
+              ].map((status) => {
+                const currentStatus = activeStatusMenu.id === 'selected' 
+                  ? selectedOrder?.status 
+                  : orders.find(o => String(o.id) == String(activeStatusMenu.id))?.status;
+                  
+                return (
+                  <button
+                    key={status.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const targetId = activeStatusMenu.id === 'selected' ? selectedOrder?.id : activeStatusMenu.id;
+                      if (targetId) {
+                        handleUpdateOrderStatus(targetId, status.id);
+                        if (activeStatusMenu.id === 'selected' && status.id !== 'Canceled') {
+                          setSelectedOrder(prev => prev ? ({ ...prev, status: status.id }) : null);
+                        }
+                      }
+                      setActiveStatusMenu({ id: null, rect: null });
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${status.bg} 
+                    ${currentStatus === status.id ? 'bg-slate-50' : ''}`}
+                  >
+                    <status.icon size={16} className={status.color} />
+                    <span className={`text-xs font-black ${status.color}`}>{status.label}</span>
+                    {currentStatus === status.id && <Check size={14} className="mr-auto text-slate-300" />}
+                  </button>
+                );
+              })}
+          </motion.div>
+        </div>,
+        document.body
+      )}
       {/* 🏙️ SIDEBAR OVERLAY (MOBILE) */}
       <AnimatePresence>
         {isSidebarOpen && (
@@ -1390,29 +1509,19 @@ const Admin = () => {
               initial={{ scale: 0.9, opacity: 0, y: 50 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 50 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative max-w-5xl w-full max-h-full bg-white rounded-[48px] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/20 flex items-center justify-center"
+              className="relative max-w-5xl w-full max-h-full bg-white rounded-[48px] overflow-hidden shadow-2xl border border-white/20 flex items-center justify-center px-4"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Close Button UI */}
               <button 
                 onClick={closeImageModal}
-                className="absolute top-8 left-8 z-10 w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl flex items-center justify-center text-slate-900 hover:bg-white hover:scale-110 active:scale-95 transition-all duration-500 shadow-2xl border border-white"
+                className="absolute top-8 left-8 z-10 w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl flex items-center justify-center text-slate-900 hover:bg-white hover:scale-110 active:scale-95 transition-all shadow-2xl border border-white"
               >
                 <X size={28} />
               </button>
-              
-              {/* Info Badge */}
               <div className="absolute top-8 right-8 z-10 px-8 py-4 bg-white/90 backdrop-blur-md rounded-2xl border border-white shadow-2xl">
                 <p className="text-slate-900 font-[900] text-lg tracking-tight">{selectedProductName}</p>
               </div>
-
-              {/* Full Image */}
-              <img 
-                src={selectedImage} 
-                alt={selectedProductName} 
-                className="w-full h-full object-contain max-h-[85vh] p-4 md:p-12 cursor-default"
-              />
+              <img src={selectedImage} alt={selectedProductName} className="w-full h-full object-contain max-h-[85vh] p-4 md:p-12" />
             </motion.div>
           </motion.div>
         )}
@@ -1425,7 +1534,8 @@ const Admin = () => {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className={`bg-white rounded-[40px] w-full max-w-3xl p-6 md:p-14 shadow-2xl relative my-auto ${activeStatusOrderId === 'selected' ? 'overflow-visible' : 'overflow-hidden'}`}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[40px] w-full max-w-3xl p-6 md:p-14 shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => setSelectedOrder(null)}
@@ -1436,14 +1546,30 @@ const Admin = () => {
               
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div className="pt-10 md:pt-0">
-                  <h2 className="text-2xl md:text-3xl font-black tracking-tighter mb-1">פרטי הזמנה</h2>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h2 className="text-2xl md:text-3xl font-black tracking-tighter">פרטי הזמנה</h2>
+                    {!isEditingOrder && selectedOrder.status !== 'Canceled' && (
+                      <button 
+                        onClick={() => setIsEditingOrder(true)}
+                        className="p-2 text-primary-500 hover:bg-primary-50 rounded-xl transition-all"
+                        title="ערוך מוצרים בהזמנה"
+                      >
+                        <Edit size={20} />
+                      </button>
+                    )}
+                  </div>
                   <p className="text-slate-400 font-bold text-xs md:text-sm">
                     {selectedOrder.customer_name} • {new Date(selectedOrder.created_at).toLocaleString('he-IL', { dateStyle: 'medium', timeStyle: 'short' })}
                   </p>
                 </div>
                 <div className="flex items-center md:items-end relative">
                   <button 
-                    onClick={() => setActiveStatusOrderId(activeStatusOrderId === 'selected' ? null : 'selected')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      const rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+                      setActiveStatusMenu(prev => prev.id === 'selected' ? { id: null, rect: null } : { id: 'selected', rect });
+                    }}
                     className="group flex items-center gap-2 transition-all active:scale-95"
                   >
                     {selectedOrder.status === 'New' ? (
@@ -1463,71 +1589,94 @@ const Admin = () => {
                         <AlertCircle size={12} /> {selectedOrder.status}
                       </span>
                     )}
-                    <ChevronRight size={14} className={`text-slate-300 transition-transform duration-300 ${activeStatusOrderId === 'selected' ? '-rotate-90' : 'rotate-90'}`} />
+                    <ChevronRight size={14} className={`text-slate-300 transition-transform duration-300 ${activeStatusMenu.id === 'selected' ? '-rotate-90' : 'rotate-90'}`} />
                   </button>
-
-                  {/* 🚀 STATUS DROPDOWN MENU */}
-                  <AnimatePresence>
-                    {activeStatusOrderId === 'selected' && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute top-full left-0 md:right-0 md:left-auto mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[60] overflow-hidden"
-                      >
-                         {[
-                           { id: 'New', label: 'חדש', color: 'text-blue-600', bg: 'hover:bg-blue-50', icon: Clock },
-                           { id: 'Completed', label: 'הושלם', color: 'text-green-600', bg: 'hover:bg-green-50', icon: CheckCircle2 },
-                           { id: 'Canceled', label: 'בוטל', color: 'text-red-600', bg: 'hover:bg-red-50', icon: AlertCircle }
-                         ].map((status) => (
-                           <button
-                             key={status.id}
-                             onClick={() => {
-                               handleUpdateOrderStatus(selectedOrder.id, status.id);
-                               setActiveStatusOrderId(null);
-                               if (status.id !== 'Canceled') {
-                                 setSelectedOrder({ ...selectedOrder, status: status.id });
-                               }
-                             }}
-                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${status.bg} ${selectedOrder.status === status.id ? 'bg-slate-50' : ''}`}
-                           >
-                              <status.icon size={16} className={status.color} />
-                              <span className={`text-xs font-black ${status.color}`}>{status.label}</span>
-                              {selectedOrder.status === status.id && <Check size={14} className="mr-auto text-slate-300" />}
-                           </button>
-                         ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Backdrop to close dropdown */}
-                  {activeStatusOrderId === 'selected' && (
-                    <div 
-                      className="fixed inset-0 z-50 bg-transparent" 
-                      onClick={() => setActiveStatusOrderId(null)} 
-                    />
-                  )}
                 </div>
               </div>
 
               <div className="space-y-6 max-h-[45vh] overflow-y-auto pr-2 scrollbar-hide py-2">
-                {selectedOrder.items.map((item, idx) => (
+                {(isEditingOrder ? tempOrderItems : selectedOrder.items).map((item, idx) => (
                   <div key={idx} className="flex items-center gap-4 md:gap-6 p-4 md:p-5 bg-slate-50/50 rounded-2xl md:rounded-3xl border border-slate-100 hover:bg-slate-50 transition-colors shadow-sm">
                     <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 flex-shrink-0">
                       {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <Package size={24} className="text-slate-300" />}
                     </div>
                     <div className="flex-1">
                       <h4 className="font-black text-slate-800 text-sm line-clamp-1">{item.name}</h4>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">מק״ט: {item.sku} | {item.quantity} יחידות</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">מק״ט: {item.sku}</p>
+                      
+                      {isEditingOrder ? (
+                        <div className="flex items-center gap-3 mt-2">
+                           <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden">
+                              <button 
+                                onClick={() => handleUpdateItemQuantity(item.sku, -1)}
+                                className="p-1 px-2 hover:bg-slate-50 text-slate-400"
+                              >-</button>
+                              <span className="px-2 font-black text-xs text-slate-700 min-w-[24px] text-center">{item.quantity}</span>
+                              <button 
+                                onClick={() => handleUpdateItemQuantity(item.sku, 1)}
+                                className="p-1 px-2 hover:bg-slate-50 text-slate-400"
+                              >+</button>
+                           </div>
+                           <button 
+                             onClick={() => handleRemoveItemFromOrder(item.sku)}
+                             className="p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                           >
+                             <Trash2 size={14} />
+                           </button>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] font-bold text-slate-500">{item.quantity} יחידות</p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="font-black text-slate-900 text-sm">₪{(item.price * item.quantity).toFixed(2)}</p>
                     </div>
                   </div>
                 ))}
+
+                {isEditingOrder && (
+                  <div className="mt-8 space-y-4">
+                    <div className="relative">
+                      <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input 
+                        type="text" 
+                        placeholder="הוסף מוצר להזמנה..."
+                        className="w-full bg-white border border-slate-200 rounded-xl pr-10 pl-4 py-2.5 font-bold text-xs outline-none focus:border-primary-400 transition-all shadow-sm"
+                        value={editingOrderSearch}
+                        onChange={(e) => setEditingOrderSearch(e.target.value)}
+                      />
+                    </div>
+                    
+                    {filteredProductsForEditing.length > 0 && (
+                      <div className="bg-white border border-slate-100 rounded-2xl shadow-xl overflow-hidden divide-y divide-slate-50">
+                        {filteredProductsForEditing.map(product => (
+                          <div key={product.id} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-100">
+                                {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <Package size={16} className="text-slate-300 mx-auto mt-2" />}
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-slate-800">{product.name}</p>
+                                <p className="text-[9px] font-bold text-slate-400">{product.sku}</p>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                handleAddItemToOrder(product);
+                                setEditingOrderSearch('');
+                              }}
+                              className="bg-primary-50 text-primary-600 px-3 py-1.5 rounded-lg font-black text-[10px] hover:bg-primary-500 hover:text-white transition-all"
+                            >
+                              הוסף
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* 📝 NOTES SECTION */}
               <div className="mt-14 pt-10 border-t border-slate-100">
                 <h3 className="text-xl font-black mb-6 flex items-center gap-3">
                   <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
@@ -1536,7 +1685,6 @@ const Admin = () => {
                   הערות ומעקב
                 </h3>
                 
-                {/* Previous Notes */}
                 <div className="space-y-4 mb-10 max-h-[250px] overflow-y-auto pr-2 scrollbar-hide">
                   {selectedOrder.notes && selectedOrder.notes.length > 0 ? (
                     selectedOrder.notes.map((note, nIdx) => (
@@ -1591,7 +1739,6 @@ const Admin = () => {
                   )}
                 </div>
 
-                {/* Add New Note Form */}
                 <div className="space-y-6 bg-slate-50/30 p-6 md:p-8 rounded-[36px] border border-slate-100 shadow-inner">
                   <div className="grid grid-cols-2 gap-4 md:gap-6">
                     <div className="col-span-2 md:col-span-1">
@@ -1608,10 +1755,9 @@ const Admin = () => {
                       <button 
                         onClick={handleAddNote}
                         disabled={isSubmittingNote || !newNoteText.trim() || !adminName.trim()}
-                        className="w-full btn-primary py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full bg-primary-500 text-white py-3 rounded-xl font-black text-sm hover:bg-primary-600 transition-all shadow-lg shadow-primary-200 disabled:opacity-50 disabled:shadow-none active:scale-95"
                       >
-                        {isSubmittingNote ? 'שומר...' : 'הוסף הערה'}
-                        <Plus size={14} />
+                        {isSubmittingNote ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'הוספת הערה למעקב'}
                       </button>
                     </div>
                     <div className="col-span-2">
@@ -1628,23 +1774,82 @@ const Admin = () => {
               </div>
 
               <div className="mt-14 pt-10 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
-                <div className="text-center md:text-right">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">סה״כ לתשלום</p>
-                  <p className="text-3xl md:text-4xl font-black text-slate-900">₪{selectedOrder.total_price.toFixed(2)}</p>
+                <div className="text-center md:text-right flex flex-col gap-2">
+                  {isEditingOrder ? (
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <div className="flex-1">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">הנחת הזמנה (%)</label>
+                          <input 
+                            type="number" 
+                            min="0"
+                            max="100"
+                            value={tempOrderDiscount}
+                            onChange={(e) => setTempOrderDiscount(Number(e.target.value))}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 font-black text-sm outline-none focus:border-primary-400 transition-all"
+                          />
+                        </div>
+                        <div className="h-10 w-px bg-slate-200" />
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">סכום ביניים</p>
+                          <p className="font-black text-slate-400 text-sm line-through">₪{tempOrderItems.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">סה״כ מעודכן לאחר הנחה</p>
+                        <p className="text-3xl md:text-4xl font-black text-primary-600">
+                          ₪{(tempOrderItems.reduce((sum, i) => sum + (i.price * i.quantity), 0) * (1 - tempOrderDiscount / 100)).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {selectedOrder.discount_pct > 0 && (
+                        <div className="mb-2">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">סכום ביניים: ₪{(selectedOrder.total_price / (1 - selectedOrder.discount_pct / 100)).toFixed(2)}</p>
+                          <p className="text-[10px] font-black text-green-500 uppercase tracking-widest">הנחה: {selectedOrder.discount_pct}% (-₪{( (selectedOrder.total_price / (1 - selectedOrder.discount_pct / 100)) * (selectedOrder.discount_pct / 100) ).toFixed(2)})</p>
+                        </div>
+                      )}
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">סה״כ לתשלום</p>
+                      <p className="text-3xl md:text-4xl font-black text-slate-900">
+                        ₪{selectedOrder.total_price.toFixed(2)}
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div className="flex gap-4 w-full md:w-auto">
-                  <button 
-                    onClick={() => { handleUpdateOrderStatus(selectedOrder.id, 'Completed'); setSelectedOrder(null); }}
-                    className="flex-1 md:flex-none bg-green-500 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20"
-                  >
-                    סמן כהושלם
-                  </button>
-                  <button 
-                    onClick={() => setSelectedOrder(null)}
-                    className="flex-1 md:flex-none bg-slate-100 text-slate-500 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors"
-                  >
-                    סגור
-                  </button>
+                  {isEditingOrder ? (
+                    <>
+                      <button 
+                        onClick={handleSaveOrderEdits}
+                        disabled={isSubmittingNote}
+                        className="flex-1 md:flex-none bg-primary-500 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-primary-600 transition-colors shadow-lg shadow-primary-200"
+                      >
+                        {isSubmittingNote ? 'שומר...' : 'שמור שינויים'}
+                      </button>
+                      <button 
+                        onClick={() => setIsEditingOrder(false)}
+                        className="flex-1 md:flex-none bg-slate-100 text-slate-500 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors"
+                      >
+                        ביטול
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => { handleUpdateOrderStatus(selectedOrder.id, 'Completed'); setSelectedOrder(null); }}
+                        className="flex-1 md:flex-none bg-green-500 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20"
+                      >
+                        סמן כהושלם
+                      </button>
+                      <button 
+                        onClick={() => setSelectedOrder(null)}
+                        className="flex-1 md:flex-none bg-slate-100 text-slate-500 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors"
+                      >
+                        סגור
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1659,6 +1864,7 @@ const Admin = () => {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl relative"
             >
               <div className="mb-6 text-center">
@@ -1701,6 +1907,7 @@ const Admin = () => {
           </div>
         )}
       </AnimatePresence>
+
     </div>
   );
 };

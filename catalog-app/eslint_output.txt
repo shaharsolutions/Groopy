@@ -1,0 +1,40 @@
+
+/Users/shahar/Desktop/שחר פתרונות דיגיטליים/Groopy/catalog-app/src/pages/Admin.jsx
+    1:47  error    'useCallback' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            no-unused-vars
+   27:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+   85:5   error    Error: Cannot access variable before it is declared
+
+`fetchData` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  83 |
+  84 |   useEffect(() => {
+> 85 |     fetchData();
+     |     ^^^^^^^^^ `fetchData` accessed before it is declared
+  86 |   }, []);
+  87 |
+  88 |   const fetchData = async () => {
+
+   86 |   }, []);
+   87 |
+>  88 |   const fetchData = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  89 |     // 1. Fetch Products
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+>  90 |     const { data: productsData, error: productsError } = await supabase
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 129 |     if (ordersError) console.error('Error fetching orders:', ordersError);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 130 |   }
+      | ^^^^ `fetchData` is declared here
+  131 |
+  132 |   // Product Actions
+  133 |   const handleAddProduct = async () => {  react-hooks/immutability
+   86:6   warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  496:6   warning  React Hook useMemo has a missing dependency: 'handleDeleteProduct'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  573:6   warning  React Hook useMemo has a missing dependency: 'handleDeleteAgent'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+  621:6   warning  React Hook useMemo has a missing dependency: 'handleDeleteCategory'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  760:6   warning  React Hook useMemo has missing dependencies: 'handleBulkDeleteOrders', 'handleDeleteOrder', 'handleUpdateOrderStatus', and 'toggleAllOrders'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+
+✖ 8 problems (3 errors, 5 warnings)
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, 
@@ -64,10 +64,12 @@ const Admin = () => {
   const [adminName, setAdminName] = useState(localStorage.getItem('groopy_admin_name') || '');
   const [newNoteText, setNewNoteText] = useState('');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+  const [confirmingNoteDelete, setConfirmingNoteDelete] = useState(null);
 
   // 🚫 Cancellation States
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [activeStatusOrderId, setActiveStatusOrderId] = useState(null);
 
   // 🖼️ Image Handlers
   const openImageModal = (imageUrl, productName) => {
@@ -79,10 +81,6 @@ const Admin = () => {
     setSelectedImage(null);
     setSelectedProductName('');
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     // 1. Fetch Products
@@ -127,6 +125,10 @@ const Admin = () => {
     if (ordersData) setOrders(ordersData);
     if (ordersError) console.error('Error fetching orders:', ordersError);
   }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   // Product Actions
   const handleAddProduct = async () => {
@@ -364,6 +366,27 @@ const Admin = () => {
     setIsSubmittingNote(false);
   };
 
+  const handleDeleteNote = async (index) => {
+    if (!selectedOrder || !selectedOrder.notes) return;
+
+    const updatedNotes = selectedOrder.notes.filter((_, i) => i !== index);
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ notes: updatedNotes })
+      .eq('id', selectedOrder.id);
+
+    if (!error) {
+      const updatedOrder = { ...selectedOrder, notes: updatedNotes };
+      setSelectedOrder(updatedOrder);
+      setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
+      setConfirmingNoteDelete(null);
+    } else {
+      console.error('Error deleting note:', error);
+      alert('שגיאה במחיקת ההערה');
+    }
+  };
+
   const copyAgentLink = (id) => {
     const origin = window.location.origin;
     const base = import.meta.env.BASE_URL;
@@ -375,10 +398,402 @@ const Admin = () => {
     setTimeout(() => setCopyFeedback(null), 2000);
   }
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.sku.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => 
+      p.name.toLowerCase().includes(deferredSearchTerm.toLowerCase()) || 
+      p.sku.toLowerCase().includes(deferredSearchTerm.toLowerCase())
+    );
+  }, [products, deferredSearchTerm]);
+
+  const ordersStats = useMemo(() => ({
+    new: orders.filter(o => o.status === 'New').length,
+    total: orders.length
+  }), [orders]);
+
+  const productsTabContent = useMemo(() => (
+    <div className="space-y-6">
+       <div className="relative mb-8 max-w-md">
+          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <input 
+            type="text" 
+            placeholder="חיפוש מהיר..."
+            className="w-full bg-white border border-slate-200 rounded-2xl pr-12 pl-6 py-3 font-bold text-sm outline-none focus:border-primary-400 transition-all shadow-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+       </div>
+
+       <div className="flex md:hidden items-center justify-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-widest pb-4">
+          <span>החלק ימינה לצפייה בפרטים</span>
+          <ChevronRight size={12} className="animate-pulse" />
+       </div>
+       
+       <div className={`bg-white rounded-[32px] border border-slate-200 shadow-sm scrollbar-hide ${activeStatusOrderId ? 'overflow-visible z-20 relative' : 'overflow-x-auto'}`}>
+          <table className="w-full text-right border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                <th className="px-8 py-5">תמונה/סוג</th>
+                <th className="px-8 py-5">שם המוצר</th>
+                <th className="px-8 py-5">מק״ט</th>
+                <th className="px-8 py-5">מחיר (₪)</th>
+                <th className="px-8 py-5">מיקום</th>
+                <th className="px-8 py-5">פעולות</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredProducts.map(p => (
+                <tr key={p.id} className="group hover:bg-slate-50/50 transition-colors">
+                  <td className="px-8 py-6">
+                    <div 
+                      className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 overflow-hidden cursor-pointer hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-100 group/img"
+                      onClick={() => p.image && openImageModal(p.image, p.name)}
+                    >
+                       {p.image ? (
+                         <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                       ) : (
+                         p.category === 'Bottles' ? <Package size={20} /> : <Package size={20} />
+                       )}
+                    </div>
+                  </td>
+                  <td className="px-8 py-6 font-black text-slate-800 text-sm">{p.name}</td>
+                  <td className="px-8 py-6 font-bold text-slate-400 text-xs">{p.sku}</td>
+                  <td className="px-8 py-6 font-black text-slate-900">{p.price.toFixed(2)}</td>
+                  <td className="px-8 py-6 whitespace-nowrap">
+                    <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-[10px] font-black">{p.location || '-'}</span>
+                  </td>
+                   <td className="px-8 py-5">
+                    <AnimatePresence mode="wait">
+                      {confirmingProductDelete === p.id ? (
+                        <motion.div 
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          className="flex items-center gap-2 bg-red-50 p-2 rounded-xl"
+                        >
+                          <span className="text-[10px] font-black text-red-500 whitespace-nowrap">למחוק?</span>
+                          <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-500 text-white p-1.5 rounded-lg hover:bg-red-600 transition-colors"><Check size={14} /></button>
+                          <button onClick={() => setConfirmingProductDelete(null)} className="bg-slate-200 text-slate-500 p-1.5 rounded-lg hover:bg-slate-300 transition-colors"><X size={14} /></button>
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                        >
+                          <button onClick={() => setEditingProduct(p)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Edit size={18} /></button>
+                          <button onClick={() => setConfirmingProductDelete(p.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Trash2 size={18} /></button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+       </div>
+    </div>
+  ), [filteredProducts, searchTerm, confirmingProductDelete]);
+
+  const agentsTabContent = useMemo(() => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {agents.map(agent => (
+        <motion.div 
+          layout
+          key={agent.id}
+          className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden"
+        >
+          <div className="flex items-center gap-5 mb-8">
+            <div className="w-16 h-16 bg-gradient-to-tr from-slate-100 to-slate-200 rounded-3xl flex items-center justify-center text-slate-400 shadow-inner overflow-hidden">
+              {agent.image ? (
+                <img src={agent.image} alt={agent.name} className="w-full h-full object-cover" />
+              ) : (
+                <User size={28} />
+              )}
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">{agent.name}</h3>
+              <p className="text-slate-400 font-bold text-xs">{agent.phone}</p>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-6 border-t border-slate-50">
+             <button 
+               onClick={() => copyAgentLink(agent.id)}
+               className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-primary-500 hover:text-white rounded-2xl transition-all group/link"
+             >
+               <div className="flex items-center gap-3">
+                  {copyFeedback === agent.id ? <Check size={18} /> : <ChainLink size={18} />}
+                  <span className="font-black text-xs">{copyFeedback === agent.id ? 'הועתק!' : 'העתק קישור לקטלוג'}</span>
+               </div>
+               <Share2 size={14} className="opacity-40 group-hover/link:opacity-100" />
+             </button>
+             
+              <div className="flex gap-4 pt-2">
+               {confirmingAgentDelete === agent.id ? (
+                 <div className="w-full flex items-center justify-center gap-4 bg-red-50 py-3 rounded-xl border border-red-100">
+                   <span className="font-black text-[10px] text-red-500 tracking-widest">מחיקה?</span>
+                   <div className="flex gap-2">
+                     <button onClick={() => handleDeleteAgent(agent.id)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-[10px] font-black hover:bg-red-600 transition-colors">כן</button>
+                     <button onClick={() => setConfirmingAgentDelete(null)} className="bg-slate-200 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black hover:bg-slate-300 transition-colors">בטל</button>
+                   </div>
+                 </div>
+               ) : (
+                 <>
+                   <button 
+                     onClick={() => setEditingAgent(agent)}
+                     className="flex-1 py-3 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                   >
+                     עריכת סוכן
+                   </button>
+                   <button 
+                    onClick={() => setConfirmingAgentDelete(agent.id)}
+                    className="flex-1 py-3 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                   >
+                     מחיקת סוכן
+                   </button>
+                 </>
+               )}
+              </div>
+          </div>
+
+          <div className="absolute top-4 left-4 flex gap-2">
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          </div>
+        </motion.div>
+      ))}
+      
+      {agents.length === 0 && (
+        <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 rounded-[40px] opacity-30">
+          <Users size={64} className="mx-auto mb-4" />
+          <p className="font-black text-xl">אין סוכנים רשומים... עדיין</p>
+        </div>
+      )}
+    </div>
+  ), [agents, copyFeedback, confirmingAgentDelete]);
+
+  const categoriesTabContent = useMemo(() => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {categories.map(cat => (
+        <motion.div 
+          layout
+          key={cat.id}
+          className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden"
+        >
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center shadow-inner">
+              <Tag size={28} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">{cat.name}</h3>
+            </div>
+          </div>
+
+          <div className="pt-6 mt-6 border-t border-slate-50 flex gap-4">
+            {confirmingCategoryDelete === cat.id ? (
+               <div className="w-full flex items-center justify-between gap-4 bg-red-50 p-4 rounded-2xl">
+                 <span className="font-black text-xs text-red-500">למחוק קטגוריה?</span>
+                 <div className="flex gap-2">
+                   <button onClick={() => handleDeleteCategory(cat.id)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-black">מחק</button>
+                   <button onClick={() => setConfirmingCategoryDelete(null)} className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-xs font-black">ביטול</button>
+                 </div>
+               </div>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setEditingCategory(cat)}
+                  className="flex-1 py-4 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                >
+                  עריכה
+                </button>
+                <button 
+                  onClick={() => setConfirmingCategoryDelete(cat.id)}
+                  className="flex-1 py-4 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                >
+                  מחיקה
+                </button>
+              </>
+            )}
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  ), [categories, confirmingCategoryDelete]);
+
+  const ordersTabContent = useMemo(() => (
+    <div className="space-y-6">
+       <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+             {selectedOrderIds.length > 0 && (
+               <motion.div 
+                 initial={{ opacity: 0, x: 20 }}
+                 animate={{ opacity: 1, x: 0 }}
+                 className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-2xl border border-red-100"
+               >
+                 <span className="text-xs font-black text-red-600">נבחרו {selectedOrderIds.length} הזמנות</span>
+                 <button 
+                   onClick={handleBulkDeleteOrders}
+                   disabled={isBulkDeleting}
+                   className="bg-red-500 text-white px-4 py-1.5 rounded-xl text-[10px] font-black hover:bg-red-600 transition-colors disabled:opacity-50"
+                 >
+                   {isBulkDeleting ? 'מוחק...' : 'מחק פריטים שנבחרו'}
+                 </button>
+                 <button 
+                  onClick={() => setSelectedOrderIds([])}
+                  className="text-slate-400 hover:text-slate-600"
+                 >
+                   <X size={14} />
+                 </button>
+               </motion.div>
+             )}
+          </div>
+       </div>
+
+       <div className={`bg-white rounded-[32px] border border-slate-200 shadow-sm scrollbar-hide ${activeStatusOrderId ? 'overflow-visible z-20 relative' : 'overflow-x-auto'}`}>
+          <table className="w-full text-right border-collapse min-w-[900px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                <th className="px-8 py-5 w-12 text-center">
+                  <input 
+                    type="checkbox" 
+                    checked={orders.length > 0 && selectedOrderIds.length === orders.length}
+                    onChange={toggleAllOrders}
+                    className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
+                  />
+                </th>
+                <th className="px-8 py-5">תאריך והזמנה</th>
+                <th className="px-8 py-5">שם הלקוח</th>
+                <th className="px-8 py-5">סוכן</th>
+                <th className="px-8 py-5">סה״כ לתשלום</th>
+                <th className="px-8 py-5">סטטוס</th>
+                <th className="px-8 py-5">פעולות</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {orders.map((order, index) => (
+                <tr key={order.id} className={`group transition-colors ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'} ${activeStatusOrderId === order.id ? 'relative z-[70]' : ''}`}>
+                  <td className="px-8 py-6 text-center">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedOrderIds.includes(order.id)}
+                      onChange={() => toggleOrderSelection(order.id)}
+                      className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
+                    />
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-black text-slate-800">
+                        {new Date(order.created_at).toLocaleDateString('he-IL')}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {new Date(order.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6 font-black text-slate-800 text-sm">{order.customer_name}</td>
+                  <td className="px-8 py-6">
+                     <span className="font-bold text-slate-500 text-xs">{order.agent_name || 'ישיר'}</span>
+                  </td>
+                  <td className="px-8 py-6 font-black text-slate-900">₪{order.total_price.toFixed(2)}</td>
+                  <td className="px-8 py-6">
+                    <div className="relative">
+                      <button 
+                        onClick={() => setActiveStatusOrderId(activeStatusOrderId === order.id ? null : order.id)}
+                        className="flex items-center gap-2 group transition-all active:scale-95"
+                      >
+                         {order.status === 'New' ? (
+                           <span className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black group-hover:bg-blue-100 transition-colors">
+                             <Clock size={10} /> חדש
+                           </span>
+                         ) : order.status === 'Completed' ? (
+                           <span className="flex items-center gap-1.5 bg-green-50 text-green-600 px-3 py-1 rounded-full text-[10px] font-black group-hover:bg-green-100 transition-colors">
+                             <CheckCircle2 size={10} /> הושלם
+                           </span>
+                         ) : order.status === 'Canceled' ? (
+                          <span className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1 rounded-full text-[10px] font-black group-hover:bg-red-100 transition-colors">
+                            <AlertCircle size={10} /> בוטל
+                          </span>
+                         ) : (
+                           <span className="flex items-center gap-1.5 bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black group-hover:bg-slate-200 transition-colors">
+                             <AlertCircle size={10} /> {order.status}
+                           </span>
+                         )}
+                         <ChevronRight size={10} className={`text-slate-300 transition-transform duration-300 ${activeStatusOrderId === order.id ? '-rotate-90' : 'rotate-90'}`} />
+                      </button>
+
+                      {/* 🚀 TABLE STATUS DROPDOWN MENU - Dynamic Direction Based on Index */}
+                      <AnimatePresence>
+                        {activeStatusOrderId === order.id && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: index < 2 ? 10 : -10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: index < 2 ? 10 : -10, scale: 0.95 }}
+                            className={`absolute ${index < 2 ? 'top-full' : 'bottom-full'} left-0 ${index < 2 ? 'mt-2' : 'mb-2'} w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[100] overflow-hidden`}
+                          >
+                             {[
+                               { id: 'New', label: 'חדש', color: 'text-blue-600', bg: 'hover:bg-blue-50', icon: Clock },
+                               { id: 'Completed', label: 'הושלם', color: 'text-green-600', bg: 'hover:bg-green-50', icon: CheckCircle2 },
+                               { id: 'Canceled', label: 'בוטל', color: 'text-red-600', bg: 'hover:bg-red-50', icon: AlertCircle }
+                             ].map((status) => (
+                               <button
+                                 key={status.id}
+                                 onClick={() => {
+                                   handleUpdateOrderStatus(order.id, status.id);
+                                   setActiveStatusOrderId(null);
+                                 }}
+                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${status.bg} ${order.status === status.id ? 'bg-slate-50' : ''}`}
+                               >
+                                  <status.icon size={16} className={status.color} />
+                                  <span className={`text-xs font-black ${status.color}`}>{status.label}</span>
+                                  {order.status === status.id && <Check size={14} className="mr-auto text-slate-300" />}
+                               </button>
+                             ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Backdrop to close dropdown in table row */}
+                      {activeStatusOrderId === order.id && (
+                        <div 
+                          className="fixed inset-0 z-50 bg-transparent" 
+                          onClick={() => setActiveStatusOrderId(null)} 
+                        />
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setSelectedOrder(order)}
+                        className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all font-black text-[10px]"
+                      >
+                        צפייה בפרטים
+                      </button>
+                      
+                      <AnimatePresence mode="wait">
+                        {confirmingOrderDelete === order.id ? (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex gap-1"
+                          >
+                            <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-500"><Check size={14} /></button>
+                            <button onClick={() => setConfirmingOrderDelete(null)} className="p-1 text-slate-400"><X size={14} /></button>
+                          </motion.div>
+                        ) : (
+                          <button onClick={() => setConfirmingOrderDelete(order.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16} /></button>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+       </div>
+    </div>
+  ), [orders, selectedOrderIds, isBulkDeleting, confirmingOrderDelete, activeStatusOrderId]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row" dir="rtl">
@@ -447,9 +862,9 @@ const Admin = () => {
               <span className="font-black text-sm">ניהול הזמנות</span>
             </div>
             <div className="flex items-center gap-2">
-              {orders.filter(o => o.status === 'New').length > 0 && (
+              {ordersStats.new > 0 && (
                 <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                  {orders.filter(o => o.status === 'New').length}
+                  {ordersStats.new}
                 </span>
               )}
               <ChevronRight size={16} className={activeTab === 'orders' ? '' : 'text-slate-300'} />
@@ -556,352 +971,11 @@ const Admin = () => {
           </div>
         </header>
 
-        {/* 📋 PRODUCTS TAB */}
-        {activeTab === 'products' && (
-          <div className="space-y-6">
-             <div className="relative mb-8 max-w-md">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="חיפוש מהיר..."
-                  className="w-full bg-white border border-slate-200 rounded-2xl pr-12 pl-6 py-3 font-bold text-sm outline-none focus:border-primary-400 transition-all shadow-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-             </div>
-
-             <div className="flex md:hidden items-center justify-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-widest pb-4">
-                <span>החלק ימינה לצפייה בפרטים</span>
-                <ChevronRight size={12} className="animate-pulse" />
-             </div>
-             
-             <div className="bg-white rounded-[32px] border border-slate-200 overflow-x-auto shadow-sm scrollbar-hide">
-                <table className="w-full text-right border-collapse min-w-[800px]">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                      <th className="px-8 py-5">תמונה/סוג</th>
-                      <th className="px-8 py-5">שם המוצר</th>
-                      <th className="px-8 py-5">מק״ט</th>
-                      <th className="px-8 py-5">מחיר (₪)</th>
-                      <th className="px-8 py-5">מיקום</th>
-                      <th className="px-8 py-5">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredProducts.map(p => (
-                      <tr key={p.id} className="group hover:bg-slate-50/50 transition-colors">
-                        <td className="px-8 py-5">
-                          <div 
-                            className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 overflow-hidden cursor-pointer hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-100 group/img"
-                            onClick={() => p.image && openImageModal(p.image, p.name)}
-                          >
-                             {p.image ? (
-                               <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                             ) : (
-                               p.category === 'Bottles' ? <Package size={20} /> : <Package size={20} />
-                             )}
-                          </div>
-                        </td>
-                        <td className="px-8 py-5 font-black text-slate-800 text-sm">{p.name}</td>
-                        <td className="px-8 py-5 font-bold text-slate-400 text-xs">{p.sku}</td>
-                        <td className="px-8 py-5 font-black text-slate-900">{p.price.toFixed(2)}</td>
-                        <td className="px-8 py-5 whitespace-nowrap">
-                          <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-[10px] font-black">{p.location || '-'}</span>
-                        </td>
-                         <td className="px-8 py-5">
-                          <AnimatePresence mode="wait">
-                            {confirmingProductDelete === p.id ? (
-                              <motion.div 
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="flex items-center gap-2 bg-red-50 p-2 rounded-xl"
-                              >
-                                <span className="text-[10px] font-black text-red-500 whitespace-nowrap">למחוק?</span>
-                                <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-500 text-white p-1.5 rounded-lg hover:bg-red-600 transition-colors"><Check size={14} /></button>
-                                <button onClick={() => setConfirmingProductDelete(null)} className="bg-slate-200 text-slate-500 p-1.5 rounded-lg hover:bg-slate-300 transition-colors"><X size={14} /></button>
-                              </motion.div>
-                            ) : (
-                              <motion.div 
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                              >
-                                <button onClick={() => setEditingProduct(p)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Edit size={18} /></button>
-                                <button onClick={() => setConfirmingProductDelete(p.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Trash2 size={18} /></button>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-             </div>
-          </div>
-        )}
-
-        {/* 👥 AGENTS TAB */}
-        {activeTab === 'agents' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {agents.map(agent => (
-              <motion.div 
-                layout
-                key={agent.id}
-                className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden"
-              >
-                <div className="flex items-center gap-5 mb-8">
-                  <div className="w-16 h-16 bg-gradient-to-tr from-slate-100 to-slate-200 rounded-3xl flex items-center justify-center text-slate-400 shadow-inner overflow-hidden">
-                    {agent.image ? (
-                      <img src={agent.image} alt={agent.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={28} />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight">{agent.name}</h3>
-                    <p className="text-slate-400 font-bold text-xs">{agent.phone}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-6 border-t border-slate-50">
-                   <button 
-                     onClick={() => copyAgentLink(agent.id)}
-                     className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-primary-500 hover:text-white rounded-2xl transition-all group/link"
-                   >
-                     <div className="flex items-center gap-3">
-                        {copyFeedback === agent.id ? <Check size={18} /> : <ChainLink size={18} />}
-                        <span className="font-black text-xs">{copyFeedback === agent.id ? 'הועתק!' : 'העתק קישור לקטלוג'}</span>
-                     </div>
-                     <Share2 size={14} className="opacity-40 group-hover/link:opacity-100" />
-                   </button>
-                   
-                    <div className="flex gap-4 pt-2">
-                     {confirmingAgentDelete === agent.id ? (
-                       <div className="w-full flex items-center justify-center gap-4 bg-red-50 py-3 rounded-xl border border-red-100">
-                         <span className="font-black text-[10px] text-red-500 tracking-widest">מחיקה?</span>
-                         <div className="flex gap-2">
-                           <button onClick={() => handleDeleteAgent(agent.id)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-[10px] font-black hover:bg-red-600 transition-colors">כן</button>
-                           <button onClick={() => setConfirmingAgentDelete(null)} className="bg-slate-200 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black hover:bg-slate-300 transition-colors">בטל</button>
-                         </div>
-                       </div>
-                     ) : (
-                       <>
-                         <button 
-                           onClick={() => setEditingAgent(agent)}
-                           className="flex-1 py-3 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
-                         >
-                           עריכת סוכן
-                         </button>
-                         <button 
-                          onClick={() => setConfirmingAgentDelete(agent.id)}
-                          className="flex-1 py-3 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
-                         >
-                           מחיקת סוכן
-                         </button>
-                       </>
-                     )}
-                    </div>
-                </div>
-
-                <div className="absolute top-4 left-4 flex gap-2">
-                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                </div>
-              </motion.div>
-            ))}
-            
-            {agents.length === 0 && (
-              <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 rounded-[40px] opacity-30">
-                <Users size={64} className="mx-auto mb-4" />
-                <p className="font-black text-xl">אין סוכנים רשומים... עדיין</p>
-              </div>
-            )}
-          </div>
-        )}
-        {/* 📋 CATEGORIES TAB */}
-        {activeTab === 'categories' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {categories.map(cat => (
-              <motion.div 
-                layout
-                key={cat.id}
-                className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden"
-              >
-                <div className="flex items-center gap-5">
-                  <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center shadow-inner">
-                    <Tag size={28} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight">{cat.name}</h3>
-                  </div>
-                </div>
-
-                <div className="pt-6 mt-6 border-t border-slate-50 flex gap-4">
-                  {confirmingCategoryDelete === cat.id ? (
-                     <div className="w-full flex items-center justify-between gap-4 bg-red-50 p-4 rounded-2xl">
-                       <span className="font-black text-xs text-red-500">למחוק קטגוריה?</span>
-                       <div className="flex gap-2">
-                         <button onClick={() => handleDeleteCategory(cat.id)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-black">מחק</button>
-                         <button onClick={() => setConfirmingCategoryDelete(null)} className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-xs font-black">ביטול</button>
-                       </div>
-                     </div>
-                  ) : (
-                    <>
-                      <button 
-                        onClick={() => setEditingCategory(cat)}
-                        className="flex-1 py-4 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
-                      >
-                        עריכה
-                      </button>
-                      <button 
-                        onClick={() => setConfirmingCategoryDelete(cat.id)}
-                        className="flex-1 py-4 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
-                      >
-                        מחיקה
-                      </button>
-                    </>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-
-        {/* 🛍️ ORDERS TAB */}
-        {activeTab === 'orders' && (
-          <div className="space-y-6">
-             <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                   {selectedOrderIds.length > 0 && (
-                     <motion.div 
-                       initial={{ opacity: 0, x: 20 }}
-                       animate={{ opacity: 1, x: 0 }}
-                       className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-2xl border border-red-100"
-                     >
-                       <span className="text-xs font-black text-red-600">נבחרו {selectedOrderIds.length} הזמנות</span>
-                       <button 
-                         onClick={handleBulkDeleteOrders}
-                         disabled={isBulkDeleting}
-                         className="bg-red-500 text-white px-4 py-1.5 rounded-xl text-[10px] font-black hover:bg-red-600 transition-colors disabled:opacity-50"
-                       >
-                         {isBulkDeleting ? 'מוחק...' : 'מחק פריטים שנבחרו'}
-                       </button>
-                       <button 
-                        onClick={() => setSelectedOrderIds([])}
-                        className="text-slate-400 hover:text-slate-600"
-                       >
-                         <X size={14} />
-                       </button>
-                     </motion.div>
-                   )}
-                </div>
-             </div>
-
-             <div className="bg-white rounded-[32px] border border-slate-200 overflow-x-auto shadow-sm scrollbar-hide">
-                <table className="w-full text-right border-collapse min-w-[900px]">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                      <th className="px-8 py-5 w-12 text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={orders.length > 0 && selectedOrderIds.length === orders.length}
-                          onChange={toggleAllOrders}
-                          className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
-                        />
-                      </th>
-                      <th className="px-8 py-5">תאריך והזמנה</th>
-                      <th className="px-8 py-5">שם הלקוח</th>
-                      <th className="px-8 py-5">סוכן</th>
-                      <th className="px-8 py-5">סה״כ לתשלום</th>
-                      <th className="px-8 py-5">סטטוס</th>
-                      <th className="px-8 py-5">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {orders.map(order => (
-                      <tr key={order.id} className={`group transition-colors ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'}`}>
-                        <td className="px-8 py-5 text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={selectedOrderIds.includes(order.id)}
-                            onChange={() => toggleOrderSelection(order.id)}
-                            className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
-                          />
-                        </td>
-                        <td className="px-8 py-5">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-black text-slate-800">
-                              {new Date(order.created_at).toLocaleDateString('he-IL')}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400">
-                              {new Date(order.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-8 py-5 font-black text-slate-800 text-sm">{order.customer_name}</td>
-                        <td className="px-8 py-5">
-                           <span className="font-bold text-slate-500 text-xs">{order.agent_name || 'ישיר'}</span>
-                        </td>
-                        <td className="px-8 py-5 font-black text-slate-900">₪{order.total_price.toFixed(2)}</td>
-                        <td className="px-8 py-5">
-                          <div className="flex items-center gap-2">
-                             {order.status === 'New' ? (
-                               <span className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black">
-                                 <Clock size={10} /> חדש
-                               </span>
-                             ) : order.status === 'Completed' ? (
-                               <span className="flex items-center gap-1.5 bg-green-50 text-green-600 px-3 py-1 rounded-full text-[10px] font-black">
-                                 <CheckCircle2 size={10} /> הושלם
-                               </span>
-                             ) : (
-                               <span className="flex items-center gap-1.5 bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black">
-                                 <AlertCircle size={10} /> {order.status}
-                               </span>
-                             )}
-                          </div>
-                        </td>
-                        <td className="px-8 py-5">
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => setSelectedOrder(order)}
-                              className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all font-black text-[10px]"
-                            >
-                              צפייה בפרטים
-                            </button>
-                            
-                            <select 
-                              value={order.status}
-                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                              className="bg-transparent border-none text-[10px] font-black text-slate-400 outline-none cursor-pointer hover:text-slate-900"
-                            >
-                              <option value="New">חדש</option>
-                              <option value="Completed">הושלם</option>
-                              <option value="Canceled">בוטל</option>
-                            </select>
-
-                            <AnimatePresence mode="wait">
-                              {confirmingOrderDelete === order.id ? (
-                                <motion.div 
-                                  initial={{ opacity: 0, scale: 0.8 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  className="flex gap-1"
-                                >
-                                  <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-500"><Check size={14} /></button>
-                                  <button onClick={() => setConfirmingOrderDelete(null)} className="p-1 text-slate-400"><X size={14} /></button>
-                                </motion.div>
-                              ) : (
-                                <button onClick={() => setConfirmingOrderDelete(order.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16} /></button>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-             </div>
-          </div>
-        )}
+        {/* 📋 TABS CONTENT */}
+        {activeTab === 'products' && productsTabContent}
+        {activeTab === 'agents' && agentsTabContent}
+        {activeTab === 'categories' && categoriesTabContent}
+        {activeTab === 'orders' && ordersTabContent}
       </main>
 
       {/* 🗳️ ADD PRODUCT MODAL */}
@@ -1351,27 +1425,96 @@ const Admin = () => {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-auto overflow-hidden"
+              className={`bg-white rounded-[40px] w-full max-w-3xl p-6 md:p-14 shadow-2xl relative my-auto ${activeStatusOrderId === 'selected' ? 'overflow-visible' : 'overflow-hidden'}`}
             >
               <button 
                 onClick={() => setSelectedOrder(null)}
-                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors z-10"
+                className="absolute left-6 top-6 md:left-10 md:top-10 text-slate-300 hover:text-slate-900 transition-colors z-20"
               >
                 <X size={32} />
               </button>
               
-              <div className="mb-8">
-                <h2 className="text-3xl font-black tracking-tighter mb-2">פרטי הזמנה</h2>
-                <p className="text-slate-400 font-bold text-sm">
-                  {selectedOrder.customer_name} • {new Date(selectedOrder.created_at).toLocaleString('he-IL', { dateStyle: 'medium', timeStyle: 'short' })}
-                </p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div className="pt-10 md:pt-0">
+                  <h2 className="text-2xl md:text-3xl font-black tracking-tighter mb-1">פרטי הזמנה</h2>
+                  <p className="text-slate-400 font-bold text-xs md:text-sm">
+                    {selectedOrder.customer_name} • {new Date(selectedOrder.created_at).toLocaleString('he-IL', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </p>
+                </div>
+                <div className="flex items-center md:items-end relative">
+                  <button 
+                    onClick={() => setActiveStatusOrderId(activeStatusOrderId === 'selected' ? null : 'selected')}
+                    className="group flex items-center gap-2 transition-all active:scale-95"
+                  >
+                    {selectedOrder.status === 'New' ? (
+                      <span className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black group-hover:bg-blue-100 transition-colors">
+                        <Clock size={12} /> חדש
+                      </span>
+                    ) : selectedOrder.status === 'Completed' ? (
+                      <span className="flex items-center gap-1.5 bg-green-50 text-green-600 px-4 py-1.5 rounded-full text-[10px] font-black group-hover:bg-green-100 transition-colors">
+                        <CheckCircle2 size={12} /> הושלם
+                      </span>
+                    ) : selectedOrder.status === 'Canceled' ? (
+                      <span className="flex items-center gap-1.5 bg-red-50 text-red-600 px-4 py-1.5 rounded-full text-[10px] font-black group-hover:bg-red-100 transition-colors">
+                        <AlertCircle size={12} /> בוטל
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full text-[10px] font-black group-hover:bg-slate-200 transition-colors">
+                        <AlertCircle size={12} /> {selectedOrder.status}
+                      </span>
+                    )}
+                    <ChevronRight size={14} className={`text-slate-300 transition-transform duration-300 ${activeStatusOrderId === 'selected' ? '-rotate-90' : 'rotate-90'}`} />
+                  </button>
+
+                  {/* 🚀 STATUS DROPDOWN MENU */}
+                  <AnimatePresence>
+                    {activeStatusOrderId === 'selected' && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute top-full left-0 md:right-0 md:left-auto mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[60] overflow-hidden"
+                      >
+                         {[
+                           { id: 'New', label: 'חדש', color: 'text-blue-600', bg: 'hover:bg-blue-50', icon: Clock },
+                           { id: 'Completed', label: 'הושלם', color: 'text-green-600', bg: 'hover:bg-green-50', icon: CheckCircle2 },
+                           { id: 'Canceled', label: 'בוטל', color: 'text-red-600', bg: 'hover:bg-red-50', icon: AlertCircle }
+                         ].map((status) => (
+                           <button
+                             key={status.id}
+                             onClick={() => {
+                               handleUpdateOrderStatus(selectedOrder.id, status.id);
+                               setActiveStatusOrderId(null);
+                               if (status.id !== 'Canceled') {
+                                 setSelectedOrder({ ...selectedOrder, status: status.id });
+                               }
+                             }}
+                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${status.bg} ${selectedOrder.status === status.id ? 'bg-slate-50' : ''}`}
+                           >
+                              <status.icon size={16} className={status.color} />
+                              <span className={`text-xs font-black ${status.color}`}>{status.label}</span>
+                              {selectedOrder.status === status.id && <Check size={14} className="mr-auto text-slate-300" />}
+                           </button>
+                         ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Backdrop to close dropdown */}
+                  {activeStatusOrderId === 'selected' && (
+                    <div 
+                      className="fixed inset-0 z-50 bg-transparent" 
+                      onClick={() => setActiveStatusOrderId(null)} 
+                    />
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
+              <div className="space-y-6 max-h-[45vh] overflow-y-auto pr-2 scrollbar-hide py-2">
                 {selectedOrder.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
-                      {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <Package size={20} className="text-slate-300" />}
+                  <div key={idx} className="flex items-center gap-4 md:gap-6 p-4 md:p-5 bg-slate-50/50 rounded-2xl md:rounded-3xl border border-slate-100 hover:bg-slate-50 transition-colors shadow-sm">
+                    <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 flex-shrink-0">
+                      {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <Package size={24} className="text-slate-300" />}
                     </div>
                     <div className="flex-1">
                       <h4 className="font-black text-slate-800 text-sm line-clamp-1">{item.name}</h4>
@@ -1385,26 +1528,60 @@ const Admin = () => {
               </div>
 
               {/* 📝 NOTES SECTION */}
-              <div className="mt-8 pt-8 border-t border-slate-100">
-                <h3 className="text-lg font-black mb-4 flex items-center gap-2">
-                  <Edit size={20} className="text-primary-500" />
+              <div className="mt-14 pt-10 border-t border-slate-100">
+                <h3 className="text-xl font-black mb-6 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
+                    <Edit size={20} className="text-primary-500" />
+                  </div>
                   הערות ומעקב
                 </h3>
                 
                 {/* Previous Notes */}
-                <div className="space-y-3 mb-6 max-h-[200px] overflow-y-auto pr-2 scrollbar-hide">
+                <div className="space-y-4 mb-10 max-h-[250px] overflow-y-auto pr-2 scrollbar-hide">
                   {selectedOrder.notes && selectedOrder.notes.length > 0 ? (
                     selectedOrder.notes.map((note, nIdx) => (
-                      <div key={nIdx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-right">
+                      <div key={nIdx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-right overflow-hidden">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="flex items-center gap-1.5 text-[10px] font-black text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
-                            <User size={10} /> {note.author}
-                          </span>
+                           <AnimatePresence mode="wait">
+                            {confirmingNoteDelete === nIdx ? (
+                              <motion.div 
+                                initial={{ opacity: 0, x: 10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                className="flex items-center gap-2 bg-red-100 px-3 py-1 rounded-xl"
+                              >
+                                <span className="text-[10px] font-black text-red-600">מחיקת הערה?</span>
+                                <button onClick={() => handleDeleteNote(nIdx)} className="p-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors">
+                                  <Check size={10} />
+                                </button>
+                                <button onClick={() => setConfirmingNoteDelete(null)} className="p-1 bg-white text-slate-400 rounded-md hover:bg-slate-100 transition-colors">
+                                  <X size={10} />
+                                </button>
+                              </motion.div>
+                            ) : (
+                              <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="flex items-center gap-2"
+                              >
+                                <span className="flex items-center gap-1.5 text-[10px] font-black text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+                                  <User size={10} /> {note.author}
+                                </span>
+                                <button 
+                                  onClick={() => setConfirmingNoteDelete(nIdx)}
+                                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                  title="מחק הערה"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                           <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                             <Clock size={10} /> {new Date(note.timestamp).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
                           </span>
                         </div>
-                        <p className="text-sm font-bold text-slate-700 leading-relaxed">{note.text}</p>
+                        <p className="text-sm font-bold text-slate-700 leading-relaxed pr-1">{note.text}</p>
                       </div>
                     ))
                   ) : (
@@ -1415,8 +1592,8 @@ const Admin = () => {
                 </div>
 
                 {/* Add New Note Form */}
-                <div className="space-y-4 bg-slate-50/50 p-4 rounded-[28px] border border-slate-100 shadow-inner">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-6 bg-slate-50/30 p-6 md:p-8 rounded-[36px] border border-slate-100 shadow-inner">
+                  <div className="grid grid-cols-2 gap-4 md:gap-6">
                     <div className="col-span-2 md:col-span-1">
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 mb-1">מי כותב ההערה?</label>
                       <input 
@@ -1450,21 +1627,21 @@ const Admin = () => {
                 </div>
               </div>
 
-              <div className="mt-8 pt-8 border-t border-slate-100 flex items-center justify-between">
-                <div>
+              <div className="mt-14 pt-10 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="text-center md:text-right">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">סה״כ לתשלום</p>
-                  <p className="text-3xl font-black text-slate-900">₪{selectedOrder.total_price.toFixed(2)}</p>
+                  <p className="text-3xl md:text-4xl font-black text-slate-900">₪{selectedOrder.total_price.toFixed(2)}</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-4 w-full md:w-auto">
                   <button 
                     onClick={() => { handleUpdateOrderStatus(selectedOrder.id, 'Completed'); setSelectedOrder(null); }}
-                    className="bg-green-500 text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
+                    className="flex-1 md:flex-none bg-green-500 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20"
                   >
                     סמן כהושלם
                   </button>
                   <button 
                     onClick={() => setSelectedOrder(null)}
-                    className="bg-slate-100 text-slate-500 px-6 py-3 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors"
+                    className="flex-1 md:flex-none bg-slate-100 text-slate-500 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors"
                   >
                     סגור
                   </button>

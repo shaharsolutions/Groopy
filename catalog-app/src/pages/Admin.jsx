@@ -980,7 +980,7 @@ const Admin = () => {
         <div className="flex items-center justify-between mb-12">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden p-1 border border-slate-100">
-              <img src={`${import.meta.env.BASE_URL}logo.png?v=2`} alt="Groopy Logo" className="w-full h-full object-contain" />
+              <img src={`${import.meta.env.BASE_URL}groopy-logo.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="font-black text-xl text-slate-800 tracking-tight">ניהול קטלוג</h1>

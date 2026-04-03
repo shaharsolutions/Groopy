@@ -237,7 +237,7 @@ const Catalog = () => {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden">
-                <img src={`${import.meta.env.BASE_URL}logo.png?v=2`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
+                <img src={`${import.meta.env.BASE_URL}groopy-logo.png`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
               </div>
               <div>
                 <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-l from-slate-900 to-slate-600 tracking-tighter leading-none mb-0.5">
@@ -447,7 +447,7 @@ const Catalog = () => {
         <div className="container mx-auto px-6 max-w-5xl text-center">
           <div className="flex flex-col items-center gap-4 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
             <div className="flex items-center gap-3">
-              <img src={`${import.meta.env.BASE_URL}logo.png?v=2`} alt="" className="h-10 object-contain" />
+              <img src={`${import.meta.env.BASE_URL}groopy-logo.png`} alt="" className="h-10 object-contain" />
             </div>
             <div className="flex gap-12 mt-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
               <span>Supply</span>

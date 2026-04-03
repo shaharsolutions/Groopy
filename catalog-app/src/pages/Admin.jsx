@@ -62,7 +62,7 @@ const Admin = () => {
 
   // New states for form inputs
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
-  const [newProduct, setNewProduct] = useState({ id: '', name: '', sku: '', price: '', category: 'Bottles', location: '', description: '', image: '' });
+  const [newProduct, setNewProduct] = useState({ id: '', name: '', sku: '', price: '', category: 'Bottles', location: '', description: '', image: '', is_new: false });
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedProductName, setSelectedProductName] = useState('');
@@ -163,7 +163,7 @@ const Admin = () => {
     if (!error) {
       setProducts([...products, finalProduct]);
       setIsAddingProduct(false);
-      setNewProduct({ id: '', name: '', sku: '', price: '', category: 'Bottles', location: '', description: '', image: '' });
+      setNewProduct({ id: '', name: '', sku: '', price: '', category: 'Bottles', location: '', description: '', image: '', is_new: false });
     } else {
       console.error('Error adding product:', error);
     }
@@ -578,7 +578,7 @@ const Admin = () => {
                 <tr key={p.id} className="group hover:bg-slate-50/50 transition-colors">
                   <td className="px-8 py-6">
                     <div 
-                      className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 overflow-hidden cursor-pointer hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-100 group/img"
+                      className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 overflow-hidden cursor-pointer hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-100 group/img relative"
                       onClick={() => p.image && openImageModal(p.image, p.name)}
                     >
                        {p.image ? (
@@ -586,9 +586,17 @@ const Admin = () => {
                        ) : (
                          p.category === 'Bottles' ? <Package size={20} /> : <Package size={20} />
                        )}
+                       {p.is_new && (
+                         <div className="absolute top-0 right-0 bg-accent-500 text-white text-[8px] font-black px-1 py-0.5 rounded-bl-lg shadow-sm">NEW</div>
+                       )}
                     </div>
                   </td>
-                  <td className="px-8 py-6 font-black text-slate-800 text-sm">{p.name}</td>
+                  <td className="px-8 py-6 font-black text-slate-800 text-sm">
+                    <div className="flex items-center gap-2">
+                       {p.name}
+                       {p.is_new && <span className="bg-blue-50 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">חדש</span>}
+                    </div>
+                  </td>
                   <td className="px-8 py-6 font-bold text-slate-400 text-xs">{p.sku}</td>
                   <td className="px-8 py-6 font-black text-slate-900">{p.price.toFixed(2)}</td>
                   <td className="px-8 py-6 whitespace-nowrap">
@@ -1227,6 +1235,18 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
                 </div>
+                <div className="col-span-2 flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <input 
+                    type="checkbox" 
+                    id="new_product_is_new"
+                    checked={newProduct.is_new}
+                    onChange={(e) => setNewProduct({...newProduct, is_new: e.target.checked})}
+                    className="w-6 h-6 rounded-lg border-slate-300 text-primary-500 focus:ring-primary-500"
+                  />
+                  <label htmlFor="new_product_is_new" className="text-sm font-black text-slate-700 cursor-pointer select-none">
+                    סמן כ-'מוצר חדש' (יופיע בקטגוריית "חדשים")
+                  </label>
+                </div>
               </div>
 
               <div className="mt-12">
@@ -1450,6 +1470,18 @@ const Admin = () => {
                     onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
+                </div>
+                <div className="col-span-2 flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <input 
+                    type="checkbox" 
+                    id="edit_product_is_new"
+                    checked={editingProduct.is_new}
+                    onChange={(e) => setEditingProduct({...editingProduct, is_new: e.target.checked})}
+                    className="w-6 h-6 rounded-lg border-slate-300 text-primary-500 focus:ring-primary-500"
+                  />
+                  <label htmlFor="edit_product_is_new" className="text-sm font-black text-slate-700 cursor-pointer select-none">
+                    סמן כ-'מוצר חדש' (יופיע בקטגוריית "חדשים")
+                  </label>
                 </div>
               </div>
 

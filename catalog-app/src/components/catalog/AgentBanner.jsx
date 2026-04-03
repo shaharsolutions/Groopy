@@ -10,7 +10,7 @@ const AgentBanner = ({ activeAgent }) => {
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          className="bg-blue-600 text-white py-3 px-4 shadow-xl sticky top-[80px] z-[50] flex items-center justify-between border-b border-blue-400 overflow-hidden"
+          className="bg-blue-600 text-white py-3 px-4 shadow-xl sticky top-[80px] md:top-[96px] lg:top-[112px] z-[50] flex items-center justify-between border-b border-blue-400 overflow-hidden"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-sm overflow-hidden">

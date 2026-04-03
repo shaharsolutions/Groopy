@@ -1,6 +1,6 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Package, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Package, Plus, Zap, Star, Flame } from 'lucide-react';
 
 const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
   return (
@@ -27,10 +27,43 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
         <div className="absolute inset-0 bg-gradient-to-br from-primary-400/5 to-accent-400/5" />
         
         {/* Floating Badges */}
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
+        <div className="absolute top-4 left-4 right-4 flex flex-col gap-2 items-start pointer-events-none">
           <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-[900] text-slate-400 shadow-sm border border-white/50">
             {product.sku}
           </div>
+          
+          <AnimatePresence>
+            {product.is_best_seller && (
+              <motion.div 
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                className="bg-blue-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-[900] flex items-center gap-1.5 shadow-lg shadow-blue-200"
+              >
+                <Star size={12} fill="currentColor" />
+                נמכר ביותר
+              </motion.div>
+            )}
+            {product.is_clearing && (
+              <motion.div 
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                className="bg-purple-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-[900] flex items-center gap-1.5 shadow-lg shadow-purple-200"
+              >
+                <Zap size={12} />
+                חדש
+              </motion.div>
+            )}
+            {product.is_hot_deal && (
+              <motion.div 
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                className="bg-orange-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-[900] flex items-center gap-1.5 shadow-lg shadow-orange-200"
+              >
+                <Flame size={12} fill="currentColor" />
+                מבצע חם
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

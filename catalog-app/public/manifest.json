@@ -8,7 +8,7 @@
   "theme_color": "#863bff",
   "icons": [
     {
-      "src": "groopy-logo.png",
+      "src": "logo-main.png",
       "sizes": "400x157",
       "type": "image/png"
     }

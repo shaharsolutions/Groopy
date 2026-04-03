@@ -16,7 +16,9 @@ import {
   Zap,
   TrendingDown,
   Settings,
-  ShieldCheck,
+  Percent,
+  Star,
+  Flame,
   UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,6 +40,7 @@ const Catalog = () => {
   const [formError, setFormError] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedProductName, setSelectedProductName] = useState('');
+  const [selectedBadge, setSelectedBadge] = useState(null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
 
   // 🖼️ Image Handlers
   const openImageModal = (imageUrl, productName) => {
@@ -128,7 +131,7 @@ const Catalog = () => {
       if (cat === 'Lunch Boxes' || cat === 'קופסאות אוכל') return 'קופסאות אוכל';
       return cat;
     });
-    return ['All', 'New', ...new Set(mapped)];
+    return ['All', ...new Set(mapped)];
   }, [products]);
 
   // Filtering Logic
@@ -147,14 +150,19 @@ const Catalog = () => {
       if (selectedCategory === 'All') {
         matchesCategory = true;
       } else if (selectedCategory === 'New') {
-        matchesCategory = !!product.is_new;
+        matchesCategory = !!product.is_clearing;
       } else {
         matchesCategory = normalizedProductCat === selectedCategory;
       }
+
+      let matchesBadge = true;
+      if (selectedBadge) {
+        matchesBadge = !!product[selectedBadge];
+      }
       
-      return matchesSearch && matchesCategory;
+      return matchesSearch && matchesCategory && matchesBadge;
     });
-  }, [searchTerm, selectedCategory, products]);
+  }, [searchTerm, selectedCategory, selectedBadge, products]);
 
   // Cart Management
   const addToCart = (product) => {
@@ -254,26 +262,33 @@ const Catalog = () => {
   return (
     <div className="min-h-screen bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
       {/* 🧭 PREMIUM NAVIGATION */}
-      <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-3xl border-b border-slate-100">
-        <div className="container mx-auto px-6 h-32 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center">
-              <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50">
-                <img src={`${import.meta.env.BASE_URL}groopy-logo.png`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
-              </div>
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-3xl border-b border-slate-100/60 transition-all duration-300">
+        <div className="container mx-auto px-6 h-20 md:h-24 lg:h-28 flex items-center transition-all">
+          {/* Right Section: Logo & Admin */}
+          <div className="flex-1 flex items-center gap-4 md:gap-6">
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50 transition-all duration-300 shrink-0">
+              <img src={`${import.meta.env.BASE_URL}logo-main.png`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
             </div>
-
-            {/* Admin Access Icon */}
+            
             <button 
               onClick={() => navigate('/admin')}
-              className="p-2 text-slate-300 hover:text-slate-600 transition-colors"
+              className="p-2.5 bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-colors"
               title="Admin Panel"
             >
-              <Settings size={18} />
+              <Settings size={20} />
             </button>
           </div>
-          
-          <div className="flex items-center gap-2">
+
+          {/* Center Section: Title & Subtitle */}
+          <div className="hidden sm:flex flex-col items-center justify-center text-center flex-[2]">
+            <h1 className="text-xl md:text-2xl lg:text-4xl font-[900] text-slate-900 tracking-tight leading-none mb-1">
+              מצא את המוצר <span className="text-primary-500 underline decoration-accent-300 decoration-4 md:decoration-8 underline-offset-2">המושלם</span> עבורך
+            </h1>
+            <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-wider">גרופי מתנות בע"מ - Uzspace & Superfood</p>
+          </div>
+
+          {/* Left Section: Agent & Cart */}
+          <div className="flex-1 flex items-center justify-end gap-2 md:gap-4">
             {activeAgent && (
               <div className="hidden md:flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl text-slate-500 border border-slate-100 max-h-12 overflow-hidden">
                 <div className="w-8 h-8 rounded-xl bg-slate-200 overflow-hidden shadow-inner flex items-center justify-center">
@@ -309,21 +324,16 @@ const Catalog = () => {
       <AgentBanner activeAgent={activeAgent} />
 
       {/* 🌌 HERO SEARCH SECTION */}
-      <section className="relative pt-12 pb-20 overflow-hidden bg-white">
+      <section className="relative pt-4 md:pt-6 pb-12 overflow-hidden bg-white">
         <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary-50/30 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-1/3 h-full bg-gradient-to-r from-accent-50/20 to-transparent pointer-events-none" />
         
         <div className="container mx-auto px-6 relative z-10 max-w-3xl">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-4xl md:text-5xl font-[900] text-slate-900 mb-4 tracking-tight leading-tight">
-              מצא את המוצר <span className="text-primary-500 underline decoration-accent-300 decoration-8 underline-offset-4">המושלם</span> עבורך
-            </h2>
-            <p className="text-slate-500 text-lg font-medium">גרופי מתנות בע"מ - Uzspace & Superfood</p>
-          </motion.div>
+          {/* Mobile Title - only visible on very small screens where header title is hidden */}
+          <div className="sm:hidden text-center mb-8">
+            <h1 className="text-2xl font-[900] text-slate-900 mb-2">מצא את המוצר המושלם</h1>
+            <p className="text-slate-400 text-[10px] font-bold">גרופי מתנות בע"מ</p>
+          </div>
 
           {/* SEARCH BAR */}
           <div className="relative group max-w-xl mx-auto">
@@ -342,8 +352,32 @@ const Catalog = () => {
             </div>
           </div>
 
+          {/* QUICK FILTER BADGES */}
+          <div className="grid grid-cols-3 gap-3 md:gap-6 mt-8 md:mt-10 mb-8 md:mb-10">
+            {[
+              { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
+              { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
+              { id: 'is_clearing', label: 'מוצרים חדשים', icon: Zap, color: { bg: 'bg-[#FDF2FF]', border: 'border-[#F1D0FF]', iconBg: 'bg-[#EBD2FF]', iconColor: 'text-[#8E24AA]' } },
+            ].map((badge) => (
+              <button 
+                key={badge.id}
+                onClick={() => setSelectedBadge(selectedBadge === badge.id ? null : badge.id)}
+                className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${
+                  selectedBadge === badge.id 
+                    ? `${badge.color.bg} ${badge.color.border} scale-[1.02] shadow-xl shadow-slate-200` 
+                    : `bg-white border-slate-100 hover:border-slate-200 hover:shadow-lg items-center`
+                }`}
+              >
+                <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full ${badge.color.iconBg} flex items-center justify-center mb-1.5 md:mb-4 transition-all duration-500 group-hover:scale-110 shadow-inner`}>
+                  <badge.icon size={20} className={`${badge.color.iconColor} md:w-8 md:h-8`} />
+                </div>
+                <span className="text-[10px] md:text-2xl font-[900] text-slate-800 tracking-tight text-center leading-tight whitespace-pre-wrap">{badge.label}</span>
+              </button>
+            ))}
+          </div>
+
           {/* CATEGORIES CHIPS - Scrollable on mobile */}
-          <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 mt-10 pb-4 md:pb-0 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
+          <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 mt-4 pb-4 md:pb-0 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
             {categories.map(cat => (
               <button
                 key={cat}
@@ -384,7 +418,11 @@ const Catalog = () => {
             <h3 className="text-2xl font-black text-slate-800">לא מצאנו מה שחיפשת...</h3>
             <p className="text-slate-500 mt-2 font-medium">אולי כדאי לנסות מילת חיפוש אחרת? 🤔</p>
             <button 
-              onClick={() => setSearchTerm('')}
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory('All');
+                setSelectedBadge(null);
+              }}
               className="mt-8 text-primary-600 font-bold underline underline-offset-8"
             >
               הצג את כל המוצרים
@@ -463,7 +501,7 @@ const Catalog = () => {
         <div className="container mx-auto px-6 max-w-5xl text-center">
           <div className="flex flex-col items-center gap-4 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
             <div className="flex items-center gap-3">
-              <img src={`${import.meta.env.BASE_URL}groopy-logo.png`} alt="" className="h-10 object-contain" />
+              <img src={`${import.meta.env.BASE_URL}logo-main.png`} alt="" className="h-10 object-contain" />
             </div>
             <div className="flex gap-12 mt-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
               <span>Supply</span>

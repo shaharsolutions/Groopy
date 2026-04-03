@@ -22,8 +22,12 @@ import {
   Eye,
   ShoppingBag,
   Clock,
+  Percent,
+  Star,
+  Flame,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
@@ -62,7 +66,20 @@ const Admin = () => {
 
   // New states for form inputs
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
-  const [newProduct, setNewProduct] = useState({ id: '', name: '', sku: '', price: '', category: 'Bottles', location: '', description: '', image: '', is_new: false });
+  const [newProduct, setNewProduct] = useState({ 
+    id: '', 
+    name: '', 
+    sku: '', 
+    price: '', 
+    category: 'Bottles', 
+    location: '', 
+    description: '', 
+    image: '', 
+    is_new: false,
+    is_clearing: false,
+    is_best_seller: false,
+    is_hot_deal: false
+  });
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedProductName, setSelectedProductName] = useState('');
@@ -151,6 +168,11 @@ const Admin = () => {
     }
   }, [selectedOrder]);
 
+  const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
+  const [isUpdatingAgent, setIsUpdatingAgent] = useState(false);
+  const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
+
   // Product Actions
   const handleAddProduct = async () => {
     const finalProduct = { 
@@ -159,13 +181,32 @@ const Admin = () => {
       price: parseFloat(newProduct.price) 
     };
 
-    const { error } = await supabase.from('products').insert([finalProduct]);
-    if (!error) {
-      setProducts([...products, finalProduct]);
-      setIsAddingProduct(false);
-      setNewProduct({ id: '', name: '', sku: '', price: '', category: 'Bottles', location: '', description: '', image: '', is_new: false });
-    } else {
-      console.error('Error adding product:', error);
+    setIsUpdatingProduct(true);
+    try {
+      const { error } = await supabase.from('products').insert([finalProduct]);
+      if (!error) {
+        setProducts([...products, finalProduct]);
+        setIsAddingProduct(false);
+        setNewProduct({ 
+          id: '', 
+          name: '', 
+          sku: '', 
+          price: '', 
+          category: 'Bottles', 
+          location: '', 
+          description: '', 
+          image: '', 
+          is_new: false,
+          is_clearing: false,
+          is_best_seller: false,
+          is_hot_deal: false
+        });
+      } else {
+        console.error('Error adding product:', error);
+        alert('שגיאה בהוספת המוצר');
+      }
+    } finally {
+      setIsUpdatingProduct(false);
     }
   }
 
@@ -180,25 +221,37 @@ const Admin = () => {
   }
 
   const handleUpdateProduct = async (updated) => {
-    const { error } = await supabase.from('products').update(updated).eq('id', updated.id);
-    if (!error) {
-      setProducts(products.map(p => p.id === updated.id ? updated : p));
-      setEditingProduct(null);
-    } else {
-      console.error('Error updating product:', error);
+    setIsUpdatingProduct(true);
+    try {
+      const { error } = await supabase.from('products').update(updated).eq('id', updated.id);
+      if (!error) {
+        setProducts(products.map(p => p.id === updated.id ? updated : p));
+        setEditingProduct(null);
+      } else {
+        console.error('Error updating product:', error);
+        alert('שגיאה בעדכון המוצר');
+      }
+    } finally {
+      setIsUpdatingProduct(false);
     }
   }
 
   // Agent Actions
   const handleAddAgent = async () => {
     const agent = { id: Date.now().toString(), ...newAgent };
-    const { error } = await supabase.from('agents').insert([agent]);
-    if (!error) {
-      setAgents([...agents, agent]);
-      setIsAddingAgent(false);
-      setNewAgent({ name: '', phone: '', image: '' });
-    } else {
-      console.error('Error adding agent:', error);
+    setIsUpdatingAgent(true);
+    try {
+      const { error } = await supabase.from('agents').insert([agent]);
+      if (!error) {
+        setAgents([...agents, agent]);
+        setIsAddingAgent(false);
+        setNewAgent({ name: '', phone: '', image: '' });
+      } else {
+        console.error('Error adding agent:', error);
+        alert('שגיאה בהוספת הסוכן');
+      }
+    } finally {
+      setIsUpdatingAgent(false);
     }
   }
 
@@ -215,13 +268,19 @@ const Admin = () => {
   // Category Actions
   const handleAddCategory = async () => {
     const category = { id: Date.now().toString(), ...newCategory };
-    const { error } = await supabase.from('categories').insert([category]);
-    if (!error) {
-      setCategories([...categories, category]);
-      setIsAddingCategory(false);
-      setNewCategory({ name: '' });
-    } else {
-      console.error('Error adding category:', error);
+    setIsUpdatingCategory(true);
+    try {
+      const { error } = await supabase.from('categories').insert([category]);
+      if (!error) {
+        setCategories([...categories, category]);
+        setIsAddingCategory(false);
+        setNewCategory({ name: '' });
+      } else {
+        console.error('Error adding category:', error);
+        alert('שגיאה בהוספת קטגוריה');
+      }
+    } finally {
+      setIsUpdatingCategory(false);
     }
   }
 
@@ -236,22 +295,34 @@ const Admin = () => {
   }
 
   const handleUpdateCategory = async (updated) => {
-    const { error } = await supabase.from('categories').update(updated).eq('id', updated.id);
-    if (!error) {
-      setCategories(categories.map(c => c.id === updated.id ? updated : c));
-      setEditingCategory(null);
-    } else {
-      console.error('Error updating category:', error);
+    setIsUpdatingCategory(true);
+    try {
+      const { error } = await supabase.from('categories').update(updated).eq('id', updated.id);
+      if (!error) {
+        setCategories(categories.map(c => c.id === updated.id ? updated : c));
+        setEditingCategory(null);
+      } else {
+        console.error('Error updating category:', error);
+        alert('שגיאה בעדכון הקטגוריה');
+      }
+    } finally {
+      setIsUpdatingCategory(false);
     }
   }
 
   const handleUpdateAgent = async (updated) => {
-    const { error } = await supabase.from('agents').update(updated).eq('id', updated.id);
-    if (!error) {
-      setAgents(agents.map(a => a.id === updated.id ? updated : a));
-      setEditingAgent(null);
-    } else {
-      console.error('Error updating agent:', error);
+    setIsUpdatingAgent(true);
+    try {
+      const { error } = await supabase.from('agents').update(updated).eq('id', updated.id);
+      if (!error) {
+        setAgents(agents.map(a => a.id === updated.id ? updated : a));
+        setEditingAgent(null);
+      } else {
+        console.error('Error updating agent:', error);
+        alert('שגיאה בעדכון הסוכן');
+      }
+    } finally {
+      setIsUpdatingAgent(false);
     }
   }
 
@@ -444,69 +515,72 @@ const Admin = () => {
   const handleSaveOrderEdits = async () => {
     if (!selectedOrder) return;
 
-    setIsSubmittingNote(true);
-    const subtotal = tempOrderItems.reduce((sum, item) => {
-      const price = Number(item.price) || 0;
-      const qty = Number(item.quantity) || 0;
-      return sum + (price * qty);
-    }, 0);
-    
-    const discountPct = Number(tempOrderDiscount) || 0;
-    const discountAmount = subtotal * (discountPct / 100);
-    const newTotal = subtotal - discountAmount;
-
-    const requestBody = { 
-        items: tempOrderItems,
-        discount_pct: discountPct,
-        total_price: newTotal
-    };
-
-    const { error } = await supabase
-      .from('orders')
-      .update(requestBody)
-      .eq('id', selectedOrder.id);
-
-    if (!error) {
-      const updatedOrder = { 
-        ...selectedOrder, 
-        items: tempOrderItems, 
-        discount_pct: discountPct,
-        total_price: newTotal 
-      };
-      setSelectedOrder(updatedOrder);
-      setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
-      setIsEditingOrder(false);
-    } else {
-      console.error('Error saving order edits:', error);
+    setIsUpdatingOrder(true);
+    try {
+      const subtotal = tempOrderItems.reduce((sum, item) => {
+        const price = Number(item.price) || 0;
+        const qty = Number(item.quantity) || 0;
+        return sum + (price * qty);
+      }, 0);
       
-      if (error.code === '42703' || error.message?.includes('discount_pct')) {
-        // Column missing error - try fallback save without discount_pct
-        const { error: fallbackError } = await supabase
-          .from('orders')
-          .update({ 
-            items: tempOrderItems,
-            total_price: newTotal
-          })
-          .eq('id', selectedOrder.id);
+      const discountPct = Number(tempOrderDiscount) || 0;
+      const discountAmount = subtotal * (discountPct / 100);
+      const newTotal = subtotal - discountAmount;
 
-        if (!fallbackError) {
-          const updatedOrder = { 
-            ...selectedOrder, 
-            items: tempOrderItems, 
-            total_price: newTotal 
-          };
-          setSelectedOrder(updatedOrder);
-          setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
-          setIsEditingOrder(false);
-          alert('השינויים נשמרו, אך אחוז ההנחה לא נשמר בבסיס הנתונים. נא להוסיף את העמודה "discount_pct" ב-Supabase (SQL: ALTER TABLE orders ADD COLUMN discount_pct NUMERIC DEFAULT 0)');
-        } else {
-          alert('שגיאה בשמירת השינויים: ' + (fallbackError.message || 'שגיאה כללית'));
-        }
+      const requestBody = { 
+          items: tempOrderItems,
+          discount_pct: discountPct,
+          total_price: newTotal
+      };
+
+      const { error } = await supabase
+        .from('orders')
+        .update(requestBody)
+        .eq('id', selectedOrder.id);
+
+      if (!error) {
+        const updatedOrder = { 
+          ...selectedOrder, 
+          items: tempOrderItems, 
+          discount_pct: discountPct,
+          total_price: newTotal 
+        };
+        setSelectedOrder(updatedOrder);
+        setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
+        setIsEditingOrder(false);
       } else {
-        alert('שגיאה בשמירת השינויים: ' + (error.message || 'שגיאה כללית'));
+        console.error('Error saving order edits:', error);
+        
+        if (error.code === '42703' || error.message?.includes('discount_pct')) {
+          // Column missing error - try fallback save without discount_pct
+          const { error: fallbackError } = await supabase
+            .from('orders')
+            .update({ 
+              items: tempOrderItems,
+              total_price: newTotal
+            })
+            .eq('id', selectedOrder.id);
+
+          if (!fallbackError) {
+            const updatedOrder = { 
+              ...selectedOrder, 
+              items: tempOrderItems, 
+              total_price: newTotal 
+            };
+            setSelectedOrder(updatedOrder);
+            setOrders(orders.map(o => (o.id === selectedOrder.id ? updatedOrder : o)));
+            setIsEditingOrder(false);
+            alert('השינויים נשמרו, אך אחוז ההנחה לא נשמר בבסיס הנתונים. נא להוסיף את העמודה "discount_pct" ב-Supabase (SQL: ALTER TABLE orders ADD COLUMN discount_pct NUMERIC DEFAULT 0)');
+          } else {
+            alert('שגיאה בשמירת השינויים: ' + (fallbackError.message || 'שגיאה כללית'));
+          }
+        } else {
+          alert('שגיאה בשמירת השינויים: ' + (error.message || 'שגיאה כללית'));
+        }
       }
+    } finally {
+      setIsUpdatingOrder(false);
     }
-    setIsSubmittingNote(false);
   };
 
   const copyAgentLink = (id) => {
@@ -586,7 +660,7 @@ const Admin = () => {
                        ) : (
                          p.category === 'Bottles' ? <Package size={20} /> : <Package size={20} />
                        )}
-                       {p.is_new && (
+                       {p.is_clearing && (
                          <div className="absolute top-0 right-0 bg-accent-500 text-white text-[8px] font-black px-1 py-0.5 rounded-bl-lg shadow-sm">NEW</div>
                        )}
                     </div>
@@ -594,7 +668,7 @@ const Admin = () => {
                   <td className="px-8 py-6 font-black text-slate-800 text-sm">
                     <div className="flex items-center gap-2">
                        {p.name}
-                       {p.is_new && <span className="bg-blue-50 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">חדש</span>}
+                       {p.is_clearing && <span className="bg-blue-50 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">חדש</span>}
                     </div>
                   </td>
                   <td className="px-8 py-6 font-bold text-slate-400 text-xs">{p.sku}</td>
@@ -988,7 +1062,7 @@ const Admin = () => {
         <div className="flex items-center justify-between mb-12">
           <div className="flex items-center gap-3">
             <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm overflow-hidden p-1 border border-slate-100">
-              <img src={`${import.meta.env.BASE_URL}groopy-logo.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
+              <img src={`${import.meta.env.BASE_URL}logo-main.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="font-black text-xl text-slate-800 tracking-tight">ניהול קטלוג</h1>
@@ -1235,22 +1309,55 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
                 </div>
-                <div className="col-span-2 flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <input 
-                    type="checkbox" 
-                    id="new_product_is_new"
-                    checked={newProduct.is_new}
-                    onChange={(e) => setNewProduct({...newProduct, is_new: e.target.checked})}
-                    className="w-6 h-6 rounded-lg border-slate-300 text-primary-500 focus:ring-primary-500"
-                  />
-                  <label htmlFor="new_product_is_new" className="text-sm font-black text-slate-700 cursor-pointer select-none">
-                    סמן כ-'מוצר חדש' (יופיע בקטגוריית "חדשים")
-                  </label>
+                <div className="col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="new_product_is_clearing"
+                      checked={newProduct.is_clearing}
+                      onChange={(e) => setNewProduct({...newProduct, is_clearing: e.target.checked})}
+                      className="w-6 h-6 rounded-lg border-slate-300 text-purple-500 focus:ring-purple-500"
+                    />
+                    <label htmlFor="new_product_is_clearing" className="text-xs font-black text-slate-700 cursor-pointer select-none flex items-center gap-1">
+                      <Zap size={12} className="text-purple-500" /> מוצרים חדשים
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="new_product_is_best_seller"
+                      checked={newProduct.is_best_seller}
+                      onChange={(e) => setNewProduct({...newProduct, is_best_seller: e.target.checked})}
+                      className="w-6 h-6 rounded-lg border-slate-300 text-blue-500 focus:ring-blue-500"
+                    />
+                    <label htmlFor="new_product_is_best_seller" className="text-xs font-black text-slate-700 cursor-pointer select-none flex items-center gap-1">
+                      <Star size={12} className="text-blue-500" /> נמכרים
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="new_product_is_hot_deal"
+                      checked={newProduct.is_hot_deal}
+                      onChange={(e) => setNewProduct({...newProduct, is_hot_deal: e.target.checked})}
+                      className="w-6 h-6 rounded-lg border-slate-300 text-orange-500 focus:ring-orange-500"
+                    />
+                    <label htmlFor="new_product_is_hot_deal" className="text-xs font-black text-slate-700 cursor-pointer select-none flex items-center gap-1">
+                      <Flame size={12} className="text-orange-500" /> חם
+                    </label>
+                  </div>
                 </div>
               </div>
 
               <div className="mt-12">
-                 <button onClick={handleAddProduct} className="btn-primary w-full py-5 text-lg">שמור מוצר במערכת</button>
+                 <button 
+                  onClick={handleAddProduct} 
+                  disabled={isUpdatingProduct}
+                  className="btn-primary w-full py-5 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUpdatingProduct ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'שמור מוצר במערכת'}
+                </button>
               </div>
             </motion.div>
           </div>
@@ -1260,65 +1367,73 @@ const Admin = () => {
       {/* 👤 ADD AGENT MODAL */}
       <AnimatePresence>
         {isAddingAgent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
-            >
-              <button 
-                onClick={() => setIsAddingAgent(false)}
-                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
+          <div className="fixed inset-0 z-[100] overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-8"
+              >
+                <button 
+                  onClick={() => setIsAddingAgent(false)}
+                  className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
                 >
                   <X size={32} />
-              </button>
-              
-              <h2 className="text-3xl font-black mb-8 tracking-tighter">הוספת סוכן</h2>
-              
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">
-                    <User size={12} /> שם הסוכן
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="לדוגמה: מוטי זיגדון"
-                    value={newAgent.name}
-                    onChange={(e) => setNewAgent({...newAgent, name: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
-                  />
+                </button>
+                
+                <h2 className="text-3xl font-black mb-8 tracking-tighter">הוספת סוכן</h2>
+                
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">
+                      <User size={12} /> שם הסוכן
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="לדוגמה: מוטי זיגדון"
+                      value={newAgent.name}
+                      onChange={(e) => setNewAgent({...newAgent, name: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">
+                      <Phone size={12} /> טלפון WhatsApp
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="05XXXXXXXX"
+                      value={newAgent.phone}
+                      onChange={(e) => setNewAgent({...newAgent, phone: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    />
+                    <p className="text-[10px] text-slate-400 pr-2">ניתן להזין מספר רגיל המתחיל ב-0, המערכת תבצע המרה אוטומטית</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">
+                      <Image size={12} /> קישור לתמונה
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="URL לתמונה של הסוכן"
+                      value={newAgent.image}
+                      onChange={(e) => setNewAgent({...newAgent, image: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">
-                    <Phone size={12} /> טלפון WhatsApp
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="05XXXXXXXX"
-                    value={newAgent.phone}
-                    onChange={(e) => setNewAgent({...newAgent, phone: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
-                  />
-                  <p className="text-[10px] text-slate-400 pr-2">ניתן להזין מספר רגיל המתחיל ב-0, המערכת תבצע המרה אוטומטית</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">
-                    <Image size={12} /> קישור לתמונה
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="URL לתמונה של הסוכן"
-                    value={newAgent.image}
-                    onChange={(e) => setNewAgent({...newAgent, image: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
-                  />
-                </div>
-              </div>
 
-              <div className="mt-12">
-                 <button onClick={handleAddAgent} className="btn-primary w-full py-5">צור סוכן והנפק קישור</button>
-              </div>
-            </motion.div>
+                <div className="mt-12">
+                   <button 
+                    onClick={handleAddAgent} 
+                    disabled={isUpdatingAgent}
+                    className="btn-primary w-full py-5 disabled:opacity-50 disabled:cursor-not-allowed"
+                   >
+                     {isUpdatingAgent ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'צור סוכן והנפק קישור'}
+                   </button>
+                </div>
+              </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>
@@ -1326,12 +1441,13 @@ const Admin = () => {
       {/* ✏️ EDIT AGENT MODAL */}
       <AnimatePresence>
         {editingAgent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
-            >
+          <div className="fixed inset-0 z-[100] overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-8"
+              >
               <button 
                 onClick={() => setEditingAgent(null)}
                 className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
@@ -1378,23 +1494,31 @@ const Admin = () => {
               </div>
 
               <div className="mt-12 flex gap-4">
-                 <button onClick={() => handleUpdateAgent(editingAgent)} className="btn-primary w-full py-5">שמור שינויים</button>
+                 <button 
+                  onClick={() => handleUpdateAgent(editingAgent)} 
+                  disabled={isUpdatingAgent}
+                  className="btn-primary w-full py-5 disabled:opacity-50 disabled:cursor-not-allowed font-black"
+                 >
+                   {isUpdatingAgent ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'שמור שינויים'}
+                 </button>
                  <button onClick={() => setEditingAgent(null)} className="w-full bg-slate-100 font-black text-slate-500 py-5 rounded-2xl hover:bg-slate-200 transition-colors">ביטול</button>
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
+    </AnimatePresence>
 
       {/* ✏️ EDIT PRODUCT MODAL */}
       <AnimatePresence>
         {editingProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-auto"
-            >
+          <div className="fixed inset-0 z-[100] overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-8"
+              >
               <button 
                 onClick={() => setEditingProduct(null)}
                 className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
@@ -1471,37 +1595,72 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
                 </div>
-                <div className="col-span-2 flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <input 
-                    type="checkbox" 
-                    id="edit_product_is_new"
-                    checked={editingProduct.is_new}
-                    onChange={(e) => setEditingProduct({...editingProduct, is_new: e.target.checked})}
-                    className="w-6 h-6 rounded-lg border-slate-300 text-primary-500 focus:ring-primary-500"
-                  />
-                  <label htmlFor="edit_product_is_new" className="text-sm font-black text-slate-700 cursor-pointer select-none">
-                    סמן כ-'מוצר חדש' (יופיע בקטגוריית "חדשים")
-                  </label>
+                <div className="col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="edit_product_is_clearing"
+                      checked={editingProduct.is_clearing}
+                      onChange={(e) => setEditingProduct({...editingProduct, is_clearing: e.target.checked})}
+                      className="w-6 h-6 rounded-lg border-slate-300 text-purple-500 focus:ring-purple-500"
+                    />
+                    <label htmlFor="edit_product_is_clearing" className="text-xs font-black text-slate-700 cursor-pointer select-none flex items-center gap-1">
+                      <Zap size={12} className="text-purple-500" /> מוצרים חדשים
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="edit_product_is_best_seller"
+                      checked={editingProduct.is_best_seller}
+                      onChange={(e) => setEditingProduct({...editingProduct, is_best_seller: e.target.checked})}
+                      className="w-6 h-6 rounded-lg border-slate-300 text-blue-500 focus:ring-blue-500"
+                    />
+                    <label htmlFor="edit_product_is_best_seller" className="text-xs font-black text-slate-700 cursor-pointer select-none flex items-center gap-1">
+                      <Star size={12} className="text-blue-500" /> נמכרים
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="edit_product_is_hot_deal"
+                      checked={editingProduct.is_hot_deal}
+                      onChange={(e) => setEditingProduct({...editingProduct, is_hot_deal: e.target.checked})}
+                      className="w-6 h-6 rounded-lg border-slate-300 text-orange-500 focus:ring-orange-500"
+                    />
+                    <label htmlFor="edit_product_is_hot_deal" className="text-xs font-black text-slate-700 cursor-pointer select-none flex items-center gap-1">
+                      <Flame size={12} className="text-orange-500" /> חם
+                    </label>
+                  </div>
                 </div>
               </div>
 
               <div className="mt-12 flex gap-4">
-                 <button onClick={() => handleUpdateProduct(editingProduct)} className="btn-primary w-full py-5 text-lg">שמור שינויים</button>
+                 <button 
+                  onClick={() => handleUpdateProduct(editingProduct)} 
+                  disabled={isUpdatingProduct}
+                  className="btn-primary w-full py-5 text-lg disabled:opacity-50 disabled:cursor-not-allowed font-black"
+                >
+                   {isUpdatingProduct ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'שמור שינויים'}
+                 </button>
                  <button onClick={() => setEditingProduct(null)} className="w-full bg-slate-100 font-black text-slate-500 py-5 rounded-2xl hover:bg-slate-200 transition-colors">ביטול</button>
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
+    </AnimatePresence>
       {/* 🏷️ ADD CATEGORY MODAL */}
       <AnimatePresence>
         {isAddingCategory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
-            >
+          <div className="fixed inset-0 z-[100] overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-8"
+              >
               <button 
                 onClick={() => setIsAddingCategory(false)}
                 className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
@@ -1524,22 +1683,30 @@ const Admin = () => {
               </div>
 
               <div className="mt-12">
-                 <button onClick={handleAddCategory} className="btn-primary w-full py-5">צור קטגוריה</button>
+                 <button 
+                  onClick={handleAddCategory} 
+                  disabled={isUpdatingCategory}
+                  className="btn-primary w-full py-5 disabled:opacity-50 disabled:cursor-not-allowed font-black"
+                 >
+                   {isUpdatingCategory ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'צור קטגוריה'}
+                 </button>
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
+    </AnimatePresence>
 
       {/* 🏷️ EDIT CATEGORY MODAL */}
       <AnimatePresence>
         {editingCategory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-auto"
-            >
+          <div className="fixed inset-0 z-[100] overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-[40px] w-full max-w-md p-8 md:p-12 shadow-2xl relative my-8"
+              >
               <button 
                 onClick={() => setEditingCategory(null)}
                 className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
@@ -1562,13 +1729,20 @@ const Admin = () => {
               </div>
 
               <div className="mt-12 flex gap-4">
-                 <button onClick={() => handleUpdateCategory(editingCategory)} className="btn-primary w-full py-5">שמור שינויים</button>
+                 <button 
+                  onClick={() => handleUpdateCategory(editingCategory)} 
+                  disabled={isUpdatingCategory}
+                  className="btn-primary w-full py-5 disabled:opacity-50 disabled:cursor-not-allowed font-black"
+                 >
+                   {isUpdatingCategory ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'שמור שינויים'}
+                 </button>
                  <button onClick={() => setEditingCategory(null)} className="w-full bg-slate-100 font-black text-slate-500 py-5 rounded-2xl">ביטול</button>
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
+    </AnimatePresence>
 
       {/* 🖼️ IMAGE MODAL */}
       <AnimatePresence>
@@ -1613,13 +1787,14 @@ const Admin = () => {
       {/* 🛍️ ORDER DETAILS MODAL */}
       <AnimatePresence>
         {selectedOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-[40px] w-full max-w-3xl p-6 md:p-14 shadow-2xl relative my-auto"
-            >
+          <div className="fixed inset-0 z-[100] overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-[40px] w-full max-w-3xl p-6 md:p-14 shadow-2xl relative my-8"
+              >
               <button 
                 onClick={() => setSelectedOrder(null)}
                 className="absolute left-6 top-6 md:left-10 md:top-10 text-slate-300 hover:text-slate-900 transition-colors z-20"
@@ -1908,10 +2083,10 @@ const Admin = () => {
                     <>
                       <button 
                         onClick={handleSaveOrderEdits}
-                        disabled={isSubmittingNote}
-                        className="flex-1 md:flex-none bg-primary-500 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-primary-600 transition-colors shadow-lg shadow-primary-200"
+                        disabled={isUpdatingOrder}
+                        className="flex-1 md:flex-none bg-primary-500 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-primary-600 transition-colors shadow-lg shadow-primary-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isSubmittingNote ? 'שומר...' : 'שמור שינויים'}
+                        {isUpdatingOrder ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'שמור שינויים'}
                       </button>
                       <button 
                         onClick={() => setIsEditingOrder(false)}
@@ -1940,8 +2115,9 @@ const Admin = () => {
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
+    </AnimatePresence>
       
       {/* 🚫 CANCELLATION MODAL */}
       <AnimatePresence>

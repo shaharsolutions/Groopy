@@ -12,12 +12,21 @@ const LoginPage = ({ onLogin }) => {
     e.preventDefault();
     const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
     
-    if (adminPassword && password === adminPassword) {
+    // Trim values to avoid invisible space issues
+    const trimmedInput = password.trim();
+    const normalizedAdminPassword = adminPassword ? String(adminPassword).trim() : null;
+    
+    if (normalizedAdminPassword && trimmedInput === normalizedAdminPassword) {
       onLogin(true);
       setError(false);
     } else {
       setError(true);
       setPassword('');
+      
+      // Developer hint if the env var is missing
+      if (!normalizedAdminPassword) {
+        console.error('VITE_ADMIN_PASSWORD is not defined in environment variables');
+      }
     }
   };
 
@@ -36,7 +45,7 @@ const LoginPage = ({ onLogin }) => {
       >
         <div className="flex flex-col items-center mb-10">
           <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 overflow-hidden p-2">
-            <img src={`${import.meta.env.BASE_URL}logo.png?v=2`} alt="Groopy Logo" className="w-full h-full object-contain" />
+            <img src={`${import.meta.env.BASE_URL}logo-main.png?v=3`} alt="Groopy Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-widest uppercase text-center">כניסת מנהל</h1>
           <p className="text-slate-400 font-bold text-sm mt-2 text-center">אנא הזן את הסיסמה לגישה למערכת</p>

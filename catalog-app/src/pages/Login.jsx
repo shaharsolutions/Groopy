@@ -10,7 +10,9 @@ const LoginPage = ({ onLogin }) => {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (password === 'Password') {
+    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
+    
+    if (adminPassword && password === adminPassword) {
       onLogin(true);
       setError(false);
     } else {

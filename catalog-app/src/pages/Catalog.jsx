@@ -121,15 +121,29 @@ const Catalog = () => {
   }
 
   // Categories Calculation
-  const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
+  const categories = useMemo(() => {
+    const rawCategories = [...new Set(products.map(p => p.category))];
+    const mapped = rawCategories.map(cat => {
+      if (cat === 'Bottles' || cat === 'בקבוקים') return 'בקבוקים';
+      if (cat === 'Lunch Boxes' || cat === 'קופסאות אוכל') return 'קופסאות אוכל';
+      return cat;
+    });
+    return ['All', ...new Set(mapped)];
+  }, [products]);
 
   // Filtering Logic
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
       const matchesSearch = 
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+        product.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const normalizedProductCat = 
+        (product.category === 'Bottles' || product.category === 'בקבוקים') ? 'בקבוקים' :
+        (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' :
+        product.category;
+        
+      const matchesCategory = selectedCategory === 'All' || normalizedProductCat === selectedCategory;
       return matchesSearch && matchesCategory;
     });
   }, [searchTerm, selectedCategory, products]);
@@ -338,7 +352,7 @@ const Catalog = () => {
                     : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                {cat === 'All' ? 'כל המוצרים' : cat === 'Bottles' ? 'בקבוקים' : 'קופסאות אוכל'}
+                {cat === 'All' ? 'כל המוצרים' : cat}
               </button>
             ))}
           </div>

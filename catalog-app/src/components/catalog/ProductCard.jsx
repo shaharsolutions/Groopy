@@ -37,7 +37,9 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
       {/* Info Content */}
       <div className="p-8 pt-0 flex flex-col flex-1">
         <span className="text-[10px] font-black text-accent-500 uppercase tracking-widest mb-2">
-          {product.category === 'Bottles' ? 'Premium Bottles' : 'Food Storage'}
+          {(product.category === 'Bottles' || product.category === 'בקבוקים') ? 'בקבוקים' : 
+           (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
+           product.category}
         </span>
         <h3 className="font-bold text-lg text-slate-800 leading-snug mb-3 min-h-[3rem] line-clamp-2">
           {product.name}

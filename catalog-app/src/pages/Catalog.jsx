@@ -200,7 +200,8 @@ const Catalog = () => {
     message += `*פירוט המוצרים:*\n`;
     
     cart.forEach((item, index) => {
-      message += `${index + 1}. *${item.name}*\n`;
+      message += `.${index + 1}\n`;
+      message += `*${item.name}*\n`;
       message += `   מק"ט: ${item.sku} | כמות: ${item.quantity} יחידות - (${item.quantity / 12} קרטון)\n`;
       message += `   מחיר יחידה: ₪${item.price.toFixed(2)} | סה"כ לתשלום: ₪${(item.price * item.quantity).toFixed(2)}\n`;
       if (index < cart.length - 1) {

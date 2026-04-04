@@ -60,7 +60,7 @@ const Admin = () => {
   const [brands, setBrands] = useState([]);
   const [editingBrand, setEditingBrand] = useState(null);
   const [isAddingBrand, setIsAddingBrand] = useState(false);
-  const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '' });
+  const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '', show_in_carousel: true });
   const [isUpdatingBrand, setIsUpdatingBrand] = useState(false);
   const [confirmingBrandDelete, setConfirmingBrandDelete] = useState(null);
   
@@ -1053,11 +1053,19 @@ const Admin = () => {
                   </div>
                   <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1">{brand.name}</h3>
                   {brand.type && (
-                    <span className="px-3 py-1 bg-primary-50 text-primary-600 text-[10px] font-black rounded-full mb-6 uppercase tracking-wider border border-primary-100/50">
+                    <span className="px-3 py-1 bg-primary-50 text-primary-600 text-[10px] font-black rounded-full mb-2 uppercase tracking-wider border border-primary-100/50">
                       {brand.type}
                     </span>
                   )}
-                  {!brand.type && <div className="mb-6 h-4" />}
+                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border mb-4 ${
+                    brand.show_in_carousel !== false 
+                      ? 'bg-green-50 text-green-600 border-green-100' 
+                      : 'bg-slate-50 text-slate-400 border-slate-100'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${brand.show_in_carousel !== false ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                    {brand.show_in_carousel !== false ? 'מוצג בקרוסלה' : 'לא מוצג בקרוסלה'}
+                  </div>
+                  {!brand.type && <div className="mb-2 h-4" />}
 
                   <div className="w-full pt-6 mt-auto border-t border-slate-50 flex gap-3">
                     {confirmingBrandDelete === brand.id ? (
@@ -2076,6 +2084,15 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none focus:border-primary-500" 
                   />
                 </div>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 cursor-pointer select-none" onClick={() => setNewBrand({...newBrand, show_in_carousel: !newBrand.show_in_carousel})}>
+                  <input 
+                    type="checkbox" 
+                    checked={newBrand.show_in_carousel !== false}
+                    onChange={(e) => setNewBrand({...newBrand, show_in_carousel: e.target.checked})}
+                    className="w-6 h-6 rounded-lg border-slate-300 text-primary-500 focus:ring-primary-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-black text-slate-700">הצג בקרוסלת המותגים</span>
+                </div>
               </div>
 
               <div className="mt-12">
@@ -2137,6 +2154,15 @@ const Admin = () => {
                     onChange={(e) => setEditingBrand({...editingBrand, type: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none focus:border-primary-500" 
                   />
+                </div>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 cursor-pointer select-none" onClick={() => setEditingBrand({...editingBrand, show_in_carousel: !editingBrand.show_in_carousel})}>
+                  <input 
+                    type="checkbox" 
+                    checked={editingBrand.show_in_carousel !== false}
+                    onChange={(e) => setEditingBrand({...editingBrand, show_in_carousel: e.target.checked})}
+                    className="w-6 h-6 rounded-lg border-slate-300 text-primary-500 focus:ring-primary-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-black text-slate-700">הצג בקרוסלת המותגים</span>
                 </div>
               </div>
 

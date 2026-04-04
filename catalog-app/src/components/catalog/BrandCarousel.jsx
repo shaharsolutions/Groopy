@@ -25,7 +25,14 @@ const BrandCarousel = () => {
         if (error) throw error;
         
         if (data && data.length > 0) {
-          setBrands(data);
+          // Filter brands that should show in carousel (handle null as true for safety)
+          const visibleBrands = data.filter(brand => brand.show_in_carousel !== false);
+          
+          if (visibleBrands.length > 0) {
+            setBrands(visibleBrands);
+          } else {
+            setBrands(FALLBACK_BRANDS);
+          }
         } else {
           setBrands(FALLBACK_BRANDS);
         }

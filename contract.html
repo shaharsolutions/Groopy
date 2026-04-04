@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הסכם התקשרות - Groopy - שחר פתרונות דיגיטליים</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Assistant:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #3730a3;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --bg-light: #f9fafb;
+            --white: #ffffff;
+            --border: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Assistant', 'Inter', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 850px;
+            margin: 0 auto;
+            background: var(--white);
+            padding: 60px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border);
+        }
+
+        header {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .logo-area h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin-bottom: 5px;
+        }
+
+        .logo-area p {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .date-info {
+            text-align: left;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        h2 {
+            color: var(--primary-dark);
+            margin: 30px 0 15px 0;
+            font-size: 1.4rem;
+            border-right: 4px solid var(--primary);
+            padding-right: 15px;
+        }
+
+        p, li {
+            margin-bottom: 12px;
+            font-size: 1.05rem;
+        }
+
+        ul {
+            margin-right: 25px;
+            margin-bottom: 20px;
+        }
+
+        .highlight-box {
+            background-color: #f0f4ff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #c7d2fe;
+            margin: 20px 0;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .signatures {
+            margin-top: 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        .signature-block {
+            border-top: 1px solid var(--text-main);
+            padding-top: 10px;
+            text-align: center;
+        }
+
+        .no-print-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+            transition: transform 0.2s;
+            font-family: inherit;
+        }
+
+        .no-print-btn:hover {
+            transform: translateY(-2px);
+            background: var(--primary-dark);
+        }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; border: none; width: 100%; max-width: none; }
+            .no-print-btn { display: none; }
+        }
+
+        .footer-note {
+            margin-top: 50px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="no-print-btn" onclick="window.print()">הדפס הסכם</button>
+
+    <div class="container">
+        <header>
+            <div class="logo-area">
+                <h1>Groopy</h1>
+                <p>שחר - פתרונות דיגיטליים</p>
+            </div>
+            <div class="date-info">
+                תאריך עדכון: 04/04/2026
+            </div>
+        </header>
+
+        <section>
+            <h2>1. הצדדים להסכם</h2>
+            <p>הסכם זה נחתם בין <strong>שחר - פתרונות דיגיטליים</strong> (להלן: "המפתח") לבין <strong>[שם הלקוח / עסק]</strong> (להלן: "הלקוח"), עבור פיתוח ותחזוקת מערכת קטלוג מוצרים דיגיטלי "Groopy".</p>
+        </section>
+
+        <section>
+            <h2>2. תיאור הפרויקט (Scope)</h2>
+            <p>המפתח יספק ללקוח מערכת קטלוג מוצרים הכוללת:</p>
+            <ul>
+                <li>ממשק צד לקוח (Catalog) להצגת מוצרים, סינונים לפי קטגוריות ומותגים.</li>
+                <li>מערכת ניהול (Admin Panel) לעדכון מוצרים, מחירים, תמונות מלאי ומותגים.</li>
+                <li>אינטגרציה עם מסד נתונים סקלאבילי (Supabase).</li>
+                <li>התאמה מלאה למובייל (Responsive Design).</li>
+                <li>מערכת ניהול באנרים ומיתוג משתנה.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>3. עלויות ותנאי תשלום</h2>
+            <div class="highlight-box">
+                <div class="price-row">
+                    <span>פיתוח והקמת המערכת (חד-פעמי):</span>
+                    <span>3,500 ₪</span>
+                </div>
+                <div class="price-row" style="color: var(--primary);">
+                    <span>תחזוקה, אחסון ותמיכה (חודשי):</span>
+                    <span>150 ₪ / חודש</span>
+                </div>
+            </div>
+            <p>* התשלום עבור ההקמה יבוצע עם מסירת המערכת ותחילת השימוש.</p>
+            <p>* תשלום הריטיינר החודשי יחל מהחודש השני להפעלת המערכת.</p>
+        </section>
+
+        <section>
+            <h2>4. תחזוקה ושירות</h2>
+            <p>הריטיינר החודשי כולל:</p>
+            <ul>
+                <li>ניהול האחסון (Hosting) בשרתי Vercel/Supabase.</li>
+                <li>תיקון באגים ותקלות תוכנה בהתאם לצורך.</li>
+                <li>שינויים עיצוביים קלים (טקסטים, לוגו, צבעים).</li>
+                <li>זמינות לתמיכה טכנית בשעות הפעילות.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>5. קניין רוחני ואחריות</h2>
+            <p>עם גמר התשלום עבור ההקמה, כל זכויות השימוש במערכת וכל הנתונים המוזנים בה שייכים ללקוח. המפתח מתחייב לשמור על סודיות המידע העסקי של הלקוח.</p>
+        </section>
+
+        <div class="signatures">
+            <div class="signature-block">
+                <p>חתימת המפתח (שחר)</p>
+            </div>
+            <div class="signature-block">
+                <p>חתימת הלקוח</p>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            נבנה עבור Groopy - פתרון קטלוג דיגיטלי חכם.
+        </div>
+    </div>
+
+</body>
+</html>

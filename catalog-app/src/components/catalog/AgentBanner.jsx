@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserCheck } from 'lucide-react';
+import { UserCheck, Phone } from 'lucide-react';
 
 const AgentBanner = ({ activeAgent }) => {
   return (
@@ -22,12 +22,23 @@ const AgentBanner = ({ activeAgent }) => {
             </div>
             <div>
               <p className="text-xs md:text-base opacity-90 leading-none mb-2 md:mb-3 font-bold uppercase tracking-[0.1em]">מחובר לסוכן</p>
-              <h2 className="font-[900] text-2xl md:text-5xl tracking-tighter leading-none text-white drop-shadow-lg">{activeAgent.name}</h2>
+              <div className="flex items-center gap-4">
+                <h2 className="font-[900] text-2xl md:text-5xl tracking-tighter leading-none text-white drop-shadow-lg">{activeAgent.name}</h2>
+                {activeAgent.phone && (
+                  <a 
+                    href={`tel:${activeAgent.phone}`}
+                    className="w-10 h-10 md:w-14 md:h-14 bg-white/20 hover:bg-white/30 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30 transition-all hover:scale-110 active:scale-95 shadow-lg group"
+                    title="התקשר לסוכן"
+                  >
+                    <Phone className="w-5 h-5 md:w-7 md:h-7 text-white group-hover:animate-bounce" />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-3 bg-white/20 px-4 md:px-6 py-2 md:py-3 rounded-2xl backdrop-blur-md border border-white/20 shadow-lg shrink-0">
             <div className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_15px_rgba(74,222,128,0.8)]" />
-            <span className="text-xs md:text-base font-black uppercase tracking-[0.2em]">Connected</span>
+            <span className="text-xs md:text-base font-black uppercase tracking-[0.2em]">מחובר</span>
           </div>
         </motion.div>
       )}

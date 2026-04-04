@@ -57,8 +57,8 @@ const CartDrawer = ({
                     <ShoppingBag size={20} className="md:w-[28px] md:h-[28px]" />
                   </div>
                   <div>
-                    <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tighter leading-tight">הסל שלך</h2>
-                    <p className="text-[10px] md:text-sm font-bold text-slate-400 uppercase tracking-widest">{totalItems} פריטים נבחרו</p>
+                    <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter leading-tight">הסל שלך</h2>
+                    <p className="text-xs md:text-base font-bold text-slate-400 uppercase tracking-widest">{totalItems} פריטים נבחרו</p>
                   </div>
                 </div>
                 <button 
@@ -100,7 +100,7 @@ const CartDrawer = ({
                       {/* Item Meta */}
                       <div className="flex-1 py-0.5 md:py-1">
                         <div className="flex justify-between items-start mb-1 md:mb-2">
-                          <h4 className="font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%]">
+                          <h4 className="font-bold text-slate-800 text-base md:text-xl leading-tight line-clamp-2 max-w-[80%]">
                             {item.name}
                           </h4>
                           <button 
@@ -110,7 +110,7 @@ const CartDrawer = ({
                             <Trash2 size={16} className="md:w-[20px] md:h-[20px]" />
                           </button>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-black mb-2 md:mb-4 uppercase tracking-widest">
+                        <div className="text-xs text-slate-400 font-black mb-2 md:mb-4 uppercase tracking-widest">
                           מק״ט: {item.sku}
                         </div>
                         
@@ -123,8 +123,8 @@ const CartDrawer = ({
                               <Minus size={14} className="md:w-[18px] md:h-[18px]" />
                             </button>
                             <div className="flex flex-col items-center">
-                              <span className="w-8 md:w-10 text-center font-black text-base md:text-xl text-slate-900 leading-none">{item.quantity}</span>
-                              <span className="text-[8px] font-black text-slate-400 uppercase">יח'</span>
+                              <span className="w-8 md:w-10 text-center font-black text-lg md:text-2xl text-slate-900 leading-none">{item.quantity}</span>
+                              <span className="text-[10px] font-black text-slate-400 uppercase">יח'</span>
                             </div>
                             <button 
                               onClick={() => updateQuantity(item.id, 1)}
@@ -134,8 +134,8 @@ const CartDrawer = ({
                             </button>
                           </div>
                           <div className="text-right">
-                             <div className="text-[10px] font-black text-slate-400 uppercase mb-0.5">{item.quantity / 12} קרטון</div>
-                             <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{(item.price * item.quantity).toFixed(2)}</div>
+                             <div className="text-xs font-black text-slate-400 uppercase mb-0.5">{item.quantity / 12} קרטון</div>
+                             <div className="font-black text-xl md:text-3xl text-slate-900 tracking-tight">₪{(item.price * item.quantity).toFixed(2)}</div>
                           </div>
                         </div>
                       </div>
@@ -146,75 +146,75 @@ const CartDrawer = ({
 
               {/* Cart Footer Checkout */}
                {cart.length > 0 && (
-                 <div className="p-4 md:p-8 bg-slate-50/80 backdrop-blur-3xl border-t border-slate-100 space-y-3 md:space-y-6 rounded-t-[32px] md:rounded-t-[40px] shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.05)]">
-                   {/* Name Input */}
-                   <div className="space-y-1.5 text-right">
-                     <label className="flex items-center justify-end gap-2 text-[10px] md:text-sm font-[900] text-slate-700 uppercase tracking-widest pl-2">
-                        שם הלקוח המזמין
-                        <CheckCircle size={12} className={customerName.length > 2 ? 'text-primary-500' : 'text-slate-300'} />
-                     </label>
-                     <input 
-                       type="text" 
-                       placeholder="הכנס את שמך כאן..."
-                       value={customerName}
-                       onChange={(e) => {
-                         setCustomerName(e.target.value);
-                         if (formError) setFormError('');
-                       }}
-                       className={`w-full bg-white border ${formError ? 'border-red-500 ring-4 ring-red-500/10' : 'border-slate-200'} rounded-2xl md:rounded-3xl px-4 md:px-6 py-2.5 md:py-4 outline-none focus:border-primary-500 focus:ring-8 focus:ring-primary-500/5 transition-all font-bold text-base md:text-lg text-right`}
-                     />
-                     <AnimatePresence>
-                       {formError && (
-                         <motion.p 
-                           initial={{ opacity: 0, y: -10 }}
-                           animate={{ opacity: 1, y: 0 }}
-                           exit={{ opacity: 0, y: -10 }}
-                           className="text-red-500 text-[9px] font-black uppercase tracking-widest mt-1 pr-2"
-                         >
-                           {formError}
-                         </motion.p>
-                       )}
-                     </AnimatePresence>
-                   </div>
- 
-                   {/* Pricing Summary */}
-                   <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-8 border border-slate-200 shadow-sm flex flex-col gap-2 md:gap-4">
-                     <div className="flex justify-between items-center text-slate-400 font-bold text-[10px] md:text-sm">
-                       <span>סה״כ פריטים:</span>
-                       <span className="bg-slate-50 px-2 md:px-3 py-0.5 md:py-1 rounded-lg text-slate-800 font-black">{totalItems}</span>
-                     </div>
-                     <div className="flex justify-between items-center md:items-end border-t border-slate-50 pt-2 md:pt-4">
-                       <div className="text-right">
-                         <span className="block text-[8px] md:text-xs font-black text-primary-500 uppercase tracking-wider mb-0.5 md:mb-1">לתשלום סופי</span>
-                         <span className="text-2xl md:text-4xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{totalPrice.toFixed(2)}</span>
-                       </div>
-                       <div className="hidden md:block">
-                         <TrendingDown size={32} className="text-primary-100 -mb-2" />
-                       </div>
-                     </div>
-                   </div>
- 
-                   {/* SEND BUTTON */}
-                     <button 
-                       onClick={handleWhatsAppSend}
-                       disabled={isSubmitting}
-                       className={`btn-primary w-full py-4 md:py-6 flex items-center justify-center gap-3 md:gap-4 group relative overflow-hidden ${isSent ? 'bg-green-500' : ''} ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                     >
-                       {isSubmitting ? (
-                         <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                       ) : (
-                         <Send size={20} className="md:w-[24px] md:h-[24px] relative z-10 group-hover:translate-x-[-8px] group-hover:translate-y-[-8px] transition-transform duration-500" />
-                       )}
-                       <span className="relative z-10 font-black text-lg md:text-xl tracking-tight">
-                          {isSubmitting ? 'מעבד הזמנה...' : 'שליחת הזמנה לוואטסאפ'}
-                       </span>
-                       <div className="absolute inset-0 bg-white/10 translate-x-full group-hover:translate-x-0 transition-transform duration-700 skew-x-12" />
-                     </button>
-                   
-                   <p className="text-[9px] text-center text-slate-400 font-black px-6 leading-tight uppercase tracking-widest opacity-60">
-                     הלחיצה תפתח את אפליקציית הוואטסאפ
-                   </p>
-                 </div>
+                  <div className="p-4 md:p-8 bg-slate-50/80 backdrop-blur-3xl border-t border-slate-100 space-y-3 md:space-y-6 rounded-t-[32px] md:rounded-t-[40px] shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.05)]">
+                    {/* Name Input */}
+                    <div className="space-y-1.5 text-right">
+                      <label className="flex items-center justify-end gap-2 text-xs md:text-base font-[900] text-slate-700 uppercase tracking-widest pl-2">
+                         שם הלקוח המזמין
+                         <CheckCircle size={12} className={customerName.length > 2 ? 'text-primary-500' : 'text-slate-300'} />
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="הכנס את שמך כאן..."
+                        value={customerName}
+                        onChange={(e) => {
+                          setCustomerName(e.target.value);
+                          if (formError) setFormError('');
+                        }}
+                        className={`w-full bg-white border ${formError ? 'border-red-500 ring-4 ring-red-500/10' : 'border-slate-200'} rounded-2xl md:rounded-3xl px-4 md:px-6 py-2.5 md:py-4 outline-none focus:border-primary-500 focus:ring-8 focus:ring-primary-500/5 transition-all font-bold text-lg md:text-xl text-right`}
+                      />
+                      <AnimatePresence>
+                        {formError && (
+                          <motion.p 
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="text-red-500 text-xs font-black uppercase tracking-widest mt-1 pr-2"
+                          >
+                            {formError}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+  
+                    {/* Pricing Summary */}
+                    <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-8 border border-slate-200 shadow-sm flex flex-col gap-2 md:gap-4">
+                      <div className="flex justify-between items-center text-slate-400 font-bold text-xs md:text-base">
+                        <span>סה״כ פריטים:</span>
+                        <span className="bg-slate-50 px-2 md:px-3 py-0.5 md:py-1 rounded-lg text-slate-800 font-black">{totalItems}</span>
+                      </div>
+                      <div className="flex justify-between items-center md:items-end border-t border-slate-50 pt-2 md:pt-4">
+                        <div className="text-right">
+                          <span className="block text-xs md:text-base font-black text-primary-500 uppercase tracking-wider mb-0.5 md:mb-1">לתשלום סופי</span>
+                          <span className="text-3xl md:text-5xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{totalPrice.toFixed(2)}</span>
+                        </div>
+                        <div className="hidden md:block">
+                          <TrendingDown size={32} className="text-primary-100 -mb-2" />
+                        </div>
+                      </div>
+                    </div>
+  
+                    {/* SEND BUTTON */}
+                      <button 
+                        onClick={handleWhatsAppSend}
+                        disabled={isSubmitting}
+                        className={`btn-primary w-full py-4 md:py-6 flex items-center justify-center gap-3 md:gap-4 group relative overflow-hidden ${isSent ? 'bg-green-500' : ''} ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      >
+                        {isSubmitting ? (
+                          <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Send size={20} className="md:w-[24px] md:h-[24px] relative z-10 group-hover:translate-x-[-8px] group-hover:translate-y-[-8px] transition-transform duration-500" />
+                        )}
+                        <span className="relative z-10 font-black text-xl md:text-2xl tracking-tight">
+                           {isSubmitting ? 'מעבד הזמנה...' : 'שליחת הזמנה לוואטסאפ'}
+                        </span>
+                        <div className="absolute inset-0 bg-white/10 translate-x-full group-hover:translate-x-0 transition-transform duration-700 skew-x-12" />
+                      </button>
+                    
+                    <p className="text-xs text-center text-slate-400 font-black px-6 leading-tight uppercase tracking-widest opacity-60">
+                      הלחיצה תפתח את אפליקציית הוואטסאפ
+                    </p>
+                  </div>
                )}
             </motion.div>
           </>
@@ -240,11 +240,11 @@ const CartDrawer = ({
                 </div>
                 <div>
                   <div className="text-[10px] font-black opacity-40 uppercase tracking-widest mb-1">הסל שלך</div>
-                  <div className="font-black text-2xl tracking-tighter">₪{totalPrice.toFixed(2)}</div>
+                  <div className="font-black text-3xl tracking-tighter">₪{totalPrice.toFixed(2)}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2 pr-4 relative z-10">
-                <div className="bg-white/10 hover:bg-white/20 p-4 rounded-2xl font-black text-sm tracking-tight transition-all text-white">
+                <div className="bg-white/10 hover:bg-white/20 p-4 rounded-2xl font-black text-base tracking-tight transition-all text-white">
                   לעגלה
                 </div>
                 <ChevronDown className="-rotate-90 text-primary-400" size={24} />

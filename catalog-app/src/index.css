@@ -33,8 +33,11 @@
 
 :root {
   font-family: var(--font-sans);
+  font-size: 110%;
   background-color: #f8fafc;
   color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {

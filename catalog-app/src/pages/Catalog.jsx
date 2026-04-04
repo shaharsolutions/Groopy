@@ -302,10 +302,10 @@ const Catalog = () => {
 
           {/* Center Section: Title & Subtitle */}
           <div className="hidden sm:flex flex-col items-center justify-center text-center flex-[2]">
-            <h1 className="text-xl md:text-2xl lg:text-4xl font-[900] text-slate-900 tracking-tight leading-none mb-1">
+            <h1 className="text-2xl md:text-3xl lg:text-5xl font-[900] text-slate-900 tracking-tight leading-none mb-1">
               מצא את המוצר <span className="text-primary-500 underline decoration-accent-300 decoration-4 md:decoration-8 underline-offset-2">המושלם</span> עבורך
             </h1>
-            <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-wider">גרופי מתנות בע"מ</p>
+            <p className="text-slate-400 text-xs md:text-sm font-bold uppercase tracking-wider">גרופי מתנות בע"מ</p>
           </div>
 
           {/* Left Section: Agent & Cart */}
@@ -315,7 +315,7 @@ const Catalog = () => {
                 <div className="w-8 h-8 rounded-xl bg-slate-200 overflow-hidden shadow-inner flex items-center justify-center">
                    {activeAgent.image ? <img src={activeAgent.image} alt="" className="w-full h-full object-cover" /> : <UserCheck size={14} />}
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest leading-none">סוכן: {activeAgent.name}</span>
+                <span className="text-xs font-black uppercase tracking-widest leading-none">סוכן: {activeAgent.name}</span>
               </div>
             )}
             
@@ -330,7 +330,7 @@ const Catalog = () => {
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    className="absolute -top-1.5 -right-1.5 bg-accent-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-4 border-white shadow-lg shadow-accent-200"
+                    className="absolute -top-1.5 -right-1.5 bg-accent-500 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-4 border-white shadow-lg shadow-accent-200"
                   >
                     {totalItems}
                   </motion.span>
@@ -353,7 +353,7 @@ const Catalog = () => {
           {/* Mobile Title - only visible on very small screens where header title is hidden */}
           <div className="sm:hidden text-center mb-8">
             <h1 className="text-2xl font-[900] text-slate-900 mb-2">מצא את המוצר המושלם</h1>
-            <p className="text-slate-400 text-[10px] font-bold">גרופי מתנות בע"מ</p>
+            <p className="text-slate-400 text-xs font-bold">גרופי מתנות בע"מ</p>
           </div>
 
           <BrandCarousel />
@@ -380,7 +380,7 @@ const Catalog = () => {
                 <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full ${badge.color.iconBg} flex items-center justify-center mb-1.5 md:mb-4 transition-all duration-500 group-hover:scale-110 shadow-inner`}>
                   <badge.icon size={20} className={`${badge.color.iconColor} md:w-8 md:h-8`} />
                 </div>
-                <span className="text-[10px] md:text-2xl font-[900] text-slate-800 tracking-tight text-center leading-tight whitespace-pre-wrap">{badge.label}</span>
+                <span className="text-sm md:text-3xl font-[900] text-slate-800 tracking-tight text-center leading-tight whitespace-pre-wrap">{badge.label}</span>
               </button>
             ))}
           </div>
@@ -397,7 +397,7 @@ const Catalog = () => {
                 placeholder="חפש מוצר, מק״ט או תיאור..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-transparent outline-none px-4 py-4 text-lg font-semibold placeholder:text-slate-400"
+                className="w-full bg-transparent outline-none px-4 py-4 text-xl font-semibold placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -410,7 +410,7 @@ const Catalog = () => {
                   setSelectedCategory(cat);
                   scrollToProducts();
                 }}
-                className={`px-8 py-3 rounded-2xl text-sm font-black transition-all duration-300 ${
+                className={`px-8 py-3 rounded-2xl text-base font-black transition-all duration-300 ${
                   selectedCategory === cat 
                     ? 'bg-slate-900 text-white shadow-2xl scale-105' 
                     : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
@@ -443,8 +443,8 @@ const Catalog = () => {
         {filteredProducts.length === 0 && (
           <div className="text-center py-32 bg-slate-50/50 rounded-[40px] border-2 border-dashed border-slate-100">
             <ShoppingBag size={64} className="mx-auto text-slate-200 mb-6" />
-            <h3 className="text-2xl font-black text-slate-800">לא מצאנו מה שחיפשת...</h3>
-            <p className="text-slate-500 mt-2 font-medium">אולי כדאי לנסות מילת חיפוש אחרת? 🤔</p>
+            <h3 className="text-3xl font-black text-slate-800">לא מצאנו מה שחיפשת...</h3>
+            <p className="text-lg text-slate-500 mt-2 font-medium">אולי כדאי לנסות מילת חיפוש אחרת? 🤔</p>
             <button 
               onClick={() => {
                 setSearchTerm('');
@@ -500,7 +500,7 @@ const Catalog = () => {
               {/* Modal Header: Title and Close Button */}
               <div className="p-6 md:p-10 pb-0 flex items-center justify-between gap-6 relative z-10">
                 <div className="px-8 py-4 bg-slate-50/50 backdrop-blur-md rounded-[24px] border border-slate-100 shadow-sm">
-                  <p className="text-slate-900 font-[900] text-xl md:text-2xl tracking-tighter">{selectedProductName}</p>
+                  <p className="text-slate-900 font-[900] text-2xl md:text-3xl tracking-tighter">{selectedProductName}</p>
                 </div>
                 
                 <button 
@@ -531,7 +531,7 @@ const Catalog = () => {
             <div className="flex items-center gap-3">
               <img src={`${import.meta.env.BASE_URL}logo-main.png`} alt="" className="h-10 object-contain" />
             </div>
-            <div className="flex gap-12 mt-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+            <div className="flex gap-12 mt-4 text-sm font-black uppercase tracking-[0.2em] text-slate-400">
               <span>Supply</span>
               <span>•</span>
               <span>Distribution</span>

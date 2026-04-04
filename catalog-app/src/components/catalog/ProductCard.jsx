@@ -28,7 +28,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
         
         {/* Floating Badges */}
         <div className="absolute top-4 left-4 right-4 flex flex-col gap-2 items-start pointer-events-none">
-          <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-[900] text-slate-400 shadow-sm border border-white/50">
+          <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-[900] text-slate-400 shadow-sm border border-white/50">
             {product.sku}
           </div>
           
@@ -37,7 +37,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
               <motion.div 
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                className="bg-blue-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-[900] flex items-center gap-1.5 shadow-lg shadow-blue-200"
+                className="bg-blue-500 text-white px-3 py-1.5 rounded-xl text-xs font-[900] flex items-center gap-1.5 shadow-lg shadow-blue-200"
               >
                 <Star size={12} fill="currentColor" />
                 נמכר ביותר
@@ -47,7 +47,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
               <motion.div 
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                className="bg-purple-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-[900] flex items-center gap-1.5 shadow-lg shadow-purple-200"
+                className="bg-purple-500 text-white px-3 py-1.5 rounded-xl text-xs font-[900] flex items-center gap-1.5 shadow-lg shadow-purple-200"
               >
                 <Zap size={12} />
                 חדש
@@ -57,7 +57,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
               <motion.div 
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                className="bg-orange-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-[900] flex items-center gap-1.5 shadow-lg shadow-orange-200"
+                className="bg-orange-500 text-white px-3 py-1.5 rounded-xl text-xs font-[900] flex items-center gap-1.5 shadow-lg shadow-orange-200"
               >
                 <Flame size={12} fill="currentColor" />
                 מבצע חם
@@ -69,22 +69,22 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
 
       {/* Info Content */}
       <div className="p-8 pt-0 flex flex-col flex-1">
-        <span className="text-[10px] font-black text-accent-500 uppercase tracking-widest mb-2">
+        <span className="text-xs font-black text-accent-500 uppercase tracking-widest mb-2">
           {(product.category === 'Bottles' || product.category === 'בקבוקים') ? 'בקבוקים' : 
            (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
            product.category}
         </span>
-        <h3 className="font-bold text-lg text-slate-800 leading-snug mb-3 min-h-[3rem] line-clamp-2">
+        <h3 className="font-bold text-xl text-slate-800 leading-snug mb-3 min-h-[3.5rem] line-clamp-2">
           {product.name}
         </h3>
-        <p className="text-xs text-slate-400 font-medium italic mb-6">
+        <p className="text-sm text-slate-400 font-medium italic mb-6">
           {product.description}
         </p>
 
         <div className="mt-auto flex items-center justify-between">
           <div>
-            <span className="text-sm font-bold text-slate-400 block -mb-1">מחיר יחידה</span>
-            <span className="text-2xl font-black text-slate-900">₪{product.price.toFixed(2)}</span>
+            <span className="text-base font-bold text-slate-400 block -mb-1">מחיר יחידה</span>
+            <span className="text-3xl font-black text-slate-900">₪{product.price.toFixed(2)}</span>
           </div>
           <button 
             onClick={() => addToCart(product)}
@@ -99,10 +99,10 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
           >
             <div className="flex items-center gap-1.5">
               <Plus size={16} strokeWidth={4} />
-              <span className="font-bold text-sm whitespace-nowrap">הוספה</span>
+              <span className="font-bold text-base whitespace-nowrap">הוספה</span>
             </div>
             {cartCount > 0 && (
-              <span className="bg-white text-accent-600 min-w-[22px] h-5.5 px-1 rounded-lg flex items-center justify-center text-[10px] font-black shadow-sm">
+              <span className="bg-white text-accent-600 min-w-[24px] h-6 px-1 rounded-lg flex items-center justify-center text-xs font-black shadow-sm">
                 {cartCount}
               </span>
             )}

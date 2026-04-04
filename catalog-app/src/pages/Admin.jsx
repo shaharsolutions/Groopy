@@ -845,16 +845,16 @@ const Admin = () => {
                        )}
                     </div>
                   </td>
-                  <td className="px-8 py-6 font-black text-slate-800 text-sm">
+                  <td className="px-8 py-6 font-black text-slate-800 text-base">
                     <div className="flex items-center gap-2">
                        {p.name}
-                       {p.is_clearing && <span className="bg-blue-50 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">חדש</span>}
+                       {p.is_clearing && <span className="bg-blue-50 text-blue-500 text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase">חדש</span>}
                     </div>
                   </td>
-                  <td className="px-8 py-6 font-bold text-slate-400 text-xs">{p.sku}</td>
+                  <td className="px-8 py-6 font-bold text-slate-400 text-sm">{p.sku}</td>
                   <td className="px-8 py-6 font-black text-slate-900">{p.price.toFixed(2)}</td>
                   <td className="px-8 py-6 whitespace-nowrap">
-                    <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-[10px] font-black">{p.location || '-'}</span>
+                    <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-xs font-black">{p.location || '-'}</span>
                   </td>
                    <td className="px-8 py-5">
                     <AnimatePresence mode="wait">
@@ -865,7 +865,7 @@ const Admin = () => {
                           exit={{ opacity: 0, x: -20 }}
                           className="flex items-center gap-2 bg-red-50 p-2 rounded-xl"
                         >
-                          <span className="text-[10px] font-black text-red-500 whitespace-nowrap">למחוק?</span>
+                          <span className="text-xs font-black text-red-500 whitespace-nowrap">למחוק?</span>
                           <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-500 text-white p-1.5 rounded-lg hover:bg-red-600 transition-colors"><Check size={14} /></button>
                           <button onClick={() => setConfirmingProductDelete(null)} className="bg-slate-200 text-slate-500 p-1.5 rounded-lg hover:bg-slate-300 transition-colors"><X size={14} /></button>
                         </motion.div>
@@ -906,8 +906,8 @@ const Admin = () => {
               )}
             </div>
             <div>
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">{agent.name}</h3>
-              <p className="text-slate-400 font-bold text-xs">{agent.phone}</p>
+              <h3 className="text-2xl font-black text-slate-800 tracking-tight">{agent.name}</h3>
+              <p className="text-slate-400 font-bold text-sm">{agent.phone}</p>
             </div>
           </div>
 
@@ -918,7 +918,7 @@ const Admin = () => {
              >
                <div className="flex items-center gap-3">
                   {copyFeedback === agent.id ? <Check size={18} /> : <ChainLink size={18} />}
-                  <span className="font-black text-xs">{copyFeedback === agent.id ? 'הועתק!' : 'העתק קישור לקטלוג'}</span>
+                  <span className="font-black text-sm">{copyFeedback === agent.id ? 'הועתק!' : 'העתק קישור לקטלוג'}</span>
                </div>
                <Share2 size={14} className="opacity-40 group-hover/link:opacity-100" />
              </button>
@@ -979,30 +979,30 @@ const Admin = () => {
               <Tag size={28} />
             </div>
             <div>
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">{cat.name}</h3>
+              <h3 className="text-2xl font-black text-slate-800 tracking-tight">{cat.name}</h3>
             </div>
           </div>
 
           <div className="pt-6 mt-6 border-t border-slate-50 flex gap-4">
             {confirmingCategoryDelete === cat.id ? (
                <div className="w-full flex items-center justify-between gap-4 bg-red-50 p-4 rounded-2xl">
-                 <span className="font-black text-xs text-red-500">למחוק קטגוריה?</span>
+                 <span className="font-black text-sm text-red-500">למחוק קטגוריה?</span>
                  <div className="flex gap-2">
-                   <button onClick={() => handleDeleteCategory(cat.id)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-black">מחק</button>
-                   <button onClick={() => setConfirmingCategoryDelete(null)} className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-xs font-black">ביטול</button>
+                   <button onClick={() => handleDeleteCategory(cat.id)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-sm font-black">מחק</button>
+                   <button onClick={() => setConfirmingCategoryDelete(null)} className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-sm font-black">ביטול</button>
                  </div>
                </div>
             ) : (
               <>
                 <button 
                   onClick={() => setEditingCategory(cat)}
-                  className="flex-1 py-4 text-center text-slate-400 hover:text-primary-600 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                  className="flex-1 py-4 text-center text-slate-400 hover:text-primary-600 font-bold text-xs uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
                 >
                   עריכה
                 </button>
                 <button 
                   onClick={() => setConfirmingCategoryDelete(cat.id)}
-                  className="flex-1 py-4 text-center text-red-300 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
+                  className="flex-1 py-4 text-center text-red-300 hover:text-red-500 font-bold text-xs uppercase tracking-widest transition-colors bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-100"
                 >
                   מחיקה
                 </button>
@@ -1031,8 +1031,8 @@ const Admin = () => {
               <div className="h-px flex-1 bg-slate-100" />
               <div className="flex items-center gap-2 px-6 py-2 bg-slate-50 border border-slate-100 rounded-full">
                 <Tag size={12} className="text-primary-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{type}</span>
-                <span className="text-[10px] font-bold text-slate-300">({typeBrands.length})</span>
+                <span className="text-xs font-black uppercase tracking-widest text-slate-500">{type}</span>
+                <span className="text-xs font-bold text-slate-300">({typeBrands.length})</span>
               </div>
               <div className="h-px flex-1 bg-slate-100" />
             </div>
@@ -1051,13 +1051,13 @@ const Admin = () => {
                       <Image size={32} />
                     )}
                   </div>
-                  <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1">{brand.name}</h3>
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight mb-1">{brand.name}</h3>
                   {brand.type && (
-                    <span className="px-3 py-1 bg-primary-50 text-primary-600 text-[10px] font-black rounded-full mb-2 uppercase tracking-wider border border-primary-100/50">
+                    <span className="px-3 py-1 bg-primary-50 text-primary-600 text-xs font-black rounded-full mb-2 uppercase tracking-wider border border-primary-100/50">
                       {brand.type}
                     </span>
                   )}
-                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border mb-4 ${
+                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border mb-4 ${
                     brand.show_in_carousel !== false 
                       ? 'bg-green-50 text-green-600 border-green-100' 
                       : 'bg-slate-50 text-slate-400 border-slate-100'
@@ -1116,11 +1116,11 @@ const Admin = () => {
                  animate={{ opacity: 1, x: 0 }}
                  className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-2xl border border-red-100"
                >
-                 <span className="text-xs font-black text-red-600">נבחרו {selectedOrderIds.length} הזמנות</span>
+                 <span className="text-sm font-black text-red-600">נבחרו {selectedOrderIds.length} הזמנות</span>
                  <button 
                    onClick={handleBulkDeleteOrders}
                    disabled={isBulkDeleting}
-                   className="bg-red-500 text-white px-4 py-1.5 rounded-xl text-[10px] font-black hover:bg-red-600 transition-colors disabled:opacity-50"
+                   className="bg-red-500 text-white px-4 py-1.5 rounded-xl text-xs font-black hover:bg-red-600 transition-colors disabled:opacity-50"
                  >
                    {isBulkDeleting ? 'מוחק...' : 'מחק פריטים שנבחרו'}
                  </button>
@@ -1337,8 +1337,8 @@ const Admin = () => {
               <img src={`${import.meta.env.BASE_URL}logo-main.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
             </div>
             <div>
-              <h1 className="font-black text-xl text-slate-800 tracking-tight">ניהול קטלוג</h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">קטלוג מוצרים</p>
+              <h1 className="font-black text-2xl text-slate-800 tracking-tight">ניהול קטלוג</h1>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">קטלוג מוצרים</p>
             </div>
           </div>
           <button 
@@ -1360,7 +1360,7 @@ const Admin = () => {
           >
             <div className="flex items-center gap-4">
               <Package size={20} />
-              <span className="font-black text-sm">מוצרים במלאי</span>
+              <span className="font-black text-base">מוצרים במלאי</span>
             </div>
             <ChevronRight size={16} className={activeTab === 'products' ? '' : 'text-slate-300'} />
           </button>
@@ -1375,11 +1375,11 @@ const Admin = () => {
           >
             <div className="flex items-center gap-4">
               <ShoppingBag size={20} />
-              <span className="font-black text-sm">ניהול הזמנות</span>
+              <span className="font-black text-base">ניהול הזמנות</span>
             </div>
             <div className="flex items-center gap-2">
               {ordersStats.new > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
                   {ordersStats.new}
                 </span>
               )}
@@ -1397,7 +1397,7 @@ const Admin = () => {
           >
             <div className="flex items-center gap-4">
               <Users size={20} />
-              <span className="font-black text-sm">ניהול סוכנים</span>
+              <span className="font-black text-base">ניהול סוכנים</span>
             </div>
             <ChevronRight size={16} className={activeTab === 'agents' ? '' : 'text-slate-300'} />
           </button>
@@ -1412,7 +1412,7 @@ const Admin = () => {
           >
             <div className="flex items-center gap-4">
               <Tag size={20} />
-              <span className="font-black text-sm">ניהול קטגוריות</span>
+              <span className="font-black text-base">ניהול קטגוריות</span>
             </div>
             <ChevronRight size={16} className={activeTab === 'categories' ? '' : 'text-slate-300'} />
           </button>
@@ -1427,7 +1427,7 @@ const Admin = () => {
           >
             <div className="flex items-center gap-4">
               <Star size={20} />
-              <span className="font-black text-sm">ניהול מותגים</span>
+              <span className="font-black text-base">ניהול מותגים</span>
             </div>
             <ChevronRight size={16} className={activeTab === 'brands' ? '' : 'text-slate-300'} />
           </button>
@@ -1436,7 +1436,7 @@ const Admin = () => {
         <div className="mt-auto pt-8 border-t border-slate-100">
            <Link 
             to="/"
-            className="flex items-center gap-3 text-slate-400 hover:text-slate-900 font-bold text-xs transition-colors"
+            className="flex items-center gap-3 text-slate-400 hover:text-slate-900 font-bold text-sm transition-colors"
            >
              <ChevronRight /> חזרה לממשק הלקוח
            </Link>
@@ -1467,7 +1467,7 @@ const Admin = () => {
                   activeTab === 'orders' ? 'ניהול הזמנות' : 
                   activeTab === 'brands' ? 'ניהול מותגים' : 'ניהול קטגוריות'}
                </h2>
-               <p className="text-slate-400 font-bold text-sm whitespace-nowrap">
+               <p className="text-slate-400 font-bold text-base whitespace-nowrap">
                  {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : 
                   activeTab === 'agents' ? `רשימת סוכנים וקישורי הפצה` : 
                   activeTab === 'orders' ? `מעקב אחר הזמנות שבוצעו בוואטסאפ` : 
@@ -1498,7 +1498,7 @@ const Admin = () => {
             
             <Link 
               to="/"
-              className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-600 px-5 md:px-6 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-slate-50 transition-all shadow-sm group"
+              className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-600 px-5 md:px-6 py-4 rounded-2xl font-black text-base flex items-center justify-center gap-3 hover:bg-slate-50 transition-all shadow-sm group"
             >
               <Eye size={20} className="group-hover:scale-110 transition-transform" />
               <span className="whitespace-nowrap">חזרה לקטלוג</span>

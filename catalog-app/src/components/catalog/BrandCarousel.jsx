@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 
 const FALLBACK_BRANDS = [
-  { name: 'Nici', logo: 'https://by-groopy.co.il/wp-content/uploads/2023/07/nici.png' },
-  { name: 'Arias', logo: 'https://by-groopy.co.il/wp-content/uploads/2023/07/arias.png' },
-  { name: 'Top Model', logo: 'https://by-groopy.co.il/wp-content/uploads/2023/07/topmodel.png' },
-  { name: 'Dornat', logo: 'https://by-groopy.co.il/wp-content/uploads/2023/07/%D7%93%D7%95%D7%A8%D7%A0%D7%AA.png' },
-  { name: 'InWay', logo: 'https://by-groopy.co.il/wp-content/uploads/2023/07/inway.png' },
+  { name: 'Nici', logo: '/images/brands/nici.png' },
+  { name: 'Arias', logo: '/images/brands/arias.png' },
+  { name: 'Top Model', logo: '/images/brands/topmodel.png' },
+  { name: 'Dornat', logo: '/images/brands/dornat.png' },
+  { name: 'InWay', logo: '/images/brands/inway.png' },
 ];
 
 const BrandCarousel = () => {

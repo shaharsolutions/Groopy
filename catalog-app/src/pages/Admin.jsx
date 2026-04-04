@@ -846,9 +846,25 @@ const Admin = () => {
                     </div>
                   </td>
                   <td className="px-8 py-6 font-black text-slate-800 text-base">
-                    <div className="flex items-center gap-2">
-                       {p.name}
-                       {p.is_clearing && <span className="bg-blue-50 text-blue-500 text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase">חדש</span>}
+                    <div className="flex items-center gap-3">
+                       <span className="flex-1">{p.name}</span>
+                       <div className="flex items-center gap-2">
+                         {p.is_clearing && (
+                           <div className="bg-purple-50 text-purple-600 p-1.5 rounded-xl border border-purple-100 flex items-center justify-center shrink-0" title="מוצר חדש">
+                             <Zap size={14} fill="currentColor" />
+                           </div>
+                         )}
+                         {p.is_best_seller && (
+                           <div className="bg-blue-50 text-blue-600 p-1.5 rounded-xl border border-blue-100 flex items-center justify-center shrink-0" title="נמכר ביותר">
+                             <Star size={14} fill="currentColor" />
+                           </div>
+                         )}
+                         {p.is_hot_deal && (
+                           <div className="bg-orange-50 text-orange-600 p-1.5 rounded-xl border border-orange-100 flex items-center justify-center shrink-0" title="מבצע חם">
+                             <Flame size={14} fill="currentColor" />
+                           </div>
+                         )}
+                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-6 font-bold text-slate-400 text-sm">{p.sku}</td>

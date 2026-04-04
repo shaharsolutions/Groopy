@@ -45,9 +45,10 @@ const Catalog = () => {
   const [selectedBadge, setSelectedBadge] = useState(null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
+  const filtersRef = useRef(null);
 
   const scrollToMain = () => {
-    mainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    filtersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   // 🖼️ Image Handlers
@@ -371,7 +372,7 @@ const Catalog = () => {
           <BrandCarousel />
 
           {/* QUICK FILTER BADGES */}
-          <div className="grid grid-cols-3 gap-3 md:gap-6 mt-8 md:mt-10 mb-8 md:mb-10">
+          <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-8 md:mt-10 mb-8 md:mb-10 scroll-mt-28 md:scroll-mt-32">
             {[
               { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
               { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },

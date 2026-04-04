@@ -60,7 +60,7 @@ const Admin = () => {
   const [brands, setBrands] = useState([]);
   const [editingBrand, setEditingBrand] = useState(null);
   const [isAddingBrand, setIsAddingBrand] = useState(false);
-  const [newBrand, setNewBrand] = useState({ name: '', logo: '' });
+  const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '' });
   const [isUpdatingBrand, setIsUpdatingBrand] = useState(false);
   const [confirmingBrandDelete, setConfirmingBrandDelete] = useState(null);
   
@@ -174,6 +174,7 @@ const Admin = () => {
     const { data: brandsData, error: brandsError } = await supabase
       .from('brands')
       .select('*')
+      .order('type', { ascending: true, nullsFirst: false })
       .order('name');
     
     if (brandsData) setBrands(brandsData);
@@ -383,7 +384,7 @@ const Admin = () => {
       if (!error) {
         setBrands([...brands, data[0]]);
         setIsAddingBrand(false);
-        setNewBrand({ name: '', logo: '' });
+        setNewBrand({ name: '', logo: '', type: '' });
       } else {
         console.error('Error adding brand:', error);
         alert('שגיאה בהוספת המותג. ודא שטבלת brands קיימת ב-Supabase.');
@@ -1028,7 +1029,13 @@ const Admin = () => {
               <Image size={32} />
             )}
           </div>
-          <h3 className="text-lg font-black text-slate-800 tracking-tight mb-6">{brand.name}</h3>
+          <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1">{brand.name}</h3>
+          {brand.type && (
+            <span className="px-3 py-1 bg-primary-50 text-primary-600 text-[10px] font-black rounded-full mb-6 uppercase tracking-wider border border-primary-100/50">
+              {brand.type}
+            </span>
+          )}
+          {!brand.type && <div className="mb-6 h-4" />} {/* Spacer to maintain layout consistency if no type */}
 
           <div className="w-full pt-6 mt-auto border-t border-slate-50 flex gap-3">
             {confirmingBrandDelete === brand.id ? (
@@ -2033,6 +2040,16 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">סוג המותג</label>
+                  <input 
+                    type="text" 
+                    placeholder="למשל: כלי בית, צעצועים..."
+                    value={newBrand.type}
+                    onChange={(e) => setNewBrand({...newBrand, type: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none focus:border-primary-500" 
+                  />
+                </div>
               </div>
 
               <div className="mt-12">
@@ -2084,6 +2101,15 @@ const Admin = () => {
                     value={editingBrand.logo}
                     onChange={(e) => setEditingBrand({...editingBrand, logo: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">סוג המותג</label>
+                  <input 
+                    type="text" 
+                    value={editingBrand.type || ''}
+                    onChange={(e) => setEditingBrand({...editingBrand, type: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none focus:border-primary-500" 
                   />
                 </div>
               </div>

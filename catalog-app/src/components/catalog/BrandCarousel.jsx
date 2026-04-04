@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 
 const FALLBACK_BRANDS = [
@@ -10,7 +10,7 @@ const FALLBACK_BRANDS = [
 ];
 
 const BrandCarousel = () => {
-  const [brands, setBrands] = useState([]);
+  const [brands, setBrands] = useState(FALLBACK_BRANDS.slice(0, 2));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,14 +25,8 @@ const BrandCarousel = () => {
         if (error) throw error;
         
         if (data && data.length > 0) {
-          // Filter brands that should show in carousel (handle null as true for safety)
           const visibleBrands = data.filter(brand => brand.show_in_carousel !== false);
-          
-          if (visibleBrands.length > 0) {
-            setBrands(visibleBrands);
-          } else {
-            setBrands(FALLBACK_BRANDS);
-          }
+          setBrands(visibleBrands.length > 0 ? visibleBrands : FALLBACK_BRANDS);
         } else {
           setBrands(FALLBACK_BRANDS);
         }
@@ -47,31 +41,42 @@ const BrandCarousel = () => {
     fetchBrands();
   }, []);
 
-  // Use fallback if still loading or empty to prevent layout shift or empty space
-  const displayBrands = brands.length > 0 ? brands : FALLBACK_BRANDS;
+  // Ensure the list is long enough to fill any screen. 
+  // We repeat the brands list within each "set" until we have at least 15 items.
+  const paddedBrands = useMemo(() => {
+    if (brands.length === 0) return [];
+    let list = [...brands];
+    while (list.length < 15) {
+      list = [...list, ...brands];
+    }
+    return list;
+  }, [brands]);
 
   return (
-    <div className="w-full bg-white py-12 mb-8 overflow-hidden relative border-y border-slate-50/50">
+    <div className="w-full bg-white py-6 mb-4 overflow-hidden relative border-y border-slate-50/50">
       {/* Label */}
-      <div className="container mx-auto px-6 mb-8 flex items-center justify-center">
+      <div className="container mx-auto px-6 mb-4 flex items-center justify-center">
         <span className="text-sm font-bold text-slate-400 tracking-wide">המותגים שלנו</span>
       </div>
 
       {/* Carousel Container with Fading Edge */}
-      <div className="relative">
+      <div className="relative min-h-[128px] md:min-h-[176px]">
         {/* Right Fade/Blur Effect */}
         <div className="absolute top-0 right-0 h-full w-32 z-10 bg-gradient-to-l from-white via-white/80 to-transparent backdrop-blur-[2px] pointer-events-none" />
         
-        {/* Left Guard (Clean entry) */}
         <div className="absolute top-0 left-0 h-full w-8 z-10 bg-gradient-to-r from-white to-transparent pointer-events-none" />
 
-        <div className="flex w-max animate-scroll-right">
-          {[0, 1, 2, 3].map((setIdx) => (
-            <div key={setIdx} className="flex gap-[0.75px] md:gap-[1.5px] px-[0.375px] md:px-[0.75px]">
-              {displayBrands.map((brand, idx) => (
+        <div className="flex w-max animate-scroll-right-infinite">
+          {/* We only need 2 sets for a perfect 0-50% marquee loop */}
+          {[0, 1].map((setIdx) => (
+            <div 
+              key={setIdx} 
+              className="flex gap-[0.75px] md:gap-[1.5px] px-[0.375px] md:px-[0.75px]"
+            >
+              {paddedBrands.map((brand, idx) => (
                 <div 
                   key={`${brand.name}-${setIdx}-${idx}`} 
-                  className="flex-shrink-0 w-32 h-32 md:w-48 md:h-44 flex items-center justify-center grayscale hover:grayscale-0 opacity-40 hover:opacity-100 transition-all duration-700 transform hover:scale-105"
+                  className="flex-shrink-0 w-32 h-32 md:w-48 md:h-44 flex items-center justify-center grayscale-0 opacity-100 md:grayscale md:opacity-40 hover:grayscale-0 hover:opacity-100 transition-all duration-700 transform hover:scale-105"
                 >
                   <img 
                     src={brand.logo} 

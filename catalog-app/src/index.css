@@ -82,6 +82,15 @@ body {
   animation: float 5s ease-in-out infinite;
 }
 
+@keyframes scroll-right-infinite {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(50%, 0, 0); }
+}
+
+@utility animate-scroll-right-infinite {
+  animation: scroll-right-infinite 30s linear infinite;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -103,15 +112,6 @@ body {
 /* RTL Helpers */
 [dir="rtl"] {
   text-align: right;
-}
-
-@keyframes scroll-right {
-  0% { transform: translateX(25%); }
-  100% { transform: translateX(50%); }
-}
-
-@utility animate-scroll-right {
-  animation: scroll-right 13s linear infinite;
 }
 
 .scrollbar-hide::-webkit-scrollbar {

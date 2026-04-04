@@ -345,7 +345,7 @@ const Catalog = () => {
       <AgentBanner activeAgent={activeAgent} />
 
       {/* 🌌 HERO SEARCH SECTION */}
-      <section className="relative pt-4 md:pt-6 pb-12 overflow-hidden bg-white">
+      <section className="relative pt-2 md:pt-3 pb-6 overflow-hidden bg-white">
         <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary-50/30 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-1/3 h-full bg-gradient-to-r from-accent-50/20 to-transparent pointer-events-none" />
         
@@ -359,7 +359,7 @@ const Catalog = () => {
           <BrandCarousel />
 
           {/* QUICK FILTER BADGES */}
-          <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-8 md:mt-10 mb-8 md:mb-10 scroll-mt-28 md:scroll-mt-32">
+          <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-4 md:mt-5 mb-4 md:mb-5 scroll-mt-28 md:scroll-mt-32">
             {[
               { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
               { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
@@ -386,7 +386,7 @@ const Catalog = () => {
           </div>
 
           {/* SEARCH BAR */}
-          <div className="relative group max-w-xl mx-auto mb-10">
+          <div className="relative group max-w-xl mx-auto mb-5">
             <div className="absolute inset-0 bg-gradient-to-r from-primary-200 to-accent-200 rounded-3xl blur-xl opacity-20 group-focus-within:opacity-40 transition-opacity" />
             <div className="relative bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center px-4 py-1.5 focus-within:ring-4 focus-within:ring-primary-500/10 focus-within:border-primary-400 transition-all">
               <div className="bg-slate-50 p-2.5 rounded-2xl text-slate-400 group-focus-within:text-primary-500 transition-colors">

@@ -840,9 +840,6 @@ const Admin = () => {
                        ) : (
                          p.category === 'Bottles' ? <Package size={20} /> : <Package size={20} />
                        )}
-                       {p.is_clearing && (
-                         <div className="absolute top-0 right-0 bg-accent-500 text-white text-[8px] font-black px-1 py-0.5 rounded-bl-lg shadow-sm">NEW</div>
-                       )}
                     </div>
                   </td>
                   <td className="px-8 py-6 font-black text-slate-800 text-base">

@@ -64,6 +64,11 @@ const Admin = () => {
   const [isUpdatingBrand, setIsUpdatingBrand] = useState(false);
   const [confirmingBrandDelete, setConfirmingBrandDelete] = useState(null);
   
+  // Product Selection State
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [isBulkUpdatingProducts, setIsBulkUpdatingProducts] = useState(false);
+  const [isBulkCategoryMenuOpen, setIsBulkCategoryMenuOpen] = useState(false);
+  
   // Orders State
   const [orders, setOrders] = useState([]);
   const [confirmingOrderDelete, setConfirmingOrderDelete] = useState(null);
@@ -105,8 +110,24 @@ const Admin = () => {
 
   // 🚫 Cancellation States
   const [orderToCancel, setOrderToCancel] = useState(null);
-  const [cancelReason, setCancelReason] = useState('');
+  const [selectedBadge, setSelectedBadge] = useState(null);
   const [activeStatusMenu, setActiveStatusMenu] = useState({ id: null, rect: null });
+  const [categoriesFade, setCategoriesFade] = useState('mask-fade-end');
+
+  const handleCategoriesScroll = (e) => {
+    const el = e.target;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const absScrollLeft = Math.abs(scrollLeft);
+    const maxScroll = scrollWidth - clientWidth;
+    
+    const isAtStart = absScrollLeft < 15;
+    const isAtEnd = absScrollLeft >= maxScroll - 15;
+    
+    if (isAtStart && isAtEnd) setCategoriesFade('');
+    else if (isAtStart) setCategoriesFade('mask-fade-end');
+    else if (isAtEnd) setCategoriesFade('mask-fade-start');
+    else setCategoriesFade('mask-fade-both');
+  };
 
   // 🖼️ Image Handlers
   const openImageModal = (imageUrl, productName) => {
@@ -279,6 +300,46 @@ const Admin = () => {
       }
     } finally {
       setIsUpdatingProduct(false);
+    }
+  }
+
+  // Product Selection Actions
+  const toggleProductSelection = (id) => {
+    setSelectedProductIds(prev => 
+      prev.includes(id) ? prev.filter(productId => productId !== id) : [...prev, id]
+    );
+  }
+
+  const toggleAllProducts = () => {
+    if (selectedProductIds.length === sortedProducts.length && sortedProducts.length > 0) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(sortedProducts.map(p => p.id));
+    }
+  }
+
+  const handleBulkUpdateProductCategory = async (categoryName) => {
+    if (selectedProductIds.length === 0) return;
+    
+    setIsBulkUpdatingProducts(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ category: categoryName })
+        .in('id', selectedProductIds);
+      
+      if (!error) {
+        setProducts(prev => prev.map(p => 
+          selectedProductIds.includes(p.id) ? { ...p, category: categoryName } : p
+        ));
+        setSelectedProductIds([]);
+        setIsBulkCategoryMenuOpen(false);
+      } else {
+        console.error('Error bulk updating products:', error);
+        alert('שגיאה בעדכון קבוצתי של המוצרים');
+      }
+    } finally {
+      setIsBulkUpdatingProducts(false);
     }
   }
 
@@ -749,33 +810,105 @@ const Admin = () => {
 
   const productsTabContent = useMemo(() => (
     <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center gap-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <input 
-              type="text" 
-              placeholder="חיפוש מהיר..."
-              className="w-full bg-white border border-slate-200 rounded-2xl pr-12 pl-6 py-3 font-bold text-sm outline-none focus:border-primary-400 transition-all shadow-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-6 flex-1 min-w-0">
+            <div className="relative flex-1 max-w-md shrink-0">
+              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input 
+                type="text" 
+                placeholder="חיפוש מהיר..."
+                className="w-full bg-white border border-slate-200 rounded-2xl pr-12 pl-6 py-3 font-bold text-sm outline-none focus:border-primary-400 transition-all shadow-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div 
+              onScroll={handleCategoriesScroll}
+              className={`flex items-center gap-2 overflow-x-auto pb-4 md:pb-3 thin-scrollbar flex-1 min-w-0 ${categoriesFade}`}
+            >
+              {['All', ...new Set(categories.map(c => c.name))].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${
+                    selectedCategory === cat 
+                      ? 'bg-slate-900 text-white shadow-lg' 
+                      : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
+                  }`}
+                >
+                  {cat === 'All' ? 'הכל' : cat}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-            {['All', ...new Set(categories.map(c => c.name))].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${
-                  selectedCategory === cat 
-                    ? 'bg-slate-900 text-white shadow-lg' 
-                    : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
-                }`}
+          {/* ⚡ Bulk Actions Bar */}
+          <AnimatePresence>
+            {selectedProductIds.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="flex items-center gap-3 bg-primary-50 px-4 py-2 rounded-2xl border border-primary-100 shadow-sm"
               >
-                {cat === 'All' ? 'הכל' : cat}
-              </button>
-            ))}
-          </div>
+                <span className="text-sm font-black text-primary-700 whitespace-nowrap">נבחרו {selectedProductIds.length} מוצרים</span>
+                
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsBulkCategoryMenuOpen(!isBulkCategoryMenuOpen)}
+                    disabled={isBulkUpdatingProducts}
+                    className="bg-primary-500 text-white px-4 py-1.5 rounded-xl text-xs font-black hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                  >
+                    {isBulkUpdatingProducts ? (
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Tag size={14} />
+                    )}
+                    <span>הגדר קטגוריה</span>
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${isBulkCategoryMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isBulkCategoryMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsBulkCategoryMenuOpen(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className="absolute left-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 overflow-hidden"
+                        >
+                          <div className="max-h-60 overflow-y-auto scrollbar-hide">
+                            {categories.map(cat => (
+                              <button
+                                key={cat.id}
+                                onClick={() => handleBulkUpdateProductCategory(cat.name)}
+                                className="w-full text-right px-4 py-3 hover:bg-slate-50 rounded-xl text-[11px] font-black text-slate-700 transition-colors flex items-center justify-between group"
+                              >
+                                <span>{cat.name}</span>
+                                <ChevronRight size={10} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="w-px h-6 bg-primary-200 mx-1" />
+
+                <button 
+                  onClick={() => { setSelectedProductIds([]); setIsBulkCategoryMenuOpen(false); }}
+                  className="p-1.5 text-primary-400 hover:text-primary-600 hover:bg-primary-100 rounded-lg transition-colors"
+                  title="בטל בחירה"
+                >
+                  <X size={18} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
        <div className="flex md:hidden items-center justify-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-widest pb-4">
@@ -787,6 +920,14 @@ const Admin = () => {
           <table className="w-full text-right border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                <th className="px-6 py-5 w-12 text-center">
+                  <input 
+                    type="checkbox" 
+                    checked={sortedProducts.length > 0 && selectedProductIds.length === sortedProducts.length}
+                    onChange={toggleAllProducts}
+                    className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
+                  />
+                </th>
                 <th className="px-8 py-5">תמונה/סוג</th>
                 <th 
                   className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
@@ -829,7 +970,15 @@ const Admin = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sortedProducts.map(p => (
-                <tr key={p.id} className="group hover:bg-slate-50/50 transition-colors">
+                <tr key={p.id} className={`group transition-colors ${selectedProductIds.includes(p.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'}`}>
+                  <td className="px-6 py-6 text-center">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedProductIds.includes(p.id)}
+                      onChange={() => toggleProductSelection(p.id)}
+                      className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
+                    />
+                  </td>
                   <td className="px-8 py-6">
                     <div 
                       className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 overflow-hidden cursor-pointer hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-100 group/img relative"
@@ -900,7 +1049,7 @@ const Admin = () => {
           </table>
        </div>
     </div>
-  ), [sortedProducts, searchTerm, confirmingProductDelete, categories, selectedCategory, sortConfig]);
+  ), [sortedProducts, searchTerm, confirmingProductDelete, categories, selectedCategory, sortConfig, selectedProductIds, isBulkCategoryMenuOpen, isBulkUpdatingProducts]);
 
   const agentsTabContent = useMemo(() => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -1373,7 +1522,7 @@ const Admin = () => {
           >
             <div className="flex items-center gap-4">
               <Package size={20} />
-              <span className="font-black text-base">מוצרים במלאי</span>
+              <span className="font-black text-base">ניהול מוצרים</span>
             </div>
             <ChevronRight size={16} className={activeTab === 'products' ? '' : 'text-slate-300'} />
           </button>

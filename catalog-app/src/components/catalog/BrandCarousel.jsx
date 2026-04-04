@@ -71,7 +71,7 @@ const BrandCarousel = () => {
           {[0, 1].map((setIdx) => (
             <div 
               key={setIdx} 
-              className="flex gap-[0.75px] md:gap-[1.5px] px-[0.375px] md:px-[0.75px]"
+              className="flex gap-8 md:gap-16 items-center px-4 md:px-8"
             >
               {paddedBrands.map((brand, idx) => (
                 <div 

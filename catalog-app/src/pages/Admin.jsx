@@ -1014,63 +1014,89 @@ const Admin = () => {
     </div>
   ), [categories, confirmingCategoryDelete]);
 
-  const brandsTabContent = useMemo(() => (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-      {brands.map(brand => (
-        <motion.div 
-          layout
-          key={brand.id}
-          className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden flex flex-col items-center text-center"
-        >
-          <div className="w-24 h-24 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center shadow-inner overflow-hidden mb-6">
-            {brand.logo ? (
-              <img src={brand.logo} alt={brand.name} className="w-full h-full object-contain p-2" />
-            ) : (
-              <Image size={32} />
-            )}
-          </div>
-          <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1">{brand.name}</h3>
-          {brand.type && (
-            <span className="px-3 py-1 bg-primary-50 text-primary-600 text-[10px] font-black rounded-full mb-6 uppercase tracking-wider border border-primary-100/50">
-              {brand.type}
-            </span>
-          )}
-          {!brand.type && <div className="mb-6 h-4" />} {/* Spacer to maintain layout consistency if no type */}
+  const brandsTabContent = useMemo(() => {
+    const groupedBrands = brands.reduce((groups, brand) => {
+      const type = brand.type || 'כללי';
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(brand);
+      return groups;
+    }, {});
 
-          <div className="w-full pt-6 mt-auto border-t border-slate-50 flex gap-3">
-            {confirmingBrandDelete === brand.id ? (
-               <div className="w-full flex items-center justify-center gap-2 bg-red-50 p-2 rounded-2xl">
-                 <button onClick={() => handleDeleteBrand(brand.id)} className="bg-red-500 text-white p-2 rounded-xl"><Check size={14} /></button>
-                 <button onClick={() => setConfirmingBrandDelete(null)} className="bg-slate-200 text-slate-500 p-2 rounded-xl"><X size={14} /></button>
-               </div>
-            ) : (
-              <>
-                <button 
-                  onClick={() => setEditingBrand(brand)}
-                  className="flex-1 p-3 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all font-black"
-                >
-                  <Edit size={16} className="mx-auto" />
-                </button>
-                <button 
-                  onClick={() => setConfirmingBrandDelete(brand.id)}
-                  className="flex-1 p-3 text-slate-400 hover:text-red-500 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all font-black"
-                >
-                  <Trash2 size={16} className="mx-auto" />
-                </button>
-              </>
-            )}
-          </div>
-        </motion.div>
-      ))}
+    return (
+      <div className="space-y-16">
+        {Object.entries(groupedBrands).map(([type, typeBrands]) => (
+          <div key={type} className="space-y-8">
+            {/* Type Header */}
+            <div className="flex items-center gap-4">
+              <div className="h-px flex-1 bg-slate-100" />
+              <div className="flex items-center gap-2 px-6 py-2 bg-slate-50 border border-slate-100 rounded-full">
+                <Tag size={12} className="text-primary-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{type}</span>
+                <span className="text-[10px] font-bold text-slate-300">({typeBrands.length})</span>
+              </div>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
 
-      {brands.length === 0 && (
-        <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 rounded-[40px] opacity-30">
-          <Image size={64} className="mx-auto mb-4" />
-          <p className="font-black text-xl">אין מותגים רשומים... עדיין</p>
-        </div>
-      )}
-    </div>
-  ), [brands, confirmingBrandDelete]);
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+              {typeBrands.map(brand => (
+                <motion.div 
+                  layout
+                  key={brand.id}
+                  className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden flex flex-col items-center text-center"
+                >
+                  <div className="w-24 h-24 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center shadow-inner overflow-hidden mb-6">
+                    {brand.logo ? (
+                      <img src={brand.logo} alt={brand.name} className="w-full h-full object-contain p-2" />
+                    ) : (
+                      <Image size={32} />
+                    )}
+                  </div>
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1">{brand.name}</h3>
+                  {brand.type && (
+                    <span className="px-3 py-1 bg-primary-50 text-primary-600 text-[10px] font-black rounded-full mb-6 uppercase tracking-wider border border-primary-100/50">
+                      {brand.type}
+                    </span>
+                  )}
+                  {!brand.type && <div className="mb-6 h-4" />}
+
+                  <div className="w-full pt-6 mt-auto border-t border-slate-50 flex gap-3">
+                    {confirmingBrandDelete === brand.id ? (
+                      <div className="w-full flex items-center justify-center gap-2 bg-red-50 p-2 rounded-2xl">
+                        <button onClick={() => handleDeleteBrand(brand.id)} className="bg-red-500 text-white p-2 rounded-xl"><Check size={14} /></button>
+                        <button onClick={() => setConfirmingBrandDelete(null)} className="bg-slate-200 text-slate-500 p-2 rounded-xl"><X size={14} /></button>
+                      </div>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={() => setEditingBrand(brand)}
+                          className="flex-1 p-3 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all font-black"
+                        >
+                          <Edit size={16} className="mx-auto" />
+                        </button>
+                        <button 
+                          onClick={() => setConfirmingBrandDelete(brand.id)}
+                          className="flex-1 p-3 text-slate-400 hover:text-red-500 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all font-black"
+                        >
+                          <Trash2 size={16} className="mx-auto" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {brands.length === 0 && (
+          <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 rounded-[40px] opacity-30">
+            <Image size={64} className="mx-auto mb-4" />
+            <p className="font-black text-xl">אין מותגים רשומים... עדיין</p>
+          </div>
+        )}
+      </div>
+    );
+  }, [brands, confirmingBrandDelete]);
 
   const ordersTabContent = useMemo(() => (
     <div className="space-y-6">

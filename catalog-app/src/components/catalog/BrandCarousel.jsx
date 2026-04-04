@@ -19,6 +19,7 @@ const BrandCarousel = () => {
         const { data, error } = await supabase
           .from('brands')
           .select('*')
+          .order('type', { ascending: true, nullsFirst: false })
           .order('name');
         
         if (error) throw error;

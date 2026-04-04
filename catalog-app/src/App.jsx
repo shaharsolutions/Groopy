@@ -17,13 +17,27 @@ const App = () => {
 };
 
 const AdminRoute = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('groopy_admin_session') === 'true' || 
+           sessionStorage.getItem('groopy_admin_session') === 'true';
+  });
+
+  const handleLogin = (isAuth, rememberMe) => {
+    setIsAuthenticated(isAuth);
+    if (isAuth) {
+      if (rememberMe) {
+        localStorage.setItem('groopy_admin_session', 'true');
+      } else {
+        sessionStorage.setItem('groopy_admin_session', 'true');
+      }
+    }
+  };
 
   if (isAuthenticated) {
     return <Admin />;
   }
 
-  return <Login onLogin={setIsAuthenticated} />;
+  return <Login onLogin={handleLogin} />;
 };
 
 export default App;

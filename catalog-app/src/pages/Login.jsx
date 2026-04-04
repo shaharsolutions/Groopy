@@ -7,6 +7,7 @@ const LoginPage = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -17,7 +18,7 @@ const LoginPage = ({ onLogin }) => {
     const normalizedAdminPassword = adminPassword ? String(adminPassword).trim() : null;
     
     if (normalizedAdminPassword && trimmedInput === normalizedAdminPassword) {
-      onLogin(true);
+      onLogin(true, rememberMe);
       setError(false);
     } else {
       setError(true);
@@ -74,6 +75,31 @@ const LoginPage = ({ onLogin }) => {
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 px-2 py-2">
+            <label className="flex items-center gap-3 cursor-pointer select-none group">
+              <div className="relative">
+                <input 
+                  type="checkbox" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <div className="w-6 h-6 border-2 border-white/20 rounded-lg group-hover:border-primary-400 transition-all peer-checked:bg-primary-500 peer-checked:border-primary-500 flex items-center justify-center">
+                  <motion.div
+                    initial={false}
+                    animate={{ scale: rememberMe ? 1 : 0 }}
+                    transition={{ type: "spring", damping: 12, stiffness: 300 }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-white" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </motion.div>
+                </div>
+              </div>
+              <span className="text-sm font-bold text-slate-400 group-hover:text-white transition-colors">זכור אותי</span>
+            </label>
           </div>
 
           {/* Fixed height container for error message to prevent jumping */}

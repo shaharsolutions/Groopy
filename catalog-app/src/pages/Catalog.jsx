@@ -47,8 +47,12 @@ const Catalog = () => {
   const mainRef = useRef(null);
   const filtersRef = useRef(null);
 
-  const scrollToMain = () => {
+  const scrollToFilters = () => {
     filtersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const scrollToProducts = () => {
+    mainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   // 🖼️ Image Handlers
@@ -352,8 +356,37 @@ const Catalog = () => {
             <p className="text-slate-400 text-[10px] font-bold">גרופי מתנות בע"מ</p>
           </div>
 
+          <BrandCarousel />
+
+          {/* QUICK FILTER BADGES */}
+          <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-8 md:mt-10 mb-8 md:mb-10 scroll-mt-28 md:scroll-mt-32">
+            {[
+              { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
+              { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
+              { id: 'is_clearing', label: 'מוצרים חדשים', icon: Zap, color: { bg: 'bg-[#FDF2FF]', border: 'border-[#F1D0FF]', iconBg: 'bg-[#EBD2FF]', iconColor: 'text-[#8E24AA]' } },
+            ].map((badge) => (
+              <button 
+                key={badge.id}
+                onClick={() => {
+                  setSelectedBadge(selectedBadge === badge.id ? null : badge.id);
+                  scrollToFilters();
+                }}
+                className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${
+                  selectedBadge === badge.id 
+                    ? `${badge.color.bg} ${badge.color.border} scale-[1.02] shadow-xl shadow-slate-200` 
+                    : `bg-white border-slate-100 hover:border-slate-200 hover:shadow-lg items-center`
+                }`}
+              >
+                <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full ${badge.color.iconBg} flex items-center justify-center mb-1.5 md:mb-4 transition-all duration-500 group-hover:scale-110 shadow-inner`}>
+                  <badge.icon size={20} className={`${badge.color.iconColor} md:w-8 md:h-8`} />
+                </div>
+                <span className="text-[10px] md:text-2xl font-[900] text-slate-800 tracking-tight text-center leading-tight whitespace-pre-wrap">{badge.label}</span>
+              </button>
+            ))}
+          </div>
+
           {/* SEARCH BAR */}
-          <div className="relative group max-w-xl mx-auto">
+          <div className="relative group max-w-xl mx-auto mb-10">
             <div className="absolute inset-0 bg-gradient-to-r from-primary-200 to-accent-200 rounded-3xl blur-xl opacity-20 group-focus-within:opacity-40 transition-opacity" />
             <div className="relative bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center px-4 py-1.5 focus-within:ring-4 focus-within:ring-primary-500/10 focus-within:border-primary-400 transition-all">
               <div className="bg-slate-50 p-2.5 rounded-2xl text-slate-400 group-focus-within:text-primary-500 transition-colors">
@@ -369,41 +402,13 @@ const Catalog = () => {
             </div>
           </div>
 
-          <BrandCarousel />
-
-          {/* QUICK FILTER BADGES */}
-          <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-8 md:mt-10 mb-8 md:mb-10 scroll-mt-28 md:scroll-mt-32">
-            {[
-              { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
-              { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
-              { id: 'is_clearing', label: 'מוצרים חדשים', icon: Zap, color: { bg: 'bg-[#FDF2FF]', border: 'border-[#F1D0FF]', iconBg: 'bg-[#EBD2FF]', iconColor: 'text-[#8E24AA]' } },
-            ].map((badge) => (
-              <button 
-                key={badge.id}
-                onClick={() => {
-                  setSelectedBadge(selectedBadge === badge.id ? null : badge.id);
-                  scrollToMain();
-                }}
-                className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${
-                  selectedBadge === badge.id 
-                    ? `${badge.color.bg} ${badge.color.border} scale-[1.02] shadow-xl shadow-slate-200` 
-                    : `bg-white border-slate-100 hover:border-slate-200 hover:shadow-lg items-center`
-                }`}
-              >
-                <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full ${badge.color.iconBg} flex items-center justify-center mb-1.5 md:mb-4 transition-all duration-500 group-hover:scale-110 shadow-inner`}>
-                  <badge.icon size={20} className={`${badge.color.iconColor} md:w-8 md:h-8`} />
-                </div>
-                <span className="text-[10px] md:text-2xl font-[900] text-slate-800 tracking-tight text-center leading-tight whitespace-pre-wrap">{badge.label}</span>
-              </button>
-            ))}
-          </div>
           <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 mt-4 pb-4 md:pb-0 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
             {categories.map(cat => (
               <button
                 key={cat}
                 onClick={() => {
                   setSelectedCategory(cat);
-                  scrollToMain();
+                  scrollToProducts();
                 }}
                 className={`px-8 py-3 rounded-2xl text-sm font-black transition-all duration-300 ${
                   selectedCategory === cat 
@@ -419,7 +424,7 @@ const Catalog = () => {
       </section>
 
       {/* 📦 PRODUCT GRID */}
-      <main ref={mainRef} className="container mx-auto px-6 py-12">
+      <main ref={mainRef} className="container mx-auto px-6 py-12 scroll-mt-24 md:scroll-mt-32">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (

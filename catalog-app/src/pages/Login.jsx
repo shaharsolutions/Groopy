@@ -45,7 +45,7 @@ const LoginPage = ({ onLogin }) => {
         className="w-full max-w-md bg-white/10 backdrop-blur-2xl p-10 py-12 rounded-[48px] border border-white/10 shadow-2xl relative z-10"
       >
         <div className="flex flex-col items-center mb-10">
-          <div className="h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 overflow-hidden p-3 border border-white/20">
+          <div className="h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 overflow-hidden p-1 border border-white/20">
             <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-widest uppercase text-center">כניסת מנהל</h1>

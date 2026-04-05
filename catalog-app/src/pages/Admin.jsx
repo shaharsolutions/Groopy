@@ -1498,7 +1498,7 @@ const Admin = () => {
       `}>
         <div className="flex items-center justify-between mb-12">
           <div className="flex items-center gap-3">
-            <div className="h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm overflow-hidden p-2 border border-slate-100">
+            <div className="h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm overflow-hidden p-1 border border-slate-100">
               <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
             </div>
             <div>

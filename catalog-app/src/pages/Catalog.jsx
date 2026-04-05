@@ -317,7 +317,7 @@ const Catalog = () => {
           {/* Right Section: Logo & Admin */}
           <div className="flex-1 flex items-center gap-4 md:gap-6">
             <div className="h-16 md:h-20 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50 transition-all duration-300 shrink-0">
-              <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="Groopy Logo" className="w-full h-full object-contain p-2" />
+              <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
             </div>
             
             <button 

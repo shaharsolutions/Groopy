@@ -314,7 +314,7 @@ const Catalog = () => {
     <div className="min-h-screen bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
       {/* 🧭 PREMIUM NAVIGATION */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-3xl border-b border-slate-100/60 transition-all duration-300">
-        <div className="container mx-auto px-6 h-20 md:h-24 lg:h-28 flex items-center transition-all">
+        <div className="container mx-auto px-6 h-24 md:h-32 lg:h-36 flex items-center transition-all">
           {/* Right Section: Admin (RTL start) */}
           <div className="flex-1 flex items-center justify-start gap-4 md:gap-6">
             <button 
@@ -331,7 +331,7 @@ const Catalog = () => {
             <img 
               src={logo} 
               alt="Groopy Logo" 
-              className="h-10 md:h-14 lg:h-16 w-auto object-contain cursor-pointer transition-all duration-300 hover:scale-105" 
+              className="h-16 md:h-24 lg:h-28 w-auto object-contain cursor-pointer transition-all duration-500 hover:scale-110" 
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             />
           </div>

@@ -112,23 +112,6 @@ const Admin = () => {
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [selectedBadge, setSelectedBadge] = useState(null);
   const [activeStatusMenu, setActiveStatusMenu] = useState({ id: null, rect: null });
-  const [categoriesFade, setCategoriesFade] = useState('mask-fade-end');
-
-  const handleCategoriesScroll = (e) => {
-    const el = e.target;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    const absScrollLeft = Math.abs(scrollLeft);
-    const maxScroll = scrollWidth - clientWidth;
-    
-    const isAtStart = absScrollLeft < 15;
-    const isAtEnd = absScrollLeft >= maxScroll - 15;
-    
-    if (isAtStart && isAtEnd) setCategoriesFade('');
-    else if (isAtStart) setCategoriesFade('mask-fade-end');
-    else if (isAtEnd) setCategoriesFade('mask-fade-start');
-    else setCategoriesFade('mask-fade-both');
-  };
-
   // 🖼️ Image Handlers
   const openImageModal = (imageUrl, productName) => {
     setSelectedImage(imageUrl);
@@ -845,8 +828,7 @@ const Admin = () => {
             </div>
 
             <div 
-              onScroll={handleCategoriesScroll}
-              className={`flex items-center gap-2 overflow-x-auto pb-4 md:pb-3 thin-scrollbar flex-1 min-w-0 ${categoriesFade}`}
+              className="flex items-center gap-2 overflow-x-auto pb-4 md:pb-3 thin-scrollbar flex-1 min-w-0"
             >
               {['All', ...new Set(categories.map(c => c.name))].map(cat => (
                 <button

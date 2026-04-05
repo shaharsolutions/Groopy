@@ -126,18 +126,6 @@ body {
   scrollbar-width: none;
 }
 
-@utility mask-fade-start {
-  mask-image: linear-gradient(to left, transparent 0%, black 15%, black 100%);
-}
-
-@utility mask-fade-end {
-  mask-image: linear-gradient(to right, transparent 0%, black 15%, black 100%);
-}
-
-@utility mask-fade-both {
-  mask-image: linear-gradient(to left, transparent 0%, black 15%, black 85%, transparent 100%);
-}
-
 @utility thin-scrollbar {
   &::-webkit-scrollbar {
     height: 4px;

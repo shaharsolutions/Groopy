@@ -45,24 +45,8 @@ const Catalog = () => {
   const [selectedProductName, setSelectedProductName] = useState('');
   const [selectedBadge, setSelectedBadge] = useState(null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [categoriesFade, setCategoriesFade] = useState('mask-fade-end');
   const mainRef = useRef(null);
   const filtersRef = useRef(null);
-
-  const handleCategoriesScroll = (e) => {
-    const el = e.target;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    const absScrollLeft = Math.abs(scrollLeft);
-    const maxScroll = scrollWidth - clientWidth;
-    
-    const isAtStart = absScrollLeft < 15;
-    const isAtEnd = absScrollLeft >= maxScroll - 15;
-    
-    if (isAtStart && isAtEnd) setCategoriesFade('');
-    else if (isAtStart) setCategoriesFade('mask-fade-end');
-    else if (isAtEnd) setCategoriesFade('mask-fade-start');
-    else setCategoriesFade('mask-fade-both');
-  };
 
   const scrollToFilters = () => {
     filtersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -454,8 +438,7 @@ const Catalog = () => {
           </div>
 
           <div 
-            onScroll={handleCategoriesScroll}
-            className={`flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0 ${categoriesFade}`}
+            className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0"
           >
             {categories.map(cat => (
               <button

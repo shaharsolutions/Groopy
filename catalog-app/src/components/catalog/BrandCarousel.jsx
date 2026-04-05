@@ -59,13 +59,7 @@ const BrandCarousel = () => {
         <span className="text-sm font-bold text-slate-400 tracking-wide">המותגים שלנו</span>
       </div>
 
-      {/* Carousel Container with Fading Edge */}
       <div className="relative min-h-[128px] md:min-h-[176px]">
-        {/* Right Fade/Blur Effect */}
-        <div className="absolute top-0 right-0 h-full w-32 z-10 bg-gradient-to-l from-white via-white/80 to-transparent backdrop-blur-[2px] pointer-events-none" />
-        
-        <div className="absolute top-0 left-0 h-full w-8 z-10 bg-gradient-to-r from-white to-transparent pointer-events-none" />
-
         <div className="flex w-max animate-scroll-right-infinite">
           {/* We only need 2 sets for a perfect 0-50% marquee loop */}
           {[0, 1].map((setIdx) => (

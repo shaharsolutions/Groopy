@@ -96,23 +96,23 @@ const PrivacyPolicy = () => {
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <a href="tel:052-8366744" className="flex items-center gap-4 group">
-                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center group-hover:bg-primary-500 transition-colors">
+              <a href="tel:052-8366744" className="flex items-start md:items-center gap-4 group min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-primary-500 transition-colors">
                   <Phone size={24} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">טלפון</p>
-                  <p className="text-xl font-bold tracking-tight">052-8366744 (שחר)</p>
+                  <p className="text-lg md:text-xl font-bold tracking-tight">052-8366744 (שחר)</p>
                 </div>
               </a>
 
-              <a href="mailto:shaharsolutions@gmail.com" className="flex items-center gap-4 group">
-                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center group-hover:bg-accent-500 transition-colors">
+              <a href="mailto:shaharsolutions@gmail.com" className="flex items-start md:items-center gap-4 group min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-accent-500 transition-colors">
                   <Mail size={24} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">דואר אלקטרוני</p>
-                  <p className="text-xl font-bold tracking-tight">shaharsolutions@gmail.com</p>
+                  <p className="text-lg md:text-xl font-bold tracking-tight break-all md:break-normal">shaharsolutions@gmail.com</p>
                 </div>
               </a>
             </div>

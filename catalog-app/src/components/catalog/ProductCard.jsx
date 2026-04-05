@@ -68,41 +68,41 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
       </div>
 
       {/* Info Content */}
-      <div className="p-4 md:p-6 pt-0 flex flex-col flex-1">
+      <div className="p-3 md:p-6 pt-0 flex flex-col flex-1">
         <span className="text-[10px] font-black text-accent-500 uppercase tracking-widest mb-1">
           {(product.category === 'Bottles' || product.category === 'בקבוקים') ? 'בקבוקים' : 
            (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
            product.category}
         </span>
-        <h3 className="font-bold text-base md:text-lg text-slate-800 leading-snug mb-2 min-h-[2.5rem] md:min-h-[3rem] line-clamp-2">
+        <h3 className="font-bold text-sm md:text-lg text-slate-800 leading-snug mb-1 md:mb-2 min-h-[2rem] md:min-h-[3rem] line-clamp-2">
           {product.name}
         </h3>
-        <p className="text-xs text-slate-400 font-medium italic mb-4 line-clamp-1">
+        <p className="text-[10px] md:text-xs text-slate-400 font-medium italic mb-3 md:mb-4 line-clamp-1">
           {product.description}
         </p>
 
-        <div className="mt-auto flex items-center justify-between gap-2">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 block -mb-0.5">מחיר יחידה</span>
-            <span className="text-xl md:text-2xl font-black text-slate-900">₪{product.price.toFixed(2)}</span>
+        <div className="mt-auto flex items-center justify-between gap-1 md:gap-2">
+          <div className="shrink-0">
+            <span className="text-[8px] md:text-[10px] font-bold text-slate-400 block -mb-0.5">מחיר יחידה</span>
+            <span className="text-lg md:text-2xl font-black text-slate-900">₪{product.price.toFixed(2)}</span>
           </div>
           <button 
             onClick={() => addToCart(product)}
             className={`
-              flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-300
+              flex items-center justify-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 md:py-2 rounded-lg md:rounded-xl transition-all duration-300
               ${cartCount > 0 
                 ? 'bg-accent-600 text-white shadow-accent-200' 
                 : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
               }
-              hover:scale-105 active:scale-95 shadow-lg
+              hover:scale-105 active:scale-95 shadow-lg shrink-0
             `}
           >
-            <div className="flex items-center gap-1">
-              <Plus size={14} strokeWidth={4} />
-              <span className="font-bold text-sm whitespace-nowrap">הוספה</span>
+            <div className="flex items-center gap-0.5 md:gap-1">
+              <Plus size={12} md:size={14} strokeWidth={4} />
+              <span className="font-bold text-[10px] md:text-sm whitespace-nowrap">הוספה</span>
             </div>
             {cartCount > 0 && (
-              <span className="bg-white text-accent-600 min-w-[24px] h-6 px-1 rounded-lg flex items-center justify-center text-xs font-black shadow-sm">
+              <span className="bg-white text-accent-600 min-w-[18px] md:min-w-[24px] h-5 md:h-6 px-1 rounded-md md:rounded-lg flex items-center justify-center text-[10px] md:text-xs font-black shadow-sm">
                 {cartCount}
               </span>
             )}

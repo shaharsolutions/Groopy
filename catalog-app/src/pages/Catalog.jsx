@@ -29,6 +29,7 @@ import AgentBanner from '../components/catalog/AgentBanner';
 import ProductCard from '../components/catalog/ProductCard';
 import CartDrawer from '../components/catalog/CartDrawer';
 import BrandCarousel from '../components/catalog/BrandCarousel';
+import AgentSelectorModal from '../components/catalog/AgentSelectorModal';
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
@@ -84,6 +85,9 @@ const Catalog = () => {
   
   // 👔 AGENT SYSTEM
   const [activeAgent, setActiveAgent] = useState(null);
+  const [agents, setAgents] = useState([]);
+  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const defaultWhatsApp = "972500000000"; // Fallback number
 
   // Load persistence
@@ -118,7 +122,16 @@ const Catalog = () => {
     if (productsData) setProducts(productsData);
     if (productsError) console.error('Error loading products:', productsError);
 
-    // 2. Identify Agent from URL (ULTRA-Greedy approach)
+    // 2. Fetch All Agents (for selection)
+    const { data: agentsData, error: agentsError } = await supabase
+      .from('agents')
+      .select('*')
+      .order('name');
+    
+    if (agentsData) setAgents(agentsData);
+    if (agentsError) console.error('Error loading agents:', agentsError);
+
+    // 3. Identify Agent from URL or LocalStorage
     let agentId = null;
     const fullHref = window.location.href;
     
@@ -126,39 +139,55 @@ const Catalog = () => {
     const urlMatches = fullHref.match(/[?&]agent=([^&#]+)/);
     if (urlMatches && urlMatches[1]) {
       agentId = decodeURIComponent(urlMatches[1]);
+      localStorage.setItem('groopy_agent_id', agentId); // Persist from URL
     } else {
-      // Last-ditch effort: check hash directly without assuming standard param format
-      const hashContent = window.location.hash;
-      if (hashContent.includes('agent=')) {
-        const parts = hashContent.split('agent=');
-        if (parts.length > 1) {
-          agentId = parts[1].split('&')[0].split('?')[0];
-          agentId = decodeURIComponent(agentId);
+      // Check LocalStorage
+      agentId = localStorage.getItem('groopy_agent_id');
+      
+      // Last-ditch effort: check hash directly
+      if (!agentId) {
+        const hashContent = window.location.hash;
+        if (hashContent.includes('agent=')) {
+          const parts = hashContent.split('agent=');
+          if (parts.length > 1) {
+            agentId = parts[1].split('&')[0].split('?')[0];
+            agentId = decodeURIComponent(agentId);
+            localStorage.setItem('groopy_agent_id', agentId);
+          }
         }
       }
     }
 
-    if (agentId) {
-      console.log('🔍 Agent ID detected from URL:', agentId);
-      const { data: agentData, error: agentError } = await supabase
-        .from('agents')
-        .select('*')
-        .eq('id', agentId)
-        .single();
+    if (agentId && agentsData) {
+      console.log('🔍 Attempting to connect agent:', agentId);
+      const matchedAgent = agentsData.find(a => a.id === agentId);
       
-      if (agentData) {
-        setActiveAgent(agentData);
-        console.log('✅ Agent Connected Successfully:', agentData.name);
+      if (matchedAgent) {
+        setActiveAgent(matchedAgent);
+        console.log('✅ Agent Connected Successfully:', matchedAgent.name);
       } else {
-        console.warn('⚠️ Agent ID not found in Supabase:', agentId);
+        console.warn('⚠️ Agent ID not found in fetched agents:', agentId);
         setActiveAgent(null);
+        localStorage.removeItem('groopy_agent_id');
       }
-      if (agentError) console.error('❌ Supabase Agent Fetch Error:', agentError);
     } else {
-      console.log('ℹ️ No agent parameter found in URL:', fullHref);
+      console.log('ℹ️ No active agent found.');
       setActiveAgent(null);
     }
+    
+    setIsInitialLoading(false); // ✅ Detection complete
   }
+
+  // Determine if the current session started from a link
+  const isFromLink = useMemo(() => {
+    const fullHref = window.location.href;
+    return fullHref.includes('agent=');
+  }, [searchParams]);
+
+  const selectAgent = (agent) => {
+    setActiveAgent(agent);
+    localStorage.setItem('groopy_agent_id', agent.id);
+  };
 
   // Categories Calculation
   const categories = useMemo(() => {
@@ -358,7 +387,13 @@ const Catalog = () => {
       </header>
 
       {/* 👔 AGENT INDICATOR */}
-      <AgentBanner activeAgent={activeAgent} />
+      {!isInitialLoading && (
+        <AgentBanner 
+          activeAgent={activeAgent} 
+          onSelectClick={() => setIsAgentModalOpen(true)} 
+          isFromLink={isFromLink}
+        />
+      )}
 
       {/* 🌌 HERO SEARCH SECTION */}
       <section className="relative pt-2 md:pt-3 pb-6 overflow-hidden bg-white">
@@ -496,6 +531,16 @@ const Catalog = () => {
         isSent={isSent}
         isSubmitting={isSubmitting}
         activeAgent={activeAgent}
+        onOpenAgentSelector={() => setIsAgentModalOpen(true)}
+      />
+
+      {/* 👔 AGENT SELECTOR MODAL */}
+      <AgentSelectorModal 
+        isOpen={isAgentModalOpen}
+        onClose={() => setIsAgentModalOpen(false)}
+        agents={agents}
+        onSelect={selectAgent}
+        activeAgentId={activeAgent?.id}
       />
 
       {/* 🖼️ IMAGE MODAL */}

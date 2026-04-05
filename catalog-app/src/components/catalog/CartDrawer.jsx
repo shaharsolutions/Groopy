@@ -11,7 +11,8 @@ import {
   Send,
   ShoppingCart,
   ChevronDown,
-  Package
+  Package,
+  UserCheck
 } from 'lucide-react';
 
 const CartDrawer = ({ 
@@ -29,7 +30,8 @@ const CartDrawer = ({
   handleWhatsAppSend, 
   isSent, 
   isSubmitting,
-  activeAgent 
+  activeAgent,
+  onOpenAgentSelector
 }) => {
   return (
     <>
@@ -195,6 +197,7 @@ const CartDrawer = ({
                     </div>
   
                     {/* SEND BUTTON */}
+                    {activeAgent ? (
                       <button 
                         onClick={handleWhatsAppSend}
                         disabled={isSubmitting}
@@ -210,10 +213,34 @@ const CartDrawer = ({
                         </span>
                         <div className="absolute inset-0 bg-white/10 translate-x-full group-hover:translate-x-0 transition-transform duration-700 skew-x-12" />
                       </button>
+                    ) : (
+                      <button 
+                        onClick={onOpenAgentSelector}
+                        className="w-full py-4 md:py-6 bg-slate-900 text-white flex items-center justify-center gap-3 md:gap-4 rounded-3xl md:rounded-[40px] font-black text-xl md:text-2xl tracking-tight hover:bg-slate-800 transition-all shadow-xl active:scale-95 group relative overflow-hidden"
+                      >
+                        <UserCheck size={24} className="relative z-10 group-hover:scale-110 transition-transform" />
+                        <span className="relative z-10">בחר סוכן להמשך ההזמנה</span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    )}
                     
-                    <p className="text-xs text-center text-slate-400 font-black px-6 leading-tight uppercase tracking-widest opacity-60">
-                      הלחיצה תפתח את אפליקציית הוואטסאפ
-                    </p>
+                    <div className="flex flex-col items-center gap-2">
+                      {activeAgent ? (
+                        <div className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100/50 px-4 py-2 rounded-full border border-slate-100">
+                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                          <span>ההזמנה תישלח לסוכן: <span className="text-slate-900 underline decoration-primary-500 decoration-2">{activeAgent.name}</span></span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-full border border-red-100">
+                          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                          <span>חובה לבחור סוכן כדי לבצע הזמנה</span>
+                        </div>
+                      )}
+                      
+                      <p className="text-[10px] md:text-xs text-center text-slate-400 font-black px-6 leading-tight uppercase tracking-widest opacity-40">
+                        {activeAgent ? 'הלחיצה תפתח את אפליקציית הוואטסאפ' : 'יש לבחור סוכן מהרשימה כדי להמשיך בתהליך'}
+                      </p>
+                    </div>
                   </div>
                )}
             </motion.div>

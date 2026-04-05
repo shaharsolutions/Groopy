@@ -177,8 +177,8 @@ const Catalog = () => {
   const categories = useMemo(() => {
     const rawCategories = [...new Set(products.map(p => p.category))];
     const mapped = rawCategories.map(cat => {
-      if (cat === 'Bottles' || cat === 'בקבוקים') return 'בקבוקים';
-      if (cat === 'Lunch Boxes' || cat === 'קופסאות אוכל') return 'קופסאות אוכל';
+      if (cat === 'Bottles' || cat === 'בקבוקים' || cat === 'Lunch Boxes' || cat === 'קופסאות אוכל') 
+        return 'בקבוקים וקופסאות אוכל';
       return cat;
     });
     return ['All', ...new Set(mapped)];
@@ -192,9 +192,9 @@ const Catalog = () => {
         product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const normalizedProductCat = 
-        (product.category === 'Bottles' || product.category === 'בקבוקים') ? 'בקבוקים' :
-        (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' :
-        product.category;
+        (product.category === 'Bottles' || product.category === 'בקבוקים' || product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') 
+        ? 'בקבוקים וקופסאות אוכל' 
+        : product.category;
         
       let matchesCategory = false;
       if (selectedCategory === 'All') {
@@ -316,8 +316,8 @@ const Catalog = () => {
         <div className="container mx-auto px-6 h-20 md:h-24 lg:h-28 flex items-center transition-all">
           {/* Right Section: Logo & Admin */}
           <div className="flex-1 flex items-center gap-4 md:gap-6">
-            <div className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50 transition-all duration-300 shrink-0">
-              <img src={`${import.meta.env.BASE_URL}logo-main.png`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
+            <div className="h-16 md:h-20 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50 transition-all duration-300 shrink-0">
+              <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="Groopy Logo" className="w-full h-full object-contain p-2" />
             </div>
             
             <button 
@@ -447,10 +447,10 @@ const Catalog = () => {
                   setSelectedCategory(cat);
                   scrollToProducts();
                 }}
-                className={`px-8 py-3 rounded-2xl text-base font-black transition-all duration-300 ${
+                className={`px-10 py-4 rounded-full text-lg font-black transition-all duration-500 shrink-0 ${
                   selectedCategory === cat 
-                    ? 'bg-slate-900 text-white shadow-2xl scale-105' 
-                    : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                    ? 'bg-[#0f172a] text-white shadow-xl shadow-slate-200 scale-[1.02]' 
+                    : 'bg-white border border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1] hover:bg-slate-50/50'
                 }`}
               >
                 {cat === 'All' ? 'כל המוצרים' : cat === 'New' ? 'מוצרים חדשים' : cat}
@@ -576,7 +576,7 @@ const Catalog = () => {
         <div className="container mx-auto px-6 max-w-5xl text-center">
           <div className="flex flex-col items-center gap-4 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
             <div className="flex items-center gap-3">
-              <img src={`${import.meta.env.BASE_URL}logo-main.png`} alt="" className="h-10 object-contain" />
+              <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="" className="h-12 object-contain" />
             </div>
             <div className="flex gap-12 mt-4 text-sm font-black uppercase tracking-[0.2em] text-slate-400">
               <span>Supply</span>

@@ -108,10 +108,6 @@ const AgentSelectorModal = ({ isOpen, onClose, agents, onSelect, activeAgentId }
               </div>
             </div>
             
-            {/* Footer */}
-            <div className="p-6 bg-slate-50/50 border-t border-slate-100 text-center">
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Groopy Catalog Agent System</p>
-            </div>
           </motion.div>
         </motion.div>
       )}

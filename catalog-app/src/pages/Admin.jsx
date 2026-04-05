@@ -68,6 +68,7 @@ const Admin = () => {
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [isBulkUpdatingProducts, setIsBulkUpdatingProducts] = useState(false);
   const [isBulkCategoryMenuOpen, setIsBulkCategoryMenuOpen] = useState(false);
+  const [isBulkFlagsMenuOpen, setIsBulkFlagsMenuOpen] = useState(false);
   
   // Orders State
   const [orders, setOrders] = useState([]);
@@ -319,6 +320,30 @@ const Admin = () => {
         setIsBulkCategoryMenuOpen(false);
       } else {
         console.error('Error bulk updating products:', error);
+        alert('שגיאה בעדכון קבוצתי של המוצרים');
+      }
+    } finally {
+      setIsBulkUpdatingProducts(false);
+    }
+  }
+
+  const handleBulkUpdateProductFlag = async (field, value) => {
+    if (selectedProductIds.length === 0) return;
+    
+    setIsBulkUpdatingProducts(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ [field]: value })
+        .in('id', selectedProductIds);
+      
+      if (!error) {
+        setProducts(prev => prev.map(p => 
+          selectedProductIds.includes(p.id) ? { ...p, [field]: value } : p
+        ));
+        // We don't automatically unselect here to allow setting multiple flags
+      } else {
+        console.error(`Error bulk updating product flag ${field}:`, error);
         alert('שגיאה בעדכון קבוצתי של המוצרים');
       }
     } finally {
@@ -900,6 +925,92 @@ const Admin = () => {
                   </AnimatePresence>
                 </div>
 
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsBulkFlagsMenuOpen(!isBulkFlagsMenuOpen)}
+                    disabled={isBulkUpdatingProducts}
+                    className="bg-white border border-primary-200 text-primary-600 px-4 py-1.5 rounded-xl text-xs font-black hover:bg-primary-50 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                  >
+                    {isBulkUpdatingProducts ? (
+                      <div className="w-3 h-3 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
+                    ) : (
+                      <Star size={14} />
+                    )}
+                    <span>הגדר תגיות</span>
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${isBulkFlagsMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isBulkFlagsMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsBulkFlagsMenuOpen(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-3 z-50 overflow-hidden"
+                        >
+                          <div className="space-y-3">
+                            <div className="px-2 py-1">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">מבצעים חמים</p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleBulkUpdateProductFlag('is_hot_deal', true)}
+                                  className="flex-1 bg-orange-50 text-orange-600 py-2 rounded-xl text-[10px] font-black hover:bg-orange-100 transition-colors"
+                                >
+                                  כן
+                                </button>
+                                <button
+                                  onClick={() => handleBulkUpdateProductFlag('is_hot_deal', false)}
+                                  className="flex-1 bg-slate-50 text-slate-400 py-2 rounded-xl text-[10px] font-black hover:bg-slate-100 transition-colors"
+                                >
+                                  לא
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div className="px-2 py-1 border-t border-slate-50 pt-3">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">נמכרים ביותר</p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleBulkUpdateProductFlag('is_best_seller', true)}
+                                  className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-xl text-[10px] font-black hover:bg-blue-100 transition-colors"
+                                >
+                                  כן
+                                </button>
+                                <button
+                                  onClick={() => handleBulkUpdateProductFlag('is_best_seller', false)}
+                                  className="flex-1 bg-slate-50 text-slate-400 py-2 rounded-xl text-[10px] font-black hover:bg-slate-100 transition-colors"
+                                >
+                                  לא
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="px-2 py-1 border-t border-slate-50 pt-3">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">מוצרים חדשים</p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleBulkUpdateProductFlag('is_clearing', true)}
+                                  className="flex-1 bg-purple-50 text-purple-600 py-2 rounded-xl text-[10px] font-black hover:bg-purple-100 transition-colors"
+                                >
+                                  כן
+                                </button>
+                                <button
+                                  onClick={() => handleBulkUpdateProductFlag('is_clearing', false)}
+                                  className="flex-1 bg-slate-50 text-slate-400 py-2 rounded-xl text-[10px] font-black hover:bg-slate-100 transition-colors"
+                                >
+                                  לא
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 <div className="w-px h-6 bg-primary-200 mx-1" />
 
                 <button 
@@ -1052,7 +1163,7 @@ const Admin = () => {
           </table>
        </div>
     </div>
-  ), [sortedProducts, searchTerm, confirmingProductDelete, categories, selectedCategory, sortConfig, selectedProductIds, isBulkCategoryMenuOpen, isBulkUpdatingProducts]);
+  ), [sortedProducts, searchTerm, confirmingProductDelete, categories, selectedCategory, sortConfig, selectedProductIds, isBulkCategoryMenuOpen, isBulkFlagsMenuOpen, isBulkUpdatingProducts]);
 
   const agentsTabContent = useMemo(() => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -1499,12 +1610,9 @@ const Admin = () => {
         <div className="flex items-center justify-between mb-12">
           <div className="flex items-center gap-3">
             <div className="h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm overflow-hidden p-1 border border-slate-100">
-              <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="Groopy Logo" className="w-full h-full object-contain" />
+              <img src="byGroopy_strip.png" alt="Groopy Logo" className="w-full h-full object-contain" />
             </div>
-            <div>
-              <h1 className="font-black text-2xl text-slate-800 tracking-tight">ניהול קטלוג</h1>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">קטלוג מוצרים</p>
-            </div>
+            <div />
           </div>
           <button 
             onClick={() => setIsSidebarOpen(false)}

@@ -317,7 +317,7 @@ const Catalog = () => {
           {/* Right Section: Logo & Admin */}
           <div className="flex-1 flex items-center gap-4 md:gap-6">
             <div className="h-16 md:h-20 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50 transition-all duration-300 shrink-0">
-              <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="Groopy Logo" className="w-full h-full object-contain p-1" />
+              <img src="byGroopy_strip.png" alt="Groopy Logo" className="w-full h-full object-contain p-1" />
             </div>
             
             <button 
@@ -576,7 +576,7 @@ const Catalog = () => {
         <div className="container mx-auto px-6 max-w-5xl text-center">
           <div className="flex flex-col items-center gap-4 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
             <div className="flex items-center gap-3">
-              <img src={`${import.meta.env.BASE_URL}byGroopy_strip.png`} alt="" className="h-12 object-contain" />
+              <img src="byGroopy_strip.png" alt="" className="h-12 object-contain" />
             </div>
             <div className="flex gap-12 mt-4 text-sm font-black uppercase tracking-[0.2em] text-slate-400">
               <span>Supply</span>

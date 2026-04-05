@@ -3,6 +3,8 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Catalog from './pages/Catalog';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Accessibility from './pages/Accessibility';
 
 const App = () => {
   return (
@@ -10,6 +12,8 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Catalog />} />
         <Route path="/admin" element={<AdminRoute />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/accessibility" element={<Accessibility />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

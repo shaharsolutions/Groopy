@@ -41,14 +41,14 @@ const CartDrawer = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsCartOpen(false)}
-              className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50"
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100]"
             />
             <motion.div 
               initial={{ x: '100%', opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-              className="fixed inset-y-0 right-0 w-full max-w-xl bg-white z-50 shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.3)] flex flex-col"
+              className="fixed inset-y-0 right-0 w-full max-w-xl bg-white z-[100] shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.3)] flex flex-col"
             >
               {/* Cart Header */}
               <div className="p-4 md:p-8 pb-4 md:pb-6 flex items-center justify-between">

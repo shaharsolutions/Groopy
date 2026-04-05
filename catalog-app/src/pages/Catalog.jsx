@@ -557,6 +557,21 @@ const Catalog = () => {
               <span>•</span>
               <span>Import</span>
             </div>
+            
+            <div className="flex flex-wrap justify-center gap-6 md:gap-10 mt-12 pt-8 border-t border-slate-200/50">
+              <button 
+                onClick={() => navigate('/privacy')}
+                className="text-xs md:text-sm font-bold text-slate-400 hover:text-primary-600 transition-colors uppercase tracking-widest"
+              >
+                מדיניות פרטיות
+              </button>
+              <button 
+                onClick={() => navigate('/accessibility')}
+                className="text-xs md:text-sm font-bold text-slate-400 hover:text-primary-600 transition-colors uppercase tracking-widest"
+              >
+                הצהרת נגישות
+              </button>
+            </div>
           </div>
         </div>
       </footer>

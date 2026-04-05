@@ -739,12 +739,33 @@ const Admin = () => {
     }
   };
 
-  const copyAgentLink = (id) => {
+  const handleShareAgent = async (agent) => {
     const origin = window.location.origin;
     const base = import.meta.env.BASE_URL;
     // Ensure base starts and ends with / appropriately
     const fullBase = base.startsWith('/') ? base : `/${base}`;
-    const link = `${origin}${fullBase}${fullBase.endsWith('/') ? '' : '/'}#/?agent=${id}`;
+    const link = `${origin}${fullBase}${fullBase.endsWith('/') ? '' : '/'}#/?agent=${agent.id}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Groopy - קטלוג המוצרים של ${agent.name}`,
+          text: `היי, מוזמנים לצפות בקטלוג המוצרים של גרופי.`,
+          url: link,
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Error sharing:', err);
+          // Fallback to copy if share fails
+          copyToClipboard(link, agent.id);
+        }
+      }
+    } else {
+      copyToClipboard(link, agent.id);
+    }
+  }
+
+  const copyToClipboard = (link, id) => {
     navigator.clipboard.writeText(link);
     setCopyFeedback(id);
     setTimeout(() => setCopyFeedback(null), 2000);
@@ -1075,7 +1096,7 @@ const Admin = () => {
 
           <div className="space-y-4 pt-6 border-t border-slate-50">
              <button 
-               onClick={() => copyAgentLink(agent.id)}
+               onClick={() => handleShareAgent(agent)}
                className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-primary-500 hover:text-white rounded-2xl transition-all group/link"
              >
                <div className="flex items-center gap-3">

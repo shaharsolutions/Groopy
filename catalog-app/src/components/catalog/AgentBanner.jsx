@@ -27,6 +27,7 @@ const AgentBanner = ({ activeAgent, onSelectClick, isFromLink }) => {
               <h2 className="font-[900] text-2xl md:text-5xl tracking-tighter leading-none text-white drop-shadow-lg">
                 {activeAgent ? activeAgent.name : 'בחר סוכן להמשך'}
               </h2>
+              
               {activeAgent?.phone && (
                 <a 
                   href={`tel:${activeAgent.phone}`}

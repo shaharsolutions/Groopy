@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import logo from '../assets/byGroopy_strip.png';
 import { supabase } from '../supabaseClient';
 import AgentBanner from '../components/catalog/AgentBanner';
 import ProductCard from '../components/catalog/ProductCard';
@@ -314,12 +315,8 @@ const Catalog = () => {
       {/* 🧭 PREMIUM NAVIGATION */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-3xl border-b border-slate-100/60 transition-all duration-300">
         <div className="container mx-auto px-6 h-20 md:h-24 lg:h-28 flex items-center transition-all">
-          {/* Right Section: Logo & Admin */}
-          <div className="flex-1 flex items-center gap-4 md:gap-6">
-            <div className="h-16 md:h-20 bg-white rounded-2xl flex items-center justify-center shadow-sm overflow-hidden border border-slate-50 transition-all duration-300 shrink-0">
-              <img src="byGroopy_strip.png" alt="Groopy Logo" className="w-full h-full object-contain p-1" />
-            </div>
-            
+          {/* Right Section: Admin (RTL start) */}
+          <div className="flex-1 flex items-center justify-start gap-4 md:gap-6">
             <button 
               onClick={() => navigate('/admin')}
               className="p-2.5 bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-colors"
@@ -329,15 +326,17 @@ const Catalog = () => {
             </button>
           </div>
 
-          {/* Center Section: Title & Subtitle */}
-          <div className="hidden sm:flex flex-col items-center justify-center text-center flex-[2]">
-            <h1 className="text-2xl md:text-3xl lg:text-5xl font-[900] text-slate-900 tracking-tight leading-none mb-1">
-              מצא את המוצר <span className="text-primary-500 underline decoration-accent-300 decoration-4 md:decoration-8 underline-offset-2">המושלם</span> עבורך
-            </h1>
-            <p className="text-slate-400 text-xs md:text-sm font-bold uppercase tracking-wider">גרופי מתנות בע"מ</p>
+          {/* Center Section: Logo */}
+          <div className="flex items-center justify-center flex-[2]">
+            <img 
+              src={logo} 
+              alt="Groopy Logo" 
+              className="h-10 md:h-14 lg:h-16 w-auto object-contain cursor-pointer transition-all duration-300 hover:scale-105" 
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            />
           </div>
 
-          {/* Left Section: Agent & Cart */}
+          {/* Left Section: Agent & Cart (RTL end) */}
           <div className="flex-1 flex items-center justify-end gap-2 md:gap-4">
             {activeAgent && (
               <div className="hidden md:flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl text-slate-500 border border-slate-100 max-h-12 overflow-hidden">
@@ -385,10 +384,12 @@ const Catalog = () => {
         <div className="absolute bottom-0 left-0 w-1/3 h-full bg-gradient-to-r from-accent-50/20 to-transparent pointer-events-none" />
         
         <div className="container mx-auto px-6 relative z-10 max-w-3xl">
-          {/* Mobile Title - only visible on very small screens where header title is hidden */}
-          <div className="sm:hidden text-center mb-8">
-            <h1 className="text-2xl font-[900] text-slate-900 mb-2">מצא את המוצר המושלם</h1>
-            <p className="text-slate-400 text-xs font-bold">גרופי מתנות בע"מ</p>
+          {/* Main Title Section */}
+          <div className="text-center mb-10 md:mb-14">
+            <h1 className="text-3xl md:text-5xl lg:text-7xl font-[900] text-slate-900 tracking-tighter leading-[1.1] mb-4">
+               מצא את המוצר <span className="text-primary-500 underline decoration-accent-300 decoration-4 md:decoration-8 underline-offset-4">המושלם</span> עבורך
+            </h1>
+            <p className="text-slate-400 text-sm md:text-base font-bold uppercase tracking-[0.2em]">גרופי מתנות בע"מ</p>
           </div>
 
           <BrandCarousel />
@@ -462,7 +463,7 @@ const Catalog = () => {
 
       {/* 📦 PRODUCT GRID */}
       <main ref={mainRef} className="container mx-auto px-6 py-12 scroll-mt-24 md:scroll-mt-32">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 md:gap-8">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (
               <ProductCard 
@@ -576,7 +577,7 @@ const Catalog = () => {
         <div className="container mx-auto px-6 max-w-5xl text-center">
           <div className="flex flex-col items-center gap-4 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
             <div className="flex items-center gap-3">
-              <img src="byGroopy_strip.png" alt="" className="h-12 object-contain" />
+              <img src={logo} alt="" className="h-12 object-contain" />
             </div>
             <div className="flex gap-12 mt-4 text-sm font-black uppercase tracking-[0.2em] text-slate-400">
               <span>Supply</span>

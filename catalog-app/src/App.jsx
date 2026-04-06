@@ -5,10 +5,12 @@ import Admin from './pages/Admin';
 import Login from './pages/Login';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Accessibility from './pages/Accessibility';
+import ScrollToTop from './components/common/ScrollToTop';
 
 const App = () => {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<Catalog />} />
         <Route path="/admin" element={<AdminRoute />} />

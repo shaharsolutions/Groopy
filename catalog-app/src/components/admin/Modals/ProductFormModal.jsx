@@ -20,7 +20,7 @@ const ProductFormModal = ({
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-[40px] w-full max-w-2xl p-4 md:p-12 shadow-2xl relative my-8 max-h-[90vh] overflow-y-auto"
+          className="bg-white rounded-[40px] w-full max-w-2xl p-4 md:p-12 shadow-2xl relative my-8 md:max-h-[85vh] overflow-y-auto thin-scrollbar"
           dir="rtl"
         >
           <div className="flex items-center justify-between mb-8">
@@ -118,7 +118,6 @@ const ProductFormModal = ({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 col-span-1 md:col-span-2">
               {[
                 { id: 'is_new', label: 'חדש' },
-                { id: 'is_clearing', label: 'חיסול' },
                 { id: 'is_best_seller', label: 'נמכר ביותר' },
                 { id: 'is_hot_deal', label: 'מבצע חם' },
               ].map(flag => (

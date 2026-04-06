@@ -35,6 +35,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
           <AnimatePresence>
             {product.is_best_seller && (
               <motion.div 
+                key="badge-best-seller"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 className="bg-blue-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-blue-200"
@@ -45,6 +46,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
             )}
             {product.is_clearing && (
               <motion.div 
+                key="badge-clearing"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 className="bg-purple-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-purple-200"
@@ -55,6 +57,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
             )}
             {product.is_hot_deal && (
               <motion.div 
+                key="badge-hot-deal"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 className="bg-orange-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-orange-200"

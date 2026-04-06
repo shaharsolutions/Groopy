@@ -87,10 +87,10 @@ const OrderManagement = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {orders.map((order) => {
+              {orders.map((order, idx) => {
                 const status = statusMap[order.status] || statusMap['New'];
                 return (
-                  <tr key={order.id} className={`group transition-all duration-300 ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'}`}>
+                  <tr key={order.id || `order-${idx}`} className={`group transition-all duration-300 ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'}`}>
                     <td className="px-8 py-6 text-center">
                       <input 
                         type="checkbox" 
@@ -101,7 +101,7 @@ const OrderManagement = ({
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-800">#{order.id.slice(0, 5)}</span>
+                        <span className="text-sm font-black text-slate-800">#{order.sequentialId}</span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                           {new Date(order.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })} • {new Date(order.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -175,7 +175,7 @@ const OrderManagement = ({
               <ShoppingBag size={80} className="text-slate-900" />
               <div className="space-y-1">
                 <h3 className="text-2xl font-black text-slate-900 tracking-tighter">המערכת מחכה להזמנות...</h3>
-                <p className="font-bold text-slate-500 text-lg uppercase tracking-[0.2em] scale-90">No orders Found</p>
+                <p className="font-bold text-slate-500 text-lg uppercase tracking-widest scale-90">לא נמצאו הזמנות</p>
               </div>
             </div>
           )}

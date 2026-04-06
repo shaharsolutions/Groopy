@@ -114,7 +114,7 @@ const PromotionBanners = ({ onBannerClick }) => {
         >
           {banners.map((banner, idx) => (
             <div 
-              key={banner.id}
+              key={banner.id || `banner-${idx}`}
               className="flex-none w-full h-full snap-center cursor-pointer"
               onClick={() => onBannerClick && onBannerClick(banner)}
             >

@@ -87,10 +87,18 @@ export const useAdminData = () => {
     return sortableItems;
   }, [filteredProducts, sortConfig]);
 
+  const ordersWithIds = useMemo(() => {
+    return orders.map((order, idx) => ({
+      ...order,
+      // Add a stable display number
+      sequentialId: orders.length - idx
+    }));
+  }, [orders]);
+
   const ordersStats = useMemo(() => ({
-    new: orders.filter(o => o.status === 'New').length,
-    total: orders.length
-  }), [orders]);
+    new: ordersWithIds.filter(o => o.status === 'New').length,
+    total: ordersWithIds.length
+  }), [ordersWithIds]);
 
   return {
     activeTab, setActiveTab,
@@ -98,7 +106,7 @@ export const useAdminData = () => {
     products, setProducts,
     sortedProducts,
     agents, setAgents,
-    orders, setOrders,
+    orders: ordersWithIds, setOrders,
     categories, setCategories,
     brands, setBrands,
     banners, setBanners,

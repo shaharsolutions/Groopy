@@ -55,9 +55,9 @@ const ProductManagement = ({
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-4 md:pb-3 thin-scrollbar flex-1 min-w-0">
-              {['All', ...new Set(categories.map(c => c.name).filter(Boolean))].map(cat => (
+              {['All', ...new Set(categories.map(c => c.name).filter(Boolean))].map((cat, idx) => (
                 <button
-                  key={cat}
+                  key={cat || `category-${idx}`}
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${
                     selectedCategory === cat 
@@ -100,16 +100,17 @@ const ProductManagement = ({
                   <AnimatePresence>
                     {isBulkCategoryMenuOpen && (
                       <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsBulkCategoryMenuOpen(false)} />
+                        <div key="bulk-cat-overlay" className="fixed inset-0 z-40" onClick={() => setIsBulkCategoryMenuOpen(false)} />
                         <motion.div 
+                          key="bulk-cat-dropdown"
                           initial={{ opacity: 0, scale: 0.95, y: 10 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95, y: 10 }}
                           className="absolute left-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 overflow-hidden"
                         >
-                          {categories.map(cat => (
+                          {categories.map((cat, idx) => (
                             <button
-                              key={cat.id}
+                              key={cat.id || `bulk-cat-${idx}`}
                               onClick={() => handleBulkUpdateProductCategory(cat.name)}
                               className="w-full text-right px-4 py-2 hover:bg-slate-50 text-xs font-bold text-slate-600 rounded-lg transition-colors"
                             >
@@ -136,15 +137,15 @@ const ProductManagement = ({
                   <AnimatePresence>
                     {isBulkFlagsMenuOpen && (
                       <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsBulkFlagsMenuOpen(false)} />
+                        <div key="bulk-flags-overlay" className="fixed inset-0 z-40" onClick={() => setIsBulkFlagsMenuOpen(false)} />
                         <motion.div 
+                          key="bulk-flags-dropdown"
                           initial={{ opacity: 0, scale: 0.95, y: 10 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95, y: 10 }}
                           className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 overflow-hidden"
                         >
                           {[
-                            { id: 'is_clearing', label: 'מוצר חדש', icon: Zap },
                             { id: 'is_best_seller', label: 'נמכר ביותר', icon: Star },
                             { id: 'is_hot_deal', label: 'מבצע חם', icon: Flame },
                           ].map(flag => (
@@ -176,8 +177,8 @@ const ProductManagement = ({
           </AnimatePresence>
         </div>
 
-        <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden">
-           <table className="w-full text-right border-collapse">
+        <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-x-auto scrollbar-hide">
+           <table className="w-full text-right border-collapse min-w-[1000px]">
              <thead>
                <tr className="bg-slate-50/50 border-b border-slate-100">
                  <th className="px-8 py-5">
@@ -217,7 +218,7 @@ const ProductManagement = ({
              </thead>
              <tbody className="divide-y divide-slate-50">
                {sortedProducts.map((p, pIdx) => (
-                 <tr key={p.id || `p-${pIdx}`} className={`group hover:bg-slate-50/50 transition-colors ${selectedProductIds.includes(p.id) ? 'bg-primary-50/30' : ''}`}>
+                 <tr key={p.id || `product-${pIdx}`} className={`group hover:bg-slate-50/50 transition-colors ${selectedProductIds.includes(p.id) ? 'bg-primary-50/30' : ''}`}>
                    <td className="px-8 py-6">
                       <button 
                         onClick={() => toggleProductSelection(p.id)}
@@ -245,11 +246,7 @@ const ProductManagement = ({
                      <div className="flex items-center gap-3">
                         <span className="flex-1">{p.name}</span>
                         <div className="flex items-center gap-2">
-                          {p.is_clearing && (
-                            <div className="bg-purple-50 text-purple-600 p-1.5 rounded-xl border border-purple-100 flex items-center justify-center shrink-0" title="מוצר חדש">
-                              <Zap size={14} fill="currentColor" />
-                            </div>
-                          )}
+
                           {p.is_best_seller && (
                             <div className="bg-blue-50 text-blue-600 p-1.5 rounded-xl border border-blue-100 flex items-center justify-center shrink-0" title="נמכר ביותר">
                               <Star size={14} fill="currentColor" />
@@ -272,6 +269,7 @@ const ProductManagement = ({
                      <AnimatePresence mode="wait">
                        {confirmingProductDelete === p.id ? (
                          <motion.div 
+                           key="confirm-delete"
                            initial={{ opacity: 0, x: 20 }}
                            animate={{ opacity: 1, x: 0 }}
                            exit={{ opacity: 0, x: -20 }}
@@ -283,6 +281,7 @@ const ProductManagement = ({
                          </motion.div>
                        ) : (
                          <motion.div 
+                           key="action-buttons"
                            initial={{ opacity: 0 }}
                            animate={{ opacity: 1 }}
                            className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity"

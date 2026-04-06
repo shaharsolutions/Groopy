@@ -25,6 +25,8 @@ const CartDrawer = ({
   totalItems, 
   customerName, 
   setCustomerName, 
+  customerNote,
+  setCustomerNote,
   formError, 
   setFormError, 
   handleWhatsAppSend, 
@@ -39,6 +41,7 @@ const CartDrawer = ({
         {isCartOpen && (
           <>
             <motion.div 
+              key="cart-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -46,6 +49,7 @@ const CartDrawer = ({
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100]"
             />
             <motion.div 
+              key="cart-drawer"
               initial={{ x: '100%', opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: '100%', opacity: 0 }}
@@ -81,13 +85,13 @@ const CartDrawer = ({
                     <p className="text-lg md:text-xl font-bold">הסל ריק כרגע...</p>
                   </div>
                 ) : (
-                  cart.map(item => (
-                    <motion.div 
-                      layout
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      key={item.id} 
-                      className="flex gap-4 md:gap-6 group relative"
+                 cart.map((item, idx) => (
+                   <motion.div 
+                     layout
+                     initial={{ opacity: 0, x: 20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     key={item.id || `cart-item-${idx}`} 
+                     className="flex gap-4 md:gap-6 group relative"
                     >
                       {/* Item Image */}
                       <div className="w-20 h-20 md:w-24 md:h-24 bg-slate-50 rounded-2xl md:rounded-3xl flex-shrink-0 flex items-center justify-center border border-slate-100 overflow-hidden relative group-hover:scale-105 transition-transform">
@@ -177,6 +181,20 @@ const CartDrawer = ({
                           </motion.p>
                         )}
                       </AnimatePresence>
+                    </div>
+
+                    {/* Note Input */}
+                    <div className="space-y-1.5 text-right">
+                      <label className="flex items-center justify-end gap-2 text-xs md:text-base font-[900] text-slate-700 uppercase tracking-widest pl-2">
+                         הערה לסוכן (אופציונלי)
+                      </label>
+                      <textarea 
+                        rows="2"
+                        placeholder="הוסף הערה לגבי ההזמנה..."
+                        value={customerNote}
+                        onChange={(e) => setCustomerNote(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-2xl md:rounded-3xl px-4 md:px-6 py-2.5 md:py-3 outline-none focus:border-primary-500 focus:ring-8 focus:ring-primary-500/5 transition-all font-bold text-sm md:text-base text-right resize-none"
+                      />
                     </div>
   
                     {/* Pricing Summary */}

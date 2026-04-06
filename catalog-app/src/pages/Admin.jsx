@@ -20,7 +20,7 @@ import CategoryFormModal from '../components/admin/Modals/CategoryFormModal';
 import BrandFormModal from '../components/admin/Modals/BrandFormModal';
 import BannerFormModal from '../components/admin/Modals/BannerFormModal';
 import OrderDetailsModal from '../components/admin/Modals/OrderDetailsModal';
-import { AnimatePresence } from 'framer-motion';
+
 
 const Admin = () => {
   const adminData = useAdminData();
@@ -255,15 +255,46 @@ const Admin = () => {
     setIsBulkDeleting(false);
   };
 
-  const handleUpdateOrderStatus = async (id, status) => {
-    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
-    if (!error) setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
+  const handleUpdateOrderStatus = async (id, status, cancelReason = null) => {
+    let updateData = { status };
+    
+    // If canceling, add a system note with the reason
+    if (status === 'Canceled' && cancelReason) {
+      const currentOrder = orders.find(o => o.id === id);
+      const newNote = {
+        author: 'מערכת (ביטול)',
+        text: `סיבת ביטול: ${cancelReason}`,
+        timestamp: new Date().toISOString()
+      };
+      updateData.notes = [...(currentOrder?.notes || []), newNote];
+    }
+
+    const { error } = await supabase.from('orders').update(updateData).eq('id', id);
+    if (!error) {
+      // Update the main orders list
+      setOrders(orders.map(o => o.id === id ? { ...o, ...updateData } : o));
+      
+      // Critical: Update the currently selected order in the modal so it reflects the change instantly
+      if (selectedOrder?.id === id) {
+        setSelectedOrder(prev => ({ ...prev, ...updateData }));
+      }
+    }
   };
 
   // Order Detail Helpers
   const handleUpdateItemQuantity = (sku, delta) => setTempOrderItems(p => p.map(it => it.sku === sku ? { ...it, quantity: Math.max(1, it.quantity + delta) } : it));
   const handleRemoveItemFromOrder = (sku) => setTempOrderItems(p => p.filter(it => it.sku !== sku));
-  const handleAddItemToOrder = (prod) => setTempOrderItems(p => p.find(it => it.sku === prod.sku) ? p.map(it => it.sku === prod.sku ? { ...it, quantity: it.quantity + 1 } : it) : [...p, { sku: prod.sku, name: prod.name, price: prod.price, image: prod.image, quantity: 1 }]);
+  const handleAddItemToOrder = (prod) => {
+    const qty = prod.default_quantity || 12;
+    setTempOrderItems(prev => {
+      const exists = prev.find(it => it.sku === prod.sku);
+      if (exists) {
+        return prev.map(it => it.sku === prod.sku ? { ...it, quantity: it.quantity + qty } : it);
+      }
+      return [...prev, { ...prod, quantity: qty }];
+    });
+    setEditingOrderSearch('');
+  };
   
   const handleSaveOrderEdits = async () => {
     setIsUpdatingOrder(true);
@@ -305,14 +336,12 @@ const Admin = () => {
         {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} />}
       </main>
 
-      <AnimatePresence>
-        <ProductFormModal isOpen={isAddingProduct || !!editingProduct} onClose={() => { setIsAddingProduct(false); setEditingProduct(null); }} product={editingProduct || newProduct} setProduct={editingProduct ? setEditingProduct : setNewProduct} categories={categories} onSave={editingProduct ? handleUpdateProduct : handleAddProduct} isUpdating={isUpdatingProduct} title={editingProduct ? 'עריכת מוצר' : 'הוספת מוצר חדש'} />
-        <AgentFormModal isOpen={isAddingAgent || !!editingAgent} onClose={() => { setIsAddingAgent(false); setEditingAgent(null); }} agent={editingAgent || newAgent} setAgent={editingAgent ? setEditingAgent : setNewAgent} onSave={editingAgent ? handleUpdateAgent : handleAddAgent} isUpdating={isUpdatingAgent} title={editingAgent ? 'עריכת סוכן' : 'הוספת סוכן חדש'} />
-        <CategoryFormModal isOpen={isAddingCategory || !!editingCategory} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />
-        <BrandFormModal isOpen={isAddingBrand || !!editingBrand} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />
-        <BannerFormModal isOpen={isAddingBanner || !!editingBanner} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />
-        <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} isEditingOrder={isEditingOrder} setIsEditingOrder={setIsEditingOrder} tempOrderItems={tempOrderItems} handleUpdateItemQuantity={handleUpdateItemQuantity} handleRemoveItemFromOrder={handleRemoveItemFromOrder} editingOrderSearch={editingOrderSearch} setEditingOrderSearch={setEditingOrderSearch} filteredProductsForEditing={filteredProductsForEditing} handleAddItemToOrder={handleAddItemToOrder} tempOrderDiscount={tempOrderDiscount} setTempOrderDiscount={setTempOrderDiscount} handleSaveOrderEdits={handleSaveOrderEdits} isUpdatingOrder={isUpdatingOrder} adminName={adminName} setAdminName={setAdminName} newNoteText={newNoteText} setNewNoteText={setNewNoteText} handleAddNote={handleAddNote} isSubmittingNote={isSubmittingNote} confirmingNoteDelete={confirmingNoteDelete} setConfirmingNoteDelete={setConfirmingNoteDelete} handleDeleteNote={handleDeleteNote} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} />
-      </AnimatePresence>
+      {(isAddingProduct || !!editingProduct) && <ProductFormModal isOpen={true} onClose={() => { setIsAddingProduct(false); setEditingProduct(null); }} product={editingProduct || newProduct} setProduct={editingProduct ? setEditingProduct : setNewProduct} categories={categories} onSave={editingProduct ? handleUpdateProduct : handleAddProduct} isUpdating={isUpdatingProduct} title={editingProduct ? 'עריכת מוצר' : 'הוספת מוצר חדש'} />}
+      {(isAddingAgent || !!editingAgent) && <AgentFormModal isOpen={true} onClose={() => { setIsAddingAgent(false); setEditingAgent(null); }} agent={editingAgent || newAgent} setAgent={editingAgent ? setEditingAgent : setNewAgent} onSave={editingAgent ? handleUpdateAgent : handleAddAgent} isUpdating={isUpdatingAgent} title={editingAgent ? 'עריכת סוכן' : 'הוספת סוכן חדש'} />}
+      {(isAddingCategory || !!editingCategory) && <CategoryFormModal isOpen={true} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />}
+      {(isAddingBrand || !!editingBrand) && <BrandFormModal isOpen={true} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />}
+      {(isAddingBanner || !!editingBanner) && <BannerFormModal isOpen={true} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />}
+      {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} isEditingOrder={isEditingOrder} setIsEditingOrder={setIsEditingOrder} tempOrderItems={tempOrderItems} handleUpdateItemQuantity={handleUpdateItemQuantity} handleRemoveItemFromOrder={handleRemoveItemFromOrder} editingOrderSearch={editingOrderSearch} setEditingOrderSearch={setEditingOrderSearch} filteredProductsForEditing={filteredProductsForEditing} handleAddItemToOrder={handleAddItemToOrder} tempOrderDiscount={tempOrderDiscount} setTempOrderDiscount={setTempOrderDiscount} handleSaveOrderEdits={handleSaveOrderEdits} isUpdatingOrder={isUpdatingOrder} adminName={adminName} setAdminName={setAdminName} newNoteText={newNoteText} setNewNoteText={setNewNoteText} handleAddNote={handleAddNote} isSubmittingNote={isSubmittingNote} confirmingNoteDelete={confirmingNoteDelete} setConfirmingNoteDelete={setConfirmingNoteDelete} handleDeleteNote={handleDeleteNote} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} />}
     </div>
   );
 };

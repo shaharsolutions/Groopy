@@ -50,6 +50,7 @@ const Catalog = () => {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('groopy_customer_name') || '');
+  const [customerNote, setCustomerNote] = useState(() => localStorage.getItem('groopy_customer_note') || '');
   const [isSent, setIsSent] = useState(false);
   const [formError, setFormError] = useState('');
   
@@ -110,6 +111,10 @@ const Catalog = () => {
       localStorage.setItem('groopy_customer_name', customerName);
     }
   }, [customerName]);
+
+  useEffect(() => {
+    localStorage.setItem('groopy_customer_note', customerNote);
+  }, [customerNote]);
 
   // 🖱️ SCROLL TO TOP MONITOR
   useEffect(() => {
@@ -269,6 +274,7 @@ const Catalog = () => {
     // We fire this in the background and don't await it to ensure immediate WhatsApp redirection
     supabase.from('orders').insert({
       customer_name: customerName,
+      customer_note: customerNote,
       items: cart,
       total_price: totalPrice,
       agent_id: activeAgent?.id || null,
@@ -276,7 +282,10 @@ const Catalog = () => {
       status: 'New'
     }).then(({ error }) => {
       if (error) console.error('❌ Error saving order to Supabase:', error);
-      else console.log('✅ Order saved successfully to Supabase');
+      else {
+        console.log('✅ Order saved successfully to Supabase');
+        setCustomerNote(''); // Clear note after successful send
+      }
       setIsSubmitting(false);
     }).catch(err => {
       console.error('❌ Unexpected error saving order:', err);
@@ -284,7 +293,12 @@ const Catalog = () => {
     });
 
     let message = `\u200F*הזמנה חדשה מקטלוג Groopy*\n\n`;
-    message += `\u200F*שם הלקוח:* ${customerName}\n\n`;
+    message += `\u200F*שם הלקוח:* ${customerName}\n`;
+    if (customerNote.trim()) {
+      message += `\u200F*הערה:* ${customerNote}\n`;
+    }
+    message += `\n`;
+    
     if (activeAgent) {
       message += `\u200F*דרך סוכן:* ${activeAgent.name}\n\n`;
     }
@@ -466,9 +480,9 @@ const Catalog = () => {
           <div 
             className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0"
           >
-            {categories.map(cat => (
+            {categories.map((cat, idx) => (
               <button
-                key={cat}
+                key={`cat-${cat}-${idx}`}
                 onClick={() => {
                   setSelectedCategory(cat);
                   scrollToProducts();
@@ -492,7 +506,7 @@ const Catalog = () => {
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (
               <ProductCard 
-                key={product.id} 
+                key={product.id || `product-${idx}`} 
                 product={product} 
                 idx={idx} 
                 addToCart={addToCart} 
@@ -541,6 +555,8 @@ const Catalog = () => {
         totalItems={totalItems}
         customerName={customerName}
         setCustomerName={setCustomerName}
+        customerNote={customerNote}
+        setCustomerNote={setCustomerNote}
         formError={formError}
         setFormError={setFormError}
         handleWhatsAppSend={handleWhatsAppSend}
@@ -592,11 +608,11 @@ const Catalog = () => {
               <img src={logo} alt="" className="h-10 object-contain" />
             </div>
             <div className="flex gap-8 mt-2 text-[10px] md:text-sm font-black uppercase tracking-[0.2em] text-slate-400">
-              <span>Supply</span>
+              <span>אספקה</span>
               <span>•</span>
-              <span>Distribution</span>
+              <span>הפצה</span>
               <span>•</span>
-              <span>Import</span>
+              <span>ייבוא</span>
             </div>
           </div>
         </div>

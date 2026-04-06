@@ -90,9 +90,15 @@ const Catalog = () => {
 
   // Load persistence
   const [products, setProducts] = useState([]);
+  const currentAgentRef = useRef(null);
+  const isMounted = useRef(true);
 
   useEffect(() => {
+    isMounted.current = true;
     fetchInitialData();
+    return () => {
+      isMounted.current = false;
+    };
   }, [searchParams]);
 
   useEffect(() => {
@@ -115,70 +121,64 @@ const Catalog = () => {
   }, []);
 
   const fetchInitialData = async () => {
-    // 1. Fetch Products
-    const { data: productsData, error: productsError } = await supabase
-      .from('products')
-      .select('*')
-      .order('name');
-    
-    if (productsData) setProducts(productsData);
-    if (productsError) console.error('Error loading products:', productsError);
+    try {
+      // 1. Fetch Products & Agents in parallel
+      const [productsRes, agentsRes] = await Promise.all([
+        supabase.from('products').select('*').order('name'),
+        supabase.from('agents').select('*').order('name')
+      ]);
 
-    // 2. Fetch All Agents (for selection)
-    const { data: agentsData, error: agentsError } = await supabase
-      .from('agents')
-      .select('*')
-      .order('name');
-    
-    if (agentsData) setAgents(agentsData);
-    if (agentsError) console.error('Error loading agents:', agentsError);
+      if (!isMounted.current) return;
 
-    // 3. Identify Agent from URL or LocalStorage
-    let agentId = null;
-    const fullHref = window.location.href;
-    
-    // Look for 'agent=' anywhere in the entire URL string
-    const urlMatches = fullHref.match(/[?&]agent=([^&#]+)/);
-    if (urlMatches && urlMatches[1]) {
-      agentId = decodeURIComponent(urlMatches[1]);
-      localStorage.setItem('groopy_agent_id', agentId); // Persist from URL
-    } else {
-      // Check LocalStorage
-      agentId = localStorage.getItem('groopy_agent_id');
-      
-      // Last-ditch effort: check hash directly
-      if (!agentId) {
-        const hashContent = window.location.hash;
-        if (hashContent.includes('agent=')) {
-          const parts = hashContent.split('agent=');
-          if (parts.length > 1) {
-            agentId = parts[1].split('&')[0].split('?')[0];
-            agentId = decodeURIComponent(agentId);
-            localStorage.setItem('groopy_agent_id', agentId);
-          }
+      if (productsRes.data) setProducts(productsRes.data);
+      if (productsRes.error) console.error('Error loading products:', productsRes.error);
+
+      if (agentsRes.data) setAgents(agentsRes.data);
+      if (agentsRes.error) console.error('Error loading agents:', agentsRes.error);
+
+      const agentsData = agentsRes.data;
+
+      // 2. Identify Agent from URL or LocalStorage
+      let agentIdFromURL = null;
+      const fullHref = window.location.href;
+      const urlMatches = fullHref.match(/[?&]agent=([^&#]+)/);
+      if (urlMatches && urlMatches[1]) {
+        agentIdFromURL = decodeURIComponent(urlMatches[1]);
+      }
+
+      const savedAgentId = localStorage.getItem('groopy_agent_id');
+
+      if (agentIdFromURL && (!currentAgentRef.current || currentAgentRef.current.id !== agentIdFromURL)) {
+        console.log(`🔍 Attempting to connect agent: ${agentIdFromURL}`);
+        const { data: agentData, error: agentError } = await supabase
+          .from('agents')
+          .select('*')
+          .eq('id', agentIdFromURL)
+          .single();
+
+        if (!agentError && agentData && isMounted.current) {
+          console.log(`✅ Agent Connected Successfully: ${agentData.name}`);
+          setActiveAgent(agentData);
+          currentAgentRef.current = agentData;
+          localStorage.setItem('groopy_agent_id', agentIdFromURL);
         }
-      }
-    }
-
-    if (agentId && agentsData) {
-      console.log('🔍 Attempting to connect agent:', agentId);
-      const matchedAgent = agentsData.find(a => a.id === agentId);
-      
-      if (matchedAgent) {
-        setActiveAgent(matchedAgent);
-        console.log('✅ Agent Connected Successfully:', matchedAgent.name);
-      } else {
-        console.warn('⚠️ Agent ID not found in fetched agents:', agentId);
+      } else if (savedAgentId && (!currentAgentRef.current || currentAgentRef.current.id !== savedAgentId)) {
+        const matchedAgent = agentsData?.find(a => a.id === savedAgentId);
+        if (matchedAgent) {
+          setActiveAgent(matchedAgent);
+          currentAgentRef.current = matchedAgent;
+        }
+      } else if (!agentIdFromURL && !savedAgentId) {
         setActiveAgent(null);
-        localStorage.removeItem('groopy_agent_id');
+        currentAgentRef.current = null;
       }
-    } else {
-      console.log('ℹ️ No active agent found.');
-      setActiveAgent(null);
+    } catch (err) {
+      console.error('Fetch error:', err);
+    } finally {
+      if (isMounted.current) setIsInitialLoading(false);
     }
-    
-    setIsInitialLoading(false); // ✅ Detection complete
-  }
+  };
+
 
   // Determine if the current session started from a link
   const isFromLink = useMemo(() => {

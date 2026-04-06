@@ -31,6 +31,8 @@ import CartDrawer from '../components/catalog/CartDrawer';
 import BrandCarousel from '../components/catalog/BrandCarousel';
 import AgentSelectorModal from '../components/catalog/AgentSelectorModal';
 import FloatingAgentStatus from '../components/catalog/FloatingAgentStatus';
+import PromotionBanners from '../components/catalog/PromotionBanners';
+import ProductDetailModal from '../components/catalog/ProductDetailModal';
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
@@ -50,8 +52,11 @@ const Catalog = () => {
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('groopy_customer_name') || '');
   const [isSent, setIsSent] = useState(false);
   const [formError, setFormError] = useState('');
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [selectedProductName, setSelectedProductName] = useState('');
+  
+  // 🏷️ PRODUCT MODAL STATE
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+
   const [selectedBadge, setSelectedBadge] = useState(null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
@@ -65,15 +70,15 @@ const Catalog = () => {
     mainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // 🖼️ Image Handlers
-  const openImageModal = (imageUrl, productName) => {
-    setSelectedImage(imageUrl);
-    setSelectedProductName(productName);
+  // 🖼️ Product Modal Handlers
+  const openProductModal = (product) => {
+    setSelectedProduct(product);
+    setIsProductModalOpen(true);
   };
 
-  const closeImageModal = () => {
-    setSelectedImage(null);
-    setSelectedProductName('');
+  const closeProductModal = () => {
+    setSelectedProduct(null);
+    setIsProductModalOpen(false);
   };
   
   // 👔 AGENT SYSTEM
@@ -228,13 +233,14 @@ const Catalog = () => {
   }, [searchTerm, selectedCategory, selectedBadge, products]);
 
   // Cart Management
-  const addToCart = (product) => {
+  const addToCart = (product, quantity) => {
+    const finalQuantity = quantity ?? product.default_quantity ?? 12;
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 12 } : item);
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + finalQuantity } : item);
       }
-      return [...prev, { ...product, quantity: 12 }];
+      return [...prev, { ...product, quantity: finalQuantity }];
     });
   };
 
@@ -243,8 +249,8 @@ const Catalog = () => {
   const updateQuantity = (id, delta) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        // Adjust delta to 12 if it's 1 or -1 for consistency (or just multiply delta by 12)
-        const adjustedDelta = delta === 1 ? 12 : delta === -1 ? -12 : delta;
+        const step = item.default_quantity || 12;
+        const adjustedDelta = delta === 1 ? step : delta === -1 ? -step : delta;
         const newQty = Math.max(0, item.quantity + adjustedDelta);
         return { ...item, quantity: newQty };
       }
@@ -322,6 +328,24 @@ const Catalog = () => {
     setTimeout(() => setIsSent(false), 3000);
   };
 
+  const handleBannerClick = (banner) => {
+    if (banner.target_type === 'badge') {
+      setSelectedBadge(banner.target_value);
+      setSelectedCategory('All');
+      scrollToFilters();
+    } else if (banner.target_type === 'category') {
+      setSelectedCategory(banner.target_value);
+      setSelectedBadge(null);
+      scrollToProducts();
+    } else if (banner.target_type === 'product') {
+      const product = products.find(p => p.sku === banner.target_value || p.id === banner.target_value);
+      if (product) {
+        setSelectedProduct(product);
+        setIsProductModalOpen(true);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
       {/* 🧭 PREMIUM NAVIGATION */}
@@ -396,6 +420,8 @@ const Catalog = () => {
             </h1>
             <p className="text-slate-400 text-sm md:text-base font-bold uppercase tracking-[0.2em]">גרופי מתנות בע"מ</p>
           </div>
+
+          <PromotionBanners onBannerClick={handleBannerClick} />
 
           <BrandCarousel />
 
@@ -476,7 +502,7 @@ const Catalog = () => {
                 product={product} 
                 idx={idx} 
                 addToCart={addToCart} 
-                onImageClick={openImageModal}
+                onImageClick={() => openProductModal(product)}
                 cartCount={cart.find(item => item.id === product.id)?.quantity || 0}
               />
             ))}
@@ -539,50 +565,14 @@ const Catalog = () => {
         activeAgentId={activeAgent?.id}
       />
 
-      {/* 🖼️ IMAGE MODAL */}
-      <AnimatePresence>
-        {selectedImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-slate-900/60 backdrop-blur-2xl"
-            onClick={closeImageModal}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 50 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 50 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative max-w-5xl w-full max-h-[90vh] bg-white rounded-[48px] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Modal Header: Title and Close Button */}
-              <div className="p-6 md:p-10 pb-0 flex items-center justify-between gap-6 relative z-10">
-                <div className="px-8 py-4 bg-slate-50/50 backdrop-blur-md rounded-[24px] border border-slate-100 shadow-sm">
-                  <p className="text-slate-900 font-[900] text-2xl md:text-3xl tracking-tighter">{selectedProductName}</p>
-                </div>
-                
-                <button 
-                  onClick={closeImageModal}
-                  className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl flex items-center justify-center text-slate-800 hover:text-slate-900 hover:scale-110 active:scale-95 transition-all duration-500 shadow-xl border border-white"
-                >
-                  <X size={28} />
-                </button>
-              </div>
-
-              {/* Image Content Container */}
-              <div className="flex-1 flex items-center justify-center p-8 md:p-12 overflow-hidden min-h-0">
-                <img 
-                  src={selectedImage} 
-                  alt={selectedProductName} 
-                  className="max-w-full max-h-full object-contain cursor-default select-none"
-                />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* 🖼️ PRODUCT DETAIL MODAL */}
+      <ProductDetailModal 
+        isOpen={isProductModalOpen}
+        onClose={closeProductModal}
+        product={selectedProduct}
+        addToCart={addToCart}
+        cartCount={cart.find(item => item.id === selectedProduct?.id)?.quantity || 0}
+      />
 
       {/* 🏛️ FOOTER */}
       <footer className="mt-12 md:mt-40 border-t border-slate-100 bg-slate-50/50 pt-8 pb-6 md:py-24">

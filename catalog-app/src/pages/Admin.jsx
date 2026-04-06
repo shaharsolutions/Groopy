@@ -77,7 +77,22 @@ const Admin = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  
+
+  // 🖼️ Banners State
+  const [banners, setBanners] = useState([]);
+  const [isAddingBanner, setIsAddingBanner] = useState(false);
+  const [editingBanner, setEditingBanner] = useState(null);
+  const [isUpdatingBanner, setIsUpdatingBanner] = useState(false);
+  const [newBanner, setNewBanner] = useState({ 
+    image: '', 
+    title: '', 
+    target_type: 'none', 
+    target_value: '', 
+    is_active: true, 
+    order_index: 0 
+  });
+  const [confirmingBannerDelete, setConfirmingBannerDelete] = useState(null);
+
   // 📝 Edit Order States
   const [isEditingOrder, setIsEditingOrder] = useState(false);
   const [tempOrderItems, setTempOrderItems] = useState([]);
@@ -98,7 +113,8 @@ const Admin = () => {
     is_new: false,
     is_clearing: false,
     is_best_seller: false,
-    is_hot_deal: false
+    is_hot_deal: false,
+    default_quantity: 12
   });
 
   const [selectedImage, setSelectedImage] = useState(null);
@@ -185,6 +201,15 @@ const Admin = () => {
     
     if (brandsData) setBrands(brandsData);
     if (brandsError) console.warn('Error fetching brands (maybe table does not exist):', brandsError);
+
+    // 6. Fetch Banners
+    const { data: bannersData, error: bannersError } = await supabase
+      .from('banners')
+      .select('*')
+      .order('order_index', { ascending: true });
+    
+    if (bannersData) setBanners(bannersData);
+    if (bannersError) console.warn('Error fetching banners (maybe table does not exist):', bannersError);
   }
 
   useEffect(() => {
@@ -213,9 +238,9 @@ const Admin = () => {
   // Product Actions
   const handleAddProduct = async () => {
     const finalProduct = { 
-      id: newProduct.sku || Date.now().toString(), 
       ...newProduct, 
-      price: parseFloat(newProduct.price) 
+      price: parseFloat(newProduct.price),
+      default_quantity: parseInt(newProduct.default_quantity) || 12
     };
 
     setIsUpdatingProduct(true);
@@ -236,7 +261,8 @@ const Admin = () => {
           is_new: false,
           is_clearing: false,
           is_best_seller: false,
-          is_hot_deal: false
+          is_hot_deal: false,
+          default_quantity: 12
         });
       } else {
         console.error('Error adding product:', error);
@@ -264,7 +290,7 @@ const Admin = () => {
     const allowedFields = [
       'name', 'sku', 'price', 'category', 'location', 
       'description', 'image', 'is_new', 'is_clearing', 
-      'is_best_seller', 'is_hot_deal'
+      'is_best_seller', 'is_hot_deal', 'default_quantity'
     ];
 
     const updateData = {};
@@ -281,7 +307,7 @@ const Admin = () => {
         setEditingProduct(null);
       } else {
         console.error('Error updating product:', error);
-        alert('שגיאה בעדכון המוצר. ודא שהרצת את ה-SQL ב-Supabase (הוספת עמודות: is_new, is_best_seller, is_hot_deal).');
+        alert('שגיאה בעדכון המוצר. ודא שהרצת את ה-SQL ב-Supabase (הוספת עמודות: is_new, is_best_seller, is_hot_deal, default_quantity).');
       }
     } finally {
       setIsUpdatingProduct(false);
@@ -488,6 +514,62 @@ const Admin = () => {
       }
     } finally {
       setIsUpdatingBrand(false);
+    }
+  }
+
+  // Banner Actions
+  const handleAddBanner = async () => {
+    if (!newBanner.image) {
+      alert('נא להזין קישור לתמונה');
+      return;
+    }
+    setIsUpdatingBanner(true);
+    try {
+      const { data, error } = await supabase.from('banners').insert([newBanner]).select();
+      if (!error) {
+        setBanners([...banners, data[0]]);
+        setIsAddingBanner(false);
+        setNewBanner({ 
+          image: '', 
+          title: '', 
+          target_type: 'none', 
+          target_value: '', 
+          is_active: true, 
+          order_index: (banners.length > 0 ? Math.max(...banners.map(b => b.order_index)) + 1 : 0)
+        });
+      } else {
+        console.error('Error adding banner:', error);
+        alert('שגיאה בהוספת הבאנר. ודא שטבלת banners קיימת ב-Supabase.');
+      }
+    } finally {
+      setIsUpdatingBanner(false);
+    }
+  }
+
+  const handleDeleteBanner = async (id) => {
+    const { error } = await supabase.from('banners').delete().eq('id', id);
+    if (!error) {
+      setBanners(banners.filter(b => b.id !== id));
+      setConfirmingBannerDelete(null);
+    } else {
+      console.error('Error deleting banner:', error);
+      alert('שגיאה במחיקת הבאנר');
+    }
+  }
+
+  const handleUpdateBanner = async (updated) => {
+    setIsUpdatingBanner(true);
+    try {
+      const { error } = await supabase.from('banners').update(updated).eq('id', updated.id);
+      if (!error) {
+        setBanners(banners.map(b => b.id === updated.id ? updated : b));
+        setEditingBanner(null);
+      } else {
+        console.error('Error updating banner:', error);
+        alert('שגיאה בעדכון הבאנר');
+      }
+    } finally {
+      setIsUpdatingBanner(false);
     }
   }
 
@@ -1404,6 +1486,107 @@ const Admin = () => {
     );
   }, [brands, confirmingBrandDelete]);
 
+  const bannersTabContent = useMemo(() => {
+    return (
+      <div className="space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter">ניהול באנרים</h2>
+            <p className="text-slate-500 text-sm font-medium">הגדרת הבאנרים שיוצגו בראש הקטלוג</p>
+          </div>
+          <button 
+            onClick={() => setIsAddingBanner(true)}
+            className="bg-primary-600 text-white px-8 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-primary-100 hover:bg-primary-700 transition-all active:scale-95"
+          >
+            <Plus size={20} />
+            <span>הוספת באנר חדש</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {banners.map((banner) => (
+            <div key={banner.id} className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-sm hover:shadow-2xl transition-all group overflow-hidden flex flex-col h-full">
+              <div className="relative aspect-video rounded-[32px] overflow-hidden mb-6 bg-slate-50 border border-slate-100 shadow-inner">
+                <img src={banner.image} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                {!banner.is_active && (
+                  <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
+                    <span className="text-white font-black uppercase tracking-widest text-xs px-4 py-2 border border-white/30 rounded-xl">לא פעיל</span>
+                  </div>
+                )}
+                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-xl shadow-sm text-[10px] font-black text-slate-400">
+                  סדר: {banner.order_index}
+                </div>
+              </div>
+              
+              <div className="space-y-3 mb-8 flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`w-3 h-3 rounded-full ${banner.is_active ? 'bg-emerald-500' : 'bg-slate-300'} animate-pulse`} />
+                  <h3 className="font-black text-xl text-slate-800 line-clamp-1">{banner.title || 'באנר ללא כותרת'}</h3>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-slate-50/50 p-3 rounded-2xl border border-slate-50">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">סוג יעד</span>
+                      <span className="text-xs font-black text-slate-700 uppercase tracking-tight text-center">
+                        {banner.target_type === 'none' ? 'ללא קישור' : banner.target_type}
+                      </span>
+                   </div>
+                   <div className="bg-slate-50/50 p-3 rounded-2xl border border-slate-50">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">ערך יעד</span>
+                      <span className="text-xs font-black text-slate-700 tracking-tight line-clamp-1 text-center">
+                        {banner.target_value || '-'}
+                      </span>
+                   </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-6 border-t border-slate-50 gap-4 mt-auto">
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setEditingBanner(banner)}
+                    className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 rounded-2xl transition-all"
+                    title="עריכה"
+                  >
+                    <Edit size={20} />
+                  </button>
+                  <button 
+                    onClick={() => setConfirmingBannerDelete(banner)}
+                    className="p-3 bg-slate-50 text-slate-400 hover:text-red-600 rounded-2xl transition-all"
+                    title="מחיקה"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+                <button 
+                  onClick={() => handleUpdateBanner({ ...banner, is_active: !banner.is_active })}
+                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${banner.is_active ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                >
+                  {banner.is_active ? 'הפסקת פעילות' : 'הפעלת באנר'}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {banners.length === 0 && (
+            <div className="col-span-full py-32 text-center bg-slate-50/50 rounded-[56px] border-4 border-slate-100/50 border-dashed">
+              <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                <Image size={40} className="text-slate-200" />
+              </div>
+              <h4 className="text-3xl font-black text-slate-800 tracking-tighter">לא הוגדרו באנרים</h4>
+              <p className="text-slate-400 font-bold text-lg mt-2">כדאי להוסיף באנרים כדי לקדם מוצרים בראש הקטלוג</p>
+              <button 
+                onClick={() => setIsAddingBanner(true)}
+                className="mt-8 px-10 py-4 bg-primary-600 text-white rounded-3xl font-black shadow-2xl shadow-primary-100 hover:scale-105 active:scale-95 transition-all"
+              >
+                יצירת באנר ראשון
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }, [banners]);
+
   const ordersTabContent = useMemo(() => (
     <div className="space-y-6">
        <div className="flex items-center justify-between gap-4">
@@ -1726,6 +1909,21 @@ const Admin = () => {
             </div>
             <ChevronRight size={16} className={activeTab === 'brands' ? '' : 'text-slate-300'} />
           </button>
+
+          <button 
+            onClick={() => { setActiveTab('banners'); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
+              activeTab === 'banners' 
+              ? 'bg-primary-500 text-white shadow-lg shadow-primary-200' 
+              : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <Image size={20} />
+              <span className="font-black text-base">ניהול באנרים</span>
+            </div>
+            <ChevronRight size={16} className={activeTab === 'banners' ? '' : 'text-slate-300'} />
+          </button>
         </nav>
 
         <div className="mt-auto pt-8 border-t border-slate-100">
@@ -1760,13 +1958,15 @@ const Admin = () => {
                  {activeTab === 'products' ? 'ניהול מוצרים' : 
                   activeTab === 'agents' ? 'רשת הסוכנים' : 
                   activeTab === 'orders' ? 'ניהול הזמנות' : 
-                  activeTab === 'brands' ? 'ניהול מותגים' : 'ניהול קטגוריות'}
+                  activeTab === 'brands' ? 'ניהול מותגים' : 
+                  activeTab === 'banners' ? 'ניהול באנרים' : 'ניהול קטגוריות'}
                </h2>
                <p className="text-slate-400 font-bold text-base whitespace-nowrap">
                  {activeTab === 'products' ? `סה״כ ${products.length} מוצרים רשומים` : 
                   activeTab === 'agents' ? `רשימת סוכנים וקישורי הפצה` : 
                   activeTab === 'orders' ? `מעקב אחר הזמנות שבוצעו בוואטסאפ` : 
-                  activeTab === 'brands' ? `ניהול לוגואים של מותגים לקרוסלה` : 'עריכת קטגוריות המוצרים בקטלוג'}
+                  activeTab === 'banners' ? `סה״כ ${banners.length} באנרים פעילים במערכת` : 
+                   activeTab === 'brands' ? `ניהול לוגואים של מותגים לקרוסלה` : 'עריכת קטגוריות המוצרים בקטלוג'}
                </p>
             </div>
           </div>
@@ -1778,6 +1978,7 @@ const Admin = () => {
                   if (activeTab === 'products') setIsAddingProduct(true);
                   else if (activeTab === 'agents') setIsAddingAgent(true);
                   else if (activeTab === 'brands') setIsAddingBrand(true);
+                   else if (activeTab === 'banners') setIsAddingBanner(true);
                   else setIsAddingCategory(true);
                 }}
                 className="flex-1 md:flex-none btn-primary w-full md:w-fit flex items-center justify-center gap-2"
@@ -1786,7 +1987,8 @@ const Admin = () => {
                 <span className="whitespace-nowrap">
                   {activeTab === 'products' ? 'מוצר חדש' : 
                   activeTab === 'agents' ? 'סוכן חדש' : 
-                  activeTab === 'brands' ? 'מותג חדש' : 'קטגוריה חדשה'}
+                    activeTab === 'brands' ? 'מותג חדש' : 
+                    activeTab === 'banners' ? 'באנר חדש' : 'קטגוריה חדשה'}
                 </span>
               </button>
             )}
@@ -1807,6 +2009,7 @@ const Admin = () => {
         {activeTab === 'categories' && categoriesTabContent}
         {activeTab === 'orders' && ordersTabContent}
         {activeTab === 'brands' && brandsTabContent}
+        {activeTab === 'banners' && bannersTabContent}
       </main>
 
       {/* 🗳️ ADD PRODUCT MODAL */}
@@ -1846,14 +2049,25 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מחיר (₪)</label>
-                  <input 
-                    type="number" 
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מחיר (₪)</label>
+                    <input 
+                      type="number" 
+                      value={newProduct.price}
+                      onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">כמות ברירת מחדל</label>
+                    <input 
+                      type="number" 
+                      value={newProduct.default_quantity || 12}
+                      onChange={(e) => setNewProduct({...newProduct, default_quantity: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קטגוריה</label>
@@ -2125,14 +2339,25 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מחיר (₪)</label>
-                  <input 
-                    type="number" 
-                    value={editingProduct.price ?? ''}
-                    onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מחיר (₪)</label>
+                    <input 
+                      type="number" 
+                      value={editingProduct.price ?? ''}
+                      onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">כמות ברירת מחדל</label>
+                    <input 
+                      type="number" 
+                      value={editingProduct.default_quantity || ''}
+                      onChange={(e) => setEditingProduct({...editingProduct, default_quantity: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קטגוריה</label>
@@ -2895,6 +3120,236 @@ const Admin = () => {
                     חזרה
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🖼️ BANNER MODALS (Add/Edit) */}
+      <AnimatePresence>
+        {(isAddingBanner || editingBanner) && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" dir="rtl">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => { setIsAddingBanner(false); setEditingBanner(null); }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 50 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 50 }}
+              className="relative w-full max-w-2xl bg-white rounded-[56px] shadow-2xl p-10 md:p-16 overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-10">
+                <div>
+                  <h3 className="text-4xl font-[1000] text-slate-900 tracking-tighter">
+                    {isAddingBanner ? 'הוספת באנר חדש' : 'עריכת באנר'}
+                  </h3>
+                  <p className="text-slate-400 font-bold mt-1">נהל את התוכן הוויזואלי של הקטלוג שלך</p>
+                </div>
+                <button 
+                  onClick={() => { setIsAddingBanner(false); setEditingBanner(null); }}
+                  className="w-14 h-14 bg-slate-50 text-slate-400 hover:text-slate-900 rounded-2xl flex items-center justify-center transition-all"
+                >
+                  <X size={28} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-4 -mr-4 space-y-8 thin-scrollbar text-right">
+                {/* Preview Section */}
+                {(isAddingBanner ? newBanner.image : editingBanner.image) && (
+                  <div className="relative aspect-video rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-inner">
+                    <img 
+                      src={isAddingBanner ? newBanner.image : editingBanner.image} 
+                      className="w-full h-full object-cover"
+                      alt="Preview"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-6">
+                  {/* Image URL */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-4 block">קישור לתמונה (URL)</label>
+                    <input 
+                      type="text" 
+                      value={isAddingBanner ? newBanner.image : editingBanner.image}
+                      onChange={(e) => isAddingBanner ? setNewBanner({ ...newBanner, image: e.target.value }) : setEditingBanner({ ...editingBanner, image: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-medium"
+                      placeholder="הכנס קישור לתמונה..."
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6 text-right">
+                    {/* Title */}
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-4 block">כותרת (פנימי)</label>
+                      <input 
+                        type="text" 
+                        value={isAddingBanner ? newBanner.title : editingBanner.title}
+                        onChange={(e) => isAddingBanner ? setNewBanner({ ...newBanner, title: e.target.value }) : setEditingBanner({ ...editingBanner, title: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-black text-right"
+                        placeholder="כותרת זיהוי..."
+                      />
+                    </div>
+
+                    {/* Order Index */}
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-4 block">סדר הופעה</label>
+                      <input 
+                        type="number" 
+                        value={isAddingBanner ? newBanner.order_index : editingBanner.order_index}
+                        onChange={(e) => isAddingBanner ? setNewBanner({ ...newBanner, order_index: parseInt(e.target.value) }) : setEditingBanner({ ...editingBanner, order_index: parseInt(e.target.value) })}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-black text-center"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6 text-right">
+                    {/* Target Type */}
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-4 block">סוג יעד לחיצה</label>
+                      <select 
+                        value={isAddingBanner ? newBanner.target_type : editingBanner.target_type}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (isAddingBanner) {
+                            setNewBanner({ ...newBanner, target_type: val, target_value: '' });
+                          } else {
+                            setEditingBanner({ ...editingBanner, target_type: val, target_value: '' });
+                          }
+                        }}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-black appearance-none text-right cursor-pointer"
+                      >
+                        <option value="none">ללא קישור</option>
+                        <option value="category">דילוג לקטגוריה</option>
+                        <option value="badge">סינון לפי תג (Badge)</option>
+                        <option value="product">פתיחת מוצר (מק״ט)</option>
+                      </select>
+                    </div>
+
+                    {/* Target Value */}
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-4 block">ערך היעד</label>
+                      {((isAddingBanner ? newBanner.target_type : editingBanner.target_type) === 'none') ? (
+                        <div className="w-full bg-slate-50/50 border border-slate-100 rounded-3xl px-6 py-5 text-slate-300 font-bold text-center italic">
+                          אין יעד מוגדר
+                        </div>
+                      ) : (isAddingBanner ? newBanner.target_type : editingBanner.target_type) === 'category' ? (
+                        <select 
+                          value={isAddingBanner ? newBanner.target_value : editingBanner.target_value}
+                          onChange={(e) => isAddingBanner ? setNewBanner({ ...newBanner, target_value: e.target.value }) : setEditingBanner({ ...editingBanner, target_value: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-black text-right cursor-pointer"
+                        >
+                          <option value="">בחר קטגוריה...</option>
+                          {categories.map(cat => (
+                            <option key={cat.id} value={cat.name}>{cat.name}</option>
+                          ))}
+                        </select>
+                      ) : (isAddingBanner ? newBanner.target_type : editingBanner.target_type) === 'badge' ? (
+                        <select 
+                          value={isAddingBanner ? newBanner.target_value : editingBanner.target_value}
+                          onChange={(e) => isAddingBanner ? setNewBanner({ ...newBanner, target_value: e.target.value }) : setEditingBanner({ ...editingBanner, target_value: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-black text-right cursor-pointer"
+                        >
+                          <option value="">בחר תגית...</option>
+                          <option value="New">חדש (New)</option>
+                          <option value="Hot">מבצע חם (Hot)</option>
+                          <option value="Best Seller">הנמכרים ביותר</option>
+                        </select>
+                      ) : (isAddingBanner ? newBanner.target_type : editingBanner.target_type) === 'product' ? (
+                        <select 
+                          value={isAddingBanner ? newBanner.target_value : editingBanner.target_value}
+                          onChange={(e) => isAddingBanner ? setNewBanner({ ...newBanner, target_value: e.target.value }) : setEditingBanner({ ...editingBanner, target_value: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-bold text-right cursor-pointer"
+                        >
+                          <option value="">בחר מוצר...</option>
+                          {products.map(p => (
+                            <option key={p.id} value={p.sku}>{p.name} ({p.sku})</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input 
+                          type="text" 
+                          value={isAddingBanner ? newBanner.target_value : editingBanner.target_value}
+                          onChange={(e) => isAddingBanner ? setNewBanner({ ...newBanner, target_value: e.target.value }) : setEditingBanner({ ...editingBanner, target_value: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-bold text-center"
+                          placeholder="ערך ליעד..."
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-12 flex gap-4">
+                <button 
+                  onClick={() => { setIsAddingBanner(false); setEditingBanner(null); }}
+                  className="flex-1 h-16 bg-slate-50 text-slate-500 rounded-3xl font-black hover:bg-slate-100 transition-all"
+                >
+                  ביטול
+                </button>
+                <button 
+                  onClick={isAddingBanner ? handleAddBanner : () => handleUpdateBanner(editingBanner)}
+                  disabled={isUpdatingBanner}
+                  className="flex-[2] h-16 bg-primary-600 text-white rounded-3xl font-black shadow-2xl shadow-primary-200 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 disabled:bg-slate-300"
+                >
+                  {isUpdatingBanner ? (
+                    <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Save size={24} />
+                      <span>{isAddingBanner ? 'יצירת באנר' : 'שמירת שינויים'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🖼️ BANNER DELETE CONFIRMATION */}
+      <AnimatePresence>
+        {confirmingBannerDelete && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setConfirmingBannerDelete(null)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[48px] shadow-2xl p-12 overflow-hidden text-center"
+            >
+              <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner shadow-red-100/50">
+                <AlertCircle size={48} />
+              </div>
+              <h3 className="text-4xl font-[1000] text-slate-900 tracking-tighter mb-4">מחיקת באנר</h3>
+              <p className="text-slate-500 font-bold mb-12 text-lg leading-relaxed text-center">
+                האם אתה בטוח שברצונך למחוק את הבאנר? פעולה זו תסיר אותו מיד מהקטלוג.
+              </p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setConfirmingBannerDelete(null)}
+                  className="flex-1 py-5 bg-slate-50 text-slate-500 rounded-3xl font-black"
+                >
+                  בטל
+                </button>
+                <button 
+                  onClick={() => handleDeleteBanner(confirmingBannerDelete.id)}
+                  className="flex-1 py-5 bg-red-600 text-white rounded-3xl font-black shadow-2xl shadow-red-200"
+                >
+                  כן, מחק
+                </button>
               </div>
             </motion.div>
           </div>

@@ -7,7 +7,6 @@ import {
   Users 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import OrderDetailsModal from '../components/admin/Modals/OrderDetailsModal';
 
 const AgentManagement = ({ 
     agents, 

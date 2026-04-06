@@ -2021,60 +2021,61 @@ const Admin = () => {
               animate={{ scale: 1, opacity: 1 }}
               className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-auto shadow-primary-500/10"
             >
-              <button 
-                onClick={() => setIsAddingProduct(false)}
-                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-3xl font-black tracking-tighter">הוספת מוצר חדש</h2>
+                <button 
+                  onClick={() => setIsAddingProduct(false)}
+                  className="text-slate-300 hover:text-slate-900 transition-colors flex-shrink-0 mr-2"
                 >
                   <X size={32} />
                 </button>
+              </div>
               
-              <h2 className="text-3xl font-black mb-8 tracking-tighter">הוספת מוצר חדש</h2>
-              
-              <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-8 items-end">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המוצר</label>
                   <input 
                     type="text" 
                     value={newProduct.name}
                     onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מק״ט</label>
                   <input 
                     type="text" 
                     value={newProduct.sku}
                     onChange={(e) => setNewProduct({...newProduct, sku: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מחיר (₪)</label>
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 truncate">מחיר (₪)</label>
                     <input 
                       type="number" 
                       value={newProduct.price}
                       onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">כמות ברירת מחדל</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 truncate">כמות ברירת מחדל</label>
                     <input 
                       type="number" 
                       value={newProduct.default_quantity || 12}
                       onChange={(e) => setNewProduct({...newProduct, default_quantity: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קטגוריה</label>
                   <select 
                     value={newProduct.category}
                     onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500"
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500"
                   >
                     <option value="">בחר קטגוריה...</option>
                     {categories.map(c => (
@@ -2082,24 +2083,24 @@ const Admin = () => {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור לתמונה (URL)</label>
                   <input 
                     type="text" 
                     placeholder="https://example.com/image.jpg"
                     value={newProduct.image}
                     onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מיקום במחסן</label>
                   <input 
                     type="text" 
                     placeholder="לדוגמה: מדף א1"
                     value={newProduct.location}
                     onChange={(e) => setNewProduct({...newProduct, location: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
@@ -2320,51 +2321,52 @@ const Admin = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-8"
               >
-              <button 
-                onClick={() => setEditingProduct(null)}
-                className="absolute left-10 top-10 text-slate-300 hover:text-slate-900 transition-colors"
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-3xl font-black tracking-tighter">עריכת מוצר: {editingProduct.sku}</h2>
+                <button 
+                  onClick={() => setEditingProduct(null)}
+                  className="text-slate-300 hover:text-slate-900 transition-colors flex-shrink-0 mr-2"
                 >
                   <X size={32} />
                 </button>
-              
-              <h2 className="text-3xl font-black mb-8 tracking-tighter">עריכת מוצר: {editingProduct.sku}</h2>
+              </div>
               
               <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המוצר</label>
                   <input 
                     type="text" 
                     value={editingProduct.name || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מחיר (₪)</label>
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 truncate">מחיר (₪)</label>
                     <input 
                       type="number" 
                       value={editingProduct.price ?? ''}
                       onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">כמות ברירת מחדל</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 truncate">כמות ברירת מחדל</label>
                     <input 
                       type="number" 
                       value={editingProduct.default_quantity || ''}
                       onChange={(e) => setEditingProduct({...editingProduct, default_quantity: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קטגוריה</label>
                   <select 
                     value={editingProduct.category || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500"
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500"
                   >
                     <option value="">בחר קטגוריה...</option>
                     {categories.map(c => (
@@ -2372,31 +2374,31 @@ const Admin = () => {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מק״ט</label>
                   <input 
                     type="text" 
                     value={editingProduct.sku || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, sku: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור לתמונה</label>
                   <input 
                     type="text" 
                     value={editingProduct.image || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">מיקום במחסן</label>
                    <input 
                     type="text" 
                     value={editingProduct.location || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, location: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
                 <div className="space-y-2 col-span-2">

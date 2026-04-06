@@ -390,8 +390,9 @@ const Catalog = () => {
         <div className="container mx-auto px-6 relative z-10 max-w-3xl">
           {/* Main Title Section */}
           <div className="text-center mb-10 md:mb-14">
-            <h1 className="text-3xl md:text-5xl lg:text-7xl font-[900] text-slate-900 tracking-tighter leading-[1.1] mb-4">
-               מצא את המוצר <span className="text-primary-500 underline decoration-accent-300 decoration-4 md:decoration-8 underline-offset-4">המושלם</span> עבורך
+            <h1 className="text-2xl md:text-4xl lg:text-6xl font-[900] text-slate-900 tracking-tighter leading-[1.1] mb-4">
+               בוחרים. מזמינים. <br />
+               <span className="text-primary-500 underline decoration-accent-300 decoration-4 md:decoration-8 underline-offset-4">מוכרים.</span>
             </h1>
             <p className="text-slate-400 text-sm md:text-base font-bold uppercase tracking-[0.2em]">גרופי מתנות בע"מ</p>
           </div>

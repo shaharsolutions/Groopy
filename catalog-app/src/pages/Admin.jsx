@@ -748,12 +748,15 @@ const Admin = () => {
     }
   };
 
-  const handleShareAgent = async (agent) => {
+  const getAgentLink = (agentId) => {
     const origin = window.location.origin;
-    const base = import.meta.env.BASE_URL;
-    // Ensure base starts and ends with / appropriately
+    const base = import.meta.env.BASE_URL || '';
     const fullBase = base.startsWith('/') ? base : `/${base}`;
-    const link = `${origin}${fullBase}${fullBase.endsWith('/') ? '' : '/'}#/?agent=${agent.id}`;
+    return `${origin}${fullBase}${fullBase.endsWith('/') ? '' : '/'}#/?agent=${agentId}`;
+  };
+
+  const handleShareAgent = async (agent) => {
+    const link = getAgentLink(agent.id);
     
     if (navigator.share) {
       try {
@@ -765,20 +768,25 @@ const Admin = () => {
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Error sharing:', err);
-          // Fallback to copy if share fails
-          copyToClipboard(link, agent.id);
         }
       }
-    } else {
-      copyToClipboard(link, agent.id);
     }
   }
 
-  const copyToClipboard = (link, id) => {
-    navigator.clipboard.writeText(link);
-    setCopyFeedback(id);
-    setTimeout(() => setCopyFeedback(null), 2000);
+  const handleCopyAgentLink = (agent) => {
+    const link = getAgentLink(agent.id);
+    copyToClipboard(link, agent.id);
   }
+
+  const copyToClipboard = (link, id) => {
+    try {
+      navigator.clipboard.writeText(link);
+      setCopyFeedback(id);
+      setTimeout(() => setCopyFeedback(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy label:', err);
+    }
+  };
 
   const deferredSearchTerm = useDeferredValue(searchTerm);
   
@@ -1188,17 +1196,31 @@ const Admin = () => {
             </div>
           </div>
 
-          <div className="space-y-4 pt-6 border-t border-slate-50">
+          <div className="flex flex-col gap-3 pt-6 border-t border-slate-50">
              <button 
-               onClick={() => handleShareAgent(agent)}
-               className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-primary-500 hover:text-white rounded-2xl transition-all group/link"
+               onClick={() => handleCopyAgentLink(agent)}
+               className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl transition-all group/link"
              >
                <div className="flex items-center gap-3">
-                  {copyFeedback === agent.id ? <Check size={18} /> : <ChainLink size={18} />}
+                  {copyFeedback === agent.id ? <Check size={18} className="text-green-500" /> : <ChainLink size={18} />}
                   <span className="font-black text-sm">{copyFeedback === agent.id ? 'הועתק!' : 'העתק קישור לקטלוג'}</span>
                </div>
-               <Share2 size={14} className="opacity-40 group-hover/link:opacity-100" />
+               <div className="text-[10px] uppercase font-black tracking-widest opacity-40 group-hover/link:opacity-100">העתקה</div>
              </button>
+
+             {navigator.share && (
+               <button 
+                 onClick={() => handleShareAgent(agent)}
+                 className="w-full flex items-center justify-between p-4 bg-primary-500 text-white rounded-2xl transition-all shadow-lg shadow-primary-500/20 hover:scale-[1.02] active:scale-[0.98]"
+               >
+                 <div className="flex items-center gap-3">
+                    <Share2 size={18} />
+                    <span className="font-black text-sm text-right">שיתוף קטלוג סוכן</span>
+                 </div>
+                 <div className="text-[10px] uppercase font-black tracking-widest opacity-70">Share</div>
+               </button>
+             )}
+          </div>
              
               <div className="flex gap-4 pt-2">
                {confirmingAgentDelete === agent.id ? (
@@ -1226,7 +1248,6 @@ const Admin = () => {
                  </>
                )}
               </div>
-          </div>
 
           <div className="absolute top-4 left-4 flex gap-2">
              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

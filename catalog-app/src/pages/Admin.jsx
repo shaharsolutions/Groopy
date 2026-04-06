@@ -128,6 +128,7 @@ const Admin = () => {
 
   // 🚫 Cancellation States
   const [orderToCancel, setOrderToCancel] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
   const [selectedBadge, setSelectedBadge] = useState(null);
   const [activeStatusMenu, setActiveStatusMenu] = useState({ id: null, rect: null });
   // 🖼️ Image Handlers
@@ -2015,11 +2016,13 @@ const Admin = () => {
       {/* 🗳️ ADD PRODUCT MODAL */}
       <AnimatePresence>
         {isAddingProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md overflow-y-auto pt-20 pb-20">
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-auto shadow-primary-500/10"
+              className="bg-white rounded-[40px] w-full max-w-2xl p-4 md:p-12 shadow-2xl relative my-8 max-h-[90vh] overflow-y-auto shadow-primary-500/10"
+              dir="rtl"
             >
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-black tracking-tighter">הוספת מוצר חדש</h2>
@@ -2031,14 +2034,14 @@ const Admin = () => {
                 </button>
               </div>
               
-              <div className="grid grid-cols-2 gap-8 items-end">
-                <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                <div className="flex flex-col gap-2 col-span-1 md:col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המוצר</label>
                   <input 
                     type="text" 
                     value={newProduct.name}
                     onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -2047,7 +2050,7 @@ const Admin = () => {
                     type="text" 
                     value={newProduct.sku}
                     onChange={(e) => setNewProduct({...newProduct, sku: e.target.value})}
-                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4 items-end">
@@ -2057,7 +2060,7 @@ const Admin = () => {
                       type="number" 
                       value={newProduct.price}
                       onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
+                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none border focus:border-primary-500" 
                     />
                   </div>
                   <div className="flex flex-col gap-2">
@@ -2066,7 +2069,7 @@ const Admin = () => {
                       type="number" 
                       value={newProduct.default_quantity || 12}
                       onChange={(e) => setNewProduct({...newProduct, default_quantity: e.target.value})}
-                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
+                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none border focus:border-primary-500" 
                     />
                   </div>
                 </div>
@@ -2103,15 +2106,15 @@ const Admin = () => {
                     className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 col-span-1 md:col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">תיאור קצר</label>
                   <textarea 
                     value={newProduct.description || ''}
                     onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
                 </div>
-                <div className="col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
 
                   <div className="flex items-center gap-3">
                     <input 
@@ -2162,6 +2165,7 @@ const Admin = () => {
                 </button>
               </div>
             </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>
@@ -2319,7 +2323,8 @@ const Admin = () => {
               <motion.div 
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-[40px] w-full max-w-2xl p-8 md:p-12 shadow-2xl relative my-8"
+                className="bg-white rounded-[40px] w-full max-w-2xl p-4 md:p-12 shadow-2xl relative my-8 max-h-[90vh] overflow-y-auto"
+                dir="rtl"
               >
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-3xl font-black tracking-tighter">עריכת מוצר: {editingProduct.sku}</h2>
@@ -2331,14 +2336,14 @@ const Admin = () => {
                 </button>
               </div>
               
-              <div className="grid grid-cols-2 gap-8">
-                <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                <div className="flex flex-col gap-2 col-span-1 md:col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המוצר</label>
                   <input 
                     type="text" 
                     value={editingProduct.name || ''}
                     onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
-                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
+                    className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4 items-end">
@@ -2401,7 +2406,7 @@ const Admin = () => {
                     className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none border focus:border-primary-500" 
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 col-span-1 lg:col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">תיאור קצר</label>
                   <textarea 
                     value={editingProduct.description || ''}
@@ -2409,7 +2414,7 @@ const Admin = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold outline-none border focus:border-primary-500 h-24" 
                   />
                 </div>
-                <div className="col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
 
                   <div className="flex items-center gap-3">
                     <input 

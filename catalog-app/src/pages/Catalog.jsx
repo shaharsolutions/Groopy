@@ -585,7 +585,7 @@ const Catalog = () => {
       </AnimatePresence>
 
       {/* 🏛️ FOOTER */}
-      <footer className="mt-40 border-t border-slate-100 bg-slate-50/50 py-24">
+      <footer className="mt-10 md:mt-40 border-t border-slate-100 bg-slate-50/50 pt-12 pb-32 md:py-24">
         <div className="container mx-auto px-6 max-w-5xl text-center">
           <div className="flex flex-col items-center gap-4 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
             <div className="flex items-center gap-3">
@@ -625,7 +625,7 @@ const Catalog = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5, y: 20 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className={`fixed ${totalItems > 0 ? 'bottom-32' : 'bottom-8'} right-4 md:right-8 z-[60] w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white`}
+            className={`fixed ${totalItems > 0 ? 'bottom-56' : 'bottom-28'} right-2 md:right-8 z-[60] w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white`}
           >
             <ArrowUp size={24} strokeWidth={3} />
           </motion.button>

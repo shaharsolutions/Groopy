@@ -435,7 +435,9 @@ const Catalog = () => {
               <button 
                 key={badge.id}
                 onClick={() => {
-                  setSelectedBadge(selectedBadge === badge.id ? null : badge.id);
+                  const isActivating = selectedBadge !== badge.id;
+                  setSelectedBadge(isActivating ? badge.id : null);
+                  if (isActivating) setSelectedCategory('All');
                   scrollToFilters();
                 }}
                 className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${

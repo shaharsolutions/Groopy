@@ -323,7 +323,7 @@ const Catalog = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
+    <div className="min-h-screen flex flex-col bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
       {/* 🧭 PREMIUM NAVIGATION */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-3xl border-b border-slate-100/60 transition-all duration-300">
         <div className="container mx-auto px-6 h-24 md:h-32 lg:h-36 flex items-center transition-all">
@@ -467,7 +467,7 @@ const Catalog = () => {
       </section>
 
       {/* 📦 PRODUCT GRID */}
-      <main ref={mainRef} className="container mx-auto px-6 py-12 scroll-mt-24 md:scroll-mt-32">
+      <main ref={mainRef} className="flex-1 container mx-auto px-6 py-12 scroll-mt-24 md:scroll-mt-32">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 md:gap-8">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (
@@ -585,33 +585,34 @@ const Catalog = () => {
       </AnimatePresence>
 
       {/* 🏛️ FOOTER */}
-      <footer className="mt-6 md:mt-40 border-t border-slate-100 bg-slate-50/50 pt-12 pb-12 md:py-24">
+      <footer className="mt-12 md:mt-40 border-t border-slate-100 bg-slate-50/50 pt-8 pb-6 md:py-24">
         <div className="container mx-auto px-6 max-w-5xl text-center">
+          {/* Legal Links Moved to Top of Footer */}
+          <div className="flex flex-wrap justify-center gap-6 md:gap-10 mb-10 pb-8 border-b border-slate-200/30">
+            <button 
+              onClick={() => navigate('/privacy')}
+              className="text-xs md:text-sm font-bold text-slate-400 hover:text-primary-600 transition-colors uppercase tracking-widest"
+            >
+              מדיניות פרטיות
+            </button>
+            <button 
+              onClick={() => navigate('/accessibility')}
+              className="text-xs md:text-sm font-bold text-slate-400 hover:text-primary-600 transition-colors uppercase tracking-widest"
+            >
+              הצהרת נגישות
+            </button>
+          </div>
+
           <div className="flex flex-col items-center gap-4 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
             <div className="flex items-center gap-3">
-              <img src={logo} alt="" className="h-12 object-contain" />
+              <img src={logo} alt="" className="h-10 object-contain" />
             </div>
-            <div className="flex gap-12 mt-4 text-sm font-black uppercase tracking-[0.2em] text-slate-400">
+            <div className="flex gap-8 mt-2 text-[10px] md:text-sm font-black uppercase tracking-[0.2em] text-slate-400">
               <span>Supply</span>
               <span>•</span>
               <span>Distribution</span>
               <span>•</span>
               <span>Import</span>
-            </div>
-            
-            <div className="flex flex-wrap justify-center gap-6 md:gap-10 mt-12 pt-8 border-t border-slate-200/50">
-              <button 
-                onClick={() => navigate('/privacy')}
-                className="text-xs md:text-sm font-bold text-slate-400 hover:text-primary-600 transition-colors uppercase tracking-widest"
-              >
-                מדיניות פרטיות
-              </button>
-              <button 
-                onClick={() => navigate('/accessibility')}
-                className="text-xs md:text-sm font-bold text-slate-400 hover:text-primary-600 transition-colors uppercase tracking-widest"
-              >
-                הצהרת נגישות
-              </button>
             </div>
           </div>
         </div>

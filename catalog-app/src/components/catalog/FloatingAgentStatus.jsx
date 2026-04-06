@@ -6,7 +6,7 @@ const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems }) => {
   // Calculate bottom position based on mini-cart visibility
   // Mini-cart sits at bottom-4 (16px) or bottom-6 (24px)
   // We want to be ~12px above it.
-  const bottomPos = totalItems > 0 ? 'bottom-[108px] md:bottom-[120px]' : 'bottom-16 md:bottom-6';
+  const bottomPos = totalItems > 0 ? 'bottom-[108px] md:bottom-[120px]' : 'bottom-6';
 
   return (
     <AnimatePresence>

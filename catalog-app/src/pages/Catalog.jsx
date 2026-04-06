@@ -26,18 +26,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import logo from '../assets/byGroopy_strip.png';
 import { supabase } from '../supabaseClient';
-import AgentBanner from '../components/catalog/AgentBanner';
 import ProductCard from '../components/catalog/ProductCard';
 import CartDrawer from '../components/catalog/CartDrawer';
 import BrandCarousel from '../components/catalog/BrandCarousel';
 import AgentSelectorModal from '../components/catalog/AgentSelectorModal';
+import FloatingAgentStatus from '../components/catalog/FloatingAgentStatus';
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try {
+      const savedCart = localStorage.getItem('groopy_cart');
+      return savedCart ? JSON.parse(savedCart) : [];
+    } catch (e) {
+      console.error('Error loading cart from localStorage:', e);
+      return [];
+    }
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('groopy_customer_name') || '');
   const [isSent, setIsSent] = useState(false);
@@ -81,6 +89,10 @@ const Catalog = () => {
   useEffect(() => {
     fetchInitialData();
   }, [searchParams]);
+
+  useEffect(() => {
+    localStorage.setItem('groopy_cart', JSON.stringify(cart));
+  }, [cart]);
 
   useEffect(() => {
     if (customerName) {
@@ -369,14 +381,6 @@ const Catalog = () => {
         </div>
       </header>
 
-      {/* 👔 AGENT INDICATOR */}
-      {!isInitialLoading && (
-        <AgentBanner 
-          activeAgent={activeAgent} 
-          onSelectClick={() => setIsAgentModalOpen(true)} 
-          isFromLink={isFromLink}
-        />
-      )}
 
       {/* 🌌 HERO SEARCH SECTION */}
       <section className="relative pt-2 md:pt-3 pb-6 overflow-hidden bg-white">
@@ -498,6 +502,13 @@ const Catalog = () => {
       </main>
 
 
+      {/* 🚀 FLOATING AGENT STATUS (ABOVE MINI CART) */}
+      <FloatingAgentStatus 
+        activeAgent={activeAgent}
+        onOpenSelector={() => setIsAgentModalOpen(true)}
+        totalItems={totalItems}
+      />
+
       {/* 🛒 SIDE CART DRAWER & STICKY CART */}
       <CartDrawer 
         isCartOpen={isCartOpen}
@@ -613,7 +624,7 @@ const Catalog = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5, y: 20 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className={`fixed ${totalItems > 0 ? 'bottom-32' : 'bottom-8'} right-8 z-[60] w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white`}
+            className={`fixed ${totalItems > 0 ? 'bottom-32' : 'bottom-8'} right-4 md:right-8 z-[60] w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white`}
           >
             <ArrowUp size={24} strokeWidth={3} />
           </motion.button>

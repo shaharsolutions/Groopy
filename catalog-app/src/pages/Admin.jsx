@@ -1043,12 +1043,12 @@ const Admin = () => {
                     className="w-4 h-4 rounded-md border-slate-300 text-primary-500 focus:ring-primary-500"
                   />
                 </th>
-                <th className="px-8 py-5">תמונה/סוג</th>
+                <th className="px-8 py-5 text-right">תמונה/סוג</th>
                 <th 
                   className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
                   onClick={() => requestSort('name')}
                 >
-                  <div className="flex items-center gap-2 justify-end">
+                  <div className="flex items-center gap-2 justify-start">
                     {sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
                     <span>שם המוצר</span>
                   </div>
@@ -1057,7 +1057,7 @@ const Admin = () => {
                   className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
                   onClick={() => requestSort('sku')}
                 >
-                  <div className="flex items-center gap-2 justify-end">
+                  <div className="flex items-center gap-2 justify-start">
                     {sortConfig.key === 'sku' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
                     <span>מק״ט</span>
                   </div>
@@ -1066,7 +1066,7 @@ const Admin = () => {
                   className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
                   onClick={() => requestSort('price')}
                 >
-                  <div className="flex items-center gap-2 justify-end">
+                  <div className="flex items-center gap-2 justify-start">
                     {sortConfig.key === 'price' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
                     <span>מחיר (₪)</span>
                   </div>
@@ -1075,12 +1075,12 @@ const Admin = () => {
                   className="px-8 py-5 cursor-pointer hover:text-slate-600 transition-colors"
                   onClick={() => requestSort('location')}
                 >
-                  <div className="flex items-center gap-2 justify-end">
+                  <div className="flex items-center gap-2 justify-start">
                     {sortConfig.key === 'location' ? (sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-primary-500" /> : <ChevronDown size={12} className="text-primary-500" />) : <ArrowUpDown size={12} className="opacity-20" />}
                     <span>מיקום</span>
                   </div>
                 </th>
-                <th className="px-8 py-5">פעולות</th>
+                <th className="px-8 py-5 text-right">פעולות</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

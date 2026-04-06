@@ -255,26 +255,26 @@ const CartDrawer = ({
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             exit={{ y: 100 }}
-            className="fixed bottom-8 left-0 right-0 z-40 px-6 pointer-events-none"
+            className="fixed bottom-4 md:bottom-6 left-0 right-0 z-40 px-2 md:px-6 pointer-events-none"
           >
             <button 
               onClick={() => setIsCartOpen(true)}
-              className="pointer-events-auto max-w-sm mx-auto w-full glass-card border-none bg-slate-900 border-slate-800 text-white p-4 rounded-[28px] shadow-2xl flex items-center justify-between group overflow-hidden"
+              className="pointer-events-auto max-w-sm mx-auto w-full glass-card border-none bg-slate-900 border-slate-800 text-white p-2 md:p-4 rounded-[24px] md:rounded-[28px] shadow-2xl flex items-center justify-between group overflow-hidden"
             >
-              <div className="flex items-center gap-4 relative z-10 pl-2">
-                <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center group-hover:rotate-6 transition-transform">
-                  <ShoppingCart size={24} />
+              <div className="flex items-center gap-2 md:gap-3 relative z-10 pl-1 md:pl-2">
+                <div className="w-10 h-10 md:w-14 md:h-14 bg-white/10 backdrop-blur-md rounded-xl md:rounded-2xl flex items-center justify-center group-hover:rotate-6 transition-transform">
+                  <ShoppingCart size={18} md:size={24} />
                 </div>
                 <div>
-                  <div className="text-[10px] font-black opacity-40 uppercase tracking-widest mb-1">הסל שלך</div>
-                  <div className="font-black text-3xl tracking-tighter">₪{totalPrice.toFixed(2)}</div>
+                  <div className="text-[8px] md:text-[10px] font-black opacity-40 uppercase tracking-widest mb-0.5 md:mb-1">הסל שלך</div>
+                  <div className="font-black text-xl md:text-3xl tracking-tighter">₪{totalPrice.toFixed(2)}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 pr-4 relative z-10">
-                <div className="bg-white/10 hover:bg-white/20 p-4 rounded-2xl font-black text-base tracking-tight transition-all text-white">
+              <div className="flex items-center gap-1 md:gap-2 pr-0 md:pr-4 relative z-10">
+                <div className="bg-white/10 hover:bg-white/20 px-3 md:px-4 py-2 md:py-4 rounded-xl md:rounded-2xl font-black text-xs md:text-base tracking-tight transition-all text-white">
                   לעגלה
                 </div>
-                <ChevronDown className="-rotate-90 text-primary-400" size={24} />
+                <ChevronDown className="-rotate-90 text-primary-400" size={20} md:size={24} />
               </div>
               <div className="absolute inset-0 bg-gradient-to-r from-primary-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>

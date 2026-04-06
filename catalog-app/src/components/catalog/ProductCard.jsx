@@ -81,7 +81,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
           {product.description}
         </p>
 
-        <div className="mt-auto flex items-center justify-between gap-1 md:gap-2">
+        <div className="mt-auto flex items-center justify-between gap-1">
           <div className="shrink-0">
             <span className="text-[8px] md:text-[10px] font-bold text-slate-400 block -mb-0.5">מחיר יחידה</span>
             <span className="text-lg md:text-2xl font-black text-slate-900">₪{product.price.toFixed(2)}</span>
@@ -94,12 +94,14 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
                 ? 'bg-accent-600 text-white shadow-accent-200' 
                 : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
               }
-              hover:scale-105 active:scale-95 shadow-lg shrink-0
+              hover:scale-105 active:scale-95 shadow-lg
             `}
           >
             <div className="flex items-center gap-0.5 md:gap-1">
               <Plus size={12} md:size={14} strokeWidth={4} />
-              <span className="font-bold text-[10px] md:text-sm whitespace-nowrap">הוספה</span>
+              <span className={`font-bold text-[10px] md:text-sm whitespace-nowrap ${cartCount > 0 ? 'hidden md:inline' : 'inline'}`}>
+                הוספה
+              </span>
             </div>
             {cartCount > 0 && (
               <span className="bg-white text-accent-600 min-w-[18px] md:min-w-[24px] h-5 md:h-6 px-1 rounded-md md:rounded-lg flex items-center justify-center text-[10px] md:text-xs font-black shadow-sm">

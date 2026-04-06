@@ -106,7 +106,7 @@ const Admin = () => {
     name: '', 
     sku: '', 
     price: '', 
-    category: 'Bottles', 
+    category: 'בקבוקי מים מעוצבים', 
     location: '', 
     description: '', 
     image: '', 
@@ -180,7 +180,7 @@ const Admin = () => {
       console.warn('Error fetching categories (maybe table does not exist):', categoriesError);
       // Fallback categories if table doesn't exist yet
       if (categories.length === 0) {
-        setCategories([{ id: '1', name: 'בקבוקים' }, { id: '2', name: 'קופסאות אוכל' }]);
+        setCategories([{ id: '1', name: 'בקבוקי מים מעוצבים' }, { id: '2', name: 'קופסאות אוכל' }]);
       }
     }
 
@@ -255,7 +255,7 @@ const Admin = () => {
           name: '', 
           sku: '', 
           price: '', 
-          category: 'Bottles', 
+          category: 'בקבוקי מים מעוצבים', 
           location: '', 
           description: '', 
           image: '', 

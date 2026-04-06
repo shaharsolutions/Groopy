@@ -194,12 +194,7 @@ const Catalog = () => {
   // Categories Calculation
   const categories = useMemo(() => {
     const rawCategories = [...new Set(products.map(p => p.category))];
-    const mapped = rawCategories.map(cat => {
-      if (cat === 'Bottles' || cat === 'בקבוקים' || cat === 'Lunch Boxes' || cat === 'קופסאות אוכל') 
-        return 'בקבוקים וקופסאות אוכל';
-      return cat;
-    });
-    return ['All', ...new Set(mapped)];
+    return ['All', ...new Set(rawCategories)];
   }, [products]);
 
   // Filtering Logic
@@ -209,10 +204,7 @@ const Catalog = () => {
         product.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const normalizedProductCat = 
-        (product.category === 'Bottles' || product.category === 'בקבוקים' || product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') 
-        ? 'בקבוקים וקופסאות אוכל' 
-        : product.category;
+      const normalizedProductCat = product.category;
         
       let matchesCategory = false;
       if (selectedCategory === 'All') {

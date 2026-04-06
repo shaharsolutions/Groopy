@@ -74,10 +74,10 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
            (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
            product.category}
         </span>
-        <h3 className="font-bold text-sm md:text-lg text-slate-800 leading-snug mb-1 md:mb-2 min-h-[2rem] md:min-h-[3rem] line-clamp-2">
+        <h3 className="font-bold text-sm md:text-lg text-slate-800 leading-tight mb-1 md:mb-2 min-h-[2.5rem] md:min-h-[3.2rem] line-clamp-2 flex items-start overflow-hidden">
           {product.name}
         </h3>
-        <p className="text-[10px] md:text-xs text-slate-400 font-medium italic mb-3 md:mb-4 line-clamp-1">
+        <p className="text-[10px] md:text-xs text-slate-400 font-bold tracking-tight mb-3 md:mb-4 line-clamp-1 opacity-80">
           {product.description}
         </p>
 

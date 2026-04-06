@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
@@ -7,7 +7,8 @@ const PromotionBanners = ({ onBannerClick }) => {
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
+  const scrollRef = useRef(null);
+  const isScrollingRef = useRef(false);
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -31,6 +32,59 @@ const PromotionBanners = ({ onBannerClick }) => {
     fetchBanners();
   }, []);
 
+  // Update currentIndex based on scroll position
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current || isScrollingRef.current) return;
+    
+    const scrollLeft = scrollRef.current.scrollLeft;
+    const width = scrollRef.current.offsetWidth;
+    // For RTL, scrollLeft is negative or starts from large positive to 0
+    // We'll use Math.abs and round for robustness
+    const index = Math.round(Math.abs(scrollLeft) / width);
+    
+    if (index !== currentIndex && index < banners.length) {
+      setCurrentIndex(index);
+    }
+  }, [currentIndex, banners.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.addEventListener('scroll', handleScroll, { passive: true });
+      return () => el.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
+
+  // Programmatic scroll to a specific index
+  const scrollTo = (index) => {
+    if (!scrollRef.current) return;
+    
+    isScrollingRef.current = true;
+    const width = scrollRef.current.offsetWidth;
+    const target = index * width;
+    
+    // In RTL, we scroll to target (if 0 to max) or -target (if 0 to -max)
+    // Most modern browsers use 0 as the rightmost point in RTL
+    scrollRef.current.scrollTo({
+      left: -target, // Standard RTL scroll behavior
+      behavior: 'smooth'
+    });
+
+    setCurrentIndex(index);
+    
+    // Release the manual scroll lock after animation
+    setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 600);
+  };
+
+  const move = (step) => {
+    if (banners.length <= 1) return;
+    const newIndex = (currentIndex + step + banners.length) % banners.length;
+    scrollTo(newIndex);
+  };
+
+  // Auto-play timer
   useEffect(() => {
     if (banners.length <= 1) return;
     const timer = setInterval(() => {
@@ -38,32 +92,6 @@ const PromotionBanners = ({ onBannerClick }) => {
     }, 6000);
     return () => clearInterval(timer);
   }, [currentIndex, banners.length]);
-
-  const move = (newDirection) => {
-    if (banners.length <= 1) return;
-    setDirection(newDirection);
-    setCurrentIndex((prev) => (prev + newDirection + banners.length) % banners.length);
-  };
-
-  const variants = {
-    enter: (direction) => ({
-      x: direction > 0 ? 1000 : -1000,
-      opacity: 0,
-      scale: 0.95
-    }),
-    center: {
-      zIndex: 1,
-      x: 0,
-      opacity: 1,
-      scale: 1
-    },
-    exit: (direction) => ({
-      zIndex: 0,
-      x: direction < 0 ? 1000 : -1000,
-      opacity: 0,
-      scale: 0.95
-    })
-  };
 
   if (loading) {
     return (
@@ -76,36 +104,28 @@ const PromotionBanners = ({ onBannerClick }) => {
   if (banners.length === 0) return null;
 
   return (
-    <div className="relative w-full max-w-7xl mx-auto px-6 mb-12 group">
-      <div className="relative h-[250px] md:h-[450px] overflow-hidden rounded-[32px] md:rounded-[48px] shadow-2xl shadow-slate-200 bg-slate-50 border border-white">
-        <AnimatePresence initial={false} custom={direction}>
-          <motion.div
-            key={banners[currentIndex].id}
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{
-              x: { type: "spring", stiffness: 300, damping: 30 },
-              opacity: { duration: 0.4 },
-              scale: { duration: 0.4 }
-            }}
-            className="absolute inset-0 cursor-pointer"
-            onClick={() => onBannerClick && onBannerClick(banners[currentIndex])}
-          >
-            {/* Background Image */}
-            <div className="absolute inset-0">
+    <div className="relative w-full max-w-7xl mx-auto px-6 mb-12 group" dir="rtl">
+      {/* Scrollable Container */}
+      <div className="relative h-[250px] md:h-[450px] shadow-2xl shadow-slate-200 bg-slate-50 border border-white rounded-[32px] md:rounded-[48px] overflow-hidden">
+        <div 
+          ref={scrollRef}
+          className="flex h-full overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {banners.map((banner, idx) => (
+            <div 
+              key={banner.id}
+              className="flex-none w-full h-full snap-center cursor-pointer"
+              onClick={() => onBannerClick && onBannerClick(banner)}
+            >
               <img 
-                src={banners[currentIndex].image} 
-                alt={banners[currentIndex].title}
-                className="w-full h-full object-cover"
+                src={banner.image} 
+                alt={banner.title}
+                className="w-full h-full object-cover select-none pointer-events-none"
               />
             </div>
-
-            {/* Content Overlay Removed (Text is in image) */}
-          </motion.div>
-        </AnimatePresence>
+          ))}
+        </div>
 
         {/* Navigation Dots */}
         {banners.length > 1 && (
@@ -115,10 +135,10 @@ const PromotionBanners = ({ onBannerClick }) => {
                 key={idx}
                 onClick={(e) => {
                   e.stopPropagation();
-                  move(idx > currentIndex ? 1 : -1);
+                  scrollTo(idx);
                 }}
                 className={`h-1.5 transition-all duration-500 rounded-full ${
-                  idx === currentIndex ? 'w-8 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/60'
+                  idx === currentIndex ? 'w-8 bg-white shadow-sm' : 'w-1.5 bg-white/40 hover:bg-white/60'
                 }`}
               />
             ))}
@@ -143,6 +163,13 @@ const PromotionBanners = ({ onBannerClick }) => {
           </button>
         </>
       )}
+
+      {/* Add Custom Hidden Scrollbar CSS */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 };

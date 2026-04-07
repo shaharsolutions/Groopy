@@ -237,7 +237,7 @@ const OrderDetailsModal = ({
                           </div>
                           <div className="space-y-1">
                              <span className="text-[10px] font-black text-primary-400 uppercase tracking-widest block">הנחה ({discountPct}%)</span>
-                             <span className="text-3xl font-black text-primary-400 tracking-tighter tabular-nums">-₪{discountAmount.toFixed(2)}</span>
+                             <span className="text-3xl font-black text-primary-400 tracking-tighter tabular-nums" dir="ltr">-₪{discountAmount.toFixed(2)}</span>
                           </div>
                           <div className="space-y-1 md:border-r border-white/10 md:pr-8">
                              <span className="text-[10px] font-black text-white/50 uppercase tracking-widest block">סה"כ לתשלום</span>

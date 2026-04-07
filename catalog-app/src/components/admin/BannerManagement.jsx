@@ -20,7 +20,16 @@ const BannerManagement = ({
           {/* Banner Image Preview */}
           <div className="aspect-[21/9] w-full bg-slate-100 overflow-hidden relative">
             {banner.image ? (
-              <img src={banner.image} alt={banner.title} className="w-full h-full object-cover" />
+              <img 
+                src={banner.image} 
+                alt={banner.title} 
+                className="w-full h-full transition-all duration-300" 
+                style={{
+                  objectFit: banner.object_fit || 'cover',
+                  objectPosition: `${banner.pos_x || 50}% ${banner.pos_y || 50}%`,
+                  transform: `scale(${banner.zoom || 1})`
+                }}
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-300">
                 <ImageIcon size={48} />

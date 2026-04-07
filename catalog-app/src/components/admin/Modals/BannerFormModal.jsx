@@ -44,7 +44,7 @@ const BannerFormModal = ({
             
             <div className="flex flex-col gap-2 col-span-1 md:col-span-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">קישור לתמונה (URL)</label>
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-6">
                 <input 
                   type="text" 
                   placeholder="https://example.com/banner.jpg"
@@ -52,9 +52,81 @@ const BannerFormModal = ({
                   onChange={(e) => setBanner({...banner, image: e.target.value})}
                   className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none focus:border-primary-500 transition-all shadow-inner" 
                 />
-                <div className="aspect-[21/9] bg-slate-100 rounded-3xl overflow-hidden border border-slate-200 flex items-center justify-center text-slate-300">
-                   {banner.image ? <img src={banner.image} alt="" className="w-full h-full object-cover" /> : <Image size={48} />}
-                </div>
+                
+                {banner.image && (
+                  <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-200 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">עיצוב תצוגה</h3>
+                      <div className="flex gap-2">
+                         {['cover', 'contain', 'fill'].map((fit) => (
+                           <button 
+                             key={fit}
+                             onClick={() => setBanner({...banner, object_fit: fit})}
+                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all ${banner.object_fit === fit ? 'bg-slate-900 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
+                           >
+                             {fit === 'cover' ? 'כיסוי' : fit === 'contain' ? 'התאמה' : 'מתיחה'}
+                           </button>
+                         ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase">
+                          <span>מיקום אופקי (X)</span>
+                          <span>{banner.pos_x || 50}%</span>
+                        </div>
+                        <input 
+                          type="range" min="0" max="100" 
+                          value={banner.pos_x || 50} 
+                          onChange={(e) => setBanner({...banner, pos_x: parseInt(e.target.value)})}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                        />
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase">
+                          <span>מיקום אנכי (Y)</span>
+                          <span>{banner.pos_y || 50}%</span>
+                        </div>
+                        <input 
+                          type="range" min="0" max="100" 
+                          value={banner.pos_y || 50} 
+                          onChange={(e) => setBanner({...banner, pos_y: parseInt(e.target.value)})}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                        />
+                      </div>
+
+                      <div className="space-y-3 col-span-1 md:col-span-2">
+                        <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase">
+                          <span>תקריב (Zoom)</span>
+                          <span>{banner.zoom || 1}x</span>
+                        </div>
+                        <input 
+                          type="range" min="1" max="3" step="0.1"
+                          value={banner.zoom || 1} 
+                          onChange={(e) => setBanner({...banner, zoom: parseFloat(e.target.value)})}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="aspect-[21/9] bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center text-slate-300 relative">
+                       {banner.image ? (
+                         <img 
+                           src={banner.image} 
+                           alt="" 
+                           className="w-full h-full transition-all duration-300 pointer-events-none select-none"
+                           style={{
+                             objectFit: banner.object_fit || 'cover',
+                             objectPosition: `${banner.pos_x || 50}% ${banner.pos_y || 50}%`,
+                             transform: `scale(${banner.zoom || 1})`
+                           }}
+                         />
+                       ) : <Image size={48} />}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

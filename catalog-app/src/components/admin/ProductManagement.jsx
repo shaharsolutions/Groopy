@@ -148,6 +148,7 @@ const ProductManagement = ({
                           {[
                             { id: 'is_best_seller', label: 'נמכר ביותר', icon: Star },
                             { id: 'is_hot_deal', label: 'מבצע חם', icon: Flame },
+                            { id: 'is_new', label: 'חדש', icon: Zap },
                           ].map(flag => (
                             <div key={flag.id} className="border-b border-slate-50 last:border-0 p-1">
                               <div className="text-[10px] font-black text-slate-400 px-3 py-1 uppercase tracking-widest">{flag.label}</div>

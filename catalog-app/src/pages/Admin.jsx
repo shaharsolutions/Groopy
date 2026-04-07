@@ -95,7 +95,18 @@ const Admin = () => {
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
   const [newCategory, setNewCategory] = useState({ name: '' });
   const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '', show_in_carousel: true });
-  const [newBanner, setNewBanner] = useState({ image: '', title: '', target_type: 'none', target_value: '', is_active: true, order_index: 0 });
+  const [newBanner, setNewBanner] = useState({ 
+    image: '', 
+    title: '', 
+    target_type: 'none', 
+    target_value: '', 
+    is_active: true, 
+    order_index: 0,
+    pos_x: 50,
+    pos_y: 50,
+    zoom: 1,
+    object_fit: 'cover'
+  });
 
   // Order Details / Edit State
   const [isEditingOrder, setIsEditingOrder] = useState(false);
@@ -113,15 +124,44 @@ const Admin = () => {
   }, [selectedOrder]);
 
 
+  // Helpers
+  const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
   // --- CRUD Handlers ---
 
   // Products
   const handleAddProduct = async () => {
     setIsUpdatingProduct(true);
     try {
-      const { data, error } = await supabase.from('products').insert([{ ...newProduct, price: parseFloat(newProduct.price) }]).select();
-      if (!error) { setProducts([...products, data[0]]); setIsAddingProduct(false); setNewProduct({ name: '', sku: '', price: '', category: '', location: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, default_quantity: 12 }); }
-    } finally { setIsUpdatingProduct(false); }
+      const productToInsert = { 
+        ...newProduct, 
+        id: generateUUID(),
+        price: parseFloat(newProduct.price) 
+      };
+      const { data, error } = await supabase.from('products').insert([productToInsert]).select();
+      if (!error) { 
+        setProducts([...products, data[0]]); 
+        setIsAddingProduct(false); 
+        setNewProduct({ name: '', sku: '', price: '', category: '', location: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, default_quantity: 12 }); 
+      } else {
+        console.error('Error adding product:', error);
+        alert('שגיאה בהוספת מוצר: ' + (error.message || 'שגיאה לא ידועה'));
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('שגיאה לא צפויה בהוספת מוצר');
+    } finally { 
+      setIsUpdatingProduct(false); 
+    }
   };
 
   const handleUpdateProduct = async () => {
@@ -206,9 +246,23 @@ const Admin = () => {
   // Categories
   const handleAddCategory = async () => {
     setIsUpdatingCategory(true);
-    const { data, error } = await supabase.from('categories').insert([newCategory]).select();
-    if (!error) { setCategories([...categories, data[0]]); setIsAddingCategory(false); setNewCategory({ name: '' }); }
-    setIsUpdatingCategory(false);
+    try {
+      const categoryToInsert = { ...newCategory, id: generateUUID() };
+      const { data, error } = await supabase.from('categories').insert([categoryToInsert]).select();
+      if (!error) { 
+        setCategories([...categories, data[0]]); 
+        setIsAddingCategory(false); 
+        setNewCategory({ name: '' }); 
+      } else {
+        console.error('Error adding category:', error);
+        alert('שגיאה בהוספת קטגוריה: ' + (error.message || 'שגיאה לא ידועה'));
+      }
+    } catch (err) {
+      console.error('Unexpected error adding category:', err);
+      alert('שגיאה לא צפויה בהוספת קטגוריה');
+    } finally {
+      setIsUpdatingCategory(false);
+    }
   };
 
   const handleUpdateCategory = async () => {
@@ -226,9 +280,23 @@ const Admin = () => {
   // Brands
   const handleAddBrand = async () => {
     setIsUpdatingBrand(true);
-    const { data, error } = await supabase.from('brands').insert([newBrand]).select();
-    if (!error) { setBrands([...brands, data[0]]); setIsAddingBrand(false); setNewBrand({ name: '', logo: '', type: '', show_in_carousel: true }); }
-    setIsUpdatingBrand(false);
+    try {
+      const brandToInsert = { ...newBrand, id: generateUUID() };
+      const { data, error } = await supabase.from('brands').insert([brandToInsert]).select();
+      if (!error) { 
+        setBrands([...brands, data[0]]); 
+        setIsAddingBrand(false); 
+        setNewBrand({ name: '', logo: '', type: '', show_in_carousel: true }); 
+      } else {
+        console.error('Error adding brand:', error);
+        alert('שגיאה בהוספת מותג: ' + (error.message || 'שגיאה לא ידועה'));
+      }
+    } catch (err) {
+      console.error('Unexpected error adding brand:', err);
+      alert('שגיאה לא צפויה בהוספת מותג');
+    } finally {
+      setIsUpdatingBrand(false);
+    }
   };
 
   const handleUpdateBrand = async () => {
@@ -246,9 +314,23 @@ const Admin = () => {
   // Banners
   const handleAddBanner = async () => {
     setIsUpdatingBanner(true);
-    const { data, error } = await supabase.from('banners').insert([newBanner]).select();
-    if (!error) { setBanners([...banners, data[0]]); setIsAddingBanner(false); setNewBanner({ image: '', title: '', target_type: 'none', target_value: '', is_active: true, order_index: 0 }); }
-    setIsUpdatingBanner(false);
+    try {
+      const bannerToInsert = { ...newBanner, id: generateUUID() };
+      const { data, error } = await supabase.from('banners').insert([bannerToInsert]).select();
+      if (!error) { 
+        setBanners([...banners, data[0]]); 
+        setIsAddingBanner(false); 
+        setNewBanner({ image: '', title: '', target_type: 'none', target_value: '', is_active: true, order_index: 0 }); 
+      } else {
+        console.error('Error adding banner:', error);
+        alert('שגיאה בהוספת באנר: ' + (error.message || 'שגיאה לא ידועה'));
+      }
+    } catch (err) {
+      console.error('Unexpected error adding banner:', err);
+      alert('שגיאה לא צפויה בהוספת באנר');
+    } finally {
+      setIsUpdatingBanner(false);
+    }
   };
 
   const handleUpdateBanner = async () => {

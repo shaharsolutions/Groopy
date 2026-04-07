@@ -121,7 +121,12 @@ const PromotionBanners = ({ onBannerClick }) => {
               <img 
                 src={banner.image} 
                 alt={banner.title}
-                className="w-full h-full object-cover select-none pointer-events-none"
+                className="w-full h-full select-none pointer-events-none transition-all duration-700"
+                style={{
+                  objectFit: banner.object_fit || 'cover',
+                  objectPosition: `${banner.pos_x || 50}% ${banner.pos_y || 50}%`,
+                  transform: `scale(${banner.zoom || 1})`
+                }}
               />
             </div>
           ))}

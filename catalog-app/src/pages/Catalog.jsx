@@ -215,7 +215,7 @@ const Catalog = () => {
       if (selectedCategory === 'All') {
         matchesCategory = true;
       } else if (selectedCategory === 'New') {
-        matchesCategory = !!product.is_clearing;
+        matchesCategory = !!product.is_new;
       } else {
         matchesCategory = normalizedProductCat === selectedCategory;
       }
@@ -337,7 +337,6 @@ const Catalog = () => {
   const handleBannerClick = (banner) => {
     if (banner.target_type === 'badge') {
       setSelectedBadge(banner.target_value);
-      setSelectedCategory('All');
       scrollToFilters();
     } else if (banner.target_type === 'category') {
       setSelectedCategory(banner.target_value);
@@ -436,14 +435,13 @@ const Catalog = () => {
             {[
               { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
               { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
-              { id: 'is_clearing', label: 'מוצרים חדשים', icon: Zap, color: { bg: 'bg-[#FDF2FF]', border: 'border-[#F1D0FF]', iconBg: 'bg-[#EBD2FF]', iconColor: 'text-[#8E24AA]' } },
+              { id: 'is_new', label: 'מוצרים חדשים', icon: Zap, color: { bg: 'bg-[#FDF2FF]', border: 'border-[#F1D0FF]', iconBg: 'bg-[#EBD2FF]', iconColor: 'text-[#8E24AA]' } },
             ].map((badge) => (
               <button 
                 key={badge.id}
                 onClick={() => {
                   const isActivating = selectedBadge !== badge.id;
                   setSelectedBadge(isActivating ? badge.id : null);
-                  if (isActivating) setSelectedCategory('All');
                   scrollToFilters();
                 }}
                 className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${

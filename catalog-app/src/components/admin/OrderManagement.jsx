@@ -12,13 +12,13 @@ import {
   ChevronDown,
   ShoppingBag
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const statusMap = {
+export const statusMap = {
   'New': { label: 'חדש', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
   'Processing': { label: 'בעבודה', icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
   'Completed': { label: 'הושלם', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
-  'Canceled': { label: 'בוטל', icon: AlertCircle, color: 'text-slate-400', bg: 'bg-slate-50', border: 'border-slate-100' }
+  'Canceled': { label: 'בוטל', icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' }
 };
 
 const OrderManagement = ({ 
@@ -90,7 +90,10 @@ const OrderManagement = ({
               {orders.map((order, idx) => {
                 const status = statusMap[order.status] || statusMap['New'];
                 return (
-                  <tr key={order.id || `order-${idx}`} className={`group transition-all duration-300 ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'}`}>
+                  <tr 
+                    key={order.id || `order-${idx}`} 
+                    className={`group transition-all duration-300 ${selectedOrderIds.includes(order.id) ? 'bg-primary-50/30' : 'hover:bg-slate-50/50'} ${activeStatusMenu.id === order.id ? 'relative z-[30]' : ''}`}
+                  >
                     <td className="px-8 py-6 text-center">
                       <input 
                         type="checkbox" 
@@ -126,8 +129,13 @@ const OrderManagement = ({
                       <div className="relative">
                         <button 
                           onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setActiveStatusMenu({ id: order.id, rect });
+                            e.stopPropagation();
+                            if (activeStatusMenu.id === order.id) {
+                              setActiveStatusMenu({ id: null, rect: null });
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setActiveStatusMenu({ id: order.id, rect });
+                            }
                           }}
                           className={`flex items-center gap-3 px-4 py-2 border rounded-2xl transition-all shadow-sm group/status ${status.bg} ${status.border}`}
                         >
@@ -135,7 +143,7 @@ const OrderManagement = ({
                           <span className={`text-[10px] font-black uppercase tracking-widest ${status.color}`}>
                             {status.label}
                           </span>
-                          <ChevronDown size={14} className={`${status.color} opacity-40 group-hover/status:opacity-100 transition-opacity`} />
+                          <ChevronDown size={14} className={`${status.color} opacity-40 group-hover/status:opacity-100 transition-opacity ${activeStatusMenu.id === order.id ? 'rotate-180' : ''}`} />
                         </button>
                       </div>
                     </td>

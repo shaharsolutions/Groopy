@@ -12,6 +12,9 @@ import OrderManagement from '../components/admin/OrderManagement';
 import CategoryManagement from '../components/admin/CategoryManagement';
 import BrandManagement from '../components/admin/BrandManagement';
 import BannerManagement from '../components/admin/BannerManagement';
+import { statusMap } from '../components/admin/OrderManagement';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check } from 'lucide-react';
 
 // Modals
 import ProductFormModal from '../components/admin/Modals/ProductFormModal';
@@ -20,6 +23,8 @@ import CategoryFormModal from '../components/admin/Modals/CategoryFormModal';
 import BrandFormModal from '../components/admin/Modals/BrandFormModal';
 import BannerFormModal from '../components/admin/Modals/BannerFormModal';
 import OrderDetailsModal from '../components/admin/Modals/OrderDetailsModal';
+import OrderEditModal from '../components/admin/Modals/OrderEditModal';
+
 
 
 const Admin = () => {
@@ -94,23 +99,19 @@ const Admin = () => {
 
   // Order Details / Edit State
   const [isEditingOrder, setIsEditingOrder] = useState(false);
-  const [tempOrderItems, setTempOrderItems] = useState([]);
-  const [tempOrderDiscount, setTempOrderDiscount] = useState(0);
-  const [editingOrderSearch, setEditingOrderSearch] = useState('');
   const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
   const [adminName, setAdminName] = useState(localStorage.getItem('groopy_admin_name') || '');
   const [newNoteText, setNewNoteText] = useState('');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [confirmingNoteDelete, setConfirmingNoteDelete] = useState(null);
 
+
   useEffect(() => {
     if (selectedOrder) {
-      setTempOrderItems(selectedOrder.items || []);
-      setTempOrderDiscount(selectedOrder.discount_pct || 0);
       setIsEditingOrder(false);
-      setEditingOrderSearch('');
     }
   }, [selectedOrder]);
+
 
   // --- CRUD Handlers ---
 
@@ -156,21 +157,41 @@ const Admin = () => {
   // Agents
   const handleAddAgent = async () => {
     setIsUpdatingAgent(true);
-    const { data, error } = await supabase.from('agents').insert([newAgent]).select();
-    if (!error) { setAgents([...agents, data[0]]); setIsAddingAgent(false); setNewAgent({ name: '', phone: '', image: '' }); }
+    const agentToSave = { ...newAgent, id: Date.now().toString() };
+    const { data, error } = await supabase.from('agents').insert([agentToSave]).select();
+    if (!error) { 
+      setAgents([...agents, data[0]]); 
+      setIsAddingAgent(false); 
+      setNewAgent({ name: '', phone: '', image: '' }); 
+    } else {
+      console.error('Error adding agent:', error);
+      alert('שגיאה בהוספת סוכן: ' + (error.message || 'שגיאה לא ידועה'));
+    }
     setIsUpdatingAgent(false);
   };
 
   const handleUpdateAgent = async () => {
     setIsUpdatingAgent(true);
     const { error } = await supabase.from('agents').update(editingAgent).eq('id', editingAgent.id);
-    if (!error) { setAgents(agents.map(a => a.id === editingAgent.id ? editingAgent : a)); setEditingAgent(null); }
+    if (!error) { 
+      setAgents(agents.map(a => a.id === editingAgent.id ? editingAgent : a)); 
+      setEditingAgent(null); 
+    } else {
+      console.error('Error updating agent:', error);
+      alert('שגיאה בעדכון סוכן: ' + (error.message || 'שגיאה לא ידועה'));
+    }
     setIsUpdatingAgent(false);
   };
 
   const handleDeleteAgent = async (id) => {
     const { error } = await supabase.from('agents').delete().eq('id', id);
-    if (!error) { setAgents(agents.filter(a => a.id !== id)); setConfirmingAgentDelete(null); }
+    if (!error) { 
+      setAgents(agents.filter(a => a.id !== id)); 
+      setConfirmingAgentDelete(null); 
+    } else {
+      console.error('Error deleting agent:', error);
+      alert('שגיאה במחיקת סוכן: ' + (error.message || 'שגיאה לא ידועה'));
+    }
   };
 
   const handleCopyAgentLink = (agent) => {
@@ -256,20 +277,25 @@ const Admin = () => {
   };
 
   const handleUpdateOrderStatus = async (id, status, cancelReason = null) => {
+    const currentOrder = orders.find(o => o.id === id);
+    if (!currentOrder) return;
+
     let updateData = { status };
+    const oldStatusLabel = statusMap[currentOrder.status]?.label || currentOrder.status;
+    const newStatusLabel = statusMap[status]?.label || status;
+
+    const newNote = {
+      author: 'מערכת',
+      text: status === 'Canceled' && cancelReason 
+        ? `ביטול: ${cancelReason}` 
+        : `סטטוס השתנה מ"${oldStatusLabel}" ל"${newStatusLabel}"`,
+      timestamp: new Date().toISOString()
+    };
     
-    // If canceling, add a system note with the reason
-    if (status === 'Canceled' && cancelReason) {
-      const currentOrder = orders.find(o => o.id === id);
-      const newNote = {
-        author: 'מערכת (ביטול)',
-        text: `סיבת ביטול: ${cancelReason}`,
-        timestamp: new Date().toISOString()
-      };
-      updateData.notes = [...(currentOrder?.notes || []), newNote];
-    }
+    updateData.notes = [...(currentOrder.notes || []), newNote];
 
     const { error } = await supabase.from('orders').update(updateData).eq('id', id);
+
     if (!error) {
       // Update the main orders list
       setOrders(orders.map(o => o.id === id ? { ...o, ...updateData } : o));
@@ -282,28 +308,28 @@ const Admin = () => {
   };
 
   // Order Detail Helpers
-  const handleUpdateItemQuantity = (sku, delta) => setTempOrderItems(p => p.map(it => it.sku === sku ? { ...it, quantity: Math.max(1, it.quantity + delta) } : it));
-  const handleRemoveItemFromOrder = (sku) => setTempOrderItems(p => p.filter(it => it.sku !== sku));
-  const handleAddItemToOrder = (prod) => {
-    const qty = prod.default_quantity || 12;
-    setTempOrderItems(prev => {
-      const exists = prev.find(it => it.sku === prod.sku);
-      if (exists) {
-        return prev.map(it => it.sku === prod.sku ? { ...it, quantity: it.quantity + qty } : it);
-      }
-      return [...prev, { ...prod, quantity: qty }];
-    });
-    setEditingOrderSearch('');
-  };
   
-  const handleSaveOrderEdits = async () => {
+
+  
+  const handleSaveOrderEdits = async (items, discount) => {
     setIsUpdatingOrder(true);
-    const subtotal = tempOrderItems.reduce((s, i) => s + (parseFloat(i.price) * i.quantity), 0);
-    const total = subtotal * (1 - tempOrderDiscount / 100);
-    const { error } = await supabase.from('orders').update({ items: tempOrderItems, discount_pct: tempOrderDiscount, total_price: total }).eq('id', selectedOrder.id);
-    if (!error) { const up = { ...selectedOrder, items: tempOrderItems, discount_pct: tempOrderDiscount, total_price: total }; setSelectedOrder(up); setOrders(orders.map(o => o.id === up.id ? up : o)); setIsEditingOrder(false); }
+    const subtotal = items.reduce((s, i) => s + (parseFloat(i.price) * i.quantity), 0);
+    const total = subtotal * (1 - discount / 100);
+    const { error } = await supabase.from('orders').update({ 
+      items: items, 
+      discount_pct: discount, 
+      total_price: total 
+    }).eq('id', selectedOrder.id);
+    
+    if (!error) { 
+      const updatedOrder = { ...selectedOrder, items, discount_pct: discount, total_price: total }; 
+      setSelectedOrder(updatedOrder); 
+      setOrders(orders.map(o => o.id === updatedOrder.id ? updatedOrder : o)); 
+      setIsEditingOrder(false); 
+    }
     setIsUpdatingOrder(false);
   };
+
 
   const handleAddNote = async () => {
     setIsSubmittingNote(true);
@@ -320,7 +346,7 @@ const Admin = () => {
     if (!error) { const up = { ...selectedOrder, notes }; setSelectedOrder(up); setOrders(orders.map(o => o.id === up.id ? up : o)); setConfirmingNoteDelete(null); }
   };
 
-  const filteredProductsForEditing = useMemo(() => editingOrderSearch.trim() ? products.filter(p => p.name.includes(editingOrderSearch) || p.sku.includes(editingOrderSearch)).slice(0, 5) : [], [products, editingOrderSearch]);
+
 
   return (
     <div className="flex h-screen bg-[#FDFDFE] text-slate-900 overflow-hidden" dir="rtl">
@@ -341,7 +367,83 @@ const Admin = () => {
       {(isAddingCategory || !!editingCategory) && <CategoryFormModal isOpen={true} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />}
       {(isAddingBrand || !!editingBrand) && <BrandFormModal isOpen={true} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />}
       {(isAddingBanner || !!editingBanner) && <BannerFormModal isOpen={true} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />}
-      {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} isEditingOrder={isEditingOrder} setIsEditingOrder={setIsEditingOrder} tempOrderItems={tempOrderItems} handleUpdateItemQuantity={handleUpdateItemQuantity} handleRemoveItemFromOrder={handleRemoveItemFromOrder} editingOrderSearch={editingOrderSearch} setEditingOrderSearch={setEditingOrderSearch} filteredProductsForEditing={filteredProductsForEditing} handleAddItemToOrder={handleAddItemToOrder} tempOrderDiscount={tempOrderDiscount} setTempOrderDiscount={setTempOrderDiscount} handleSaveOrderEdits={handleSaveOrderEdits} isUpdatingOrder={isUpdatingOrder} adminName={adminName} setAdminName={setAdminName} newNoteText={newNoteText} setNewNoteText={setNewNoteText} handleAddNote={handleAddNote} isSubmittingNote={isSubmittingNote} confirmingNoteDelete={confirmingNoteDelete} setConfirmingNoteDelete={setConfirmingNoteDelete} handleDeleteNote={handleDeleteNote} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} />}
+      {selectedOrder && (
+        <OrderDetailsModal 
+          order={selectedOrder} 
+          onClose={() => setSelectedOrder(null)} 
+          setIsEditingOrder={setIsEditingOrder}
+          handleUpdateOrderStatus={handleUpdateOrderStatus}
+          setSelectedOrder={setSelectedOrder}
+          adminName={adminName}
+          setAdminName={setAdminName}
+          newNoteText={newNoteText}
+          setNewNoteText={setNewNoteText}
+          handleAddNote={handleAddNote}
+          isSubmittingNote={isSubmittingNote}
+          confirmingNoteDelete={confirmingNoteDelete}
+          setConfirmingNoteDelete={setConfirmingNoteDelete}
+          handleDeleteNote={handleDeleteNote}
+        />
+      )}
+
+      {isEditingOrder && selectedOrder && (
+        <OrderEditModal
+          isOpen={true}
+          onClose={() => setIsEditingOrder(false)}
+          order={selectedOrder}
+          products={products}
+          onSave={handleSaveOrderEdits}
+          isUpdating={isUpdatingOrder}
+        />
+      )}
+
+
+      {/* 🚀 Floating Status Dropdown (Portal-like) */}
+      <AnimatePresence>
+        {activeStatusMenu.id && activeStatusMenu.rect && (
+          <>
+            <div 
+              className="fixed inset-0 z-[100]" 
+              onClick={() => setActiveStatusMenu({ id: null, rect: null })}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              style={{
+                position: 'fixed',
+                top: activeStatusMenu.rect.bottom + 8,
+                left: activeStatusMenu.rect.left,
+                width: activeStatusMenu.rect.width,
+                minWidth: '180px'
+              }}
+              className="bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-100 p-2 z-[101] overflow-hidden"
+            >
+              {Object.entries(statusMap).map(([key, s]) => {
+                const currentOrder = orders.find(o => o.id === activeStatusMenu.id);
+                const isActive = currentOrder?.status === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateOrderStatus(activeStatusMenu.id, key);
+                      setActiveStatusMenu({ id: null, rect: null });
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors rounded-xl text-right ${isActive ? 'bg-slate-50' : ''}`}
+                  >
+                    <s.icon size={14} className={s.color} />
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${s.color}`}>
+                      {s.label}
+                    </span>
+                    {isActive && <Check size={12} className="mr-auto text-slate-400" />}
+                  </button>
+                );
+              })}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

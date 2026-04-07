@@ -95,8 +95,8 @@ const PromotionBanners = ({ onBannerClick }) => {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-6 mb-12">
-        <div className="h-[250px] md:h-[450px] bg-slate-100 rounded-[32px] md:rounded-[48px] animate-pulse shadow-sm" />
+      <div className="max-w-none md:max-w-3xl mx-auto px-0 md:px-6 mb-12">
+        <div className="aspect-[16/10] md:h-[450px] bg-slate-100 rounded-[32px] md:rounded-[48px] animate-pulse shadow-sm" />
       </div>
     );
   }
@@ -104,9 +104,9 @@ const PromotionBanners = ({ onBannerClick }) => {
   if (banners.length === 0) return null;
 
   return (
-    <div className="relative w-full max-w-7xl mx-auto px-6 mb-12 group" dir="rtl">
+    <div className="relative w-full max-w-none md:max-w-3xl mx-auto px-0 md:px-6 mb-12 group" dir="rtl">
       {/* Scrollable Container */}
-      <div className="relative h-[250px] md:h-[450px] shadow-2xl shadow-slate-200 bg-slate-50 border border-white rounded-[32px] md:rounded-[48px] overflow-hidden">
+      <div className="relative aspect-[16/10] md:h-[450px] shadow-2xl shadow-slate-200 bg-slate-50 border border-white rounded-[32px] md:rounded-[48px] overflow-hidden">
         <div 
           ref={scrollRef}
           className="flex h-full overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar"

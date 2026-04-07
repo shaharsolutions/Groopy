@@ -55,7 +55,7 @@ const BrandCarousel = () => {
   return (
     <div className="w-full bg-white py-6 mb-4 overflow-hidden relative border-y border-slate-50/50">
       {/* Label */}
-      <div className="container mx-auto px-6 mb-4 flex items-center justify-center">
+      <div className="mb-4 flex items-center justify-center">
         <span className="text-sm font-bold text-slate-400 tracking-wide">המותגים שלנו</span>
       </div>
 

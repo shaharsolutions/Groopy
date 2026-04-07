@@ -416,7 +416,7 @@ const Catalog = () => {
         <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary-50/30 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-1/3 h-full bg-gradient-to-r from-accent-50/20 to-transparent pointer-events-none" />
         
-        <div className="container mx-auto px-6 relative z-10 max-w-3xl">
+        <div className="container mx-auto px-6 relative z-10 md:max-w-3xl">
           {/* Main Title Section */}
           <div className="text-center mb-10 md:mb-14">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-[900] text-slate-900 tracking-tighter leading-[1.1] mb-4">

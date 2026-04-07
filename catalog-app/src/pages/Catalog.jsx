@@ -78,7 +78,6 @@ const Catalog = () => {
   };
 
   const closeProductModal = () => {
-    setSelectedProduct(null);
     setIsProductModalOpen(false);
   };
   

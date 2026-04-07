@@ -36,7 +36,8 @@ const ProductDetailModal = ({
     setIsAdded(true);
     setTimeout(() => {
       setIsAdded(false);
-    }, 2000);
+      onClose();
+    }, 600);
   };
 
   const adjustQuantity = (delta) => {

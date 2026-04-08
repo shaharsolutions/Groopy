@@ -12,7 +12,8 @@ import {
   ShoppingCart,
   ChevronDown,
   Package,
-  UserCheck
+  UserCheck,
+  RotateCcw
 } from 'lucide-react';
 
 const CartDrawer = ({ 
@@ -33,7 +34,11 @@ const CartDrawer = ({
   isSent, 
   isSubmitting,
   activeAgent,
-  onOpenAgentSelector
+  onOpenAgentSelector,
+  isAgentLocked,
+  restorableCart = [],
+  onRestoreCart,
+  onDismissRestore
 }) => {
   return (
     <>
@@ -176,9 +181,8 @@ const CartDrawer = ({
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             className="text-red-500 text-xs font-black uppercase tracking-widest mt-1 pr-2"
-                          >
-                            {formError}
-                          </motion.p>
+                            dangerouslySetInnerHTML={{ __html: formError }}
+                          />
                         )}
                       </AnimatePresence>
                     </div>
@@ -246,7 +250,7 @@ const CartDrawer = ({
                       {activeAgent ? (
                         <div className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100/50 px-4 py-2 rounded-full border border-slate-100">
                           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          <span>ההזמנה תישלח לסוכן: <span className="text-slate-900 underline decoration-primary-500 decoration-2">{activeAgent.name}</span></span>
+                          <span>ההזמנה תישלח לסוכן: <span className={`text-slate-900 ${isAgentLocked ? '' : 'underline decoration-primary-500 decoration-2'}`}>{activeAgent.name}</span></span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-xs font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-full border border-red-100">
@@ -296,6 +300,53 @@ const CartDrawer = ({
               </div>
               <div className="absolute inset-0 bg-gradient-to-r from-primary-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🔄 RESTORE CART BUTTON */}
+      <AnimatePresence>
+        {cart.length === 0 && restorableCart.length > 0 && !isCartOpen && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-4 md:bottom-6 left-0 right-0 z-40 px-4 md:px-6 pointer-events-none"
+          >
+            <div className="relative max-w-sm mx-auto w-full pointer-events-auto">
+              <button 
+                onClick={onRestoreCart}
+                className="w-full bg-white border-2 border-slate-900 text-slate-900 p-2 md:p-4 rounded-[24px] md:rounded-[28px] shadow-2xl flex items-center justify-between group relative overflow-hidden"
+              >
+                <div className="flex items-center gap-2 md:gap-3 relative z-10 pl-1 md:pl-2">
+                  <div className="w-10 h-10 md:w-14 md:h-14 bg-slate-900 rounded-xl md:rounded-2xl flex items-center justify-center group-hover:rotate-[-45deg] transition-transform text-white shadow-lg">
+                    <RotateCcw size={18} md:size={24} />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5 md:mb-1">ההזמנה לא נשלחה?</div>
+                    <div className="font-black text-lg md:text-2xl tracking-tighter leading-none">שחזר את הסל</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 md:gap-2 pr-0 md:pr-4 relative z-10">
+                  <div className="bg-slate-100 group-hover:bg-slate-900 group-hover:text-white px-3 md:px-4 py-2 md:py-4 rounded-xl md:rounded-2xl font-black text-xs md:text-base tracking-tight transition-all text-slate-900 shadow-sm">
+                    שחזור
+                  </div>
+                </div>
+                <div className="absolute inset-0 bg-primary-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+
+              {/* ✨ Floating Dismiss Button (Outside overflow-hidden) */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDismissRestore();
+                }}
+                className="absolute -top-3 -left-3 w-8 h-8 bg-white border-2 border-slate-900 rounded-full flex items-center justify-center shadow-xl hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all z-30 group"
+                title="סגור"
+              >
+                <X size={14} className="text-slate-900 group-hover:rotate-90 transition-transform" />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

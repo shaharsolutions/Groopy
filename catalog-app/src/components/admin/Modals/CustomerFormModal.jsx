@@ -134,7 +134,7 @@ const CustomerFormModal = ({
                   <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
                   </div>
-                  <span className="text-sm font-black">{error}</span>
+                  <span className="text-sm font-black" dangerouslySetInnerHTML={{ __html: error }} />
                 </div>
               </motion.div>
             )}
@@ -371,7 +371,7 @@ const CustomerFormModal = ({
             ביטול
           </button>
           <button 
-            onClick={onSave}
+            onClick={() => onSave()}
             disabled={isUpdating || !customer.business_name}
             className="flex items-center gap-3 bg-primary-500 text-white px-12 py-4 rounded-2xl text-sm font-black shadow-xl shadow-primary-200 hover:bg-primary-600 transition-all disabled:opacity-50"
           >

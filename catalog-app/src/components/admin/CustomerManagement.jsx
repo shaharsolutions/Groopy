@@ -101,7 +101,14 @@ const CustomerManagement = ({
                       {customer.business_name.charAt(0)}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-base font-black text-slate-800">{customer.business_name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-black text-slate-800">{customer.business_name}</span>
+                        {String(customer.id).startsWith('virtual-') ? (
+                          <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 uppercase tracking-tighter">הזמנות</span>
+                        ) : (
+                          <span className="text-[9px] font-black text-primary-600 bg-primary-50 px-2 py-0.5 rounded-lg border border-primary-100 uppercase tracking-tighter">CRM</span>
+                        )}
+                      </div>
                       {customer.address && (
                         <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold">
                           <MapPin size={10} />
@@ -177,7 +184,12 @@ const CustomerManagement = ({
                     ) : (
                       <button 
                         onClick={() => setConfirmingCustomerDelete(customer.id)}
-                        className="p-3 bg-slate-50 text-slate-400 hover:text-red-500 rounded-2xl shadow-sm border border-transparent hover:border-slate-100 transition-all"
+                        className={`p-3 rounded-2xl shadow-sm border border-transparent transition-all ${
+                          String(customer.id).startsWith('virtual-') 
+                            ? 'bg-slate-50 text-slate-300 cursor-help hover:bg-slate-100' 
+                            : 'bg-slate-50 text-slate-400 hover:text-red-500 hover:border-slate-100'
+                        }`}
+                        title={String(customer.id).startsWith('virtual-') ? 'לא ניתן למחוק לקוח מהזמנות' : 'מחיקת לקוח'}
                       >
                         <Trash2 size={18} />
                       </button>

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserCheck, ChevronLeft } from 'lucide-react';
 
-const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems }) => {
+const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems, isLocked }) => {
   // Calculate bottom position based on mini-cart visibility
   // Mini-cart sits at bottom-4 (16px) or bottom-6 (24px)
   // We want to be ~12px above it.
@@ -18,11 +18,12 @@ const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems }) => {
       >
         <button
           onClick={onOpenSelector}
-          className="pointer-events-auto max-w-fit flex items-center gap-4 bg-white/90 backdrop-blur-xl border border-slate-200/50 p-2 pr-5 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)] transition-all group active:scale-95"
+          disabled={isLocked}
+          className={`pointer-events-auto max-w-fit flex items-center gap-6 bg-white/95 backdrop-blur-2xl border border-slate-200/60 p-3 px-6 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all group ${!isLocked ? 'hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)] active:scale-95' : 'cursor-default'}`}
         >
           {/* Agent Info Area */}
-          <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${activeAgent ? 'bg-primary-50' : 'bg-slate-100'} border-2 ${activeAgent ? 'border-primary-100' : 'border-slate-200'}`}>
+          <div className="flex items-center gap-5">
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${activeAgent ? 'bg-primary-50' : 'bg-slate-100'} border-2 ${activeAgent ? 'border-primary-100' : 'border-slate-200'} shadow-inner`}>
               {activeAgent?.image ? (
                 <img src={activeAgent.image} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -30,20 +31,22 @@ const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems }) => {
               )}
             </div>
             
-            <div className="flex flex-col items-start pr-1">
-              <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                {activeAgent ? 'סוכן מחובר' : 'לא מחובר לסוכן'}
+            <div className="flex flex-col items-start pr-0.5">
+              <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] leading-none mb-1.5">
+                {isLocked ? 'הסוכן שלך' : activeAgent ? 'סוכן מחובר' : 'לא מחובר לסוכן'}
               </span>
-              <span className="text-base font-bold text-slate-900 leading-none">
+              <span className="text-lg font-bold text-slate-900 leading-none">
                 {activeAgent ? activeAgent.name : 'בחר סוכן להזמנה'}
               </span>
             </div>
           </div>
 
           {/* Action Icon */}
-          <div className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center group-hover:bg-primary-600 transition-colors mr-2">
-            <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
-          </div>
+          {!isLocked && (
+            <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center group-hover:bg-primary-600 transition-colors ml-[-4px]">
+              <ChevronLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
+            </div>
+          )}
         </button>
       </motion.div>
     </AnimatePresence>

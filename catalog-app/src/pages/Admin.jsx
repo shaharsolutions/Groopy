@@ -16,6 +16,7 @@ import CustomerManagement from '../components/admin/CustomerManagement';
 import { statusMap } from '../components/admin/OrderManagement';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check } from 'lucide-react';
+import AlertModal from '../components/common/AlertModal';
 
 // Modals
 import ProductFormModal from '../components/admin/Modals/ProductFormModal';
@@ -140,6 +141,8 @@ const Admin = () => {
   const [newNoteText, setNewNoteText] = useState('');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [confirmingNoteDelete, setConfirmingNoteDelete] = useState(null);
+  
+  const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
 
 
   useEffect(() => {
@@ -179,11 +182,11 @@ const Admin = () => {
         setNewProduct({ name: '', sku: '', price: '', category: '', location: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, default_quantity: 12 }); 
       } else {
         console.error('Error adding product:', error);
-        alert('שגיאה בהוספת מוצר: ' + (error.message || 'שגיאה לא ידועה'));
+        setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת מוצר: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
       }
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('שגיאה לא צפויה בהוספת מוצר');
+      setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה בהוספת מוצר', type: 'error' });
     } finally { 
       setIsUpdatingProduct(false); 
     }
@@ -230,7 +233,7 @@ const Admin = () => {
       setNewAgent({ name: '', phone: '', image: '' }); 
     } else {
       console.error('Error adding agent:', error);
-      alert('שגיאה בהוספת סוכן: ' + (error.message || 'שגיאה לא ידועה'));
+      setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת סוכן: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
     }
     setIsUpdatingAgent(false);
   };
@@ -243,7 +246,7 @@ const Admin = () => {
       setEditingAgent(null); 
     } else {
       console.error('Error updating agent:', error);
-      alert('שגיאה בעדכון סוכן: ' + (error.message || 'שגיאה לא ידועה'));
+      setAlertConfig({ isOpen: true, message: 'שגיאה בעדכון סוכן: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
     }
     setIsUpdatingAgent(false);
   };
@@ -255,7 +258,7 @@ const Admin = () => {
       setConfirmingAgentDelete(null); 
     } else {
       console.error('Error deleting agent:', error);
-      alert('שגיאה במחיקת סוכן: ' + (error.message || 'שגיאה לא ידועה'));
+      setAlertConfig({ isOpen: true, message: 'שגיאה במחיקת סוכן: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
     }
   };
 
@@ -280,11 +283,11 @@ const Admin = () => {
         setNewCategory({ name: '' }); 
       } else {
         console.error('Error adding category:', error);
-        alert('שגיאה בהוספת קטגוריה: ' + (error.message || 'שגיאה לא ידועה'));
+        setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת קטגוריה: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
       }
     } catch (err) {
       console.error('Unexpected error adding category:', err);
-      alert('שגיאה לא צפויה בהוספת קטגוריה');
+      setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה בהוספת קטגוריה', type: 'error' });
     } finally {
       setIsUpdatingCategory(false);
     }
@@ -314,11 +317,11 @@ const Admin = () => {
         setNewBrand({ name: '', logo: '', type: '', show_in_carousel: true }); 
       } else {
         console.error('Error adding brand:', error);
-        alert('שגיאה בהוספת מותג: ' + (error.message || 'שגיאה לא ידועה'));
+        setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת מותג: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
       }
     } catch (err) {
       console.error('Unexpected error adding brand:', err);
-      alert('שגיאה לא צפויה בהוספת מותג');
+      setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה בהוספת מותג', type: 'error' });
     } finally {
       setIsUpdatingBrand(false);
     }
@@ -348,11 +351,11 @@ const Admin = () => {
         setNewBanner({ image: '', title: '', target_type: 'none', target_value: '', is_active: true, order_index: 0 }); 
       } else {
         console.error('Error adding banner:', error);
-        alert('שגיאה בהוספת באנר: ' + (error.message || 'שגיאה לא ידועה'));
+        setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת באנר: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
       }
     } catch (err) {
       console.error('Unexpected error adding banner:', err);
-      alert('שגיאה לא צפויה בהוספת באנר');
+      setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה בהוספת באנר', type: 'error' });
     } finally {
       setIsUpdatingBanner(false);
     }
@@ -381,15 +384,30 @@ const Admin = () => {
     return err.message || 'שגיאה בשמירת הנתונים';
   };
 
-  const handleAddCustomer = async (overrideCustomer = null) => {
+  const handleAddCustomer = async (data = null) => {
     setCustomerError(null);
     setIsUpdatingCustomer(true);
     try {
-      const { source, orderCount, lastOrderDate, ...customerData } = overrideCustomer || newCustomer;
+      // 🛡️ Safeguard: If called via onClick={handleAddCustomer}, 'data' will be an Event object.
+      // We check for .nativeEvent to distinguish between a record object and a DOM event.
+      const isEvent = data && (data.nativeEvent || data.target);
+      const customerToSave = (data && !isEvent) ? data : newCustomer;
+      
+      const { source, orderCount, lastOrderDate, ...customerData } = customerToSave;
+
+      // 🧹 Clean Data: Ensure we only send serializable primitives to Supabase
+      // This strips any accidentally injected DOM elements or React events
+      const cleanCustomerData = Object.keys(customerData).reduce((acc, key) => {
+        const value = customerData[key];
+        const isSerializable = value === null || (typeof value !== 'object' && typeof value !== 'function') || Array.isArray(value) || (Object.prototype.toString.call(value) === '[object Object]');
+        if (isSerializable) acc[key] = value;
+        return acc;
+      }, {});
+      
       const { data, error } = await supabase.from('customers').upsert([{ 
-        ...customerData, 
-        id: customerData.id || generateUUID(),
-        created_at: customerData.created_at || new Date().toISOString()
+        ...cleanCustomerData, 
+        id: cleanCustomerData.id || generateUUID(),
+        created_at: cleanCustomerData.created_at || new Date().toISOString()
       }], { onConflict: 'business_name' }).select();
       
       if (!error) { 
@@ -401,7 +419,7 @@ const Admin = () => {
       }
     } catch (err) {
       console.error('Unexpected error adding customer:', err);
-      alert('שגיאה לא צפויה בהוספת לקוח');
+      setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה בהוספת לקוח', type: 'error' });
     } finally {
       setIsUpdatingCustomer(false);
     }
@@ -415,9 +433,17 @@ const Admin = () => {
     if (editingCustomer.id && String(editingCustomer.id).startsWith('virtual-')) {
       const { id, source, orderCount, lastOrderDate, ...customerData } = editingCustomer;
       
+      // 🧹 Clean Data
+      const cleanCustomerData = Object.keys(customerData).reduce((acc, key) => {
+        const value = customerData[key];
+        const isSerializable = value === null || (typeof value !== 'object' && typeof value !== 'function') || Array.isArray(value) || (Object.prototype.toString.call(value) === '[object Object]');
+        if (isSerializable) acc[key] = value;
+        return acc;
+      }, {});
+
       // 📧 Robust Collision Check (Case-insensitive & trimmed)
-      const normEmail = customerData.email?.toLowerCase().trim();
-      const normName = customerData.business_name?.toLowerCase().trim();
+      const normEmail = cleanCustomerData.email?.toLowerCase().trim();
+      const normName = cleanCustomerData.business_name?.toLowerCase().trim();
       
       const existingRecord = customers.find(c => 
         (normEmail && c.email?.toLowerCase().trim() === normEmail) ||
@@ -427,7 +453,7 @@ const Admin = () => {
       const targetId = existingRecord ? existingRecord.id : generateUUID();
 
       const { data, error } = await supabase.from('customers').upsert([{ 
-        ...customerData, 
+        ...cleanCustomerData, 
         id: targetId,
         created_at: existingRecord ? existingRecord.created_at : new Date().toISOString()
       }], { onConflict: 'business_name' }).select();
@@ -458,7 +484,16 @@ const Admin = () => {
     } else {
       // Normal update for existing DB customer
       const { source, orderCount, lastOrderDate, ...customerData } = editingCustomer;
-      const { error } = await supabase.from('customers').update(customerData).eq('id', editingCustomer.id);
+
+      // 🧹 Clean Data
+      const cleanCustomerData = Object.keys(customerData).reduce((acc, key) => {
+        const value = customerData[key];
+        const isSerializable = value === null || (typeof value !== 'object' && typeof value !== 'function') || Array.isArray(value) || (Object.prototype.toString.call(value) === '[object Object]');
+        if (isSerializable) acc[key] = value;
+        return acc;
+      }, {});
+
+      const { error } = await supabase.from('customers').update(cleanCustomerData).eq('id', editingCustomer.id);
       if (!error) { 
         setCustomers(customers.map(c => c.id === editingCustomer.id ? editingCustomer : c)); 
         setEditingCustomer(null); 
@@ -473,13 +508,25 @@ const Admin = () => {
   };
 
   const handleDeleteCustomer = async (id) => {
+    // 🛡️ Safeguard: Virtual customers are derived from order history and don't exist code-wise in CRM.
+    if (String(id).startsWith('virtual-')) {
+      setAlertConfig({ 
+        isOpen: true, 
+        message: 'לקוח זה נוצר באופן אוטומטי מהיסטוריית הזמנות ואינו קיים במאגר ה-CRM. לא ניתן למחוק אותו מבלי למחוק את ההזמנות המשויכות אליו.', 
+        type: 'info',
+        title: 'מידע'
+      });
+      setConfirmingCustomerDelete(null);
+      return;
+    }
+
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (!error) { 
       setCustomers(customers.filter(c => c.id !== id)); 
       setConfirmingCustomerDelete(null); 
     } else {
       console.error('Error deleting customer:', error);
-      alert('שגיאה במחיקת לקוח');
+      setAlertConfig({ isOpen: true, message: 'שגיאה במחיקת לקוח', type: 'error' });
     }
   };
 
@@ -496,10 +543,10 @@ const Admin = () => {
         }
       }
       fetchData(); // Refresh all
-      alert('ייבוא הלקוחות הושלם בהצלחה');
+      setAlertConfig({ isOpen: true, message: 'ייבוא הלקוחות הושלם בהצלחה', type: 'success' });
     } catch (err) {
       console.error('Error importing customers:', err);
-      alert('שגיאה בייבוא לקוחות');
+      setAlertConfig({ isOpen: true, message: 'שגיאה בייבוא לקוחות', type: 'error' });
     }
   };
 
@@ -515,10 +562,18 @@ const Admin = () => {
     // 🚀 Promotion Logic: If virtual, create/link in DB first
     if (target.id && String(target.id).startsWith('virtual-')) {
       const { id, source, orderCount, lastOrderDate, ...customerData } = target;
+
+      // 🧹 Clean Data
+      const cleanCustomerData = Object.keys(customerData).reduce((acc, key) => {
+        const value = customerData[key];
+        const isSerializable = value === null || (typeof value !== 'object' && typeof value !== 'function') || Array.isArray(value) || (Object.prototype.toString.call(value) === '[object Object]');
+        if (isSerializable) acc[key] = value;
+        return acc;
+      }, {});
       
       // 📧 Robust Collision Check
-      const normEmail = customerData.email?.toLowerCase().trim();
-      const normName = customerData.business_name?.toLowerCase().trim();
+      const normEmail = cleanCustomerData.email?.toLowerCase().trim();
+      const normName = cleanCustomerData.business_name?.toLowerCase().trim();
       
       const existingRecord = customers.find(c => 
         (normEmail && c.email?.toLowerCase().trim() === normEmail) ||
@@ -528,7 +583,7 @@ const Admin = () => {
       const targetId = existingRecord ? existingRecord.id : generateUUID();
 
       const { data, error: promoError } = await supabase.from('customers').upsert([{ 
-        ...customerData, 
+        ...cleanCustomerData, 
         id: targetId,
         created_at: existingRecord ? existingRecord.created_at : new Date().toISOString(),
         notes: [...(existingRecord?.notes || []), ...notes] // Merge notes if linking
@@ -725,6 +780,13 @@ const Admin = () => {
           setConfirmingNoteDelete={setConfirmingNoteDelete}
           handleDeleteNote={handleDeleteNote}
           customers={customers}
+          onOpenCustomer={(customerName) => {
+            const customer = customers.find(c => c.business_name === customerName);
+            if (customer) {
+              setSelectedCustomerDetails(customer);
+              setSelectedOrder(null);
+            }
+          }}
         />
       )}
 
@@ -739,6 +801,13 @@ const Admin = () => {
         />
       )}
 
+      <AlertModal 
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        title={alertConfig.title}
+      />
 
       {/* 🚀 Floating Status Dropdown (Portal-like) */}
       <AnimatePresence>

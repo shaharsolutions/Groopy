@@ -16,7 +16,8 @@ import {
   Edit, 
   Save, 
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmCancelModal from './ConfirmCancelModal';
@@ -44,11 +45,13 @@ const OrderDetailsModal = (props) => {
     confirmingNoteDelete,
     setConfirmingNoteDelete,
     handleDeleteNote,
-    customers = []
+    customers = [],
+    onOpenCustomer
   } = props;
 
-  const [activeTab, setActiveTab] = useState('notes'); // 'items' or 'notes'
+  // Removed activeTab state as we are moving to a single scrollable view
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const scrollContainerRef = React.useRef(null);
   
   if (!order) return null;
 
@@ -58,10 +61,17 @@ const OrderDetailsModal = (props) => {
   const discountAmount = subtotal * (discountPct / 100);
   const total = subtotal - discountAmount;
 
-  const tabs = [
-    { id: 'items', label: 'פריטים ותשלום', icon: ShoppingBag },
-    { id: 'notes', label: 'לוגיסטיקה וציר זמן', icon: Clock }
+  const sections = [
+    { id: 'logistics', label: 'לוגיסטיקה וציר זמן', icon: Clock },
+    { id: 'items', label: 'פריטים ותשלום', icon: ShoppingBag }
   ];
+
+  const scrollToSection = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[120] overflow-y-auto">
@@ -103,15 +113,29 @@ const OrderDetailsModal = (props) => {
                     </span>
                   </div>
                 </div>
-                {order.agent_name && (
-                  <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-50">
-                    <div className="w-6 h-6 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400">
-                      <Settings size={12} />
+
+                <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-slate-100">
+                  <button 
+                    onClick={() => onOpenCustomer?.(order.customer_name)}
+                    className="flex items-center justify-between w-full h-11 px-4 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-xl transition-all group/btn"
+                  >
+                    <div className="flex items-center gap-2">
+                      <User size={14} className="group-hover/btn:scale-110 transition-transform" />
+                      <span className="text-xs font-black uppercase tracking-widest">כרטיס לקוח</span>
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">דרך סוכן:</span>
-                    <span className="text-xs font-black text-primary-600">{order.agent_name}</span>
-                  </div>
-                )}
+                    <ExternalLink size={14} className="opacity-40 group-hover/btn:opacity-100 group-hover/btn:translate-x-[-2px] transition-all" />
+                  </button>
+
+                  {order.agent_name && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-6 h-6 bg-slate-100/50 rounded-lg flex items-center justify-center text-slate-400">
+                        <Settings size={12} />
+                      </div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">דרך סוכן:</span>
+                      <span className="text-xs font-black text-primary-600">{order.agent_name}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Status Actions */}
@@ -158,21 +182,16 @@ const OrderDetailsModal = (props) => {
           <div className="flex-1 flex flex-col bg-white overflow-hidden relative">
             {/* Tabs Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between px-6 md:px-12 pt-8 md:pt-10 pb-4 md:pb-6 border-b border-slate-100 gap-6">
-               <div className="flex items-center gap-4 md:gap-8">
-                  {tabs.map(tab => (
+                <div className="flex items-center gap-4 md:gap-8">
+                  {sections.map(section => (
                     <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`relative pb-4 flex items-center gap-2 transition-all group ${activeTab === tab.id ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      key={section.id}
+                      onClick={() => scrollToSection(section.id)}
+                      className="relative pb-4 flex items-center gap-2 transition-all group text-slate-400 hover:text-primary-600"
                     >
-                      <tab.icon size={16} className={activeTab === tab.id ? 'text-primary-500' : 'opacity-40'} />
-                      <span className="text-[10px] md:text-sm font-black uppercase tracking-widest whitespace-nowrap">{tab.label}</span>
-                      {activeTab === tab.id && (
-                        <motion.div 
-                          layoutId="activeTabUnderline"
-                          className="absolute bottom-0 left-0 right-0 h-1 bg-primary-500 rounded-full"
-                        />
-                      )}
+                      <section.icon size={16} className="opacity-40 group-hover:opacity-100 group-hover:text-primary-500 transition-all" />
+                      <span className="text-[10px] md:text-sm font-black uppercase tracking-widest whitespace-nowrap">{section.label}</span>
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-500 rounded-full opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0" />
                     </button>
                   ))}
                </div>
@@ -186,16 +205,129 @@ const OrderDetailsModal = (props) => {
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 md:p-12 thin-scrollbar">
-              <AnimatePresence mode="wait">
-                {activeTab === 'items' ? (
+            <div 
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto p-8 md:p-12 thin-scrollbar scroll-smooth"
+            >
+              <div className="space-y-16">
+                {/* Logistics & Timeline Section */}
+                <div id="logistics" className="scroll-mt-10">
                   <motion.div
-                    key="items-tab"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="space-y-6"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-10"
                   >
+                    {/* Customer Personal Note (if exists) */}
+                    {order.customer_note && (
+                      <div className="bg-primary-50/50 p-8 rounded-[32px] border border-primary-100 border-dashed text-right relative">
+                        <div className="absolute top-4 left-6 text-primary-200 uppercase font-black text-[40px] opacity-20 pointer-events-none self-start">"</div>
+                        <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest block mb-4">הערת לקוח מההזמנה:</span>
+                        <p className="text-lg font-bold text-slate-700 leading-relaxed italic pr-4 border-r-4 border-primary-500/20">
+                          {order.customer_note}
+                        </p>
+                      </div>
+                    )}
+
+                    <h4 className="text-2xl font-black text-slate-900 tracking-tighter flex items-center gap-3 mb-2">
+                       <Zap size={24} className="text-amber-500" />
+                       לוגיסטיקה וציר זמן
+                    </h4>
+
+                    {/* Add Note Form */}
+                    <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 space-y-4">
+                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block pr-2">הוספת הערה לוגיסטית</span>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <input 
+                            type="text" 
+                            placeholder="כותב ההערה..."
+                            className="bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-primary-400 transition-all text-right shadow-sm"
+                            value={adminName}
+                            onChange={(e) => setAdminName(e.target.value)}
+                          />
+                          <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-400 text-right opacity-50 shadow-sm">הערה ידנית</div>
+                       </div>
+                       <textarea 
+                        rows="3"
+                        placeholder="הקלד כאן את תוכן ההערה..."
+                        className="w-full bg-white border border-slate-200 rounded-[24px] p-6 text-sm font-bold outline-none focus:border-primary-400 transition-all text-right shadow-sm"
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                       />
+                       <button 
+                         onClick={handleAddNote}
+                         disabled={isSubmittingNote || !newNoteText.trim() || !adminName.trim()}
+                         className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-30"
+                       >
+                         {isSubmittingNote ? 'שומר...' : 'שמירת הערה'}
+                       </button>
+                    </div>
+
+                    {/* Logistics Notes Timeline */}
+                    <div className="space-y-6">
+                       <div className="space-y-4">
+                          {(order.notes || []).length === 0 && (
+                            <div className="text-center py-16 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px]">
+                               <Clock size={40} className="mx-auto text-slate-200 mb-4" />
+                               <p className="text-slate-400 font-bold">אין הערות זמינות להזמנה זו</p>
+                            </div>
+                          )}
+                          {[...(order.notes || [])]
+                            .map((note, originalIdx) => ({ ...note, originalIdx }))
+                            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                            .map((note) => (
+                              <motion.div 
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                key={`note-${note.originalIdx}`} 
+                                className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm relative group/note text-right"
+                              >
+                                <div className="flex items-center justify-between mb-3 pl-10">
+                                  <div className="flex items-center gap-3">
+                                     <div className="w-8 h-8 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center font-black text-xs">
+                                        {note.author?.[0]}
+                                     </div>
+                                     <span className="text-sm font-black text-slate-800 tracking-tight">{note.author}</span>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-300">
+                                    {new Date(note.timestamp).toLocaleDateString()} • {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="text-slate-600 text-sm font-bold leading-relaxed pr-11">{note.text}</p>
+                                
+                                <button 
+                                  onClick={() => setConfirmingNoteDelete(note.originalIdx)}
+                                  className="absolute top-4 left-4 p-2 text-slate-300 hover:text-red-500 opacity-20 group-hover/note:opacity-100 transition-all"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+  
+                                {confirmingNoteDelete === note.originalIdx && (
+                                  <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-[32px] flex items-center justify-center gap-4 animate-in fade-in">
+                                     <span className="text-sm font-black text-red-500">למחוק הערה?</span>
+                                     <button onClick={() => handleDeleteNote(note.originalIdx)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-black">מחק</button>
+                                     <button onClick={() => setConfirmingNoteDelete(null)} className="bg-slate-100 text-slate-500 px-4 py-2 rounded-xl text-xs font-black">ביטול</button>
+                                  </div>
+                                )}
+                              </motion.div>
+                            ))}
+                       </div>
+                    </div>
+                  </motion.div>
+                </div>
+
+                {/* Items & Payment Section */}
+                <div id="items" className="scroll-mt-10 pt-10 border-t border-slate-100">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-8"
+                  >
+                    <h4 className="text-2xl font-black text-slate-900 tracking-tighter flex items-center gap-3">
+                       <ShoppingBag size={24} className="text-primary-500" />
+                       פריטים ותשלום
+                    </h4>
+
                     {/* Items List */}
                     <div className="space-y-4">
                       {(order.items || []).map((item, idx) => (
@@ -251,118 +383,8 @@ const OrderDetailsModal = (props) => {
                        </div>
                     </div>
                   </motion.div>
-                ) : (
-                  <motion.div
-                    key="notes-tab"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="space-y-10"
-                  >
-                    {/* Customer Personal Note (if exists) */}
-                    {order.customer_note && (
-                      <div className="bg-primary-50/50 p-8 rounded-[32px] border border-primary-100 border-dashed text-right relative">
-                        <div className="absolute top-4 left-6 text-primary-200 uppercase font-black text-[40px] opacity-20 pointer-events-none self-start">"</div>
-                        <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest block mb-4">הערת לקוח מההזמנה:</span>
-                        <p className="text-lg font-bold text-slate-700 leading-relaxed italic pr-4 border-r-4 border-primary-500/20">
-                          {order.customer_note}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Tab Header Title */}
-                    <h4 className="text-2xl font-black text-slate-900 tracking-tighter flex items-center gap-3 mb-2">
-                       <Zap size={24} className="text-amber-500" />
-                       הערות וציר זמן
-                    </h4>
-
-                    {/* Add Note Form */}
-
-                    <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-4">
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block pr-2">הוספת הערה לוגיסטית</span>
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <input 
-                            type="text" 
-                            placeholder="כותב ההערה..."
-                            className="bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-primary-400 transition-all text-right shadow-sm"
-                            value={adminName}
-                            onChange={(e) => setAdminName(e.target.value)}
-                          />
-                          <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-400 text-right opacity-50 shadow-sm">הערה ידנית</div>
-                       </div>
-                       <textarea 
-                        rows="3"
-                        placeholder="הקלד כאן את תוכן ההערה..."
-                        className="w-full bg-white border border-slate-200 rounded-[24px] p-6 text-sm font-bold outline-none focus:border-primary-400 transition-all text-right shadow-sm"
-                        value={newNoteText}
-                        onChange={(e) => setNewNoteText(e.target.value)}
-                       />
-                       <button 
-                         onClick={handleAddNote}
-                         disabled={isSubmittingNote || !newNoteText.trim() || !adminName.trim()}
-                         className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-30"
-                       >
-                         {isSubmittingNote ? 'שומר...' : 'שמירת הערה'}
-                       </button>
-                    </div>
-
-                    {/* Logistics Notes Timeline */}
-                    <div className="space-y-6">
-                       <div className="space-y-4">
-
-                          {(order.notes || []).length === 0 && (
-                            <div className="text-center py-16 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px]">
-                               <Clock size={40} className="mx-auto text-slate-200 mb-4" />
-                               <p className="text-slate-400 font-bold">אין הערות זמינות להזמנה זו</p>
-                            </div>
-                          )}
-                          {[...(order.notes || [])]
-                            .map((note, originalIdx) => ({ ...note, originalIdx }))
-                            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                            .map((note) => (
-                              <motion.div 
-                                layout
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                key={`note-${note.originalIdx}`} 
-                                className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm relative group/note text-right"
-                              >
-                                <div className="flex items-center justify-between mb-3 pl-10">
-
-                                  <div className="flex items-center gap-3">
-                                     <div className="w-8 h-8 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center font-black text-xs">
-                                        {note.author?.[0]}
-                                     </div>
-                                     <span className="text-sm font-black text-slate-800 tracking-tight">{note.author}</span>
-                                  </div>
-                                  <span className="text-[10px] font-bold text-slate-300">
-                                    {new Date(note.timestamp).toLocaleDateString()} • {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </div>
-                                <p className="text-slate-600 text-sm font-bold leading-relaxed pr-11">{note.text}</p>
-                                
-                                <button 
-                                  onClick={() => setConfirmingNoteDelete(note.originalIdx)}
-                                  className="absolute top-4 left-4 p-2 text-slate-300 hover:text-red-500 opacity-20 group-hover/note:opacity-100 transition-all"
-                                >
-
-                                  <Trash2 size={16} />
-                                </button>
-  
-                                {confirmingNoteDelete === note.originalIdx && (
-                                  <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-[32px] flex items-center justify-center gap-4 animate-in fade-in">
-                                     <span className="text-sm font-black text-red-500">למחוק הערה?</span>
-                                     <button onClick={() => handleDeleteNote(note.originalIdx)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-black">מחק</button>
-                                     <button onClick={() => setConfirmingNoteDelete(null)} className="bg-slate-100 text-slate-500 px-4 py-2 rounded-xl text-xs font-black">ביטול</button>
-                                  </div>
-                                )}
-                              </motion.div>
-                            ))}
-                       </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>

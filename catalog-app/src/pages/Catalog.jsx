@@ -33,6 +33,7 @@ import AgentSelectorModal from '../components/catalog/AgentSelectorModal';
 import FloatingAgentStatus from '../components/catalog/FloatingAgentStatus';
 import PromotionBanners from '../components/catalog/PromotionBanners';
 import ProductDetailModal from '../components/catalog/ProductDetailModal';
+import AlertModal from '../components/common/AlertModal';
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
@@ -53,10 +54,13 @@ const Catalog = () => {
   const [customerNote, setCustomerNote] = useState(() => localStorage.getItem('groopy_customer_note') || '');
   const [isSent, setIsSent] = useState(false);
   const [formError, setFormError] = useState('');
+  const [restorableCart, setRestorableCart] = useState([]);
   
   // 🏷️ PRODUCT MODAL STATE
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+
+  const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
 
   const [selectedBadge, setSelectedBadge] = useState(null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -85,6 +89,7 @@ const Catalog = () => {
   const [activeAgent, setActiveAgent] = useState(null);
   const [agents, setAgents] = useState([]);
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [isAgentLocked, setIsAgentLocked] = useState(() => localStorage.getItem('groopy_agent_locked') === 'true');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const defaultWhatsApp = "972500000000"; // Fallback number
 
@@ -161,10 +166,12 @@ const Catalog = () => {
           .single();
 
         if (!agentError && agentData && isMounted.current) {
-          console.log(`✅ Agent Connected Successfully: ${agentData.name}`);
+          console.log(`✅ Agent Connected Successfully: ${agentData.name} (LOCKED)`);
           setActiveAgent(agentData);
           currentAgentRef.current = agentData;
           localStorage.setItem('groopy_agent_id', agentIdFromURL);
+          localStorage.setItem('groopy_agent_locked', 'true');
+          setIsAgentLocked(true);
         }
       } else if (savedAgentId && (!currentAgentRef.current || currentAgentRef.current.id !== savedAgentId)) {
         const matchedAgent = agentsData?.find(a => a.id === savedAgentId);
@@ -238,6 +245,8 @@ const Catalog = () => {
       }
       return [...prev, { ...product, quantity: finalQuantity }];
     });
+    // Clear restorable cart if user adds new items
+    if (restorableCart.length > 0) setRestorableCart([]);
   };
 
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
@@ -256,6 +265,14 @@ const Catalog = () => {
 
   const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const handleRestoreCart = () => {
+    if (restorableCart.length > 0) {
+      setCart(restorableCart);
+      setRestorableCart([]);
+      setIsCartOpen(true);
+    }
+  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -343,6 +360,12 @@ const Catalog = () => {
     }
     
     window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank');
+    
+    // Clear cart and close drawer after sending
+    setRestorableCart([...cart]);
+    setCart([]);
+    setIsCartOpen(false);
+    
     setIsSent(true);
     setTimeout(() => setIsSent(false), 3000);
   };
@@ -556,8 +579,9 @@ const Catalog = () => {
       {/* 🚀 FLOATING AGENT STATUS (ABOVE MINI CART) */}
       <FloatingAgentStatus 
         activeAgent={activeAgent}
-        onOpenSelector={() => setIsAgentModalOpen(true)}
+        onOpenSelector={() => !isAgentLocked && setIsAgentModalOpen(true)}
         totalItems={totalItems}
+        isLocked={isAgentLocked}
       />
 
       {/* 🛒 SIDE CART DRAWER & STICKY CART */}
@@ -579,7 +603,11 @@ const Catalog = () => {
         isSent={isSent}
         isSubmitting={isSubmitting}
         activeAgent={activeAgent}
-        onOpenAgentSelector={() => setIsAgentModalOpen(true)}
+        onOpenAgentSelector={() => !isAgentLocked && setIsAgentModalOpen(true)}
+        isAgentLocked={isAgentLocked}
+        restorableCart={restorableCart}
+        onRestoreCart={handleRestoreCart}
+        onDismissRestore={() => setRestorableCart([])}
       />
 
       {/* 👔 AGENT SELECTOR MODAL */}
@@ -648,6 +676,14 @@ const Catalog = () => {
           </motion.button>
         )}
       </AnimatePresence>
+
+      <AlertModal 
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        title={alertConfig.title}
+      />
     </div>
   );
 };

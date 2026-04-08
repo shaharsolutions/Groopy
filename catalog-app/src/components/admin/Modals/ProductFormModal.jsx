@@ -15,24 +15,33 @@ const ProductFormModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/40 backdrop-blur-md">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-[40px] w-full max-w-2xl p-4 md:p-12 shadow-2xl relative my-8 md:max-h-[85vh] overflow-y-auto thin-scrollbar"
-          dir="rtl"
-        >
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-black tracking-tighter">{title}</h2>
-            <button 
-              onClick={onClose}
-              className="text-slate-300 hover:text-slate-900 transition-colors flex-shrink-0 mr-2"
-            >
-              <X size={32} />
-            </button>
-          </div>
-          
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
+      />
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl relative flex flex-col md:max-h-[85vh] overflow-hidden"
+        dir="rtl"
+      >
+        {/* Header */}
+        <div className="p-6 md:p-12 pb-4 flex items-center justify-between">
+          <h2 className="text-3xl font-black tracking-tighter">{title}</h2>
+          <button 
+            onClick={onClose}
+            className="text-slate-300 hover:text-slate-900 transition-colors flex-shrink-0 mr-2"
+          >
+            <X size={32} />
+          </button>
+        </div>
+        
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-12 pt-0 thin-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
             <div className="flex flex-col gap-2 col-span-1 md:col-span-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם המוצר</label>
@@ -115,7 +124,7 @@ const ProductFormModal = ({
             </div>
             
             {/* Toggles */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 col-span-1 md:col-span-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 col-span-1 md:col-span-2">
               {[
                 { id: 'is_new', label: 'חדש' },
                 { id: 'is_best_seller', label: 'נמכר ביותר' },
@@ -135,24 +144,25 @@ const ProductFormModal = ({
               ))}
             </div>
           </div>
-          
-          <div className="mt-12 flex gap-4">
-            <button 
-              onClick={onSave}
-              disabled={isUpdating}
-              className="flex-1 btn-primary py-5 rounded-3xl font-black text-lg shadow-2xl shadow-primary-500/20 active:scale-95 transition-all disabled:opacity-50"
-            >
-              {isUpdating ? 'שומר...' : 'שמור שינויים'}
-            </button>
-            <button 
-              onClick={onClose}
-              className="flex-1 bg-slate-100 text-slate-500 py-5 rounded-3xl font-black text-lg hover:bg-slate-200 transition-all"
-            >
-              ביטול
-            </button>
-          </div>
-        </motion.div>
-      </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="p-6 md:p-12 pt-6 border-t border-slate-100 flex gap-4 bg-slate-50/30">
+          <button 
+            onClick={onSave}
+            disabled={isUpdating}
+            className="flex-[2] btn-primary py-5 rounded-3xl font-black text-lg shadow-xl shadow-primary-500/20 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {isUpdating ? 'שומר...' : 'שמור שינויים'}
+          </button>
+          <button 
+            onClick={onClose}
+            className="flex-1 bg-white border border-slate-200 text-slate-500 py-5 rounded-3xl font-black text-lg hover:bg-slate-50 transition-all active:scale-95"
+          >
+            ביטול
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 };

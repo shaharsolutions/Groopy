@@ -384,14 +384,14 @@ const Admin = () => {
     return err.message || 'שגיאה בשמירת הנתונים';
   };
 
-  const handleAddCustomer = async (data = null) => {
+  const handleAddCustomer = async (inputData = null) => {
     setCustomerError(null);
     setIsUpdatingCustomer(true);
     try {
-      // 🛡️ Safeguard: If called via onClick={handleAddCustomer}, 'data' will be an Event object.
+      // 🛡️ Safeguard: If called via onClick={handleAddCustomer}, 'inputData' will be an Event object.
       // We check for .nativeEvent to distinguish between a record object and a DOM event.
-      const isEvent = data && (data.nativeEvent || data.target);
-      const customerToSave = (data && !isEvent) ? data : newCustomer;
+      const isEvent = inputData && (inputData.nativeEvent || inputData.target);
+      const customerToSave = (inputData && !isEvent) ? inputData : newCustomer;
       
       const { source, orderCount, lastOrderDate, ...customerData } = customerToSave;
 
@@ -404,14 +404,14 @@ const Admin = () => {
         return acc;
       }, {});
       
-      const { data, error } = await supabase.from('customers').upsert([{ 
+      const { data: upsertResult, error } = await supabase.from('customers').upsert([{ 
         ...cleanCustomerData, 
         id: cleanCustomerData.id || generateUUID(),
         created_at: cleanCustomerData.created_at || new Date().toISOString()
       }], { onConflict: 'business_name' }).select();
       
       if (!error) { 
-        setCustomers([...customers, data[0]]); 
+        setCustomers([...customers, upsertResult[0]]); 
         setIsAddingCustomer(false); 
         setNewCustomer({ business_name: '', contact_name: '', email: '', phone: '', address: '', additional_contacts: [], notes: [] }); 
       } else {
@@ -452,14 +452,14 @@ const Admin = () => {
       
       const targetId = existingRecord ? existingRecord.id : generateUUID();
 
-      const { data, error } = await supabase.from('customers').upsert([{ 
+      const { data: updateResult, error } = await supabase.from('customers').upsert([{ 
         ...cleanCustomerData, 
         id: targetId,
         created_at: existingRecord ? existingRecord.created_at : new Date().toISOString()
       }], { onConflict: 'business_name' }).select();
       
       if (!error) { 
-        const realCustomer = data[0];
+        const realCustomer = updateResult[0];
 
         // 🚛 History Migration: If name changed during promotion, update orders
         const originalName = editingCustomer.id.replace('virtual-', '');
@@ -582,15 +582,15 @@ const Admin = () => {
 
       const targetId = existingRecord ? existingRecord.id : generateUUID();
 
-      const { data, error: promoError } = await supabase.from('customers').upsert([{ 
+      const { data: promoResult, error: promoError } = await supabase.from('customers').upsert([{ 
         ...cleanCustomerData, 
         id: targetId,
         created_at: existingRecord ? existingRecord.created_at : new Date().toISOString(),
         notes: [...(existingRecord?.notes || []), ...notes] // Merge notes if linking
       }], { onConflict: 'business_name' }).select();
 
-      if (!promoError && data) {
-        const realCustomer = data[0];
+      if (!promoError && promoResult) {
+        const realCustomer = promoResult[0];
 
         // 🚛 History Migration
         const originalName = target.id.replace('virtual-', '');
@@ -741,28 +741,32 @@ const Admin = () => {
         {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} />}
       </main>
 
-      {(isAddingProduct || !!editingProduct) && <ProductFormModal isOpen={true} onClose={() => { setIsAddingProduct(false); setEditingProduct(null); }} product={editingProduct || newProduct} setProduct={editingProduct ? setEditingProduct : setNewProduct} categories={categories} onSave={editingProduct ? handleUpdateProduct : handleAddProduct} isUpdating={isUpdatingProduct} title={editingProduct ? 'עריכת מוצר' : 'הוספת מוצר חדש'} />}
-      {(isAddingAgent || !!editingAgent) && <AgentFormModal isOpen={true} onClose={() => { setIsAddingAgent(false); setEditingAgent(null); }} agent={editingAgent || newAgent} setAgent={editingAgent ? setEditingAgent : setNewAgent} onSave={editingAgent ? handleUpdateAgent : handleAddAgent} isUpdating={isUpdatingAgent} title={editingAgent ? 'עריכת סוכן' : 'הוספת סוכן חדש'} />}
-      {(isAddingCategory || !!editingCategory) && <CategoryFormModal isOpen={true} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />}
-      {(isAddingBrand || !!editingBrand) && <BrandFormModal isOpen={true} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />}
-      {(isAddingBanner || !!editingBanner) && <BannerFormModal isOpen={true} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />}
-      {(isAddingCustomer || !!editingCustomer || !!selectedCustomerDetails) && (
-        <CustomerFormModal 
-          isOpen={true} 
-          onClose={() => { setIsAddingCustomer(false); setEditingCustomer(null); setSelectedCustomerDetails(null); }} 
-          customer={selectedCustomerDetails || editingCustomer || newCustomer} 
-          setCustomer={selectedCustomerDetails ? setSelectedCustomerDetails : (editingCustomer ? setEditingCustomer : setNewCustomer)} 
-          onSave={editingCustomer ? handleUpdateCustomer : handleAddCustomer} 
-          isUpdating={isUpdatingCustomer} 
-          title={selectedCustomerDetails ? 'פרטי לקוח' : (editingCustomer ? 'עריכת לקוח' : 'הוספת לקוח חדש')} 
-          orders={orders}
-          onOpenOrder={setSelectedOrder}
-          onAddNote={handleAddCustomerNote}
-          onDeleteNote={handleDeleteCustomerNote}
-          isSubmittingNote={isSubmittingCustomerNote}
-          error={customerError}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {(isAddingProduct || !!editingProduct) && <ProductFormModal key="product-modal" isOpen={true} onClose={() => { setIsAddingProduct(false); setEditingProduct(null); }} product={editingProduct || newProduct} setProduct={editingProduct ? setEditingProduct : setNewProduct} categories={categories} onSave={editingProduct ? handleUpdateProduct : handleAddProduct} isUpdating={isUpdatingProduct} title={editingProduct ? 'עריכת מוצר' : 'הוספת מוצר חדש'} />}
+        {(isAddingAgent || !!editingAgent) && <AgentFormModal key="agent-modal" isOpen={true} onClose={() => { setIsAddingAgent(false); setEditingAgent(null); }} agent={editingAgent || newAgent} setAgent={editingAgent ? setEditingAgent : setNewAgent} onSave={editingAgent ? handleUpdateAgent : handleAddAgent} isUpdating={isUpdatingAgent} title={editingAgent ? 'עריכת סוכן' : 'הוספת סוכן חדש'} />}
+        {(isAddingCategory || !!editingCategory) && <CategoryFormModal key="category-modal" isOpen={true} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />}
+        {(isAddingBrand || !!editingBrand) && <BrandFormModal key="brand-modal" isOpen={true} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />}
+        {(isAddingBanner || !!editingBanner) && <BannerFormModal key="banner-modal" isOpen={true} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />}
+        {(isAddingCustomer || !!editingCustomer || !!selectedCustomerDetails) && (
+          <CustomerFormModal 
+            key="customer-modal"
+            isOpen={true} 
+            onClose={() => { setIsAddingCustomer(false); setEditingCustomer(null); setSelectedCustomerDetails(null); }} 
+            customer={selectedCustomerDetails || editingCustomer || newCustomer} 
+            setCustomer={selectedCustomerDetails ? setSelectedCustomerDetails : (editingCustomer ? setEditingCustomer : setNewCustomer)} 
+            onSave={editingCustomer ? handleUpdateCustomer : handleAddCustomer} 
+            isUpdating={isUpdatingCustomer} 
+            title={selectedCustomerDetails ? 'פרטי לקוח' : (editingCustomer ? 'עריכת לקוח' : 'הוספת לקוח חדש')} 
+            orders={orders}
+            onOpenOrder={setSelectedOrder}
+            onAddNote={handleAddCustomerNote}
+            onDeleteNote={handleDeleteCustomerNote}
+            isSubmittingNote={isSubmittingCustomerNote}
+            error={customerError}
+          />
+        )}
+      </AnimatePresence>
+
       {selectedOrder && (
         <OrderDetailsModal 
           order={selectedOrder} 

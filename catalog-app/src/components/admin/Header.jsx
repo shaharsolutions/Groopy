@@ -11,13 +11,15 @@ const Header = ({
     setIsAddingAgent, 
     setIsAddingBrand, 
     setIsAddingBanner, 
-    setIsAddingCategory 
+    setIsAddingCategory,
+    setIsAddingCustomer 
 }) => {
   const getTitle = () => {
     switch (activeTab) {
       case 'products': return 'ניהול מוצרים';
       case 'agents': return 'רשת הסוכנים';
       case 'orders': return 'ניהול הזמנות';
+      case 'customers': return 'ניהול לקוחות';
       case 'brands': return 'ניהול מותגים';
       case 'banners': return 'ניהול באנרים';
       case 'categories': return 'ניהול קטגוריות';
@@ -30,6 +32,7 @@ const Header = ({
       case 'products': return `סה״כ ${productsCount} מוצרים רשומים`;
       case 'agents': return `רשימת סוכנים וקישורי הפצה`;
       case 'orders': return `מעקב אחר הזמנות שבוצעו בוואטסאפ`;
+      case 'customers': return `ניהול מאגר לקוחות וביצועי רכישה`;
       case 'banners': return `סה״כ ${bannersCount} באנרים פעילים במערכת`;
       case 'brands': return `ניהול לוגואים של מותגים לקרוסלה`;
       case 'categories': return 'עריכת קטגוריות המוצרים בקטלוג';
@@ -43,6 +46,7 @@ const Header = ({
       case 'agents': return 'סוכן חדש';
       case 'brands': return 'מותג חדש';
       case 'banners': return 'באנר חדש';
+      case 'customers': return 'לקוח חדש';
       case 'categories': return 'קטגוריה חדשה';
       default: return '';
     }
@@ -53,6 +57,7 @@ const Header = ({
     else if (activeTab === 'agents') setIsAddingAgent(true);
     else if (activeTab === 'brands') setIsAddingBrand(true);
     else if (activeTab === 'banners') setIsAddingBanner(true);
+    else if (activeTab === 'customers') setIsAddingCustomer(true);
     else setIsAddingCategory(true);
   };
 

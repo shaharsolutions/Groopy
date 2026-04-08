@@ -12,6 +12,7 @@ import OrderManagement from '../components/admin/OrderManagement';
 import CategoryManagement from '../components/admin/CategoryManagement';
 import BrandManagement from '../components/admin/BrandManagement';
 import BannerManagement from '../components/admin/BannerManagement';
+import CustomerManagement from '../components/admin/CustomerManagement';
 import { statusMap } from '../components/admin/OrderManagement';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check } from 'lucide-react';
@@ -24,6 +25,10 @@ import BrandFormModal from '../components/admin/Modals/BrandFormModal';
 import BannerFormModal from '../components/admin/Modals/BannerFormModal';
 import OrderDetailsModal from '../components/admin/Modals/OrderDetailsModal';
 import OrderEditModal from '../components/admin/Modals/OrderEditModal';
+import CustomerFormModal from '../components/admin/Modals/CustomerFormModal';
+
+// Utilities
+import { downloadCustomerTemplate, parseCustomerExcel } from '../utils/excelUtils';
 
 
 
@@ -43,6 +48,8 @@ const Admin = () => {
     selectedCategory, setSelectedCategory,
     sortConfig, setSortConfig,
     ordersStats,
+    customers, setCustomers,
+    customersWithStats,
     fetchData
   } = adminData;
 
@@ -83,6 +90,15 @@ const Admin = () => {
   const [isUpdatingBanner, setIsUpdatingBanner] = useState(false);
   const [confirmingBannerDelete, setConfirmingBannerDelete] = useState(null);
 
+  // Customers
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [isUpdatingCustomer, setIsUpdatingCustomer] = useState(false);
+  const [customerError, setCustomerError] = useState(null);
+  const [confirmingCustomerDelete, setConfirmingCustomerDelete] = useState(null);
+  const [selectedCustomerDetails, setSelectedCustomerDetails] = useState(null);
+  const [isSubmittingCustomerNote, setIsSubmittingCustomerNote] = useState(false);
+
   // Orders
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
@@ -106,6 +122,15 @@ const Admin = () => {
     pos_y: 50,
     zoom: 1,
     object_fit: 'cover'
+  });
+  const [newCustomer, setNewCustomer] = useState({ 
+    business_name: '', 
+    contact_name: '', 
+    email: '', 
+    phone: '', 
+    address: '', 
+    additional_contacts: [],
+    notes: []
   });
 
   // Order Details / Edit State
@@ -345,6 +370,222 @@ const Admin = () => {
     if (!error) { setBanners(banners.filter(b => b.id !== id)); setConfirmingBannerDelete(null); }
   };
 
+  // Customers
+  const formatCustomerError = (err) => {
+    if (!err) return null;
+    if (err.code === '23505') {
+      if (err.message?.includes('business_name')) return 'שגיאה: שם העסק כבר קיים במערכת';
+      if (err.message?.includes('email')) return 'שגיאה: כתובת האימייל כבר משויכת ללקוח אחר';
+      return 'שגיאה: רשומה דומה כבר קיימת במערכת';
+    }
+    return err.message || 'שגיאה בשמירת הנתונים';
+  };
+
+  const handleAddCustomer = async (overrideCustomer = null) => {
+    setCustomerError(null);
+    setIsUpdatingCustomer(true);
+    try {
+      const { source, orderCount, lastOrderDate, ...customerData } = overrideCustomer || newCustomer;
+      const { data, error } = await supabase.from('customers').upsert([{ 
+        ...customerData, 
+        id: customerData.id || generateUUID(),
+        created_at: customerData.created_at || new Date().toISOString()
+      }], { onConflict: 'business_name' }).select();
+      
+      if (!error) { 
+        setCustomers([...customers, data[0]]); 
+        setIsAddingCustomer(false); 
+        setNewCustomer({ business_name: '', contact_name: '', email: '', phone: '', address: '', additional_contacts: [], notes: [] }); 
+      } else {
+        setCustomerError(formatCustomerError(error));
+      }
+    } catch (err) {
+      console.error('Unexpected error adding customer:', err);
+      alert('שגיאה לא צפויה בהוספת לקוח');
+    } finally {
+      setIsUpdatingCustomer(false);
+    }
+  };
+
+  const handleUpdateCustomer = async () => {
+    setCustomerError(null);
+    setIsUpdatingCustomer(true);
+    
+    // Check if this is a "virtual" customer (no real DB record yet)
+    if (editingCustomer.id && String(editingCustomer.id).startsWith('virtual-')) {
+      const { id, source, orderCount, lastOrderDate, ...customerData } = editingCustomer;
+      
+      // 📧 Robust Collision Check (Case-insensitive & trimmed)
+      const normEmail = customerData.email?.toLowerCase().trim();
+      const normName = customerData.business_name?.toLowerCase().trim();
+      
+      const existingRecord = customers.find(c => 
+        (normEmail && c.email?.toLowerCase().trim() === normEmail) ||
+        (normName && c.business_name?.toLowerCase().trim() === normName)
+      );
+      
+      const targetId = existingRecord ? existingRecord.id : generateUUID();
+
+      const { data, error } = await supabase.from('customers').upsert([{ 
+        ...customerData, 
+        id: targetId,
+        created_at: existingRecord ? existingRecord.created_at : new Date().toISOString()
+      }], { onConflict: 'business_name' }).select();
+      
+      if (!error) { 
+        const realCustomer = data[0];
+
+        // 🚛 History Migration: If name changed during promotion, update orders
+        const originalName = editingCustomer.id.replace('virtual-', '');
+        if (customerData.business_name !== originalName) {
+          await supabase.from('orders').update({ customer_name: customerData.business_name }).eq('customer_name', originalName);
+          fetchData(); // Deep refresh for all data
+        }
+
+        // If we updated an existing record, replace it in the list
+        if (existingRecord) {
+          setCustomers(customers.map(c => c.id === targetId ? realCustomer : c));
+        } else {
+          setCustomers([...customers, realCustomer]); 
+        }
+        setEditingCustomer(null); 
+        if (selectedCustomerDetails?.id === editingCustomer.id) {
+          setSelectedCustomerDetails(realCustomer);
+        }
+      } else {
+        setCustomerError(formatCustomerError(error));
+      }
+    } else {
+      // Normal update for existing DB customer
+      const { source, orderCount, lastOrderDate, ...customerData } = editingCustomer;
+      const { error } = await supabase.from('customers').update(customerData).eq('id', editingCustomer.id);
+      if (!error) { 
+        setCustomers(customers.map(c => c.id === editingCustomer.id ? editingCustomer : c)); 
+        setEditingCustomer(null); 
+        if (selectedCustomerDetails?.id === editingCustomer.id) {
+          setSelectedCustomerDetails(editingCustomer);
+        }
+      } else {
+        setCustomerError(formatCustomerError(error));
+      }
+    }
+    setIsUpdatingCustomer(false);
+  };
+
+  const handleDeleteCustomer = async (id) => {
+    const { error } = await supabase.from('customers').delete().eq('id', id);
+    if (!error) { 
+      setCustomers(customers.filter(c => c.id !== id)); 
+      setConfirmingCustomerDelete(null); 
+    } else {
+      console.error('Error deleting customer:', error);
+      alert('שגיאה במחיקת לקוח');
+    }
+  };
+
+  const handleImportCustomers = async (file) => {
+    try {
+      const data = await parseCustomerExcel(file);
+      for (const row of data) {
+        // Simple check for existing email
+        const existing = customers.find(c => c.email && c.email === row.email);
+        if (existing) {
+          await supabase.from('customers').update(row).eq('id', existing.id);
+        } else {
+          await handleAddCustomer(row);
+        }
+      }
+      fetchData(); // Refresh all
+      alert('ייבוא הלקוחות הושלם בהצלחה');
+    } catch (err) {
+      console.error('Error importing customers:', err);
+      alert('שגיאה בייבוא לקוחות');
+    }
+  };
+
+  const handleAddCustomerNote = async (text, author) => {
+    setCustomerError(null);
+    setIsSubmittingCustomerNote(true);
+    let target = editingCustomer || selectedCustomerDetails;
+    if (!target) return;
+
+    const note = { text, author, timestamp: new Date().toISOString() };
+    const notes = [...(target.notes || []), note];
+    
+    // 🚀 Promotion Logic: If virtual, create/link in DB first
+    if (target.id && String(target.id).startsWith('virtual-')) {
+      const { id, source, orderCount, lastOrderDate, ...customerData } = target;
+      
+      // 📧 Robust Collision Check
+      const normEmail = customerData.email?.toLowerCase().trim();
+      const normName = customerData.business_name?.toLowerCase().trim();
+      
+      const existingRecord = customers.find(c => 
+        (normEmail && c.email?.toLowerCase().trim() === normEmail) ||
+        (normName && c.business_name?.toLowerCase().trim() === normName)
+      );
+
+      const targetId = existingRecord ? existingRecord.id : generateUUID();
+
+      const { data, error: promoError } = await supabase.from('customers').upsert([{ 
+        ...customerData, 
+        id: targetId,
+        created_at: existingRecord ? existingRecord.created_at : new Date().toISOString(),
+        notes: [...(existingRecord?.notes || []), ...notes] // Merge notes if linking
+      }], { onConflict: 'business_name' }).select();
+
+      if (!promoError && data) {
+        const realCustomer = data[0];
+
+        // 🚛 History Migration
+        const originalName = target.id.replace('virtual-', '');
+        if (customerData.business_name !== originalName) {
+          await supabase.from('orders').update({ customer_name: customerData.business_name }).eq('customer_name', originalName);
+          fetchData();
+        }
+
+        if (existingRecord) {
+          setCustomers(customers.map(c => c.id === targetId ? realCustomer : c));
+        } else {
+          setCustomers([...customers, realCustomer]);
+        }
+        if (editingCustomer) setEditingCustomer(realCustomer);
+        if (selectedCustomerDetails) setSelectedCustomerDetails(realCustomer);
+      } else {
+        setCustomerError(formatCustomerError(promoError));
+      }
+    } else {
+      // Normal note update
+      const { error } = await supabase.from('customers').update({ notes }).eq('id', target.id);
+      if (!error) {
+        const updated = { ...target, notes };
+        if (editingCustomer) setEditingCustomer(updated);
+        if (selectedCustomerDetails) setSelectedCustomerDetails(updated);
+        setCustomers(customers.map(c => c.id === target.id ? updated : c));
+      }
+    }
+    setIsSubmittingCustomerNote(false);
+  };
+
+  const handleDeleteCustomerNote = async (idx) => {
+    const target = editingCustomer || selectedCustomerDetails;
+    if (!target || !target.id) return;
+
+    // We can't delete notes for virtual customers (they have 0 notes),
+    // but if we ever allow it, ensure they aren't virtual.
+    if (String(target.id).startsWith('virtual-')) return;
+
+    const notes = target.notes.filter((_, i) => i !== idx);
+    const { error } = await supabase.from('customers').update({ notes }).eq('id', target.id);
+    
+    if (!error) {
+      const updated = { ...target, notes };
+      if (editingCustomer) setEditingCustomer(updated);
+      if (selectedCustomerDetails) setSelectedCustomerDetails(updated);
+      setCustomers(customers.map(c => c.id === target.id ? updated : c));
+    }
+  };
+
   // Orders
   const handleDeleteOrder = async (id) => {
     const { error } = await supabase.from('orders').delete().eq('id', id);
@@ -434,13 +675,14 @@ const Admin = () => {
     <div className="flex h-screen bg-[#FDFDFE] text-slate-900 overflow-hidden" dir="rtl">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} logo={logo} ordersStats={ordersStats} />
       <main className="flex-1 p-6 md:p-12 overflow-y-auto w-full">
-        <Header activeTab={activeTab} productsCount={products.length} bannersCount={banners.length} setIsSidebarOpen={setIsSidebarOpen} setIsAddingProduct={setIsAddingProduct} setIsAddingAgent={setIsAddingAgent} setIsAddingBrand={setIsAddingBrand} setIsAddingBanner={setIsAddingBanner} setIsAddingCategory={setIsAddingCategory} />
+        <Header activeTab={activeTab} productsCount={products.length} bannersCount={banners.length} setIsSidebarOpen={setIsSidebarOpen} setIsAddingProduct={setIsAddingProduct} setIsAddingAgent={setIsAddingAgent} setIsAddingBrand={setIsAddingBrand} setIsAddingBanner={setIsAddingBanner} setIsAddingCategory={setIsAddingCategory} setIsAddingCustomer={setIsAddingCustomer} />
 
         {activeTab === 'products' && <ProductManagement sortedProducts={sortedProducts} searchTerm={searchTerm} setSearchTerm={setSearchTerm} categories={categories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} sortConfig={sortConfig} selectedProductIds={selectedProductIds} toggleProductSelection={toggleProductSelection} toggleAllProducts={toggleAllProducts} isBulkUpdatingProducts={isBulkUpdatingProducts} isBulkCategoryMenuOpen={isBulkCategoryMenuOpen} setIsBulkCategoryMenuOpen={setIsBulkCategoryMenuOpen} handleBulkUpdateProductCategory={handleBulkUpdateProductCategory} isBulkFlagsMenuOpen={isBulkFlagsMenuOpen} setIsBulkFlagsMenuOpen={setIsBulkFlagsMenuOpen} handleBulkUpdateProductFlag={handleBulkUpdateProductFlag} setEditingProduct={setEditingProduct} confirmingProductDelete={confirmingProductDelete} setConfirmingProductDelete={setConfirmingProductDelete} handleDeleteProduct={handleDeleteProduct} />}
         {activeTab === 'agents' && <AgentManagement agents={agents} handleCopyAgentLink={handleCopyAgentLink} copyFeedback={copyFeedback} handleShareAgent={handleShareAgent} confirmingAgentDelete={confirmingAgentDelete} setConfirmingAgentDelete={setConfirmingAgentDelete} handleDeleteAgent={handleDeleteAgent} setEditingAgent={setEditingAgent} />}
         {activeTab === 'categories' && <CategoryManagement categories={categories} confirmingCategoryDelete={confirmingCategoryDelete} setConfirmingCategoryDelete={setConfirmingCategoryDelete} handleDeleteCategory={handleDeleteCategory} setEditingCategory={setEditingCategory} />}
         {activeTab === 'brands' && <BrandManagement brands={brands} confirmingBrandDelete={confirmingBrandDelete} setConfirmingBrandDelete={setConfirmingBrandDelete} handleDeleteBrand={handleDeleteBrand} setEditingBrand={setEditingBrand} />}
         {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} />}
+        {activeTab === 'customers' && <CustomerManagement customers={customersWithStats} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} />}
         {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} />}
       </main>
 
@@ -449,6 +691,23 @@ const Admin = () => {
       {(isAddingCategory || !!editingCategory) && <CategoryFormModal isOpen={true} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />}
       {(isAddingBrand || !!editingBrand) && <BrandFormModal isOpen={true} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />}
       {(isAddingBanner || !!editingBanner) && <BannerFormModal isOpen={true} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />}
+      {(isAddingCustomer || !!editingCustomer || !!selectedCustomerDetails) && (
+        <CustomerFormModal 
+          isOpen={true} 
+          onClose={() => { setIsAddingCustomer(false); setEditingCustomer(null); setSelectedCustomerDetails(null); }} 
+          customer={selectedCustomerDetails || editingCustomer || newCustomer} 
+          setCustomer={selectedCustomerDetails ? setSelectedCustomerDetails : (editingCustomer ? setEditingCustomer : setNewCustomer)} 
+          onSave={editingCustomer ? handleUpdateCustomer : handleAddCustomer} 
+          isUpdating={isUpdatingCustomer} 
+          title={selectedCustomerDetails ? 'פרטי לקוח' : (editingCustomer ? 'עריכת לקוח' : 'הוספת לקוח חדש')} 
+          orders={orders}
+          onOpenOrder={setSelectedOrder}
+          onAddNote={handleAddCustomerNote}
+          onDeleteNote={handleDeleteCustomerNote}
+          isSubmittingNote={isSubmittingCustomerNote}
+          error={customerError}
+        />
+      )}
       {selectedOrder && (
         <OrderDetailsModal 
           order={selectedOrder} 
@@ -465,6 +724,7 @@ const Admin = () => {
           confirmingNoteDelete={confirmingNoteDelete}
           setConfirmingNoteDelete={setConfirmingNoteDelete}
           handleDeleteNote={handleDeleteNote}
+          customers={customers}
         />
       )}
 

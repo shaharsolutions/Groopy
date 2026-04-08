@@ -59,7 +59,7 @@ const OrderEditModal = ({
   const total = subtotal - discountAmount;
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto">
+    <div className="fixed inset-0 z-[130] overflow-y-auto">
       <div className="flex min-h-full items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
         <motion.div 
           initial={{ scale: 0.9, opacity: 0, y: 20 }}

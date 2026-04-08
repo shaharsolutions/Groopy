@@ -269,6 +269,20 @@ const Catalog = () => {
     setIsSubmitting(true);
     setFormError('');
 
+    // 💾 AUTO-UPSERT CUSTOMER TO CRM
+    // This ensures new customers are added to the CRM and existing ones are associated
+    const upsertCustomer = async () => {
+      try {
+        await supabase.from('customers').upsert([
+          { business_name: customerName }
+        ], { onConflict: 'business_name' });
+      } catch (err) {
+        console.error('❌ Error upserting customer to CRM:', err);
+      }
+    };
+
+    upsertCustomer();
+
     // 💾 SAVE TO SUPABASE (BACKGROUND)
     // We fire this in the background and don't await it to ensure immediate WhatsApp redirection
     supabase.from('orders').insert({

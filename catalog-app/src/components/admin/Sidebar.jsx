@@ -22,6 +22,7 @@ const Sidebar = ({
   const menuItems = [
     { id: 'products', label: 'ניהול מוצרים', icon: Package },
     { id: 'orders', label: 'ניהול הזמנות', icon: ShoppingBag, badge: ordersStats.new },
+    { id: 'customers', label: 'ניהול לקוחות', icon: Users },
     { id: 'agents', label: 'ניהול סוכנים', icon: Users },
     { id: 'categories', label: 'ניהול קטגוריות', icon: Tag },
     { id: 'brands', label: 'ניהול מותגים', icon: Star },

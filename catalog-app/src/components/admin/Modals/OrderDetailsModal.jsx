@@ -28,10 +28,11 @@ const statusMap = {
   'Canceled': { label: 'בוטל', icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' }
 };
 
-const OrderDetailsModal = ({ 
+const OrderDetailsModal = (props) => {
+  const { 
     order, 
     onClose, 
-    setIsEditingOrder, // Now used to open the separate Edit Modal
+    setIsEditingOrder, 
     handleUpdateOrderStatus, 
     setSelectedOrder,
     adminName,
@@ -42,8 +43,10 @@ const OrderDetailsModal = ({
     isSubmittingNote,
     confirmingNoteDelete,
     setConfirmingNoteDelete,
-    handleDeleteNote
-}) => {
+    handleDeleteNote,
+    customers = []
+  } = props;
+
   const [activeTab, setActiveTab] = useState('notes'); // 'items' or 'notes'
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   
@@ -61,7 +64,7 @@ const OrderDetailsModal = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto">
+    <div className="fixed inset-0 z-[120] overflow-y-auto">
       <div className="flex min-h-full items-center justify-center p-4 md:p-8 bg-slate-900/60 backdrop-blur-xl">
         <motion.div 
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -95,7 +98,9 @@ const OrderDetailsModal = ({
                   </div>
                   <div className="flex flex-col">
                     <h4 className="text-xl font-black text-slate-800 tracking-tight leading-none">{order.customer_name}</h4>
-                    <span className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-tight">לקוח פרטי</span>
+                    <span className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-tight">
+                      {customers.find(c => c.business_name === order.customer_name)?.contact_name || 'לקוח פרטי'}
+                    </span>
                   </div>
                 </div>
                 {order.agent_name && (

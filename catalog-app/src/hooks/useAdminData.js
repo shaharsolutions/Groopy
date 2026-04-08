@@ -10,6 +10,7 @@ export const useAdminData = () => {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [banners, setBanners] = useState([]);
+  const [customers, setCustomers] = useState([]);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -23,14 +24,16 @@ export const useAdminData = () => {
         { data: categoriesData },
         { data: ordersData },
         { data: brandsData },
-        { data: bannersData }
+        { data: bannersData },
+        { data: customersData }
       ] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('agents').select('*').order('name'),
         supabase.from('categories').select('*').order('name'),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('brands').select('*').order('type', { ascending: true, nullsFirst: false }).order('name'),
-        supabase.from('banners').select('*').order('order_index', { ascending: true })
+        supabase.from('banners').select('*').order('order_index', { ascending: true }),
+        supabase.from('customers').select('*').order('business_name')
       ]);
 
       if (productsData) setProducts(productsData);
@@ -39,6 +42,7 @@ export const useAdminData = () => {
       if (ordersData) setOrders(ordersData);
       if (brandsData) setBrands(brandsData);
       if (bannersData) setBanners(bannersData);
+      if (customersData) setCustomers(customersData);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     }
@@ -100,6 +104,53 @@ export const useAdminData = () => {
     total: ordersWithIds.length
   }), [ordersWithIds]);
 
+  const customersWithStats = useMemo(() => {
+    // 1. Get all unique customer names from orders
+    const orderCustomerNames = [...new Set(orders.map(o => o.customer_name).filter(Boolean))];
+    
+    // 2. Map existing customers from DB
+    const dbCustomers = customers.map(c => ({ ...c, source: 'crm' }));
+    
+    // 3. Find names in orders that aren't in the CRM table yet AND aren't linked via email
+    const virtualCustomers = orderCustomerNames
+      .filter(name => {
+        // If the name already exists in CRM, it's not virtual
+        if (customers.some(c => c.business_name === name)) return false;
+        
+        // If any order for this name matches a CRM customer by email,
+        // we treat this name as an alias/old-name and don't create a new record.
+        const ordersForName = orders.filter(o => o.customer_name === name);
+        const isLinkedToCRM = ordersForName.some(o => 
+          o.customer_email && customers.some(c => c.email === o.customer_email)
+        );
+        
+        return !isLinkedToCRM;
+      })
+      .map(name => ({
+        id: `virtual-${name}`,
+        business_name: name,
+        source: 'orders'
+      }));
+    
+    // 4. Combine both lists
+    const allUniqueCustomers = [...dbCustomers, ...virtualCustomers];
+
+    // 5. Calculate stats for each
+    return allUniqueCustomers.map(customer => {
+      const customerOrders = orders.filter(o => 
+        o.customer_name === customer.business_name || (customer.email && o.customer_email === customer.email)
+      );
+      
+      return {
+        ...customer,
+        orderCount: customerOrders.length,
+        lastOrderDate: customerOrders.length > 0 
+          ? customerOrders[0].created_at 
+          : null
+      };
+    });
+  }, [customers, orders]);
+
   return {
     activeTab, setActiveTab,
     isSidebarOpen, setIsSidebarOpen,
@@ -114,6 +165,8 @@ export const useAdminData = () => {
     selectedCategory, setSelectedCategory,
     sortConfig, setSortConfig,
     ordersStats,
+    customers, setCustomers,
+    customersWithStats,
     fetchData
   };
 };

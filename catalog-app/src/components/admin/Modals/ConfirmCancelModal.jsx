@@ -9,7 +9,7 @@ const ConfirmCancelModal = ({ isOpen, onClose, onConfirm, orderId }) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
         <motion.div
           key="cancel-backdrop"
           initial={{ opacity: 0 }}

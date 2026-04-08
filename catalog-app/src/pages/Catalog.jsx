@@ -415,7 +415,9 @@ const Catalog = () => {
         <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary-50/30 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-1/3 h-full bg-gradient-to-r from-accent-50/20 to-transparent pointer-events-none" />
         
-        <div className="container mx-auto px-6 relative z-10 md:max-w-3xl">
+        <div className="container mx-auto px-6 relative z-10">
+          {/* Constrained Upper Section */}
+          <div className="md:max-w-3xl mx-auto">
           {/* Main Title Section */}
           <div className="text-center mb-10 md:mb-14">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-[900] text-slate-900 tracking-tighter leading-[1.1] mb-4">
@@ -426,11 +428,14 @@ const Catalog = () => {
           </div>
 
           <PromotionBanners onBannerClick={handleBannerClick} />
+          </div>
 
-          <BrandCarousel />
+          <div className="max-w-7xl mx-auto">
+            <BrandCarousel />
+          </div>
 
           {/* QUICK FILTER BADGES */}
-          <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-4 md:mt-5 mb-4 md:mb-5 scroll-mt-28 md:scroll-mt-32">
+          <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-4 md:mt-5 mb-4 md:mb-5 scroll-mt-28 md:scroll-mt-32 max-w-7xl mx-auto">
             {[
               { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
               { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
@@ -458,7 +463,7 @@ const Catalog = () => {
           </div>
 
           {/* SEARCH BAR */}
-          <div className="relative group max-w-xl mx-auto mb-5">
+          <div className="relative group mx-auto mb-5 max-w-7xl">
             <div className="absolute inset-0 bg-gradient-to-r from-primary-200 to-accent-200 rounded-3xl blur-xl opacity-20 group-focus-within:opacity-40 transition-opacity" />
             <div className="relative bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center px-4 py-1.5 focus-within:ring-4 focus-within:ring-primary-500/10 focus-within:border-primary-400 transition-all">
               <div className="bg-slate-50 p-2.5 rounded-2xl text-slate-400 group-focus-within:text-primary-500 transition-colors">
@@ -475,7 +480,7 @@ const Catalog = () => {
           </div>
 
           <div 
-            className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0"
+            className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0 max-w-7xl mx-auto"
           >
             {categories.map((cat, idx) => (
               <button

@@ -79,7 +79,7 @@ const OrderDetailsModal = (props) => {
         <motion.div 
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          className="bg-white rounded-[40px] md:rounded-[48px] w-full max-w-6xl shadow-2xl relative flex flex-col md:flex-row md:h-[85vh] overflow-hidden"
+          className="bg-white rounded-[40px] md:rounded-[48px] w-full max-w-6xl shadow-2xl relative flex flex-col md:flex-row max-h-[90vh] md:h-[85vh] overflow-hidden"
           dir="rtl"
         >
           {/* Right Sidebar: Quick Info & Status */}

@@ -18,13 +18,13 @@ const ProductDetailModal = ({
   addToCart, 
   cartCount 
 }) => {
-  const defaultQty = product?.default_quantity || 12;
+  const defaultQty = Number(product?.default_quantity || 12);
   const [quantity, setQuantity] = useState(defaultQty);
   const [isAdded, setIsAdded] = useState(false);
 
   useEffect(() => {
     if (isOpen && product) {
-      setQuantity(product.default_quantity || 12);
+      setQuantity(Number(product.default_quantity || 12));
       setIsAdded(false);
     }
   }, [isOpen, product]);
@@ -41,8 +41,8 @@ const ProductDetailModal = ({
   };
 
   const adjustQuantity = (delta) => {
-    const step = product.default_quantity || 12;
-    setQuantity(prev => Math.max(step, prev + delta));
+    const step = Number(product.default_quantity || 12);
+    setQuantity(prev => Math.max(step, Number(prev) + delta));
   };
 
   return (
@@ -151,7 +151,7 @@ const ProductDetailModal = ({
                 <div className="flex items-center justify-between gap-4">
                    <div className="flex items-center gap-1.5 md:gap-2">
                      <button 
-                       onClick={() => adjustQuantity(-12)}
+                       onClick={() => adjustQuantity(-defaultQty)}
                        className="w-10 md:w-16 h-10 md:h-16 bg-white border-2 border-slate-100 hover:border-primary-500 hover:text-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center transition-all active:scale-95"
                      >
                        <Minus size={20} md:size={24} strokeWidth={3} />
@@ -161,7 +161,7 @@ const ProductDetailModal = ({
                         <span className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest block mt-0.5 whitespace-nowrap">יחידות סה״כ</span>
                      </div>
                      <button 
-                        onClick={() => adjustQuantity(12)}
+                        onClick={() => adjustQuantity(defaultQty)}
                         className="w-10 md:w-16 h-10 md:h-16 bg-white border-2 border-slate-100 hover:border-primary-500 hover:text-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center transition-all active:scale-95"
                      >
                         <Plus size={20} md:size={24} strokeWidth={3} />

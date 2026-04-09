@@ -173,7 +173,8 @@ const Admin = () => {
       const productToInsert = { 
         ...newProduct, 
         id: generateUUID(),
-        price: parseFloat(newProduct.price) 
+        price: parseFloat(newProduct.price),
+        default_quantity: parseInt(newProduct.default_quantity) || 12
       };
       const { data, error } = await supabase.from('products').insert([productToInsert]).select();
       if (!error) { 
@@ -195,7 +196,11 @@ const Admin = () => {
   const handleUpdateProduct = async () => {
     setIsUpdatingProduct(true);
     try {
-      const { error } = await supabase.from('products').update({ ...editingProduct, price: parseFloat(editingProduct.price) }).eq('id', editingProduct.id);
+      const { error } = await supabase.from('products').update({ 
+        ...editingProduct, 
+        price: parseFloat(editingProduct.price),
+        default_quantity: parseInt(editingProduct.default_quantity) || 12 
+      }).eq('id', editingProduct.id);
       if (!error) { setProducts(products.map(p => p.id === editingProduct.id ? editingProduct : p)); setEditingProduct(null); }
     } finally { setIsUpdatingProduct(false); }
   };
@@ -275,7 +280,11 @@ const Admin = () => {
   const handleAddCategory = async () => {
     setIsUpdatingCategory(true);
     try {
-      const categoryToInsert = { ...newCategory, id: generateUUID() };
+      const categoryToInsert = { 
+        ...newCategory, 
+        id: generateUUID(),
+        order_index: categories.length // Place at the end
+      };
       const { data, error } = await supabase.from('categories').insert([categoryToInsert]).select();
       if (!error) { 
         setCategories([...categories, data[0]]); 
@@ -303,6 +312,26 @@ const Admin = () => {
   const handleDeleteCategory = async (id) => {
     const { error } = await supabase.from('categories').delete().eq('id', id);
     if (!error) { setCategories(categories.filter(c => c.id !== id)); setConfirmingCategoryDelete(null); }
+  };
+
+  const handleUpdateCategoriesOrder = async (newCategories) => {
+    // Instantly update local UI state
+    setCategories(newCategories);
+    
+    // Prepare updates for Supabase
+    const updates = newCategories.map((cat, index) => ({
+      id: cat.id,
+      name: cat.name,
+      order_index: index
+    }));
+
+    const { error } = await supabase.from('categories').upsert(updates, { onConflict: 'id' });
+    
+    if (error) {
+      console.error('Error updating categories order:', error);
+      setAlertConfig({ isOpen: true, message: 'שגיאה בעדכון סדר הקטגוריות', type: 'error' });
+      fetchData(); // Revert on error
+    }
   };
 
   // Brands
@@ -734,7 +763,17 @@ const Admin = () => {
 
         {activeTab === 'products' && <ProductManagement sortedProducts={sortedProducts} searchTerm={searchTerm} setSearchTerm={setSearchTerm} categories={categories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} sortConfig={sortConfig} selectedProductIds={selectedProductIds} toggleProductSelection={toggleProductSelection} toggleAllProducts={toggleAllProducts} isBulkUpdatingProducts={isBulkUpdatingProducts} isBulkCategoryMenuOpen={isBulkCategoryMenuOpen} setIsBulkCategoryMenuOpen={setIsBulkCategoryMenuOpen} handleBulkUpdateProductCategory={handleBulkUpdateProductCategory} isBulkFlagsMenuOpen={isBulkFlagsMenuOpen} setIsBulkFlagsMenuOpen={setIsBulkFlagsMenuOpen} handleBulkUpdateProductFlag={handleBulkUpdateProductFlag} setEditingProduct={setEditingProduct} confirmingProductDelete={confirmingProductDelete} setConfirmingProductDelete={setConfirmingProductDelete} handleDeleteProduct={handleDeleteProduct} />}
         {activeTab === 'agents' && <AgentManagement agents={agents} handleCopyAgentLink={handleCopyAgentLink} copyFeedback={copyFeedback} handleShareAgent={handleShareAgent} confirmingAgentDelete={confirmingAgentDelete} setConfirmingAgentDelete={setConfirmingAgentDelete} handleDeleteAgent={handleDeleteAgent} setEditingAgent={setEditingAgent} />}
-        {activeTab === 'categories' && <CategoryManagement categories={categories} confirmingCategoryDelete={confirmingCategoryDelete} setConfirmingCategoryDelete={setConfirmingCategoryDelete} handleDeleteCategory={handleDeleteCategory} setEditingCategory={setEditingCategory} />}
+        {activeTab === 'categories' && (
+          <CategoryManagement 
+            categories={categories} 
+            confirmingCategoryDelete={confirmingCategoryDelete} 
+            setConfirmingCategoryDelete={setConfirmingCategoryDelete} 
+            handleDeleteCategory={handleDeleteCategory} 
+            setEditingCategory={setEditingCategory}
+            onUpdateOrder={handleUpdateCategoriesOrder}
+            products={products}
+          />
+        )}
         {activeTab === 'brands' && <BrandManagement brands={brands} confirmingBrandDelete={confirmingBrandDelete} setConfirmingBrandDelete={setConfirmingBrandDelete} handleDeleteBrand={handleDeleteBrand} setEditingBrand={setEditingBrand} />}
         {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} />}
         {activeTab === 'customers' && <CustomerManagement customers={customersWithStats} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} />}

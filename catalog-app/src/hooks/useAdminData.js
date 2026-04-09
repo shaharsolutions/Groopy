@@ -29,7 +29,7 @@ export const useAdminData = () => {
       ] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('agents').select('*').order('name'),
-        supabase.from('categories').select('*').order('name'),
+        supabase.from('categories').select('*').order('order_index', { ascending: true }),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('brands').select('*').order('type', { ascending: true, nullsFirst: false }).order('name'),
         supabase.from('banners').select('*').order('order_index', { ascending: true }),

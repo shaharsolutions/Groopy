@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Image } from 'lucide-react';
+import { X, Image as ImageIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const AgentFormModal = ({ 
@@ -19,17 +19,17 @@ const AgentFormModal = ({
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-[40px] w-full max-w-lg p-8 shadow-2xl relative"
+          className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden"
           dir="rtl"
         >
-          <div className="flex items-center justify-between mb-8">
+          <div className="p-8 pb-4 flex items-center justify-between">
             <h2 className="text-3xl font-black tracking-tighter">{title}</h2>
             <button onClick={onClose} className="text-slate-300 hover:text-slate-900 transition-colors">
               <X size={32} />
             </button>
           </div>
           
-          <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto p-8 pt-0 thin-scrollbar">
             <div className="flex flex-col gap-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם הסוכן</label>
               <input 
@@ -60,13 +60,13 @@ const AgentFormModal = ({
                   className="flex-1 h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none focus:border-primary-500 transition-all" 
                 />
                 <div className="w-14 h-14 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center text-slate-300">
-                   {agent.image ? <img src={agent.image} alt="" className="w-full h-full object-cover" /> : <Image size={24} />}
+                   {agent.image ? <img src={agent.image} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={24} />}
                 </div>
               </div>
             </div>
           </div>
           
-          <div className="mt-10 flex gap-4">
+          <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50/30">
             <button 
               onClick={onSave}
               disabled={isUpdating || !agent.name || !agent.phone}
@@ -74,7 +74,7 @@ const AgentFormModal = ({
             >
               {isUpdating ? 'שומר...' : 'שמור סוכן'}
             </button>
-            <button onClick={onClose} className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black hover:bg-slate-200 transition-all">
+            <button onClick={onClose} className="flex-1 bg-white border border-slate-200 text-slate-500 py-4 rounded-2xl font-black hover:bg-slate-50 transition-all active:scale-95">
               ביטול
             </button>
           </div>

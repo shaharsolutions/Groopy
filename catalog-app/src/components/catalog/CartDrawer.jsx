@@ -145,7 +145,7 @@ const CartDrawer = ({
                             </button>
                           </div>
                           <div className="text-right">
-                             <div className="text-xs font-black text-slate-400 uppercase mb-0.5">{item.quantity / 12} קרטון</div>
+                             <div className="text-xs font-black text-slate-400 uppercase mb-0.5">{item.quantity / (item.default_quantity || 12)} קרטון</div>
                              <div className="font-black text-xl md:text-3xl text-slate-900 tracking-tight">₪{(item.price * item.quantity).toFixed(2)}</div>
                           </div>
                         </div>

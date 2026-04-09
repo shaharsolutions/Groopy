@@ -26,7 +26,7 @@ const ProductFormModal = ({
       <motion.div 
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl relative flex flex-col md:max-h-[85vh] overflow-hidden"
+        className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl relative flex flex-col max-h-[90vh] md:max-h-[85vh] overflow-hidden"
         dir="rtl"
       >
         {/* Header */}

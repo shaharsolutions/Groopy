@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Image } from 'lucide-react';
+import { X, Image as ImageIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const BannerFormModal = ({ 
@@ -21,17 +21,17 @@ const BannerFormModal = ({
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-[40px] w-full max-w-2xl p-8 shadow-2xl relative"
+          className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden"
           dir="rtl"
         >
-          <div className="flex items-center justify-between mb-8">
+          <div className="p-8 pb-4 flex items-center justify-between">
             <h2 className="text-3xl font-black tracking-tighter">{title}</h2>
             <button onClick={onClose} className="text-slate-300 hover:text-slate-900 transition-colors">
               <X size={32} />
             </button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="flex-1 overflow-y-auto p-8 pt-0 thin-scrollbar">
             <div className="flex flex-col gap-2 col-span-1 md:col-span-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">כותרת הבאנר (פנימי)</label>
               <input 
@@ -123,7 +123,7 @@ const BannerFormModal = ({
                              transform: `scale(${banner.zoom || 1})`
                            }}
                          />
-                       ) : <Image size={48} />}
+                       ) : <ImageIcon size={48} />}
                     </div>
                   </div>
                 )}
@@ -202,7 +202,7 @@ const BannerFormModal = ({
             </div>
           </div>
           
-          <div className="mt-12 flex gap-4">
+          <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50/30">
             <button 
               onClick={onSave}
               disabled={isUpdating || !banner.image}
@@ -210,7 +210,7 @@ const BannerFormModal = ({
             >
               {isUpdating ? 'שומר...' : 'שמור באנר'}
             </button>
-            <button onClick={onClose} className="flex-1 bg-slate-100 text-slate-500 py-5 rounded-3xl font-black text-lg hover:bg-slate-200 transition-all">
+            <button onClick={onClose} className="flex-1 bg-white border border-slate-200 text-slate-500 py-5 rounded-3xl font-black text-lg hover:bg-slate-50 transition-all active:scale-95">
               ביטול
             </button>
           </div>

@@ -19,17 +19,17 @@ const CategoryFormModal = ({
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-[40px] w-full max-w-sm p-8 shadow-2xl relative"
+          className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden"
           dir="rtl"
         >
-          <div className="flex items-center justify-between mb-8">
+          <div className="p-8 pb-4 flex items-center justify-between">
             <h2 className="text-3xl font-black tracking-tighter">{title}</h2>
             <button onClick={onClose} className="text-slate-300 hover:text-slate-900 transition-colors">
               <X size={32} />
             </button>
           </div>
           
-          <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto p-8 pt-0 thin-scrollbar">
             <div className="flex flex-col gap-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם הקטגוריה</label>
               <input 
@@ -42,7 +42,7 @@ const CategoryFormModal = ({
             </div>
           </div>
           
-          <div className="mt-10 flex gap-4">
+          <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50/30">
             <button 
               onClick={onSave}
               disabled={isUpdating || !category.name}
@@ -50,7 +50,7 @@ const CategoryFormModal = ({
             >
               {isUpdating ? 'שומר...' : 'שמור קטגוריה'}
             </button>
-            <button onClick={onClose} className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black hover:bg-slate-200 transition-all">
+            <button onClick={onClose} className="flex-1 bg-white border border-slate-200 text-slate-500 py-4 rounded-2xl font-black hover:bg-slate-50 transition-all active:scale-95">
               ביטול
             </button>
           </div>

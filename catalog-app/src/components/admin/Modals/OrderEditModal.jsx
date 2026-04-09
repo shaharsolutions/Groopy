@@ -64,10 +64,10 @@ const OrderEditModal = ({
         <motion.div 
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          className="bg-white rounded-[40px] w-full max-w-4xl shadow-3xl overflow-hidden shadow-2xl border border-slate-100"
+          className="bg-white rounded-[40px] w-full max-w-4xl max-h-[90vh] shadow-3xl overflow-hidden shadow-2xl border border-slate-100 flex flex-col"
           dir="rtl"
         >
-          <div className="p-6 md:p-12">
+          <div className="flex-1 overflow-y-auto p-6 md:p-12 thin-scrollbar">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 md:mb-10 gap-6">
               <div className="flex items-center gap-3 md:gap-4">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-primary-50 text-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center shadow-sm shrink-0">

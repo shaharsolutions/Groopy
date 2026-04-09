@@ -95,6 +95,7 @@ const Catalog = () => {
 
   // Load persistence
   const [products, setProducts] = useState([]);
+  const [dbCategories, setDbCategories] = useState([]);
   const currentAgentRef = useRef(null);
   const isMounted = useRef(true);
 
@@ -131,10 +132,11 @@ const Catalog = () => {
 
   const fetchInitialData = async () => {
     try {
-      // 1. Fetch Products & Agents in parallel
-      const [productsRes, agentsRes] = await Promise.all([
+      // 1. Fetch Products, Agents & Categories in parallel
+      const [productsRes, agentsRes, categoriesRes] = await Promise.all([
         supabase.from('products').select('*').order('name'),
-        supabase.from('agents').select('*').order('name')
+        supabase.from('agents').select('*').order('name'),
+        supabase.from('categories').select('*').order('order_index', { ascending: true })
       ]);
 
       if (!isMounted.current) return;
@@ -144,6 +146,9 @@ const Catalog = () => {
 
       if (agentsRes.data) setAgents(agentsRes.data);
       if (agentsRes.error) console.error('Error loading agents:', agentsRes.error);
+
+      if (categoriesRes.data) setDbCategories(categoriesRes.data);
+      if (categoriesRes.error) console.error('Error loading categories:', categoriesRes.error);
 
       const agentsData = agentsRes.data;
 
@@ -204,9 +209,27 @@ const Catalog = () => {
 
   // Categories Calculation
   const categories = useMemo(() => {
-    const rawCategories = [...new Set(products.map(p => p.category))];
-    return ['All', ...new Set(rawCategories)];
-  }, [products]);
+    const productCategories = new Set(products.map(p => p.category).filter(Boolean));
+    
+    // Always start with 'All'
+    const result = ['All'];
+    
+    // Add categories from DB in their defined order, but only if they contain products
+    dbCategories.forEach(cat => {
+      if (cat.name && productCategories.has(cat.name)) {
+        result.push(cat.name);
+      }
+    });
+    
+    // Add any categories present in products that were NOT found in the categories table
+    productCategories.forEach(catName => {
+      if (!result.includes(catName)) {
+        result.push(catName);
+      }
+    });
+    
+    return result;
+  }, [products, dbCategories]);
 
   // Filtering Logic
   const filteredProducts = useMemo(() => {
@@ -237,7 +260,8 @@ const Catalog = () => {
 
   // Cart Management
   const addToCart = (product, quantity) => {
-    const finalQuantity = quantity ?? product.default_quantity ?? 12;
+    const defaultStep = Number(product.default_quantity || 12);
+    const finalQuantity = Number(quantity ?? defaultStep);
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
@@ -254,9 +278,9 @@ const Catalog = () => {
   const updateQuantity = (id, delta) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const step = item.default_quantity || 12;
+        const step = Number(item.default_quantity || 12);
         const adjustedDelta = delta === 1 ? step : delta === -1 ? -step : delta;
-        const newQty = Math.max(0, item.quantity + adjustedDelta);
+        const newQty = Math.max(0, Number(item.quantity) + adjustedDelta);
         return { ...item, quantity: newQty };
       }
       return item;
@@ -337,7 +361,7 @@ const Catalog = () => {
     cart.forEach((item, index) => {
       message += `\u200F*${index + 1}. ${item.name}*\n`;
       message += `\u200Fמק"ט: ${item.sku}\n`;
-      message += `\u200Fכמות: ${item.quantity} יחידות (${item.quantity / 12} קרטון)\n`;
+      message += `\u200Fכמות: ${item.quantity} יחידות (${item.quantity / (item.default_quantity || 12)} קרטון)\n`;
       message += `\u200Fמחיר יחידה: ₪${item.price.toFixed(2)}\n`;
       
       if (index < cart.length - 1) {
@@ -652,11 +676,11 @@ const Catalog = () => {
               <img src={logo} alt="" className="h-10 object-contain" />
             </div>
             <div className="flex gap-8 mt-2 text-[10px] md:text-sm font-black uppercase tracking-[0.2em] text-slate-400">
-              <span>אספקה</span>
+              <span>ייבוא</span>
               <span>•</span>
               <span>הפצה</span>
               <span>•</span>
-              <span>ייבוא</span>
+              <span>אספקה</span>
             </div>
           </div>
         </div>

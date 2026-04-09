@@ -50,7 +50,7 @@ const Admin = () => {
     sortConfig, setSortConfig,
     ordersStats,
     customers, setCustomers,
-    customersWithStats,
+    sortedCustomers,
     fetchData
   } = adminData;
 
@@ -442,7 +442,10 @@ const Admin = () => {
       if (!error) { 
         setCustomers([...customers, upsertResult[0]]); 
         setIsAddingCustomer(false); 
+        setEditingCustomer(null);
+        setSelectedCustomerDetails(null);
         setNewCustomer({ business_name: '', contact_name: '', email: '', phone: '', address: '', additional_contacts: [], notes: [] }); 
+        setAlertConfig({ isOpen: true, message: 'הלקוח נוסף בהצלחה', type: 'success' });
       } else {
         setCustomerError(formatCustomerError(error));
       }
@@ -454,15 +457,31 @@ const Admin = () => {
     }
   };
 
-  const handleUpdateCustomer = async () => {
+  const handleUpdateCustomer = async (inputData = null) => {
     setCustomerError(null);
     setIsUpdatingCustomer(true);
+
+    const isEvent = inputData && (inputData.nativeEvent || inputData.target);
+    const customerToUpdate = (inputData && !isEvent) ? inputData : editingCustomer;
     
-    // Check if this is a "virtual" customer (no real DB record yet)
-    if (editingCustomer.id && String(editingCustomer.id).startsWith('virtual-')) {
-      const { id, source, orderCount, lastOrderDate, ...customerData } = editingCustomer;
-      
-      // 🧹 Clean Data
+    if (!customerToUpdate) {
+      setIsUpdatingCustomer(false);
+      return;
+    }
+
+    // Determine the "old" name to sync historical orders if renamed
+    let oldName = null;
+    if (customerToUpdate.id && String(customerToUpdate.id).startsWith('virtual-')) {
+      oldName = customerToUpdate.id.replace('virtual-', '');
+    } else {
+      const original = customers.find(c => c.id === customerToUpdate.id);
+      if (original) oldName = original.business_name;
+    }
+    
+    const isVirtual = customerToUpdate.id && String(customerToUpdate.id).startsWith('virtual-');
+
+    if (isVirtual) {
+      const { id, source, orderCount, lastOrderDate, ...customerData } = customerToUpdate;
       const cleanCustomerData = Object.keys(customerData).reduce((acc, key) => {
         const value = customerData[key];
         const isSerializable = value === null || (typeof value !== 'object' && typeof value !== 'function') || Array.isArray(value) || (Object.prototype.toString.call(value) === '[object Object]');
@@ -470,15 +489,9 @@ const Admin = () => {
         return acc;
       }, {});
 
-      // 📧 Robust Collision Check (Case-insensitive & trimmed)
       const normEmail = cleanCustomerData.email?.toLowerCase().trim();
       const normName = cleanCustomerData.business_name?.toLowerCase().trim();
-      
-      const existingRecord = customers.find(c => 
-        (normEmail && c.email?.toLowerCase().trim() === normEmail) ||
-        (normName && c.business_name?.toLowerCase().trim() === normName)
-      );
-      
+      const existingRecord = customers.find(c => (normEmail && c.email?.toLowerCase().trim() === normEmail) || (normName && c.business_name?.toLowerCase().trim() === normName));
       const targetId = existingRecord ? existingRecord.id : generateUUID();
 
       const { data: updateResult, error } = await supabase.from('customers').upsert([{ 
@@ -489,32 +502,20 @@ const Admin = () => {
       
       if (!error) { 
         const realCustomer = updateResult[0];
-
-        // 🚛 History Migration: If name changed during promotion, update orders
-        const originalName = editingCustomer.id.replace('virtual-', '');
-        if (customerData.business_name !== originalName) {
-          await supabase.from('orders').update({ customer_name: customerData.business_name }).eq('customer_name', originalName);
-          fetchData(); // Deep refresh for all data
-        }
-
-        // If we updated an existing record, replace it in the list
-        if (existingRecord) {
-          setCustomers(customers.map(c => c.id === targetId ? realCustomer : c));
-        } else {
-          setCustomers([...customers, realCustomer]); 
+        // 🚛 History Migration
+        if (oldName && cleanCustomerData.business_name !== oldName) {
+          await supabase.from('orders').update({ customer_name: cleanCustomerData.business_name }).eq('customer_name', oldName);
         }
         setEditingCustomer(null); 
-        if (selectedCustomerDetails?.id === editingCustomer.id) {
-          setSelectedCustomerDetails(realCustomer);
-        }
+        setSelectedCustomerDetails(null);
+        setAlertConfig({ isOpen: true, message: 'השינויים נשמרו בהצלחה', type: 'success' });
+        fetchData(); // Refresh to reflect order association
       } else {
         setCustomerError(formatCustomerError(error));
       }
     } else {
       // Normal update for existing DB customer
-      const { source, orderCount, lastOrderDate, ...customerData } = editingCustomer;
-
-      // 🧹 Clean Data
+      const { source, orderCount, lastOrderDate, ...customerData } = customerToUpdate;
       const cleanCustomerData = Object.keys(customerData).reduce((acc, key) => {
         const value = customerData[key];
         const isSerializable = value === null || (typeof value !== 'object' && typeof value !== 'function') || Array.isArray(value) || (Object.prototype.toString.call(value) === '[object Object]');
@@ -522,13 +523,16 @@ const Admin = () => {
         return acc;
       }, {});
 
-      const { error } = await supabase.from('customers').update(cleanCustomerData).eq('id', editingCustomer.id);
+      const { error } = await supabase.from('customers').update(cleanCustomerData).eq('id', customerToUpdate.id);
       if (!error) { 
-        setCustomers(customers.map(c => c.id === editingCustomer.id ? editingCustomer : c)); 
-        setEditingCustomer(null); 
-        if (selectedCustomerDetails?.id === editingCustomer.id) {
-          setSelectedCustomerDetails(editingCustomer);
+        // 🚛 History Migration (Also for CRM customers who rename)
+        if (oldName && cleanCustomerData.business_name !== oldName) {
+          await supabase.from('orders').update({ customer_name: cleanCustomerData.business_name }).eq('customer_name', oldName);
         }
+        setEditingCustomer(null); 
+        setSelectedCustomerDetails(null);
+        setAlertConfig({ isOpen: true, message: 'השינויים נשמרו בהצלחה', type: 'success' });
+        fetchData();
       } else {
         setCustomerError(formatCustomerError(error));
       }
@@ -776,7 +780,7 @@ const Admin = () => {
         )}
         {activeTab === 'brands' && <BrandManagement brands={brands} confirmingBrandDelete={confirmingBrandDelete} setConfirmingBrandDelete={setConfirmingBrandDelete} handleDeleteBrand={handleDeleteBrand} setEditingBrand={setEditingBrand} />}
         {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} />}
-        {activeTab === 'customers' && <CustomerManagement customers={customersWithStats} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} />}
+        {activeTab === 'customers' && <CustomerManagement customers={sortedCustomers} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} sortConfig={sortConfig} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} />}
         {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} />}
       </main>
 
@@ -793,7 +797,7 @@ const Admin = () => {
             onClose={() => { setIsAddingCustomer(false); setEditingCustomer(null); setSelectedCustomerDetails(null); }} 
             customer={selectedCustomerDetails || editingCustomer || newCustomer} 
             setCustomer={selectedCustomerDetails ? setSelectedCustomerDetails : (editingCustomer ? setEditingCustomer : setNewCustomer)} 
-            onSave={editingCustomer ? handleUpdateCustomer : handleAddCustomer} 
+            onSave={(data) => (editingCustomer || selectedCustomerDetails) ? handleUpdateCustomer(data) : handleAddCustomer(data)} 
             isUpdating={isUpdatingCustomer} 
             title={selectedCustomerDetails ? 'פרטי לקוח' : (editingCustomer ? 'עריכת לקוח' : 'הוספת לקוח חדש')} 
             orders={orders}

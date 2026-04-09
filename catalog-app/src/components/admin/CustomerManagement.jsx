@@ -13,7 +13,9 @@ import {
   Edit,
   Trash2,
   Search,
-  Filter
+  Filter,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -27,13 +29,32 @@ const CustomerManagement = ({
   confirmingCustomerDelete,
   setConfirmingCustomerDelete,
   handleDeleteCustomer,
-  setSelectedCustomerDetails // Function to open the detailed modal
+  setSelectedCustomerDetails,
+  sortConfig,
+  requestSort
 }) => {
   const filteredCustomers = customers.filter(c => 
-    c.business_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.business_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (c.contact_name && c.contact_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const SortHeader = ({ label, columnKey, centered = false }) => {
+    const isActive = sortConfig?.key === columnKey;
+    return (
+      <th className={`px-8 py-5 ${centered ? 'text-center' : 'text-right'}`}>
+        <button 
+          onClick={() => requestSort(columnKey)}
+          className={`group inline-flex items-center gap-1 hover:text-primary-600 transition-colors ${isActive ? 'text-primary-600' : 'text-slate-400'}`}
+        >
+          <span className="font-black text-[10px] uppercase tracking-widest">{label}</span>
+          <div className={`transition-all duration-200 ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1 group-hover:opacity-50'}`}>
+            {isActive && sortConfig.direction === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+          </div>
+        </button>
+      </th>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -80,11 +101,11 @@ const CustomerManagement = ({
         <table className="w-full text-right border-collapse min-w-[900px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-black text-[10px] uppercase tracking-widest">
-              <th className="px-8 py-5">שם העסק / לקוח</th>
-              <th className="px-8 py-5">איש קשר</th>
+              <SortHeader label="שם העסק / לקוח" columnKey="business_name" />
+              <SortHeader label="איש קשר" columnKey="contact_name" />
               <th className="px-8 py-5">פרטי התקשרות</th>
-              <th className="px-8 py-5 text-center">הזמנות</th>
-              <th className="px-8 py-5">הזמנה אחרונה</th>
+              <SortHeader label="הזמנות" columnKey="orderCount" centered />
+              <SortHeader label="הזמנה אחרונה" columnKey="lastOrderDate" />
               <th className="px-8 py-5">פעולות</th>
             </tr>
           </thead>
@@ -98,7 +119,7 @@ const CustomerManagement = ({
                 <td className="px-8 py-6">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 font-black text-lg">
-                      {customer.business_name.charAt(0)}
+                      {customer.business_name?.charAt(0)}
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">

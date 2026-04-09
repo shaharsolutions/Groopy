@@ -371,7 +371,7 @@ const CustomerFormModal = ({
             ביטול
           </button>
           <button 
-            onClick={() => onSave()}
+            onClick={() => onSave(customer)}
             disabled={isUpdating || !customer.business_name}
             className="flex items-center gap-3 bg-primary-500 text-white px-12 py-4 rounded-2xl text-sm font-black shadow-xl shadow-primary-200 hover:bg-primary-600 transition-all disabled:opacity-50"
           >

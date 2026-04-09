@@ -151,6 +151,32 @@ export const useAdminData = () => {
     });
   }, [customers, orders]);
 
+  const sortedCustomers = useMemo(() => {
+    const sortableItems = [...customersWithStats];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        if (sortConfig.key === 'orderCount') {
+          aValue = parseInt(aValue) || 0;
+          bValue = parseInt(bValue) || 0;
+        } else if (sortConfig.key === 'lastOrderDate') {
+          aValue = aValue ? new Date(aValue).getTime() : 0;
+          bValue = bValue ? new Date(bValue).getTime() : 0;
+        } else {
+          aValue = String(aValue || '').toLowerCase();
+          bValue = String(bValue || '').toLowerCase();
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [customersWithStats, sortConfig]);
+
   return {
     activeTab, setActiveTab,
     isSidebarOpen, setIsSidebarOpen,
@@ -167,6 +193,7 @@ export const useAdminData = () => {
     ordersStats,
     customers, setCustomers,
     customersWithStats,
+    sortedCustomers,
     fetchData
   };
 };

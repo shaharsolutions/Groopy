@@ -41,10 +41,10 @@ const Sidebar = ({
 
       {/* 🏙️ SIDEBAR */}
       <aside className={`
-        fixed inset-y-0 right-0 z-50 w-80 bg-white border-l border-slate-200 flex flex-col p-8 transition-transform duration-300 md:relative md:translate-x-0
+        fixed inset-y-0 right-0 z-50 w-80 bg-white border-l border-slate-200 flex flex-col transition-transform duration-300 md:relative md:translate-x-0
         ${isSidebarOpen ? 'translate-x-0' : 'translate-x-[100%] md:translate-x-0'}
       `}>
-        <div className="flex items-center justify-between mb-12">
+        <div className="flex items-center justify-between p-8 pb-0 mb-8">
           <div className="flex items-center gap-3">
             <div className="h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm overflow-hidden p-1 border border-slate-100">
               <img src={logo} alt="Groopy Logo" className="w-full h-full object-contain" />
@@ -58,7 +58,7 @@ const Sidebar = ({
           </button>
         </div>
 
-        <nav className="space-y-3">
+        <nav className="flex-1 overflow-y-auto thin-scrollbar px-8 space-y-3">
           {menuItems.map((item) => (
             <button 
               key={item.id}
@@ -85,7 +85,7 @@ const Sidebar = ({
           ))}
         </nav>
 
-        <div className="mt-auto pt-8 border-t border-slate-100">
+        <div className="p-8 pt-6 border-t border-slate-100">
            <Link 
             to="/"
             className="flex items-center gap-3 text-slate-400 hover:text-slate-900 font-bold text-sm transition-colors"

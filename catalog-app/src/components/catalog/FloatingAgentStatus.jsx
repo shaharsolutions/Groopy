@@ -38,6 +38,11 @@ const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems, isLocked
               <span className="text-lg font-bold text-slate-900 leading-none">
                 {activeAgent ? activeAgent.name : 'בחר סוכן להזמנה'}
               </span>
+              {activeAgent?.description && (
+                <span className="text-[11px] font-black text-primary-600 mt-1">
+                  {activeAgent.description}
+                </span>
+              )}
             </div>
           </div>
 

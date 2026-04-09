@@ -109,7 +109,7 @@ const Admin = () => {
 
   // Templates for new items
   const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', location: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, default_quantity: 12 });
-  const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '' });
+  const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '', description: '' });
   const [newCategory, setNewCategory] = useState({ name: '' });
   const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '', show_in_carousel: true });
   const [newBanner, setNewBanner] = useState({ 
@@ -235,7 +235,7 @@ const Admin = () => {
     if (!error) { 
       setAgents([...agents, data[0]]); 
       setIsAddingAgent(false); 
-      setNewAgent({ name: '', phone: '', image: '' }); 
+      setNewAgent({ name: '', phone: '', image: '', description: '' }); 
     } else {
       console.error('Error adding agent:', error);
       setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת סוכן: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });

@@ -64,6 +64,16 @@ const AgentFormModal = ({
                 </div>
               </div>
             </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">תיאור (יופיע בבחירת סוכנים)</label>
+              <input 
+                type="text" 
+                placeholder="לדוגמא: סוכן לאיזור המרכז"
+                value={agent.description || ''}
+                onChange={(e) => setAgent({...agent, description: e.target.value})}
+                className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 font-bold outline-none focus:border-primary-500 transition-all" 
+              />
+            </div>
           </div>
           
           <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50/30">

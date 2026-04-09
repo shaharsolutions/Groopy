@@ -18,12 +18,16 @@ export const downloadCustomerTemplate = () => {
   // Set the sheet to RTL
   ws['!views'] = [{ RTL: true }];
   
-  // Set all cells to text format (@)
-  const range = XLSX.utils.decode_range(ws['!ref']);
+  // Set range to 500 rows to ensure user input is formatted as text
+  const range = { s: { c: 0, r: 0 }, e: { c: 4, r: 500 } };
+  ws['!ref'] = XLSX.utils.encode_range(range);
+
   for (let R = range.s.r; R <= range.e.r; ++R) {
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
-      if (!ws[cell_ref]) continue;
+      if (!ws[cell_ref]) {
+        ws[cell_ref] = { v: '', t: 's' };
+      }
       ws[cell_ref].z = '@'; // Force text format
       ws[cell_ref].t = 's'; // Ensure type is string
     }

@@ -7,7 +7,8 @@ const AgentSelectorModal = ({ isOpen, onClose, agents, onSelect, activeAgentId }
 
   const filteredAgents = agents.filter(agent => 
     agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    agent.phone?.includes(searchTerm)
+    agent.phone?.includes(searchTerm) ||
+    agent.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -86,10 +87,17 @@ const AgentSelectorModal = ({ isOpen, onClose, agents, onSelect, activeAgentId }
                     
                     <div className="flex-1 text-right">
                       <p className="font-black text-slate-900 leading-none mb-1">{agent.name}</p>
-                      <p className="text-slate-400 text-sm font-bold flex items-center gap-1 justify-end">
-                        {agent.phone}
-                        <Phone size={12} />
-                      </p>
+                      <div className="flex flex-col gap-0.5">
+                        {agent.description && (
+                          <p className="text-primary-500 text-[11px] font-black leading-tight">
+                            {agent.description}
+                          </p>
+                        )}
+                        <p className="text-slate-400 text-sm font-bold flex items-center gap-1 justify-end">
+                          {agent.phone}
+                          <Phone size={12} />
+                        </p>
+                      </div>
                     </div>
 
                     {activeAgentId === agent.id && (

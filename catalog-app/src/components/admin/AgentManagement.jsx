@@ -35,8 +35,13 @@ const AgentManagement = ({
               )}
             </div>
             <div>
-              <h3 className="text-2xl font-black text-slate-800 tracking-tight">{agent.name}</h3>
-              <p className="text-slate-400 font-bold text-sm">{agent.phone}</p>
+              <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">{agent.name}</h3>
+              {agent.description && (
+                <p className="text-primary-600 font-black text-[11px] mb-1 pr-0.5">
+                  {agent.description}
+                </p>
+              )}
+              <p className="text-slate-400 font-bold text-sm leading-none">{agent.phone}</p>
             </div>
           </div>
 

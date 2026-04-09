@@ -111,7 +111,7 @@ const BannerFormModal = ({
                       </div>
                     </div>
 
-                    <div className="aspect-[21/9] bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center text-slate-300 relative">
+                    <div className="aspect-[16/10] bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center text-slate-300 relative">
                        {banner.image ? (
                          <img 
                            src={banner.image} 

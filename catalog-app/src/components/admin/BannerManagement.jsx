@@ -18,7 +18,7 @@ const BannerManagement = ({
           className="bg-white rounded-[40px] border border-slate-200 shadow-sm relative group overflow-hidden flex flex-col"
         >
           {/* Banner Image Preview */}
-          <div className="aspect-[21/9] w-full bg-slate-100 overflow-hidden relative">
+          <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
             {banner.image ? (
               <img 
                 src={banner.image} 

@@ -7,7 +7,16 @@ export const downloadCustomerTemplate = () => {
   ];
   
   const wb = XLSX.utils.book_new();
+  
+  // Set RTL for the workbook
+  if (!wb.Workbook) wb.Workbook = {};
+  if (!wb.Workbook.Views) wb.Workbook.Views = [];
+  wb.Workbook.Views[0] = { RTL: true };
+
   const ws = XLSX.utils.aoa_to_sheet(headers);
+  
+  // Set the sheet to RTL
+  ws['!views'] = [{ RTL: true }];
   
   // Set all cells to text format (@)
   const range = XLSX.utils.decode_range(ws['!ref']);

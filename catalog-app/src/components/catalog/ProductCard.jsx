@@ -71,7 +71,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
       </div>
 
       {/* Info Content */}
-      <div className="p-4 md:p-6 pt-0 flex flex-col flex-1">
+      <div className="px-3 md:px-6 pb-4 md:pb-6 pt-0 flex flex-col flex-1">
         <span className="text-[10px] font-black text-accent-500 uppercase tracking-widest mb-1">
           {(product.category === 'Bottles' || product.category === 'בקבוקים') ? 'בקבוקים' : 
            (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
@@ -84,7 +84,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
           {product.description}
         </p>
 
-        <div className="mt-auto flex items-center justify-between gap-1.5">
+        <div className="mt-auto flex items-center justify-between gap-1">
           <div className="shrink-0">
             <span className="text-[8px] md:text-[9px] font-bold text-slate-400 block -mb-0.5">מחיר יחידה</span>
             <span className="text-base md:text-xl font-black text-slate-900">₪{product.price.toFixed(2)}</span>
@@ -92,7 +92,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
           <button 
             onClick={() => addToCart(product)}
             className={`
-              flex items-center justify-center gap-1 md:gap-1.5 px-2.5 md:px-3.5 py-1.5 md:py-2 rounded-lg md:rounded-xl transition-all duration-300
+              flex items-center justify-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 md:py-2 rounded-lg md:rounded-xl transition-all duration-300
               ${cartCount > 0 
                 ? 'bg-accent-600 text-white shadow-accent-200' 
                 : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
@@ -101,7 +101,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
             `}
           >
             <div className="flex items-center gap-1 md:gap-1.5">
-              <Plus size={13} md:size={15} strokeWidth={4} />
+              <Plus size={12} md:size={15} strokeWidth={4} />
               <span className={`font-black text-[10px] md:text-sm whitespace-nowrap ${cartCount > 0 ? 'hidden md:inline' : 'inline'}`}>
                 להזמנה
               </span>

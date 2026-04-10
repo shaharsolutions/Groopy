@@ -11,7 +11,8 @@ import {
   Trash2, 
   Check, 
   X,
-  ShoppingBag
+  ShoppingBag,
+  Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -256,6 +257,11 @@ const ProductManagement = ({
                           {p.is_hot_deal && (
                             <div className="bg-orange-50 text-orange-600 p-1.5 rounded-xl border border-orange-100 flex items-center justify-center shrink-0" title="מבצע חם">
                               <Flame size={14} fill="currentColor" />
+                            </div>
+                          )}
+                          {p.is_default_carton && (
+                            <div className="bg-purple-50 text-purple-600 p-1.5 rounded-xl border border-purple-100 flex items-center justify-center shrink-0" title="נמכר בקרטונים">
+                              <Package size={14} />
                             </div>
                           )}
                         </div>

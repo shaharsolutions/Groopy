@@ -61,8 +61,8 @@ const ProductFormModal = ({
                 className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none focus:border-primary-500 transition-all shadow-inner" 
               />
             </div>
-            <div className="grid grid-cols-2 gap-4 items-end">
-              <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end col-span-1 md:col-span-2">
+              <div className="flex flex-col gap-2 md:col-span-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 truncate">מחיר (₪)</label>
                 <input 
                   type="number" 
@@ -71,7 +71,7 @@ const ProductFormModal = ({
                   className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none focus:border-primary-500 transition-all shadow-inner" 
                 />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 md:col-span-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2 truncate">כמות ברירת מחדל</label>
                 <input 
                   type="number" 
@@ -79,6 +79,23 @@ const ProductFormModal = ({
                   onChange={(e) => setProduct({...product, default_quantity: e.target.value})}
                   className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-4 md:px-6 font-bold outline-none focus:border-primary-500 transition-all shadow-inner" 
                 />
+              </div>
+              <div className="md:col-span-2 flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner h-14 self-end">
+                <div className="relative flex items-center">
+                  <input 
+                    type="checkbox" 
+                    id="is_default_carton"
+                    checked={product.is_default_carton}
+                    onChange={() => setProduct({...product, is_default_carton: !product.is_default_carton})}
+                    className="peer w-6 h-6 border-2 border-slate-300 rounded-lg checked:bg-primary-500 checked:border-primary-500 transition-all outline-none cursor-pointer"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-white opacity-0 peer-checked:opacity-100">
+                    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                </div>
+                <label htmlFor="is_default_carton" className="text-[10px] font-black text-slate-800 uppercase tracking-widest cursor-pointer select-none">נמכר בקרטונים</label>
               </div>
             </div>
             <div className="flex flex-col gap-2">
@@ -124,7 +141,7 @@ const ProductFormModal = ({
             </div>
             
             {/* Toggles */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 col-span-1 md:col-span-2">
+            <div className="grid grid-cols-3 gap-4 col-span-1 md:col-span-2">
               {[
                 { id: 'is_new', label: 'חדש' },
                 { id: 'is_best_seller', label: 'נמכר ביותר' },
@@ -132,6 +149,7 @@ const ProductFormModal = ({
               ].map(flag => (
                 <button
                   key={flag.id}
+                  type="button"
                   onClick={() => setProduct({...product, [flag.id]: !product[flag.id]})}
                   className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
                     product[flag.id] 

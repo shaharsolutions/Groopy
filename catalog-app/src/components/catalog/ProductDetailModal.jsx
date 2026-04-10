@@ -24,7 +24,8 @@ const ProductDetailModal = ({
 
   useEffect(() => {
     if (isOpen && product) {
-      setQuantity(Number(product.default_quantity || 12));
+      const initialQty = product.is_default_carton ? Number(product.default_quantity || 12) : 1;
+      setQuantity(initialQty);
       setIsAdded(false);
     }
   }, [isOpen, product]);
@@ -40,9 +41,9 @@ const ProductDetailModal = ({
     }, 600);
   };
 
-  const adjustQuantity = (delta) => {
-    const step = Number(product.default_quantity || 12);
-    setQuantity(prev => Math.max(step, Number(prev) + delta));
+  const adjustQuantity = (direction) => {
+    const step = product.is_default_carton ? Number(product.default_quantity || 12) : 1;
+    setQuantity(prev => Math.max(step, Number(prev) + (direction * step)));
   };
 
   return (
@@ -151,17 +152,26 @@ const ProductDetailModal = ({
                 <div className="flex items-center justify-between gap-4">
                    <div className="flex items-center gap-1.5 md:gap-2">
                      <button 
-                       onClick={() => adjustQuantity(-defaultQty)}
+                       onClick={() => adjustQuantity(-1)}
                        className="w-10 md:w-16 h-10 md:h-16 bg-white border-2 border-slate-100 hover:border-primary-500 hover:text-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center transition-all active:scale-95"
                      >
                        <Minus size={20} md:size={24} strokeWidth={3} />
                      </button>
                      <div className="w-14 md:w-28 text-center">
-                        <span className="text-xl md:text-4xl font-black text-slate-900 block leading-none">{quantity}</span>
-                        <span className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest block mt-0.5 whitespace-nowrap">יחידות סה״כ</span>
+                        <span className="text-xl md:text-4xl font-black text-slate-900 block leading-none">
+                          {quantity}
+                        </span>
+                        <span className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest block mt-0.5 whitespace-nowrap">
+                          יחידות סה״כ
+                        </span>
+                        {product.is_default_carton && (
+                          <span className="text-[6px] md:text-[8px] font-bold text-slate-300 uppercase tracking-tighter block -mt-0.5">
+                            ({quantity / (product.default_quantity || 12)} קרטון)
+                          </span>
+                        )}
                      </div>
                      <button 
-                        onClick={() => adjustQuantity(defaultQty)}
+                        onClick={() => adjustQuantity(1)}
                         className="w-10 md:w-16 h-10 md:h-16 bg-white border-2 border-slate-100 hover:border-primary-500 hover:text-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center transition-all active:scale-95"
                      >
                         <Plus size={20} md:size={24} strokeWidth={3} />

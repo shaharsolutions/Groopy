@@ -366,11 +366,11 @@ const Catalog = () => {
 
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
 
-  const updateQuantity = (id, delta) => {
+  const updateQuantity = (id, direction) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const step = Number(item.default_quantity || 12);
-        const adjustedDelta = delta === 1 ? step : delta === -1 ? -step : delta;
+        const step = item.is_default_carton ? Number(item.default_quantity || 12) : 1;
+        const adjustedDelta = direction * step;
         const newQty = Math.max(0, Number(item.quantity) + adjustedDelta);
         return { ...item, quantity: newQty };
       }
@@ -456,7 +456,9 @@ const Catalog = () => {
     cart.forEach((item, index) => {
       message += `\u200F*${index + 1}. ${item.name}*\n`;
       message += `\u200Fמק"ט: ${item.sku}\n`;
-      message += `\u200Fכמות: ${item.quantity} יחידות (${item.quantity / (item.default_quantity || 12)} קרטון)\n`;
+      const cartonCount = item.quantity / (item.default_quantity || 12);
+      const cartonText = item.is_default_carton ? ` (${cartonCount} קרטון)` : '';
+      message += `\u200Fכמות: ${item.quantity} יחידות${cartonText}\n`;
       message += `\u200Fמחיר יחידה: ₪${item.price.toFixed(2)}\n`;
       
       if (index < cart.length - 1) {

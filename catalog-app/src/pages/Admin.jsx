@@ -27,6 +27,7 @@ import BannerFormModal from '../components/admin/Modals/BannerFormModal';
 import OrderDetailsModal from '../components/admin/Modals/OrderDetailsModal';
 import OrderEditModal from '../components/admin/Modals/OrderEditModal';
 import CustomerFormModal from '../components/admin/Modals/CustomerFormModal';
+import AgentCategoryLinkModal from '../components/admin/Modals/AgentCategoryLinkModal';
 
 // Utilities
 import { downloadCustomerTemplate, parseCustomerExcel } from '../utils/excelUtils';
@@ -143,6 +144,15 @@ const Admin = () => {
   const [confirmingNoteDelete, setConfirmingNoteDelete] = useState(null);
   
   const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
+  
+  // Agent Category Link Modal
+  const [selectedAgentForLink, setSelectedAgentForLink] = useState(null);
+  
+  const activeCategories = useMemo(() => {
+    if (!products || !categories) return [];
+    const usedCategoryNames = new Set(products.map(p => p.category).filter(Boolean));
+    return categories.filter(cat => usedCategoryNames.has(cat.name));
+  }, [products, categories]);
 
 
   useEffect(() => {
@@ -267,13 +277,22 @@ const Admin = () => {
     }
   };
 
-  const handleCopyAgentLink = (agent) => {
-    navigator.clipboard.writeText(`${window.location.origin}/#/?agent=${agent.id}`);
-    setCopyFeedback(agent.id); setTimeout(() => setCopyFeedback(null), 2000);
+  const handleCopyAgentLink = (agent, category = null) => {
+    let url = `${window.location.origin}/#/?agent=${agent.id}`;
+    if (category) {
+      url += `&category=${encodeURIComponent(category)}`;
+    }
+    navigator.clipboard.writeText(url);
+    setCopyFeedback(category ? `${agent.id}-${category}` : agent.id); 
+    setTimeout(() => setCopyFeedback(null), 2000);
   };
 
-  const handleShareAgent = async (agent) => {
-    if (navigator.share) await navigator.share({ title: `Groopy - ${agent.name}`, url: `${window.location.origin}/#/?agent=${agent.id}` });
+  const handleShareAgent = async (agent, category = null) => {
+    let url = `${window.location.origin}/#/?agent=${agent.id}`;
+    if (category) {
+      url += `&category=${encodeURIComponent(category)}`;
+    }
+    if (navigator.share) await navigator.share({ title: `Groopy - ${agent.name}${category ? ` - ${category}` : ''}`, url });
   };
 
   // Categories
@@ -766,7 +785,7 @@ const Admin = () => {
         <Header activeTab={activeTab} productsCount={products.length} bannersCount={banners.length} setIsSidebarOpen={setIsSidebarOpen} setIsAddingProduct={setIsAddingProduct} setIsAddingAgent={setIsAddingAgent} setIsAddingBrand={setIsAddingBrand} setIsAddingBanner={setIsAddingBanner} setIsAddingCategory={setIsAddingCategory} setIsAddingCustomer={setIsAddingCustomer} />
 
         {activeTab === 'products' && <ProductManagement sortedProducts={sortedProducts} searchTerm={searchTerm} setSearchTerm={setSearchTerm} categories={categories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} sortConfig={sortConfig} selectedProductIds={selectedProductIds} toggleProductSelection={toggleProductSelection} toggleAllProducts={toggleAllProducts} isBulkUpdatingProducts={isBulkUpdatingProducts} isBulkCategoryMenuOpen={isBulkCategoryMenuOpen} setIsBulkCategoryMenuOpen={setIsBulkCategoryMenuOpen} handleBulkUpdateProductCategory={handleBulkUpdateProductCategory} isBulkFlagsMenuOpen={isBulkFlagsMenuOpen} setIsBulkFlagsMenuOpen={setIsBulkFlagsMenuOpen} handleBulkUpdateProductFlag={handleBulkUpdateProductFlag} setEditingProduct={setEditingProduct} confirmingProductDelete={confirmingProductDelete} setConfirmingProductDelete={setConfirmingProductDelete} handleDeleteProduct={handleDeleteProduct} />}
-        {activeTab === 'agents' && <AgentManagement agents={agents} handleCopyAgentLink={handleCopyAgentLink} copyFeedback={copyFeedback} handleShareAgent={handleShareAgent} confirmingAgentDelete={confirmingAgentDelete} setConfirmingAgentDelete={setConfirmingAgentDelete} handleDeleteAgent={handleDeleteAgent} setEditingAgent={setEditingAgent} />}
+        {activeTab === 'agents' && <AgentManagement agents={agents} onSelectCategoryForLink={setSelectedAgentForLink} handleCopyAgentLink={handleCopyAgentLink} copyFeedback={copyFeedback} handleShareAgent={handleShareAgent} confirmingAgentDelete={confirmingAgentDelete} setConfirmingAgentDelete={setConfirmingAgentDelete} handleDeleteAgent={handleDeleteAgent} setEditingAgent={setEditingAgent} />}
         {activeTab === 'categories' && (
           <CategoryManagement 
             categories={categories} 
@@ -806,6 +825,19 @@ const Admin = () => {
             onDeleteNote={handleDeleteCustomerNote}
             isSubmittingNote={isSubmittingCustomerNote}
             error={customerError}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {!!selectedAgentForLink && (
+          <AgentCategoryLinkModal 
+            isOpen={true} 
+            onClose={() => setSelectedAgentForLink(null)} 
+            agent={selectedAgentForLink} 
+            categories={activeCategories} 
+            onCopyLink={handleCopyAgentLink} 
+            copyFeedback={copyFeedback} 
           />
         )}
       </AnimatePresence>

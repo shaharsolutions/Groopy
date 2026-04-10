@@ -4,7 +4,9 @@ import {
   Link as ChainLink, 
   Share2, 
   Check, 
-  Users 
+  Users,
+  ChevronDown,
+  Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,7 +18,8 @@ const AgentManagement = ({
     confirmingAgentDelete, 
     setConfirmingAgentDelete, 
     handleDeleteAgent, 
-    setEditingAgent 
+    setEditingAgent,
+    onSelectCategoryForLink
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -46,16 +49,25 @@ const AgentManagement = ({
           </div>
 
           <div className="flex flex-col gap-3 pt-6 border-t border-slate-50">
-             <button 
-               onClick={() => handleCopyAgentLink(agent)}
-               className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl transition-all group/link"
-             >
-               <div className="flex items-center gap-3">
-                  {copyFeedback === agent.id ? <Check size={18} className="text-green-500" /> : <ChainLink size={18} />}
-                  <span className="font-black text-sm">{copyFeedback === agent.id ? 'הועתק!' : 'העתק קישור לקטלוג'}</span>
-               </div>
-               <div className="text-[10px] uppercase font-black tracking-widest opacity-40 group-hover/link:opacity-100">העתקה</div>
-             </button>
+             <div className="flex gap-2">
+               <button 
+                 onClick={() => handleCopyAgentLink(agent)}
+                 className="flex-1 flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl transition-all group/link"
+               >
+                 <div className="flex items-center gap-3">
+                    {copyFeedback === agent.id ? <Check size={18} className="text-green-500" /> : <ChainLink size={18} />}
+                    <span className="font-black text-sm">{copyFeedback === agent.id ? 'הועתק!' : 'העתק קישור'}</span>
+                 </div>
+               </button>
+               
+               <button 
+                 onClick={() => onSelectCategoryForLink(agent)}
+                 className="p-4 bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-primary-500 rounded-2xl transition-all"
+                 title="יצירת קישור לקטגוריה ספציפית"
+               >
+                 <ChevronDown size={20} />
+               </button>
+             </div>
 
              {navigator.share && (
                <button 

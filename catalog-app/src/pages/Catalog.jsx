@@ -39,7 +39,7 @@ const Catalog = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState(() => searchParams.get('category') || 'All');
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = localStorage.getItem('groopy_cart');
@@ -62,7 +62,7 @@ const Catalog = () => {
 
   const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
 
-  const [selectedBadge, setSelectedBadge] = useState(null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
+  const [selectedBadge, setSelectedBadge] = useState(() => searchParams.get('badge') || null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
   const filtersRef = useRef(null);
@@ -101,6 +101,24 @@ const Catalog = () => {
 
   useEffect(() => {
     isMounted.current = true;
+    
+    // ⚡ INSTANT LOAD FROM CACHE (Stale-While-Revalidate)
+    const cachedProducts = localStorage.getItem('groopy_cache_products');
+    const cachedCategories = localStorage.getItem('groopy_cache_categories');
+    const cachedAgents = localStorage.getItem('groopy_cache_agents');
+
+    if (cachedProducts && cachedCategories && cachedAgents) {
+      try {
+        setProducts(JSON.parse(cachedProducts));
+        setDbCategories(JSON.parse(cachedCategories));
+        setAgents(JSON.parse(cachedAgents));
+        // If we have cache, we can show the UI immediately while the sync happens in background
+        setIsInitialLoading(false);
+      } catch (e) {
+        console.error('Error parsing cache', e);
+      }
+    }
+
     fetchInitialData();
     return () => {
       isMounted.current = false;
@@ -130,6 +148,62 @@ const Catalog = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // 🚀 STABLE LANDING SYSTEM
+  const hasAutoScrolled = useRef(false);
+  const landingModeRef = useRef(false);
+
+  useEffect(() => {
+    // 1. Disable browser's automatic scroll restoration to prevent jumping back
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
+    // 2. Monitor for unexpected "snap-back" to top during the first 3 seconds of load
+    const handleScrollMonitor = () => {
+      // If we are in landing mode and suddenly jump back to the very top (< 50px)
+      // we re-trigger the scroll to products.
+      if (landingModeRef.current && window.scrollY < 50) {
+        scrollToProducts();
+      }
+    };
+
+    window.addEventListener('scroll', handleScrollMonitor);
+    return () => {
+      window.removeEventListener('scroll', handleScrollMonitor);
+      // Restore default behavior on unmount if needed
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'auto';
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isInitialLoading && !hasAutoScrolled.current) {
+      const fullHref = window.location.href;
+      const isDeepLink = fullHref.match(/[?&]category=([^&#]+)/) || fullHref.match(/[?&]badge=([^&#]+)/);
+      
+      if (isDeepLink) {
+        hasAutoScrolled.current = true;
+        landingModeRef.current = true;
+
+        // Stage 1: Immediate instant scroll to "claim" the position
+        mainRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+
+        // Stage 2: Smooth refined scroll after layout stabilizes
+        const scrollStabilizer = setTimeout(() => {
+          scrollToProducts();
+          
+          // Exit landing mode after 2.5 seconds (plenty of time for images to load)
+          setTimeout(() => {
+            landingModeRef.current = false;
+          }, 2500);
+        }, 800);
+
+        return () => clearTimeout(scrollStabilizer);
+      }
+    }
+  }, [isInitialLoading]);
+
   const fetchInitialData = async () => {
     try {
       // 1. Fetch Products, Agents & Categories in parallel
@@ -141,25 +215,28 @@ const Catalog = () => {
 
       if (!isMounted.current) return;
 
-      if (productsRes.data) setProducts(productsRes.data);
+      if (productsRes.data) {
+        setProducts(productsRes.data);
+        localStorage.setItem('groopy_cache_products', JSON.stringify(productsRes.data));
+      }
       if (productsRes.error) console.error('Error loading products:', productsRes.error);
 
-      if (agentsRes.data) setAgents(agentsRes.data);
+      if (agentsRes.data) {
+        setAgents(agentsRes.data);
+        localStorage.setItem('groopy_cache_agents', JSON.stringify(agentsRes.data));
+      }
       if (agentsRes.error) console.error('Error loading agents:', agentsRes.error);
 
-      if (categoriesRes.data) setDbCategories(categoriesRes.data);
+      if (categoriesRes.data) {
+        setDbCategories(categoriesRes.data);
+        localStorage.setItem('groopy_cache_categories', JSON.stringify(categoriesRes.data));
+      }
       if (categoriesRes.error) console.error('Error loading categories:', categoriesRes.error);
 
       const agentsData = agentsRes.data;
 
       // 2. Identify Agent from URL or LocalStorage
-      let agentIdFromURL = null;
-      const fullHref = window.location.href;
-      const urlMatches = fullHref.match(/[?&]agent=([^&#]+)/);
-      if (urlMatches && urlMatches[1]) {
-        agentIdFromURL = decodeURIComponent(urlMatches[1]);
-      }
-
+      let agentIdFromURL = searchParams.get('agent');
       const savedAgentId = localStorage.getItem('groopy_agent_id');
 
       if (agentIdFromURL && (!currentAgentRef.current || currentAgentRef.current.id !== agentIdFromURL)) {

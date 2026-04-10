@@ -179,7 +179,7 @@ const ProductDetailModal = ({
                    </div>
 
                    <div className="text-left">
-                      <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest block mb-0.5">סה״כ להוספה</span>
+                      <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest block mb-0.5">סה״כ להזמנה</span>
                       <span className="text-lg md:text-2xl font-black text-primary-600 leading-none">₪{(product.price * quantity).toFixed(2)}</span>
                    </div>
                 </div>
@@ -188,7 +188,7 @@ const ProductDetailModal = ({
                   onClick={handleAddToCart}
                   disabled={isAdded}
                   className={`
-                    w-full h-14 md:h-20 rounded-[20px] md:rounded-[32px] flex items-center justify-center gap-3 text-base md:text-xl font-black transition-all duration-500 shadow-xl md:shadow-2xl
+                    w-full h-16 md:h-24 rounded-[20px] md:rounded-[32px] flex items-center justify-center gap-3 text-lg md:text-2xl font-black transition-all duration-500 shadow-xl md:shadow-2xl
                     ${isAdded 
                       ? 'bg-emerald-500 text-white shadow-emerald-200' 
                       : 'bg-slate-900 text-white hover:bg-primary-600 shadow-slate-200 active:scale-95'
@@ -213,8 +213,8 @@ const ProductDetailModal = ({
                         animate={{ opacity: 1 }}
                         className="flex items-center gap-2 md:gap-3"
                       >
-                        <ShoppingCart size={20} md:size={24} strokeWidth={3} />
-                        <span>הוספה להזמנה</span>
+                        <ShoppingCart size={24} md:size={32} strokeWidth={3} />
+                        <span>להזמנה</span>
                       </motion.div>
                     )}
                   </AnimatePresence>

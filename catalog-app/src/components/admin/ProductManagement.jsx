@@ -12,7 +12,8 @@ import {
   Check, 
   X,
   ShoppingBag,
-  Package
+  Package,
+  MousePointerClick
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -262,6 +263,11 @@ const ProductManagement = ({
                           {p.is_default_carton && (
                             <div className="bg-purple-50 text-purple-600 p-1.5 rounded-xl border border-purple-100 flex items-center justify-center shrink-0" title="נמכר בקרטונים">
                               <Package size={14} />
+                            </div>
+                          )}
+                          {p.is_incremental_add && (
+                            <div className="bg-emerald-50 text-emerald-600 p-1.5 rounded-xl border border-emerald-100 flex items-center justify-center shrink-0" title="תוספת הדרגתית (+1)">
+                              <MousePointerClick size={14} />
                             </div>
                           )}
                         </div>

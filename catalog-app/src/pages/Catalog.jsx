@@ -351,10 +351,18 @@ const Catalog = () => {
 
   // Cart Management
   const addToCart = (product, quantity) => {
-    const defaultStep = Number(product.default_quantity || 12);
-    const finalQuantity = Number(quantity ?? defaultStep);
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
+      
+      // 🚀 Incremental Addition Logic:
+      // If product is already in cart and is_incremental_add is true, every addition adds exactly 1.
+      if (existing && product.is_incremental_add) {
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+
+      const defaultStep = Number(product.default_quantity || 12);
+      const finalQuantity = Number(quantity ?? defaultStep);
+      
       if (existing) {
         return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + finalQuantity } : item);
       }

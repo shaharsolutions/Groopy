@@ -66,6 +66,7 @@ const Catalog = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
   const filtersRef = useRef(null);
+  const categoryContainerRef = useRef(null);
 
   const scrollToFilters = () => {
     filtersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -73,6 +74,18 @@ const Catalog = () => {
 
   const scrollToProducts = () => {
     mainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const scrollToActiveCategory = () => {
+    // Find the active button within the container
+    const activeBtn = categoryContainerRef.current?.querySelector('[data-active="true"]');
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest', 
+        inline: 'center' 
+      });
+    }
   };
 
   // 🖼️ Product Modal Handlers
@@ -192,6 +205,7 @@ const Catalog = () => {
         // Stage 2: Smooth refined scroll after layout stabilizes
         const scrollStabilizer = setTimeout(() => {
           scrollToProducts();
+          scrollToActiveCategory();
           
           // Exit landing mode after 2.5 seconds (plenty of time for images to load)
           setTimeout(() => {
@@ -363,6 +377,10 @@ const Catalog = () => {
       return item;
     }).filter(item => item.quantity > 0));
   };
+
+  useEffect(() => {
+    scrollToActiveCategory();
+  }, [selectedCategory]);
 
   const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -618,11 +636,13 @@ const Catalog = () => {
           </div>
 
           <div 
+            ref={categoryContainerRef}
             className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0 max-w-7xl mx-auto"
           >
             {categories.map((cat, idx) => (
               <button
                 key={`cat-${cat}-${idx}`}
+                data-active={selectedCategory === cat}
                 onClick={() => {
                   setSelectedCategory(cat);
                   scrollToProducts();

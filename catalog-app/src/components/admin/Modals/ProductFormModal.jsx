@@ -98,22 +98,37 @@ const ProductFormModal = ({
                 <label htmlFor="is_default_carton" className="text-[10px] font-black text-slate-800 uppercase tracking-widest cursor-pointer select-none">נמכר בקרטונים</label>
               </div>
 
-              <div className="md:col-span-2 flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner h-14 self-end">
-                <div className="relative flex items-center">
-                  <input 
-                    type="checkbox" 
-                    id="is_incremental_add"
-                    checked={product.is_incremental_add}
-                    onChange={() => setProduct({...product, is_incremental_add: !product.is_incremental_add})}
-                    className="peer w-6 h-6 border-2 border-slate-300 rounded-lg checked:bg-accent-500 checked:border-accent-500 transition-all outline-none cursor-pointer"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-white opacity-0 peer-checked:opacity-100">
-                    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
+              <div className="md:col-span-2 flex items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner h-14 self-end">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      id="is_incremental_add"
+                      checked={product.is_incremental_add}
+                      onChange={() => setProduct({...product, is_incremental_add: !product.is_incremental_add})}
+                      className="peer w-6 h-6 border-2 border-slate-300 rounded-lg checked:bg-accent-500 checked:border-accent-500 transition-all outline-none cursor-pointer"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-white opacity-0 peer-checked:opacity-100">
+                      <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
                   </div>
+                  <label htmlFor="is_incremental_add" className="text-[10px] font-black text-slate-800 uppercase tracking-widest cursor-pointer select-none whitespace-nowrap">תוספת הדרגתית</label>
                 </div>
-                <label htmlFor="is_incremental_add" className="text-[10px] font-black text-slate-800 uppercase tracking-widest cursor-pointer select-none">תוספת הדרגתית</label>
+                
+                {product.is_incremental_add && (
+                  <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-tighter text-left leading-tight">יחידות<br/>לתוספת</label>
+                    <input 
+                      type="number" 
+                      placeholder="1"
+                      value={product.incremental_step || ''}
+                      onChange={(e) => setProduct({...product, incremental_step: e.target.value ? Number(e.target.value) : null})}
+                      className="w-12 h-9 bg-white border border-slate-200 rounded-lg text-center font-bold text-sm outline-none focus:border-accent-500 transition-all shadow-sm"
+                    />
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex flex-col gap-2">

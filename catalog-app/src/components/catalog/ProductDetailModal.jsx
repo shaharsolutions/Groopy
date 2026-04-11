@@ -10,6 +10,7 @@ import {
   Flame, 
   Zap,
 } from 'lucide-react';
+import { formatCartonCount } from '../../utils/cartonUtils';
 
 const ProductDetailModal = ({ 
   isOpen, 
@@ -24,11 +25,21 @@ const ProductDetailModal = ({
 
   useEffect(() => {
     if (isOpen && product) {
-      const initialQty = product.is_default_carton ? Number(product.default_quantity || 12) : 1;
+      let initialQty = 1;
+      
+      if (product.is_incremental_add) {
+        // If not in cart, default to full carton (1.0). If already in cart, use custom step or 1 unit.
+        const fullCarton = Number(product.default_quantity || 12);
+        const step = product.incremental_step ? Number(product.incremental_step) : 1;
+        initialQty = cartCount === 0 ? fullCarton : step;
+      } else if (product.is_default_carton) {
+        initialQty = Number(product.default_quantity || 12);
+      }
+      
       setQuantity(initialQty);
       setIsAdded(false);
     }
-  }, [isOpen, product]);
+  }, [isOpen, product, cartCount]);
 
   if (!product) return null;
 
@@ -42,8 +53,24 @@ const ProductDetailModal = ({
   };
 
   const adjustQuantity = (direction) => {
-    const step = product.is_default_carton ? Number(product.default_quantity || 12) : 1;
-    setQuantity(prev => Math.max(step, Number(prev) + (direction * step)));
+    let step = 1;
+    let minQty = 1;
+
+    const isCartonProduct = product.is_incremental_add || product.is_default_carton;
+    const defaultQty = Number(product.default_quantity || 12);
+
+    if (product.incremental_step) {
+      step = Number(product.incremental_step);
+      minQty = cartCount === 0 ? defaultQty : step;
+    } else if (product.is_incremental_add) {
+      step = 1;
+      minQty = cartCount === 0 ? defaultQty : 1;
+    } else if (product.is_default_carton) {
+      step = Math.max(1, Math.round(defaultQty * 0.25));
+      minQty = cartCount === 0 ? defaultQty : step;
+    }
+    
+    setQuantity(prev => Math.round(Math.max(minQty, Number(prev) + (direction * step))));
   };
 
   return (
@@ -166,7 +193,7 @@ const ProductDetailModal = ({
                         </span>
                         {product.is_default_carton && (
                           <span className="text-[6px] md:text-[8px] font-bold text-slate-300 uppercase tracking-tighter block -mt-0.5">
-                            ({quantity / (product.default_quantity || 12)} קרטון)
+                            ({formatCartonCount(quantity, product.default_quantity || 12)} קרטון)
                           </span>
                         )}
                      </div>

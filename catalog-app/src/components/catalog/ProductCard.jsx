@@ -72,42 +72,42 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
 
       {/* Info Content */}
       <div className="px-3 md:px-6 pb-4 md:pb-6 pt-0 flex flex-col flex-1">
-        <span className="text-[10px] font-black text-accent-500 uppercase tracking-widest mb-1">
+        <span className="text-[11px] md:text-[10px] font-black text-accent-500 uppercase tracking-widest mb-1">
           {(product.category === 'Bottles' || product.category === 'בקבוקים') ? 'בקבוקים' : 
            (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
            product.category}
         </span>
-        <h3 className="font-bold text-sm md:text-lg text-slate-800 leading-tight mb-1 md:mb-2 min-h-[2.5rem] md:min-h-[3.2rem] line-clamp-2 flex items-start overflow-hidden">
+        <h3 className="font-bold text-base md:text-lg text-slate-800 leading-tight mb-1 md:mb-2 min-h-[2.5rem] md:min-h-[3.2rem] line-clamp-2 flex items-start overflow-hidden">
           {product.name}
         </h3>
-        <p className="text-[10px] md:text-xs text-slate-400 font-bold tracking-tight mb-3 md:mb-4 line-clamp-1 opacity-80">
+        <p className="text-xs md:text-xs text-slate-400 font-bold tracking-tight mb-3 md:mb-4 line-clamp-1 opacity-80">
           {product.description}
         </p>
 
-        <div className="mt-auto flex items-center justify-between gap-1">
-          <div className="shrink-0">
-            <span className="text-[8px] md:text-[9px] font-bold text-slate-400 block -mb-0.5">מחיר יחידה</span>
-            <span className="text-base md:text-xl font-black text-slate-900">₪{product.price.toFixed(2)}</span>
+        <div className="mt-auto flex flex-wrap items-end justify-between gap-y-2 gap-1 px-0.5">
+          <div className="shrink-0 mb-0.5">
+            <span className="text-[9px] md:text-[9px] font-bold text-slate-400 block -mb-1">מחיר יחידה</span>
+            <span className="text-lg md:text-xl font-black text-slate-900 leading-none">₪{product.price.toFixed(2)}</span>
           </div>
           <button 
             onClick={() => addToCart(product)}
             className={`
-              flex items-center justify-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 md:py-2 rounded-lg md:rounded-xl transition-all duration-300
+              flex items-center justify-center gap-1 md:gap-1.5 px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto]
               ${cartCount > 0 
                 ? 'bg-accent-600 text-white shadow-accent-200' 
                 : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
               }
-              hover:scale-105 active:scale-95 shadow-lg
+              hover:scale-102 active:scale-95 shadow-lg
             `}
           >
-            <div className="flex items-center gap-1 md:gap-1.5">
-              <Plus size={12} md:size={15} strokeWidth={4} />
-              <span className={`font-black text-[10px] md:text-sm whitespace-nowrap ${cartCount > 0 ? 'hidden md:inline' : 'inline'}`}>
+            <div className="flex items-center gap-1.5 md:gap-1.5">
+              <Plus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
+              <span className={`font-black text-xs md:text-sm whitespace-nowrap ${cartCount > 0 ? 'hidden md:inline' : 'inline'}`}>
                 להזמנה
               </span>
             </div>
             {cartCount > 0 && (
-              <span className="bg-white text-accent-600 min-w-[18px] md:min-w-[22px] h-5 md:h-5.5 px-1 rounded-md md:rounded-lg flex items-center justify-center text-[9px] md:text-xs font-black shadow-sm">
+              <span className="bg-white text-accent-600 min-w-[20px] md:min-w-[22px] h-5 md:h-5.5 px-1 rounded-md md:rounded-lg flex items-center justify-center text-[10px] md:text-xs font-black shadow-sm">
                 {cartCount}
               </span>
             )}

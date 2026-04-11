@@ -33,6 +33,7 @@ import AgentSelectorModal from '../components/catalog/AgentSelectorModal';
 import FloatingAgentStatus from '../components/catalog/FloatingAgentStatus';
 import PromotionBanners from '../components/catalog/PromotionBanners';
 import ProductDetailModal from '../components/catalog/ProductDetailModal';
+import { formatCartonCount } from '../utils/cartonUtils';
 import AlertModal from '../components/common/AlertModal';
 
 const Catalog = () => {
@@ -355,9 +356,11 @@ const Catalog = () => {
       const existing = prev.find(item => item.id === product.id);
       
       // 🚀 Incremental Addition Logic:
-      // If product is already in cart and is_incremental_add is true, every addition adds exactly 1.
+      // If product is already in cart, additions increment.
       if (existing && product.is_incremental_add) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+        const defaultStep = product.incremental_step ? Number(product.incremental_step) : 1;
+        const increment = quantity !== undefined ? Number(quantity) : defaultStep;
+        return prev.map(item => item.id === product.id ? { ...item, quantity: Math.round(item.quantity + increment) } : item);
       }
 
       const defaultStep = Number(product.default_quantity || 12);
@@ -377,9 +380,27 @@ const Catalog = () => {
   const updateQuantity = (id, direction) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const step = item.is_default_carton ? Number(item.default_quantity || 12) : 1;
+        const defaultQty = Number(item.default_quantity || 12);
+        let step = 1;
+        
+        if (item.incremental_step) {
+          step = Number(item.incremental_step);
+        } else if (item.is_incremental_add) {
+          step = 1;
+        } else if (item.is_default_carton) {
+          step = Math.max(1, Math.round(defaultQty * 0.25));
+        }
+        
+        const minQty = defaultQty;
+        
         const adjustedDelta = direction * step;
-        const newQty = Math.max(0, Number(item.quantity) + adjustedDelta);
+        let newQty = Math.max(0, Number(item.quantity) + adjustedDelta);
+        
+        // If it's a carton/incremental product and we drop below the minimum, remove it (set to 0)
+        if (direction < 0 && (item.is_default_carton || isIncremental) && newQty < minQty) {
+          newQty = 0;
+        }
+        
         return { ...item, quantity: newQty };
       }
       return item;
@@ -464,8 +485,8 @@ const Catalog = () => {
     cart.forEach((item, index) => {
       message += `\u200F*${index + 1}. ${item.name}*\n`;
       message += `\u200Fמק"ט: ${item.sku}\n`;
-      const cartonCount = item.quantity / (item.default_quantity || 12);
-      const cartonText = item.is_default_carton ? ` (${cartonCount} קרטון)` : '';
+      const cartonCountValue = formatCartonCount(item.quantity, item.default_quantity || 12);
+      const cartonText = item.is_default_carton ? ` (${cartonCountValue} קרטון)` : '';
       message += `\u200Fכמות: ${item.quantity} יחידות${cartonText}\n`;
       message += `\u200Fמחיר יחידה: ₪${item.price.toFixed(2)}\n`;
       

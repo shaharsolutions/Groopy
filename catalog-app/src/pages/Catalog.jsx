@@ -20,7 +20,8 @@ import {
   Star,
   Flame,
   UserCheck,
-  ArrowUp
+  ArrowUp,
+  Link as ChainLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';

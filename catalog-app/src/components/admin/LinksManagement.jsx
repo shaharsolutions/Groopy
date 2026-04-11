@@ -88,6 +88,7 @@ const LinksManagement = ({
             <thead>
               <tr className="bg-slate-50/50">
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">מזהה / סוכן</th>
+                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">תיאור</th>
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">תוכן מותאם</th>
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">נוצר ב-</th>
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">תוקף</th>
@@ -108,15 +109,22 @@ const LinksManagement = ({
                     className="group hover:bg-slate-50/50 transition-colors"
                   >
                     <td className="p-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-500 transition-colors">
-                          <code className="text-[10px] font-black uppercase">{link.id}</code>
-                        </div>
-                        <div>
-                          <span className="block font-black text-slate-700 text-sm">{getAgentName(link.agent_id)}</span>
-                          <span className="text-[10px] text-slate-400 font-bold">סוכן ID: {link.agent_id}</span>
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-500 transition-colors">
+                            <code className="text-[10px] font-black uppercase">{link.id}</code>
+                          </div>
+                          <div>
+                            <span className="block font-black text-slate-700 text-sm">{getAgentName(link.agent_id)}</span>
+                            <span className="text-[10px] text-slate-400 font-bold">סוכן ID: {link.agent_id}</span>
+                          </div>
                         </div>
                       </div>
+                    </td>
+                    <td className="p-6">
+                      <p className="text-xs font-bold text-slate-600 max-w-[150px] truncate" title={link.description}>
+                        {link.description || <span className="text-slate-300 italic">ללא תיאור</span>}
+                      </p>
                     </td>
                     <td className="p-6">
                       <div className="flex flex-col gap-2 max-w-[200px]">

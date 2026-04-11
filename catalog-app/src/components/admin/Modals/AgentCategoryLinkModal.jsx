@@ -36,6 +36,7 @@ const AgentCategoryLinkModal = ({
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedBannerIds, setSelectedBannerIds] = useState([]);
   const [selectedExpiration, setSelectedExpiration] = useState(null); // days: 1, 7, 14, null
+  const [linkDescription, setLinkDescription] = useState('');
 
   if (!agent) return null;
 
@@ -90,7 +91,8 @@ const AgentCategoryLinkModal = ({
         agent_id: agent.id,
         categories: selectedCategories,
         banners: selectedBannerIds,
-        expires_at: expiresAt
+        expires_at: expiresAt,
+        description: linkDescription
       }]);
 
       if (error) {
@@ -251,6 +253,19 @@ const AgentCategoryLinkModal = ({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Description Section */}
+          <div className="mb-6">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+               תיאור הקישור (אופציונלי)
+            </h3>
+            <textarea 
+              value={linkDescription}
+              onChange={(e) => setLinkDescription(e.target.value)}
+              placeholder="לדוגמה: מבצע אביב ללקוח כהן..."
+              className="w-full h-24 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary-300 focus:bg-white transition-all text-sm font-bold placeholder:text-slate-300 resize-none"
+            />
           </div>
         </div>
 

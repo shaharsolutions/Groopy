@@ -215,7 +215,7 @@ const ProductManagement = ({
                        <ArrowUpDown size={12} className={`transition-opacity ${sortConfig.key === 'price' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
                     </div>
                  </th>
-                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">מיקום</th>
+
                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">פעולות</th>
                </tr>
              </thead>
@@ -275,9 +275,7 @@ const ProductManagement = ({
                    </td>
                    <td className="px-8 py-6 font-bold text-slate-400 text-sm">{p.sku}</td>
                    <td className="px-8 py-6 font-black text-slate-900">{parseFloat(p.price).toFixed(2)}</td>
-                   <td className="px-8 py-6 whitespace-nowrap">
-                     <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-500 text-xs font-black">{p.location || '-'}</span>
-                   </td>
+
                     <td className="px-8 py-5">
                      <AnimatePresence mode="wait">
                        {confirmingProductDelete === p.id ? (

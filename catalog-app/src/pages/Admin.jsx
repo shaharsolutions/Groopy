@@ -111,7 +111,7 @@ const Admin = () => {
   const [confirmingOrderDelete, setConfirmingOrderDelete] = useState(null);
 
   // Templates for new items
-  const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', location: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null });
+  const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null });
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '', description: '' });
   const [newCategory, setNewCategory] = useState({ name: '' });
   const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '', show_in_carousel: true });
@@ -192,7 +192,7 @@ const Admin = () => {
       if (!error) { 
         setProducts([...products, data[0]]); 
         setIsAddingProduct(false); 
-        setNewProduct({ name: '', sku: '', price: '', category: '', location: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null }); 
+        setNewProduct({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null }); 
       } else {
         console.error('Error adding product:', error);
         setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת מוצר: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });

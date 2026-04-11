@@ -277,22 +277,41 @@ const Admin = () => {
     }
   };
 
-  const handleCopyAgentLink = (agent, category = null) => {
+  const handleCopyAgentLink = (agent, categories = [], bannerIds = []) => {
     let url = `${window.location.origin}/#/?agent=${agent.id}`;
-    if (category) {
-      url += `&category=${encodeURIComponent(category)}`;
+    
+    if (categories && categories.length > 0) {
+      url += `&categories=${encodeURIComponent(categories.join(','))}`;
     }
+    
+    if (bannerIds && bannerIds.length > 0) {
+      url += `&banners=${encodeURIComponent(bannerIds.join(','))}`;
+    }
+
     navigator.clipboard.writeText(url);
-    setCopyFeedback(category ? `${agent.id}-${category}` : agent.id); 
+    
+    // Feedback logic (can be simplified since we now have a single "Generate" button)
+    setCopyFeedback(agent.id); 
     setTimeout(() => setCopyFeedback(null), 2000);
   };
 
-  const handleShareAgent = async (agent, category = null) => {
+  const handleShareAgent = async (agent, categories = [], bannerIds = []) => {
     let url = `${window.location.origin}/#/?agent=${agent.id}`;
-    if (category) {
-      url += `&category=${encodeURIComponent(category)}`;
+    
+    if (categories && categories.length > 0) {
+      url += `&categories=${encodeURIComponent(categories.join(','))}`;
     }
-    if (navigator.share) await navigator.share({ title: `Groopy - ${agent.name}${category ? ` - ${category}` : ''}`, url });
+    
+    if (bannerIds && bannerIds.length > 0) {
+      url += `&banners=${encodeURIComponent(bannerIds.join(','))}`;
+    }
+
+    if (navigator.share) {
+      await navigator.share({ 
+        title: `Groopy - ${agent.name}`, 
+        url 
+      });
+    }
   };
 
   // Categories
@@ -836,7 +855,9 @@ const Admin = () => {
             onClose={() => setSelectedAgentForLink(null)} 
             agent={selectedAgentForLink} 
             categories={activeCategories} 
+            banners={banners}
             onCopyLink={handleCopyAgentLink} 
+            onShareLink={handleShareAgent}
             copyFeedback={copyFeedback} 
           />
         )}

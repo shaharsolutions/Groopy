@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
-const PromotionBanners = ({ onBannerClick }) => {
+const PromotionBanners = ({ onBannerClick, allowedBannerIds }) => {
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -20,7 +20,12 @@ const PromotionBanners = ({ onBannerClick }) => {
           .order('order_index', { ascending: true });
         
         if (!error && data) {
-          setBanners(data);
+          // If specified allowedBannerIds, filter them
+          if (allowedBannerIds && allowedBannerIds.length > 0) {
+            setBanners(data.filter(b => allowedBannerIds.includes(b.id)));
+          } else {
+            setBanners(data);
+          }
         }
       } catch (err) {
         console.error('Error fetching banners:', err);
@@ -30,7 +35,7 @@ const PromotionBanners = ({ onBannerClick }) => {
     };
 
     fetchBanners();
-  }, []);
+  }, [allowedBannerIds]);
 
   // Update currentIndex based on scroll position
   const handleScroll = useCallback(() => {

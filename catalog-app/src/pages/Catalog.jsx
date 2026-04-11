@@ -64,6 +64,18 @@ const Catalog = () => {
   const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
 
   const [selectedBadge, setSelectedBadge] = useState(() => searchParams.get('badge') || null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
+  
+  // 🔗 LINK-BASED FILTERING (Personalized Agent Links)
+  const allowedCategories = useMemo(() => {
+    const cats = searchParams.get('categories');
+    return cats ? cats.split(',').map(c => c.trim()) : null;
+  }, [searchParams]);
+
+  const allowedBannerIds = useMemo(() => {
+    const bans = searchParams.get('banners');
+    return bans ? bans.split(',').map(b => b.trim()) : null;
+  }, [searchParams]);
+
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
   const filtersRef = useRef(null);
@@ -309,19 +321,25 @@ const Catalog = () => {
     // Add categories from DB in their defined order, but only if they contain products
     dbCategories.forEach(cat => {
       if (cat.name && productCategories.has(cat.name)) {
-        result.push(cat.name);
+        // If we have allowedCategories filter, only add if it matches
+        if (!allowedCategories || allowedCategories.includes(cat.name)) {
+          result.push(cat.name);
+        }
       }
     });
     
     // Add any categories present in products that were NOT found in the categories table
     productCategories.forEach(catName => {
       if (!result.includes(catName)) {
-        result.push(catName);
+        // Filter by allowedCategories if provided
+        if (!allowedCategories || allowedCategories.includes(catName)) {
+          result.push(catName);
+        }
       }
     });
     
     return result;
-  }, [products, dbCategories]);
+  }, [products, dbCategories, allowedCategories]);
 
   // Filtering Logic
   const filteredProducts = useMemo(() => {
@@ -614,7 +632,7 @@ const Catalog = () => {
             <p className="text-slate-400 text-sm md:text-base font-bold uppercase tracking-[0.2em]">גרופי מתנות בע"מ</p>
           </div>
 
-          <PromotionBanners onBannerClick={handleBannerClick} />
+          <PromotionBanners onBannerClick={handleBannerClick} allowedBannerIds={allowedBannerIds} />
           </div>
 
           <div className="max-w-7xl mx-auto">

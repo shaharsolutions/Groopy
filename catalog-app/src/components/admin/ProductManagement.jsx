@@ -35,12 +35,7 @@ const ProductManagement = ({
     toggleProductSelection, 
     toggleAllProducts, 
     isBulkUpdatingProducts, 
-    isBulkCategoryMenuOpen, 
-    setIsBulkCategoryMenuOpen, 
-    handleBulkUpdateProductCategory, 
-    isBulkFlagsMenuOpen, 
-    setIsBulkFlagsMenuOpen, 
-    handleBulkUpdateProductFlag, 
+    setIsBulkEditModalOpen,
     setEditingProduct, 
     confirmingProductDelete, 
     setConfirmingProductDelete, 
@@ -199,97 +194,18 @@ const ProductManagement = ({
               >
                 <span className="text-sm font-black text-primary-700 whitespace-nowrap">נבחרו {selectedProductIds.length} מוצרים</span>
                 
-                <div className="relative">
-                  <button 
-                    onClick={() => setIsBulkCategoryMenuOpen(!isBulkCategoryMenuOpen)}
-                    disabled={isBulkUpdatingProducts}
-                    className="bg-primary-500 text-white px-4 py-1.5 rounded-xl text-xs font-black hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
-                  >
-                    {isBulkUpdatingProducts ? (
-                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <Tag size={14} />
-                    )}
-                    <span>הגדר קטגוריה</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${isBulkCategoryMenuOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  <AnimatePresence>
-                    {isBulkCategoryMenuOpen && (
-                      <>
-                        <div key="bulk-cat-overlay" className="fixed inset-0 z-40" onClick={() => setIsBulkCategoryMenuOpen(false)} />
-                        <motion.div 
-                          key="bulk-cat-dropdown"
-                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                          className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 overflow-hidden"
-                        >
-                          {categories.map((cat, idx) => (
-                            <button
-                              key={cat.id || `bulk-cat-${idx}`}
-                              onClick={() => handleBulkUpdateProductCategory(cat.name)}
-                              className="w-full text-right px-4 py-2 hover:bg-slate-50 text-xs font-bold text-slate-600 rounded-lg transition-colors"
-                            >
-                              {cat.name}
-                            </button>
-                          ))}
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                <div className="relative">
-                  <button 
-                    onClick={() => setIsBulkFlagsMenuOpen(!isBulkFlagsMenuOpen)}
-                    disabled={isBulkUpdatingProducts}
-                    className="bg-white border border-primary-200 text-primary-600 px-4 py-1.5 rounded-xl text-xs font-black hover:bg-primary-50 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
-                  >
-                    <Star size={14} />
-                    <span>הגדר תגיות</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${isBulkFlagsMenuOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  <AnimatePresence>
-                    {isBulkFlagsMenuOpen && (
-                      <>
-                        <div key="bulk-flags-overlay" className="fixed inset-0 z-40" onClick={() => setIsBulkFlagsMenuOpen(false)} />
-                        <motion.div 
-                          key="bulk-flags-dropdown"
-                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                          className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 overflow-hidden"
-                        >
-                          {[
-                            { id: 'is_best_seller', label: 'נמכר ביותר', icon: Star },
-                            { id: 'is_hot_deal', label: 'מבצע חם', icon: Flame },
-                            { id: 'is_new', label: 'חדש', icon: Zap },
-                          ].map(flag => (
-                            <div key={flag.id} className="border-b border-slate-50 last:border-0 p-1">
-                              <div className="text-[10px] font-black text-slate-400 px-3 py-1 uppercase tracking-widest">{flag.label}</div>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleBulkUpdateProductFlag(flag.id, true)}
-                                  className="flex-1 text-center py-2 hover:bg-green-50 text-green-600 text-[10px] font-black rounded-lg transition-colors border border-transparent hover:border-green-100"
-                                >
-                                  הפעל
-                                </button>
-                                <button
-                                  onClick={() => handleBulkUpdateProductFlag(flag.id, false)}
-                                  className="flex-1 text-center py-2 hover:bg-red-50 text-red-600 text-[10px] font-black rounded-lg transition-colors border border-transparent hover:border-red-100"
-                                >
-                                  בטל
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
-                </div>
+                <button 
+                  onClick={() => setIsBulkEditModalOpen(true)}
+                  disabled={isBulkUpdatingProducts}
+                  className="bg-primary-500 text-white px-6 py-2 rounded-xl text-xs font-black hover:bg-primary-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary-500/20"
+                >
+                  {isBulkUpdatingProducts ? (
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Edit size={16} />
+                  )}
+                  <span>פעולות קבוצתיות</span>
+                </button>
               </motion.div>
             )}
           </AnimatePresence>

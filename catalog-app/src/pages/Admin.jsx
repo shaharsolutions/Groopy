@@ -29,6 +29,8 @@ import OrderDetailsModal from '../components/admin/Modals/OrderDetailsModal';
 import OrderEditModal from '../components/admin/Modals/OrderEditModal';
 import CustomerFormModal from '../components/admin/Modals/CustomerFormModal';
 import AgentCategoryLinkModal from '../components/admin/Modals/AgentCategoryLinkModal';
+import BulkProductEditModal from '../components/admin/Modals/BulkProductEditModal';
+
 
 // Utilities
 import { downloadCustomerTemplate, parseCustomerExcel } from '../utils/excelUtils';
@@ -68,8 +70,7 @@ const Admin = () => {
   const [confirmingProductDelete, setConfirmingProductDelete] = useState(null);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [isBulkUpdatingProducts, setIsBulkUpdatingProducts] = useState(false);
-  const [isBulkCategoryMenuOpen, setIsBulkCategoryMenuOpen] = useState(false);
-  const [isBulkFlagsMenuOpen, setIsBulkFlagsMenuOpen] = useState(false);
+  const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
 
   // Agents
   const [isAddingAgent, setIsAddingAgent] = useState(false);
@@ -227,18 +228,26 @@ const Admin = () => {
   const toggleProductSelection = (id) => setSelectedProductIds(prev => prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]);
   const toggleAllProducts = () => setSelectedProductIds(selectedProductIds.length === sortedProducts.length ? [] : sortedProducts.map(p => p.id));
   
-  const handleBulkUpdateProductCategory = async (catName) => {
-    setIsBulkUpdatingProducts(true);
-    const { error } = await supabase.from('products').update({ category: catName }).in('id', selectedProductIds);
-    if (!error) { setProducts(products.map(p => selectedProductIds.includes(p.id) ? { ...p, category: catName } : p)); setSelectedProductIds([]); setIsBulkCategoryMenuOpen(false); }
-    setIsBulkUpdatingProducts(false);
-  };
 
-  const handleBulkUpdateProductFlag = async (field, value) => {
+  const handleBulkUpdateProducts = async (changes) => {
     setIsBulkUpdatingProducts(true);
-    const { error } = await supabase.from('products').update({ [field]: value }).in('id', selectedProductIds);
-    if (!error) setProducts(products.map(p => selectedProductIds.includes(p.id) ? { ...p, [field]: value } : p));
-    setIsBulkUpdatingProducts(false);
+    try {
+      const { error } = await supabase.from('products').update(changes).in('id', selectedProductIds);
+      if (!error) { 
+        setProducts(products.map(p => selectedProductIds.includes(p.id) ? { ...p, ...changes } : p)); 
+        setSelectedProductIds([]); 
+        setIsBulkEditModalOpen(false); 
+        setAlertConfig({ isOpen: true, message: 'המוצרים עודכנו בהצלחה', type: 'success' });
+      } else {
+        console.error('Error bulk updating products:', error);
+        setAlertConfig({ isOpen: true, message: 'שגיאה בעדכון קבוצתי: ' + error.message, type: 'error' });
+      }
+    } catch (err) {
+      console.error('Unexpected error bulk updating products:', err);
+      setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה בעדכון קבוצתי', type: 'error' });
+    } finally {
+      setIsBulkUpdatingProducts(false);
+    }
   };
 
   // Agents
@@ -857,12 +866,9 @@ const Admin = () => {
             toggleProductSelection={toggleProductSelection} 
             toggleAllProducts={toggleAllProducts} 
             isBulkUpdatingProducts={isBulkUpdatingProducts} 
-            isBulkCategoryMenuOpen={isBulkCategoryMenuOpen} 
-            setIsBulkCategoryMenuOpen={setIsBulkCategoryMenuOpen} 
-            handleBulkUpdateProductCategory={handleBulkUpdateProductCategory} 
-            isBulkFlagsMenuOpen={isBulkFlagsMenuOpen} 
-            setIsBulkFlagsMenuOpen={setIsBulkFlagsMenuOpen} 
-            handleBulkUpdateProductFlag={handleBulkUpdateProductFlag} 
+            isBulkEditModalOpen={isBulkEditModalOpen}
+            setIsBulkEditModalOpen={setIsBulkEditModalOpen}
+            handleBulkUpdateProducts={handleBulkUpdateProducts}
             setEditingProduct={setEditingProduct} 
             confirmingProductDelete={confirmingProductDelete} 
             setConfirmingProductDelete={setConfirmingProductDelete} 
@@ -992,6 +998,17 @@ const Admin = () => {
           products={products}
           onSave={handleSaveOrderEdits}
           isUpdating={isUpdatingOrder}
+        />
+      )}
+
+      {isBulkEditModalOpen && (
+        <BulkProductEditModal 
+          isOpen={true}
+          onClose={() => setIsBulkEditModalOpen(false)}
+          categories={categories}
+          onSave={handleBulkUpdateProducts}
+          isUpdating={isBulkUpdatingProducts}
+          selectedCount={selectedProductIds.length}
         />
       )}
 

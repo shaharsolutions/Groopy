@@ -310,31 +310,43 @@ const Catalog = () => {
       let agentIdFromURL = searchParams.get('agent');
       const savedAgentId = localStorage.getItem('groopy_agent_id');
 
-      if (agentIdFromURL && (!currentAgentRef.current || currentAgentRef.current.id !== agentIdFromURL)) {
-        console.log(`🔍 Attempting to connect agent: ${agentIdFromURL}`);
-        const { data: agentData, error: agentError } = await supabase
-          .from('agents')
-          .select('*')
-          .eq('id', agentIdFromURL)
-          .single();
+      if (agentIdFromURL) {
+        if (!currentAgentRef.current || currentAgentRef.current.id !== agentIdFromURL) {
+          console.log(`🔍 Attempting to connect agent: ${agentIdFromURL}`);
+          const { data: agentData, error: agentError } = await supabase
+            .from('agents')
+            .select('*')
+            .eq('id', agentIdFromURL)
+            .single();
 
-        if (!agentError && agentData && isMounted.current) {
-          console.log(`✅ Agent Connected Successfully: ${agentData.name} (LOCKED)`);
-          setActiveAgent(agentData);
-          currentAgentRef.current = agentData;
-          localStorage.setItem('groopy_agent_id', agentIdFromURL);
-          localStorage.setItem('groopy_agent_locked', 'true');
+          if (!agentError && agentData && isMounted.current) {
+            console.log(`✅ Agent Connected Successfully: ${agentData.name} (LOCKED)`);
+            setActiveAgent(agentData);
+            currentAgentRef.current = agentData;
+            localStorage.setItem('groopy_agent_id', agentIdFromURL);
+            localStorage.setItem('groopy_agent_locked', 'true');
+            setIsAgentLocked(true);
+          }
+        } else {
+          // Already have this agent but arrived with URL param, ensure locked
           setIsAgentLocked(true);
+          localStorage.setItem('groopy_agent_locked', 'true');
         }
-      } else if (savedAgentId && (!currentAgentRef.current || currentAgentRef.current.id !== savedAgentId)) {
-        const matchedAgent = agentsData?.find(a => a.id === savedAgentId);
-        if (matchedAgent) {
-          setActiveAgent(matchedAgent);
-          currentAgentRef.current = matchedAgent;
+      } else {
+        // No agent in URL - Unlock selection
+        setIsAgentLocked(false);
+        localStorage.setItem('groopy_agent_locked', 'false');
+
+        if (savedAgentId && (!currentAgentRef.current || currentAgentRef.current.id !== savedAgentId)) {
+          const matchedAgent = agentsData?.find(a => a.id === savedAgentId);
+          if (matchedAgent) {
+            setActiveAgent(matchedAgent);
+            currentAgentRef.current = matchedAgent;
+          }
+        } else if (!savedAgentId) {
+          setActiveAgent(null);
+          currentAgentRef.current = null;
         }
-      } else if (!agentIdFromURL && !savedAgentId) {
-        setActiveAgent(null);
-        currentAgentRef.current = null;
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -700,12 +712,16 @@ const Catalog = () => {
           {/* Left Section: Agent & Cart (RTL end) */}
           <div className="flex-1 flex items-center justify-end gap-2 md:gap-4">
             {activeAgent && (
-              <div className="hidden md:flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl text-slate-500 border border-slate-100 max-h-12 overflow-hidden">
+              <button 
+                onClick={() => !isAgentLocked && setIsAgentModalOpen(true)}
+                disabled={isAgentLocked}
+                className={`hidden md:flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl text-slate-500 border border-slate-100 max-h-12 overflow-hidden transition-all ${!isAgentLocked ? 'hover:bg-slate-100 hover:border-slate-200 cursor-pointer active:scale-95' : 'cursor-default'}`}
+              >
                 <div className="w-8 h-8 rounded-xl bg-slate-200 overflow-hidden shadow-inner flex items-center justify-center">
                    {activeAgent.image ? <img src={activeAgent.image} alt="" className="w-full h-full object-cover" /> : <UserCheck size={14} />}
                 </div>
-                <span className="text-xs font-black uppercase tracking-widest leading-none">סוכן: {activeAgent.name}</span>
-              </div>
+                <span className={`text-xs font-black uppercase tracking-widest leading-none ${!isAgentLocked ? 'underline decoration-primary-500/30' : ''}`}>סוכן: {activeAgent.name}</span>
+              </button>
             )}
             
             <button 

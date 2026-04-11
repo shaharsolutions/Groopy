@@ -49,6 +49,8 @@ const Admin = () => {
     banners, setBanners,
     searchTerm, setSearchTerm,
     selectedCategory, setSelectedCategory,
+    activeFilters, setActiveFilters,
+    filterMode, setFilterMode,
     sortConfig, setSortConfig,
     ordersStats,
     customers, setCustomers,
@@ -836,7 +838,37 @@ const Admin = () => {
       <main className="flex-1 p-6 md:p-12 overflow-y-auto w-full">
         <Header activeTab={activeTab} productsCount={products.length} bannersCount={banners.length} setIsSidebarOpen={setIsSidebarOpen} setIsAddingProduct={setIsAddingProduct} setIsAddingAgent={setIsAddingAgent} setIsAddingBrand={setIsAddingBrand} setIsAddingBanner={setIsAddingBanner} setIsAddingCategory={setIsAddingCategory} setIsAddingCustomer={setIsAddingCustomer} />
 
-        {activeTab === 'products' && <ProductManagement sortedProducts={sortedProducts} searchTerm={searchTerm} setSearchTerm={setSearchTerm} categories={categories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} sortConfig={sortConfig} selectedProductIds={selectedProductIds} toggleProductSelection={toggleProductSelection} toggleAllProducts={toggleAllProducts} isBulkUpdatingProducts={isBulkUpdatingProducts} isBulkCategoryMenuOpen={isBulkCategoryMenuOpen} setIsBulkCategoryMenuOpen={setIsBulkCategoryMenuOpen} handleBulkUpdateProductCategory={handleBulkUpdateProductCategory} isBulkFlagsMenuOpen={isBulkFlagsMenuOpen} setIsBulkFlagsMenuOpen={setIsBulkFlagsMenuOpen} handleBulkUpdateProductFlag={handleBulkUpdateProductFlag} setEditingProduct={setEditingProduct} confirmingProductDelete={confirmingProductDelete} setConfirmingProductDelete={setConfirmingProductDelete} handleDeleteProduct={handleDeleteProduct} />}
+        {activeTab === 'products' && (
+          <ProductManagement 
+            sortedProducts={sortedProducts} 
+            searchTerm={searchTerm} 
+            setSearchTerm={setSearchTerm} 
+            categories={categories} 
+            activeCategories={activeCategories}
+            selectedCategory={selectedCategory} 
+            setSelectedCategory={setSelectedCategory} 
+            activeFilters={activeFilters}
+            setActiveFilters={setActiveFilters}
+            filterMode={filterMode}
+            setFilterMode={setFilterMode}
+            requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} 
+            sortConfig={sortConfig} 
+            selectedProductIds={selectedProductIds} 
+            toggleProductSelection={toggleProductSelection} 
+            toggleAllProducts={toggleAllProducts} 
+            isBulkUpdatingProducts={isBulkUpdatingProducts} 
+            isBulkCategoryMenuOpen={isBulkCategoryMenuOpen} 
+            setIsBulkCategoryMenuOpen={setIsBulkCategoryMenuOpen} 
+            handleBulkUpdateProductCategory={handleBulkUpdateProductCategory} 
+            isBulkFlagsMenuOpen={isBulkFlagsMenuOpen} 
+            setIsBulkFlagsMenuOpen={setIsBulkFlagsMenuOpen} 
+            handleBulkUpdateProductFlag={handleBulkUpdateProductFlag} 
+            setEditingProduct={setEditingProduct} 
+            confirmingProductDelete={confirmingProductDelete} 
+            setConfirmingProductDelete={setConfirmingProductDelete} 
+            handleDeleteProduct={handleDeleteProduct} 
+          />
+        )}
         {activeTab === 'agents' && (
           <div className="flex flex-col gap-12">
             <AgentManagement 

@@ -15,8 +15,16 @@ export const useAdminData = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [activeFilters, setActiveFilters] = useState({
+    is_best_seller: false,
+    is_hot_deal: false,
+    is_new: false,
+    is_default_carton: false,
+    is_incremental_add: false
+  });
+  const [filterMode, setFilterMode] = useState('include'); // 'include' or 'exclude'
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
-  
+
   const fetchData = async () => {
     try {
       const [
@@ -67,10 +75,18 @@ export const useAdminData = () => {
       const matchesCategory = 
         selectedCategory === 'All' || 
         p.category === selectedCategory;
+
+      // New: Check if product matches any active flag filters
+      // If a filter is active (true), the product must match (or not match if inverse) that flag
+      const matchesFlags = Object.entries(activeFilters).every(([flag, isActive]) => {
+        if (!isActive) return true;
+        const productVal = p[flag] === true;
+        return filterMode === 'include' ? productVal : !productVal;
+      });
         
-      return matchesSearch && matchesCategory;
+      return matchesSearch && matchesCategory && matchesFlags;
     });
-  }, [products, deferredSearchTerm, selectedCategory]);
+  }, [products, deferredSearchTerm, selectedCategory, activeFilters]);
 
   const sortedProducts = useMemo(() => {
     const sortableItems = [...filteredProducts];
@@ -193,6 +209,8 @@ export const useAdminData = () => {
     banners, setBanners,
     searchTerm, setSearchTerm,
     selectedCategory, setSelectedCategory,
+    activeFilters, setActiveFilters,
+    filterMode, setFilterMode,
     sortConfig, setSortConfig,
     ordersStats,
     customers, setCustomers,

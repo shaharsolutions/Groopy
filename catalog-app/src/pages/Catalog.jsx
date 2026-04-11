@@ -65,7 +65,7 @@ const Catalog = () => {
 
   // 🔗 SHORT LINK STATE
   const [fetchedConfig, setFetchedConfig] = useState(null);
-  const [isConfigLoading, setIsConfigLoading] = useState(false);
+  const [isConfigLoading, setIsConfigLoading] = useState(() => !!searchParams.get('s'));
 
   const [selectedBadge, setSelectedBadge] = useState(() => searchParams.get('badge') || null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   
@@ -603,35 +603,74 @@ const Catalog = () => {
     }
   };
 
+  if (isConfigLoading && searchParams.get('s')) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6" dir="rtl">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center"
+        >
+          <div className="relative w-24 h-24 mb-8">
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 border-4 border-slate-100 border-t-primary-500 rounded-full"
+            />
+            <div className="absolute inset-0 flex items-center justify-center text-primary-500">
+              <ChainLink size={32} />
+            </div>
+          </div>
+          <h2 className="text-xl font-black text-slate-800 mb-2">טוען את הקטלוג האישי שלך...</h2>
+          <div className="flex gap-1">
+            {[0, 1, 2].map(i => (
+              <motion.div 
+                key={i}
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                className="w-1.5 h-1.5 bg-primary-400 rounded-full"
+              />
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (isLinkExpired) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center" dir="rtl">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="max-w-md bg-white rounded-[40px] p-10 shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-[100px] -z-0 opacity-50" />
+          <div className="relative z-10">
+            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <Clock size={40} />
+            </div>
+            <h2 className="text-3xl font-black text-slate-800 mb-4 tracking-tight">הקישור לא תקין</h2>
+            <p className="text-slate-500 font-bold mb-2 leading-relaxed">
+              מצטערים, אך הקישור האישי שקיבלת אינו פעיל או שאינו תקין.
+            </p>
+            <p className="text-slate-400 text-sm font-medium mb-8">
+              נא לפנות לסוכן לקבלת קישור מעודכן.
+            </p>
+            <button 
+              onClick={() => navigate('/')}
+              className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black transition-colors"
+            >
+              חזרה לדף הבית
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
-      {/* ⚠️ EXPIRATION OVERLAY */}
-      <AnimatePresence>
-        {isLinkExpired && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 text-center"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="max-w-md bg-white rounded-[40px] p-10 shadow-2xl"
-            >
-              <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                <Clock size={40} />
-              </div>
-              <h2 className="text-3xl font-black text-slate-800 mb-4 tracking-tight">הקישור לא תקין</h2>
-              <p className="text-slate-500 font-bold mb-2 leading-relaxed">
-                מצטערים, אך הקישור האישי שקיבלת אינו פעיל או שאינו תקין.
-              </p>
-              <p className="text-slate-400 text-sm font-medium">
-                נא לפנות לסוכן לקבלת קישור מעודכן.
-              </p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* 🧭 PREMIUM NAVIGATION */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-3xl border-b border-slate-100/60 transition-all duration-300">

@@ -13,6 +13,7 @@ import CategoryManagement from '../components/admin/CategoryManagement';
 import BrandManagement from '../components/admin/BrandManagement';
 import BannerManagement from '../components/admin/BannerManagement';
 import CustomerManagement from '../components/admin/CustomerManagement';
+import LinksManagement from '../components/admin/LinksManagement';
 import { statusMap } from '../components/admin/OrderManagement';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check } from 'lucide-react';
@@ -52,6 +53,7 @@ const Admin = () => {
     ordersStats,
     customers, setCustomers,
     sortedCustomers,
+    personalizedLinks, setPersonalizedLinks,
     fetchData
   } = adminData;
 
@@ -328,6 +330,20 @@ const Admin = () => {
         title: `Groopy - ${agent.name}`, 
         url 
       });
+    }
+  };
+
+  const handleToggleLinkActive = async (id, isActive) => {
+    const { error } = await supabase.from('personalized_links').update({ is_active: isActive }).eq('id', id);
+    if (!error) {
+      setPersonalizedLinks(p => p.map(l => l.id === id ? { ...l, is_active: isActive } : l));
+    }
+  };
+
+  const handleDeleteLink = async (id) => {
+    const { error } = await supabase.from('personalized_links').delete().eq('id', id);
+    if (!error) {
+      setPersonalizedLinks(p => p.filter(l => l.id !== id));
     }
   };
 
@@ -821,7 +837,30 @@ const Admin = () => {
         <Header activeTab={activeTab} productsCount={products.length} bannersCount={banners.length} setIsSidebarOpen={setIsSidebarOpen} setIsAddingProduct={setIsAddingProduct} setIsAddingAgent={setIsAddingAgent} setIsAddingBrand={setIsAddingBrand} setIsAddingBanner={setIsAddingBanner} setIsAddingCategory={setIsAddingCategory} setIsAddingCustomer={setIsAddingCustomer} />
 
         {activeTab === 'products' && <ProductManagement sortedProducts={sortedProducts} searchTerm={searchTerm} setSearchTerm={setSearchTerm} categories={categories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} sortConfig={sortConfig} selectedProductIds={selectedProductIds} toggleProductSelection={toggleProductSelection} toggleAllProducts={toggleAllProducts} isBulkUpdatingProducts={isBulkUpdatingProducts} isBulkCategoryMenuOpen={isBulkCategoryMenuOpen} setIsBulkCategoryMenuOpen={setIsBulkCategoryMenuOpen} handleBulkUpdateProductCategory={handleBulkUpdateProductCategory} isBulkFlagsMenuOpen={isBulkFlagsMenuOpen} setIsBulkFlagsMenuOpen={setIsBulkFlagsMenuOpen} handleBulkUpdateProductFlag={handleBulkUpdateProductFlag} setEditingProduct={setEditingProduct} confirmingProductDelete={confirmingProductDelete} setConfirmingProductDelete={setConfirmingProductDelete} handleDeleteProduct={handleDeleteProduct} />}
-        {activeTab === 'agents' && <AgentManagement agents={agents} onSelectCategoryForLink={setSelectedAgentForLink} handleCopyAgentLink={handleCopyAgentLink} copyFeedback={copyFeedback} handleShareAgent={handleShareAgent} confirmingAgentDelete={confirmingAgentDelete} setConfirmingAgentDelete={setConfirmingAgentDelete} handleDeleteAgent={handleDeleteAgent} setEditingAgent={setEditingAgent} />}
+        {activeTab === 'agents' && (
+          <div className="flex flex-col gap-12">
+            <AgentManagement 
+              agents={agents} 
+              onSelectCategoryForLink={setSelectedAgentForLink} 
+              handleCopyAgentLink={handleCopyAgentLink} 
+              copyFeedback={copyFeedback} 
+              handleShareAgent={handleShareAgent} 
+              confirmingAgentDelete={confirmingAgentDelete} 
+              setConfirmingAgentDelete={setConfirmingAgentDelete} 
+              handleDeleteAgent={handleDeleteAgent} 
+              setEditingAgent={setEditingAgent} 
+            />
+            <LinksManagement 
+              links={personalizedLinks}
+              agents={agents}
+              categories={categories}
+              banners={banners}
+              onToggleActive={handleToggleLinkActive}
+              onDeleteLink={handleDeleteLink}
+              onCopyLink={handleCopyAgentLink}
+            />
+          </div>
+        )}
         {activeTab === 'categories' && (
           <CategoryManagement 
             categories={categories} 
@@ -873,8 +912,14 @@ const Admin = () => {
             agent={selectedAgentForLink} 
             categories={activeCategories} 
             banners={banners}
-            onCopyLink={handleCopyAgentLink} 
-            onShareLink={handleShareAgent}
+            onCopyLink={(...args) => {
+              handleCopyAgentLink(...args);
+              fetchData(); // Refresh links table
+            }} 
+            onShareLink={(...args) => {
+              handleShareAgent(...args);
+              fetchData(); // Refresh links table
+            }}
             copyFeedback={copyFeedback} 
           />
         )}

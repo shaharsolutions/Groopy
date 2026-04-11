@@ -83,7 +83,10 @@ const Catalog = () => {
   }, [searchParams, fetchedConfig]);
 
   const isLinkExpired = useMemo(() => {
-    if (fetchedConfig) return fetchedConfig.expires_at ? Date.now() > fetchedConfig.expires_at : false;
+    if (fetchedConfig) {
+      if (fetchedConfig.is_active === false) return true; // Manually deactivated
+      return fetchedConfig.expires_at ? Date.now() > fetchedConfig.expires_at : false;
+    }
     const expiry = searchParams.get('expires_at');
     if (!expiry) return false;
     return Date.now() > parseInt(expiry);
@@ -179,6 +182,8 @@ const Catalog = () => {
       
       if (!error && data) {
         setFetchedConfig(data);
+        // Increment views
+        await supabase.from('personalized_links').update({ views: (data.views || 0) + 1 }).eq('id', shortId);
       } else {
         console.error('Error resolving short link:', error);
       }

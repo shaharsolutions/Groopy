@@ -11,6 +11,7 @@ export const useAdminData = () => {
   const [brands, setBrands] = useState([]);
   const [banners, setBanners] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [personalizedLinks, setPersonalizedLinks] = useState([]);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -25,7 +26,8 @@ export const useAdminData = () => {
         { data: ordersData },
         { data: brandsData },
         { data: bannersData },
-        { data: customersData }
+        { data: customersData },
+        { data: linksData }
       ] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('agents').select('*').order('name'),
@@ -33,7 +35,8 @@ export const useAdminData = () => {
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('brands').select('*').order('type', { ascending: true, nullsFirst: false }).order('name'),
         supabase.from('banners').select('*').order('order_index', { ascending: true }),
-        supabase.from('customers').select('*').order('business_name')
+        supabase.from('customers').select('*').order('business_name'),
+        supabase.from('personalized_links').select('*').order('created_at', { ascending: false })
       ]);
 
       if (productsData) setProducts(productsData);
@@ -43,6 +46,7 @@ export const useAdminData = () => {
       if (brandsData) setBrands(brandsData);
       if (bannersData) setBanners(bannersData);
       if (customersData) setCustomers(customersData);
+      if (linksData) setPersonalizedLinks(linksData);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     }
@@ -194,6 +198,7 @@ export const useAdminData = () => {
     customers, setCustomers,
     customersWithStats,
     sortedCustomers,
+    personalizedLinks, setPersonalizedLinks,
     fetchData
   };
 };

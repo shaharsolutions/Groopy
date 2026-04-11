@@ -63,18 +63,31 @@ const Catalog = () => {
 
   const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
 
+  // 🔗 SHORT LINK STATE
+  const [fetchedConfig, setFetchedConfig] = useState(null);
+  const [isConfigLoading, setIsConfigLoading] = useState(false);
+
   const [selectedBadge, setSelectedBadge] = useState(() => searchParams.get('badge') || null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   
   // 🔗 LINK-BASED FILTERING (Personalized Agent Links)
   const allowedCategories = useMemo(() => {
+    if (fetchedConfig) return fetchedConfig.categories;
     const cats = searchParams.get('categories');
     return cats ? cats.split(',').map(c => c.trim()) : null;
-  }, [searchParams]);
+  }, [searchParams, fetchedConfig]);
 
   const allowedBannerIds = useMemo(() => {
+    if (fetchedConfig) return fetchedConfig.banners;
     const bans = searchParams.get('banners');
     return bans ? bans.split(',').map(b => b.trim()) : null;
-  }, [searchParams]);
+  }, [searchParams, fetchedConfig]);
+
+  const isLinkExpired = useMemo(() => {
+    if (fetchedConfig) return fetchedConfig.expires_at ? Date.now() > fetchedConfig.expires_at : false;
+    const expiry = searchParams.get('expires_at');
+    if (!expiry) return false;
+    return Date.now() > parseInt(expiry);
+  }, [searchParams, fetchedConfig]);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
@@ -146,10 +159,35 @@ const Catalog = () => {
     }
 
     fetchInitialData();
+    resolveShortLink();
     return () => {
       isMounted.current = false;
     };
   }, [searchParams]);
+
+  const resolveShortLink = async () => {
+    const shortId = searchParams.get('s');
+    if (!shortId) return;
+
+    setIsConfigLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('personalized_links')
+        .select('*')
+        .eq('id', shortId)
+        .single();
+      
+      if (!error && data) {
+        setFetchedConfig(data);
+      } else {
+        console.error('Error resolving short link:', error);
+      }
+    } catch (err) {
+      console.error('Unexpected error resolving short link:', err);
+    } finally {
+      setIsConfigLoading(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('groopy_cart', JSON.stringify(cart));
@@ -352,7 +390,12 @@ const Catalog = () => {
         
       let matchesCategory = false;
       if (selectedCategory === 'All') {
-        matchesCategory = true;
+        // If we have a personalized link filter, 'All' should only show allowed categories
+        if (allowedCategories) {
+          matchesCategory = allowedCategories.includes(normalizedProductCat);
+        } else {
+          matchesCategory = true;
+        }
       } else if (selectedCategory === 'New') {
         matchesCategory = !!product.is_new;
       } else {
@@ -557,6 +600,34 @@ const Catalog = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FDFDFE] text-slate-900 overflow-x-hidden" dir="rtl">
+      {/* ⚠️ EXPIRATION OVERLAY */}
+      <AnimatePresence>
+        {isLinkExpired && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 text-center"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="max-w-md bg-white rounded-[40px] p-10 shadow-2xl"
+            >
+              <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <Clock size={40} />
+              </div>
+              <h2 className="text-3xl font-black text-slate-800 mb-4 tracking-tight">הקישור לא תקין</h2>
+              <p className="text-slate-500 font-bold mb-2 leading-relaxed">
+                מצטערים, אך הקישור האישי שקיבלת אינו פעיל או שאינו תקין.
+              </p>
+              <p className="text-slate-400 text-sm font-medium">
+                נא לפנות לסוכן לקבלת קישור מעודכן.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 🧭 PREMIUM NAVIGATION */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-3xl border-b border-slate-100/60 transition-all duration-300">
         <div className="container mx-auto px-6 h-24 md:h-32 lg:h-36 flex items-center transition-all">

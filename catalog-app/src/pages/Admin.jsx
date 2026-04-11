@@ -277,15 +277,24 @@ const Admin = () => {
     }
   };
 
-  const handleCopyAgentLink = (agent, categories = [], bannerIds = []) => {
+  const handleCopyAgentLink = (agent, categories = [], bannerIds = [], expiresAt = null, shortId = null) => {
     let url = `${window.location.origin}/#/?agent=${agent.id}`;
     
-    if (categories && categories.length > 0) {
-      url += `&categories=${encodeURIComponent(categories.join(','))}`;
-    }
-    
-    if (bannerIds && bannerIds.length > 0) {
-      url += `&banners=${encodeURIComponent(bannerIds.join(','))}`;
+    if (shortId) {
+      url += `&s=${shortId}`;
+    } else {
+      // Fallback to long URL if no shortId
+      if (categories && categories.length > 0) {
+        url += `&categories=${encodeURIComponent(categories.join(','))}`;
+      }
+      
+      if (bannerIds && bannerIds.length > 0) {
+        url += `&banners=${encodeURIComponent(bannerIds.join(','))}`;
+      }
+
+      if (expiresAt) {
+        url += `&expires_at=${expiresAt}`;
+      }
     }
 
     navigator.clipboard.writeText(url);
@@ -295,15 +304,23 @@ const Admin = () => {
     setTimeout(() => setCopyFeedback(null), 2000);
   };
 
-  const handleShareAgent = async (agent, categories = [], bannerIds = []) => {
+  const handleShareAgent = async (agent, categories = [], bannerIds = [], expiresAt = null, shortId = null) => {
     let url = `${window.location.origin}/#/?agent=${agent.id}`;
     
-    if (categories && categories.length > 0) {
-      url += `&categories=${encodeURIComponent(categories.join(','))}`;
-    }
-    
-    if (bannerIds && bannerIds.length > 0) {
-      url += `&banners=${encodeURIComponent(bannerIds.join(','))}`;
+    if (shortId) {
+      url += `&s=${shortId}`;
+    } else {
+      if (categories && categories.length > 0) {
+        url += `&categories=${encodeURIComponent(categories.join(','))}`;
+      }
+      
+      if (bannerIds && bannerIds.length > 0) {
+        url += `&banners=${encodeURIComponent(bannerIds.join(','))}`;
+      }
+
+      if (expiresAt) {
+        url += `&expires_at=${expiresAt}`;
+      }
     }
 
     if (navigator.share) {

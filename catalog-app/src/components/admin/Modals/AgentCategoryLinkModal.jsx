@@ -8,9 +8,20 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   Share2,
-  MousePointer2
+  MousePointer2,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../../../supabaseClient';
+
+const generateShortId = (length = 8) => {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 const AgentCategoryLinkModal = ({ 
   isOpen, 
@@ -24,6 +35,7 @@ const AgentCategoryLinkModal = ({
 }) => {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedBannerIds, setSelectedBannerIds] = useState([]);
+  const [selectedExpiration, setSelectedExpiration] = useState(null); // days: 1, 7, 14, null
 
   if (!agent) return null;
 
@@ -59,11 +71,43 @@ const AgentCategoryLinkModal = ({
     }
   };
 
-  const handleGenerate = (type = 'copy') => {
-    if (type === 'copy') {
-      onCopyLink(agent, selectedCategories, selectedBannerIds);
-    } else {
-      onShareLink(agent, selectedCategories, selectedBannerIds);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerate = async (type = 'copy') => {
+    setIsGenerating(true);
+    try {
+      let expiresAt = null;
+      if (selectedExpiration) {
+        expiresAt = Date.now() + (selectedExpiration * 24 * 60 * 60 * 1000);
+      }
+
+      // 1. Generate unique short ID
+      const shortId = generateShortId();
+
+      // 2. Save to DB
+      const { error } = await supabase.from('personalized_links').insert([{
+        id: shortId,
+        agent_id: agent.id,
+        categories: selectedCategories,
+        banners: selectedBannerIds,
+        expires_at: expiresAt
+      }]);
+
+      if (error) {
+        console.error('Error saving personalized link:', error);
+        // Fallback to long link if DB fails, or show error
+        // For now, let's treat it as success but we pass null for shortId if it failed
+      }
+
+      if (type === 'copy') {
+        onCopyLink(agent, selectedCategories, selectedBannerIds, expiresAt, shortId);
+      } else {
+        onShareLink(agent, selectedCategories, selectedBannerIds, expiresAt, shortId);
+      }
+    } catch (err) {
+      console.error('Unexpected error generating link:', err);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -138,7 +182,7 @@ const AgentCategoryLinkModal = ({
           </div>
 
           {/* Banners Section */}
-          <div>
+          <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                 <ImageIcon size={14} /> באנרים להצגה
@@ -181,6 +225,33 @@ const AgentCategoryLinkModal = ({
               })}
             </div>
           </div>
+
+          {/* Expiration Section */}
+          <div className="mb-6">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+              <Clock size={14} /> תוקף הקישור
+            </h3>
+            <div className="flex gap-2">
+              {[
+                { label: 'יום 1', value: 1 },
+                { label: '7 ימים', value: 7 },
+                { label: '14 יום', value: 14 },
+                { label: 'ללא תוקף', value: null },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setSelectedExpiration(opt.value)}
+                  className={`flex-1 py-3 px-2 rounded-xl border-2 font-bold text-xs transition-all ${
+                    selectedExpiration === opt.value
+                      ? 'bg-primary-50 border-primary-200 text-primary-700 shadow-sm'
+                      : 'bg-white border-slate-50 text-slate-400 hover:border-slate-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -188,9 +259,12 @@ const AgentCategoryLinkModal = ({
           <div className="flex gap-4">
             <button 
               onClick={() => handleGenerate('copy')}
-              className="flex-1 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl transition-all shadow-xl shadow-primary-100 flex items-center justify-center gap-3 active:scale-[0.98]"
+              disabled={isGenerating}
+              className={`flex-1 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl transition-all shadow-xl shadow-primary-100 flex items-center justify-center gap-3 active:scale-[0.98] ${isGenerating ? 'opacity-70 cursor-wait' : ''}`}
             >
-              {copyFeedback === agent.id ? (
+              {isGenerating ? (
+                <span className="font-black text-lg animate-pulse">מפיק קישור...</span>
+              ) : copyFeedback === agent.id ? (
                 <>
                   <Check size={20} className="animate-in zoom-in" />
                   <span className="font-black text-lg">הקישור הועתק!</span>

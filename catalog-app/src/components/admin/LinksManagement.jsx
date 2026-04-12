@@ -92,7 +92,7 @@ const LinksManagement = ({
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">תוכן מותאם</th>
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">נוצר ב-</th>
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">תוקף</th>
-                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">צפיות</th>
+                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">צפיות (פעיל/חסום)</th>
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">סטטוס</th>
                 <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">פעולות</th>
               </tr>
@@ -112,7 +112,7 @@ const LinksManagement = ({
                       <div className="flex flex-col gap-4">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-500 transition-colors">
-                            <code className="text-[10px] font-black uppercase">{link.id}</code>
+                            <code className="text-[10px] font-black uppercase">#{link.id}</code>
                           </div>
                           <div>
                             <span className="block font-black text-slate-700 text-sm">{getAgentName(link.agent_id)}</span>
@@ -166,13 +166,22 @@ const LinksManagement = ({
                       </div>
                     </td>
                     <td className="p-6">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center">
-                          <Eye size={14} />
-                        </div>
-                        <span className="text-sm font-black text-slate-700">{link.views || 0}</span>
-                      </div>
-                    </td>
+                       <div className="flex items-center gap-3">
+                         <div className="flex items-center gap-2">
+                           <div className="w-8 h-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center">
+                             <Eye size={14} />
+                           </div>
+                           <span className="text-sm font-black text-slate-700">{link.views || 0}</span>
+                         </div>
+                         <div className="w-px h-6 bg-slate-100" />
+                         <div className="flex items-center gap-2 opacity-60">
+                           <div className="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+                             <ShieldAlert size={14} />
+                           </div>
+                           <span className="text-sm font-black text-slate-500">{link.views_inactive || 0}</span>
+                         </div>
+                       </div>
+                     </td>
                     <td className="p-6">
                       <button 
                         onClick={() => onToggleActive(link.id, !link.is_active)}

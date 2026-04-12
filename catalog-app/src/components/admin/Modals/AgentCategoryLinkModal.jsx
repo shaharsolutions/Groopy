@@ -14,14 +14,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../supabaseClient';
 
-const generateShortId = (length = 8) => {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
 
 const AgentCategoryLinkModal = ({ 
   isOpen, 
@@ -82,24 +74,25 @@ const AgentCategoryLinkModal = ({
         expiresAt = Date.now() + (selectedExpiration * 24 * 60 * 60 * 1000);
       }
 
-      // 1. Generate unique short ID
-      const shortId = generateShortId();
-
-      // 2. Save to DB
-      const { error } = await supabase.from('personalized_links').insert([{
-        id: shortId,
-        agent_id: agent.id,
-        categories: selectedCategories,
-        banners: selectedBannerIds,
-        expires_at: expiresAt,
-        description: linkDescription
-      }]);
+      // 1. Save to DB and get generated ID
+      const { data, error } = await supabase
+        .from('personalized_links')
+        .insert([{
+          agent_id: agent.id,
+          categories: selectedCategories,
+          banners: selectedBannerIds,
+          expires_at: expiresAt,
+          description: linkDescription
+        }])
+        .select('id')
+        .single();
 
       if (error) {
         console.error('Error saving personalized link:', error);
-        // Fallback to long link if DB fails, or show error
-        // For now, let's treat it as success but we pass null for shortId if it failed
+        return;
       }
+
+      const shortId = data.id;
 
       if (type === 'copy') {
         onCopyLink(agent, selectedCategories, selectedBannerIds, expiresAt, shortId);

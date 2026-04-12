@@ -183,8 +183,13 @@ const Catalog = () => {
       
       if (!error && data) {
         setFetchedConfig(data);
-        // Increment views
-        await supabase.from('personalized_links').update({ views: (data.views || 0) + 1 }).eq('id', shortId);
+        
+        // Determine if active
+        const isActuallyActive = data.is_active !== false && (!data.expires_at || Date.now() < data.expires_at);
+        
+        // Increment appropriate counter
+        const fieldToUpdate = isActuallyActive ? 'views' : 'views_inactive';
+        await supabase.from('personalized_links').update({ [fieldToUpdate]: (data[fieldToUpdate] || 0) + 1 }).eq('id', shortId);
       } else {
         console.error('Error resolving short link:', error);
       }

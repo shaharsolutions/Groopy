@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Tag, Star, Flame, Zap } from 'lucide-react';
+import { X, Tag, Star, Flame, Zap, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const BulkProductEditModal = ({ 
@@ -22,12 +22,21 @@ const BulkProductEditModal = ({
     value: ''
   });
 
+  const [quantityUpdate, setQuantityUpdate] = useState({
+    active: false,
+    value: 12
+  });
+
   if (!isOpen) return null;
 
   const handleSave = () => {
     const changes = {};
     if (categoryUpdate.active) {
       changes.category = categoryUpdate.value;
+    }
+
+    if (quantityUpdate.active) {
+      changes.default_quantity = parseInt(quantityUpdate.value) || 12;
     }
     
     Object.entries(flagsState).forEach(([field, state]) => {
@@ -49,7 +58,7 @@ const BulkProductEditModal = ({
     { id: 'is_hot_deal', label: 'מבצע חם', icon: Flame, color: 'text-orange-500', bg: 'bg-orange-50' },
   ];
 
-  const hasChanges = categoryUpdate.active || Object.values(flagsState).some(s => s !== 'keep');
+  const hasChanges = categoryUpdate.active || quantityUpdate.active || Object.values(flagsState).some(s => s !== 'keep');
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8">
@@ -83,44 +92,83 @@ const BulkProductEditModal = ({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-8 md:p-10 pt-4 thin-scrollbar">
           <div className="space-y-8">
-            {/* Category Update */}
-            <div className={`p-6 rounded-3xl border-2 transition-all ${categoryUpdate.active ? 'bg-primary-50/30 border-primary-200' : 'bg-slate-50 border-transparent'}`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${categoryUpdate.active ? 'bg-primary-500 text-white' : 'bg-white text-slate-400'}`}>
-                    <Tag size={20} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Category Update */}
+              <div className={`p-6 rounded-3xl border-2 transition-all ${categoryUpdate.active ? 'bg-primary-50/30 border-primary-200' : 'bg-slate-50 border-transparent'}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${categoryUpdate.active ? 'bg-primary-500 text-white' : 'bg-white text-slate-400'}`}>
+                      <Tag size={20} />
+                    </div>
+                    <span className={`font-black ${categoryUpdate.active ? 'text-primary-900' : 'text-slate-500'}`}>קטגוריה</span>
                   </div>
-                  <span className={`font-black ${categoryUpdate.active ? 'text-primary-900' : 'text-slate-500'}`}>שינוי קטגוריה</span>
-                </div>
-                <button 
-                  onClick={() => setCategoryUpdate(p => ({ ...p, active: !p.active }))}
-                  className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${categoryUpdate.active ? 'bg-primary-500 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-400 hover:border-slate-300'}`}
-                >
-                  {categoryUpdate.active ? 'ביטול' : 'שנה קטגוריה'}
-                </button>
-              </div>
-              
-              <AnimatePresence>
-                {categoryUpdate.active && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
+                  <button 
+                    onClick={() => setCategoryUpdate(p => ({ ...p, active: !p.active }))}
+                    className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${categoryUpdate.active ? 'bg-primary-500 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-400 hover:border-slate-300'}`}
                   >
-                    <select 
-                      value={categoryUpdate.value}
-                      onChange={(e) => setCategoryUpdate(p => ({ ...p, value: e.target.value }))}
-                      className="w-full h-14 bg-white border border-slate-200 rounded-2xl px-6 font-bold outline-none focus:border-primary-500 transition-all shadow-sm"
+                    {categoryUpdate.active ? 'ביטול' : 'שנה'}
+                  </button>
+                </div>
+                
+                <AnimatePresence>
+                  {categoryUpdate.active && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
                     >
-                      <option value="">בחר קטגוריה...</option>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                      ))}
-                    </select>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      <select 
+                        value={categoryUpdate.value}
+                        onChange={(e) => setCategoryUpdate(p => ({ ...p, value: e.target.value }))}
+                        className="w-full h-14 bg-white border border-slate-200 rounded-2xl px-6 font-bold outline-none focus:border-primary-500 transition-all shadow-sm"
+                      >
+                        <option value="">בחר קטגוריה...</option>
+                        {categories.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Quantity Update */}
+              <div className={`p-6 rounded-3xl border-2 transition-all ${quantityUpdate.active ? 'bg-primary-50/30 border-primary-200' : 'bg-slate-50 border-transparent'}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${quantityUpdate.active ? 'bg-primary-500 text-white' : 'bg-white text-slate-400'}`}>
+                      <Layers size={20} />
+                    </div>
+                    <span className={`font-black ${quantityUpdate.active ? 'text-primary-900' : 'text-slate-500'}`}>כמות</span>
+                  </div>
+                  <button 
+                    onClick={() => setQuantityUpdate(p => ({ ...p, active: !p.active }))}
+                    className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${quantityUpdate.active ? 'bg-primary-500 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                  >
+                    {quantityUpdate.active ? 'ביטול' : 'שנה'}
+                  </button>
+                </div>
+                
+                <AnimatePresence>
+                  {quantityUpdate.active && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <input 
+                        type="number"
+                        value={quantityUpdate.value}
+                        onChange={(e) => setQuantityUpdate(p => ({ ...p, value: e.target.value }))}
+                        placeholder="כמות ברירת מחדל"
+                        className="w-full h-14 bg-white border border-slate-200 rounded-2xl px-6 font-bold outline-none focus:border-primary-500 transition-all shadow-sm"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* Flags Update */}

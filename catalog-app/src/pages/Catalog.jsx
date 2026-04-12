@@ -476,13 +476,12 @@ const Catalog = () => {
         }
         
         const minQty = defaultQty;
-        
         const adjustedDelta = direction * step;
-        let newQty = Math.max(0, Number(item.quantity) + adjustedDelta);
+        let newQty = Math.round(Number(item.quantity) + adjustedDelta);
         
-        // If it's a carton/incremental product and we drop below the minimum, remove it (set to 0)
-        if (direction < 0 && (item.is_default_carton || isIncremental) && newQty < minQty) {
-          newQty = 0;
+        // Enforce minimum quantity: stop at defaultQty instead of dropping below or going to 0
+        if (direction < 0 && newQty < minQty) {
+          newQty = minQty;
         }
         
         return { ...item, quantity: newQty };

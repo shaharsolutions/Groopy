@@ -25,7 +25,7 @@ const ProductDetailModal = ({
 
   useEffect(() => {
     if (isOpen && product) {
-      let initialQty = 1;
+      let initialQty = Number(product.default_quantity || 12);
       
       if (product.is_incremental_add) {
         // If not in cart, default to full carton (1.0). If already in cart, use custom step or 1 unit.
@@ -53,11 +53,9 @@ const ProductDetailModal = ({
   };
 
   const adjustQuantity = (direction) => {
-    let step = 1;
-    let minQty = 1;
-
-    const isCartonProduct = product.is_incremental_add || product.is_default_carton;
     const defaultQty = Number(product.default_quantity || 12);
+    let step = 1;
+    let minQty = cartCount === 0 ? defaultQty : 1;
 
     if (product.incremental_step) {
       step = Number(product.incremental_step);

@@ -386,8 +386,28 @@ const Admin = () => {
 
   const handleUpdateCategory = async () => {
     setIsUpdatingCategory(true);
+    const originalCategory = categories.find(c => c.id === editingCategory.id);
+    const oldName = originalCategory ? originalCategory.name : null;
+    const newName = editingCategory.name;
+
     const { error } = await supabase.from('categories').update(editingCategory).eq('id', editingCategory.id);
-    if (!error) { setCategories(categories.map(c => c.id === editingCategory.id ? editingCategory : c)); setEditingCategory(null); }
+    if (!error) { 
+      setCategories(categories.map(c => c.id === editingCategory.id ? editingCategory : c)); 
+      setEditingCategory(null); 
+
+      if (oldName && oldName !== newName) {
+        const { error: productsError } = await supabase.from('products').update({ category: newName }).eq('category', oldName);
+        if (!productsError) {
+          setProducts(products.map(p => p.category === oldName ? { ...p, category: newName } : p));
+        } else {
+          console.error('Error updating products for category rename:', productsError);
+          setAlertConfig({ isOpen: true, message: 'הקטגוריה עודכנה, אך אירעה שגיאה בעדכון המוצרים המשויכים אליה.', type: 'error' });
+        }
+      }
+    } else {
+      console.error('Error updating category:', error);
+      setAlertConfig({ isOpen: true, message: 'שגיאה בעדכון קטגוריה: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
+    }
     setIsUpdatingCategory(false);
   };
 

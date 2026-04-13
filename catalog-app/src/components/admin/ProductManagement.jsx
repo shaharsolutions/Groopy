@@ -142,6 +142,9 @@ const ProductManagement = ({
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 text-[10px] font-black text-slate-400">
+                  {sortedProducts.length}
+                </div>
               </div>
 
               <div className="relative">

@@ -822,7 +822,7 @@ const Catalog = () => {
 
           <div 
             ref={categoryContainerRef}
-            className="flex items-center justify-start md:justify-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0 max-w-7xl mx-auto"
+            className="flex items-center justify-start md:justify-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-auto md:px-0 max-w-7xl"
           >
             {categories.map((cat, idx) => (
               <button
@@ -832,7 +832,7 @@ const Catalog = () => {
                   setSelectedCategory(cat);
                   scrollToProducts();
                 }}
-                className={`px-10 py-4 rounded-full text-lg font-black transition-all duration-500 shrink-0 ${
+                className={`px-6 md:px-10 py-4 rounded-full text-lg font-black transition-all duration-500 shrink-0 ${
                   selectedCategory === cat 
                     ? 'bg-[#0f172a] text-white shadow-xl shadow-slate-200 scale-[1.02]' 
                     : 'bg-white border border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1] hover:bg-slate-50/50'

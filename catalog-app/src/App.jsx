@@ -1,23 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Catalog from './pages/Catalog';
-import Admin from './pages/Admin';
-import Login from './pages/Login';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import Accessibility from './pages/Accessibility';
 import ScrollToTop from './components/common/ScrollToTop';
+
+// Lazy-loaded pages — only downloaded when navigated to
+const Admin = lazy(() => import('./pages/Admin'));
+const Login = lazy(() => import('./pages/Login'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const Accessibility = lazy(() => import('./pages/Accessibility'));
+
+// Minimal loading spinner for lazy routes
+const LazyFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[#FDFDFE]">
+    <div className="w-12 h-12 border-4 border-slate-100 border-t-primary-500 rounded-full animate-spin" />
+  </div>
+);
 
 const App = () => {
   return (
     <Router>
       <ScrollToTop />
-      <Routes>
-        <Route path="/" element={<Catalog />} />
-        <Route path="/admin" element={<AdminRoute />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/accessibility" element={<Accessibility />} />
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+      <Suspense fallback={<LazyFallback />}>
+        <Routes>
+          <Route path="/" element={<Catalog />} />
+          <Route path="/admin" element={<AdminRoute />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/accessibility" element={<Accessibility />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 };

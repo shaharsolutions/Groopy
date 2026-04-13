@@ -1,15 +1,14 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Package, Plus, Zap, Star, Flame } from 'lucide-react';
 
-const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
+const ProductCard = React.memo(({ product, addToCart, onImageClick, cartCount }) => {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: idx * 0.05 }}
-      key={product.id}
+      transition={{ duration: 0.3 }}
       className="bg-white rounded-[24px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group flex flex-col h-full"
     >
       {/* Image Box */}
@@ -18,7 +17,7 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
         onClick={() => onImageClick && onImageClick(product.image, product.name)}
       >
         {product.image ? (
-          <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+          <img src={product.image} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center opacity-10 group-hover:opacity-20 group-hover:scale-125 transition-all duration-700">
             <Package size={120} strokeWidth={1} />
@@ -32,41 +31,24 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
             {product.sku}
           </div>
           
-          <AnimatePresence>
-            {product.is_best_seller && (
-              <motion.div 
-                key="badge-best-seller"
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                className="bg-blue-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-blue-200"
-              >
-                <Star size={10} fill="currentColor" />
-                נמכר ביותר
-              </motion.div>
-            )}
-            {product.is_clearing && (
-              <motion.div 
-                key="badge-clearing"
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                className="bg-purple-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-purple-200"
-              >
-                <Zap size={10} />
-                חדש
-              </motion.div>
-            )}
-            {product.is_hot_deal && (
-              <motion.div 
-                key="badge-hot-deal"
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                className="bg-orange-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-orange-200"
-              >
-                <Flame size={10} fill="currentColor" />
-                מבצע חם
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {product.is_best_seller && (
+            <div className="bg-blue-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-blue-200">
+              <Star size={10} fill="currentColor" />
+              נמכר ביותר
+            </div>
+          )}
+          {product.is_clearing && (
+            <div className="bg-purple-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-purple-200">
+              <Zap size={10} />
+              חדש
+            </div>
+          )}
+          {product.is_hot_deal && (
+            <div className="bg-orange-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-orange-200">
+              <Flame size={10} fill="currentColor" />
+              מבצע חם
+            </div>
+          )}
         </div>
       </div>
 
@@ -116,6 +98,8 @@ const ProductCard = ({ product, idx, addToCart, onImageClick, cartCount }) => {
       </div>
     </motion.div>
   );
-};
+});
+
+ProductCard.displayName = 'ProductCard';
 
 export default ProductCard;

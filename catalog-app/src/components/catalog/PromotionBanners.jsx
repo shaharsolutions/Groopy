@@ -1,41 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
-import { supabase } from '../../supabaseClient';
 
-const PromotionBanners = ({ onBannerClick, allowedBannerIds }) => {
-  const [banners, setBanners] = useState([]);
-  const [loading, setLoading] = useState(true);
+const PromotionBanners = React.memo(({ banners: propBanners, onBannerClick, allowedBannerIds }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollRef = useRef(null);
   const isScrollingRef = useRef(false);
 
-  useEffect(() => {
-    const fetchBanners = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('banners')
-          .select('*')
-          .eq('is_active', true)
-          .order('order_index', { ascending: true });
-        
-        if (!error && data) {
-          // If specified allowedBannerIds, filter them
-          if (allowedBannerIds && allowedBannerIds.length > 0) {
-            setBanners(data.filter(b => allowedBannerIds.includes(b.id)));
-          } else {
-            setBanners(data);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching banners:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBanners();
-  }, [allowedBannerIds]);
+  // Filter banners based on allowedBannerIds
+  const banners = React.useMemo(() => {
+    if (!propBanners || propBanners.length === 0) return [];
+    const activeBanners = propBanners.filter(b => b.is_active);
+    if (allowedBannerIds && allowedBannerIds.length > 0) {
+      return activeBanners.filter(b => allowedBannerIds.includes(b.id));
+    }
+    return activeBanners;
+  }, [propBanners, allowedBannerIds]);
 
   // Update currentIndex based on scroll position
   const handleScroll = useCallback(() => {
@@ -43,8 +22,6 @@ const PromotionBanners = ({ onBannerClick, allowedBannerIds }) => {
     
     const scrollLeft = scrollRef.current.scrollLeft;
     const width = scrollRef.current.offsetWidth;
-    // For RTL, scrollLeft is negative or starts from large positive to 0
-    // We'll use Math.abs and round for robustness
     const index = Math.round(Math.abs(scrollLeft) / width);
     
     if (index !== currentIndex && index < banners.length) {
@@ -61,33 +38,30 @@ const PromotionBanners = ({ onBannerClick, allowedBannerIds }) => {
   }, [handleScroll]);
 
   // Programmatic scroll to a specific index
-  const scrollTo = (index) => {
+  const scrollTo = useCallback((index) => {
     if (!scrollRef.current) return;
     
     isScrollingRef.current = true;
     const width = scrollRef.current.offsetWidth;
     const target = index * width;
     
-    // In RTL, we scroll to target (if 0 to max) or -target (if 0 to -max)
-    // Most modern browsers use 0 as the rightmost point in RTL
     scrollRef.current.scrollTo({
-      left: -target, // Standard RTL scroll behavior
+      left: -target,
       behavior: 'smooth'
     });
 
     setCurrentIndex(index);
     
-    // Release the manual scroll lock after animation
     setTimeout(() => {
       isScrollingRef.current = false;
     }, 600);
-  };
+  }, []);
 
-  const move = (step) => {
+  const move = useCallback((step) => {
     if (banners.length <= 1) return;
     const newIndex = (currentIndex + step + banners.length) % banners.length;
     scrollTo(newIndex);
-  };
+  }, [banners.length, currentIndex, scrollTo]);
 
   // Auto-play timer
   useEffect(() => {
@@ -96,14 +70,10 @@ const PromotionBanners = ({ onBannerClick, allowedBannerIds }) => {
       move(1);
     }, 6000);
     return () => clearInterval(timer);
-  }, [currentIndex, banners.length]);
+  }, [currentIndex, banners.length, move]);
 
-  if (loading) {
-    return (
-      <div className="max-w-none md:max-w-3xl mx-auto px-0 md:px-6 mb-12">
-        <div className="aspect-[16/10] md:h-[450px] bg-slate-100 rounded-[32px] md:rounded-[48px] animate-pulse shadow-sm" />
-      </div>
-    );
+  if (!propBanners || propBanners.length === 0) {
+    return null;
   }
 
   if (banners.length === 0) return null;
@@ -126,6 +96,8 @@ const PromotionBanners = ({ onBannerClick, allowedBannerIds }) => {
               <img 
                 src={banner.image} 
                 alt={banner.title}
+                loading={idx === 0 ? 'eager' : 'lazy'}
+                decoding="async"
                 className="w-full h-full select-none pointer-events-none transition-all duration-700"
                 style={{
                   objectFit: banner.object_fit || 'cover',
@@ -173,15 +145,10 @@ const PromotionBanners = ({ onBannerClick, allowedBannerIds }) => {
           </button>
         </>
       )}
-
-      {/* Add Custom Hidden Scrollbar CSS */}
-      <style>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
     </div>
   );
-};
+});
+
+PromotionBanners.displayName = 'PromotionBanners';
 
 export default PromotionBanners;

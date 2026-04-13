@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, UserCheck, Phone, Check } from 'lucide-react';
 
-const AgentSelectorModal = ({ isOpen, onClose, agents, onSelect, activeAgentId }) => {
+const AgentSelectorModal = React.memo(({ isOpen, onClose, agents, onSelect, activeAgentId }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredAgents = agents.filter(agent => 
@@ -121,6 +121,8 @@ const AgentSelectorModal = ({ isOpen, onClose, agents, onSelect, activeAgentId }
       )}
     </AnimatePresence>
   );
-};
+});
+
+AgentSelectorModal.displayName = 'AgentSelectorModal';
 
 export default AgentSelectorModal;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { 
   Search, 
   ShoppingCart, 
@@ -119,14 +119,14 @@ const Catalog = () => {
   };
 
   // 🖼️ Product Modal Handlers
-  const openProductModal = (product) => {
+  const openProductModal = useCallback((product) => {
     setSelectedProduct(product);
     setIsProductModalOpen(true);
-  };
+  }, []);
 
-  const closeProductModal = () => {
+  const closeProductModal = useCallback(() => {
     setIsProductModalOpen(false);
-  };
+  }, []);
   
   // 👔 AGENT SYSTEM
   const [activeAgent, setActiveAgent] = useState(null);
@@ -139,6 +139,8 @@ const Catalog = () => {
   // Load persistence
   const [products, setProducts] = useState([]);
   const [dbCategories, setDbCategories] = useState([]);
+  const [banners, setBanners] = useState([]);
+  const [brands, setBrands] = useState([]);
   const currentAgentRef = useRef(null);
   const isMounted = useRef(true);
 
@@ -149,12 +151,16 @@ const Catalog = () => {
     const cachedProducts = localStorage.getItem('groopy_cache_products');
     const cachedCategories = localStorage.getItem('groopy_cache_categories');
     const cachedAgents = localStorage.getItem('groopy_cache_agents');
+    const cachedBanners = localStorage.getItem('groopy_cache_banners');
+    const cachedBrands = localStorage.getItem('groopy_cache_brands');
 
     if (cachedProducts && cachedCategories && cachedAgents) {
       try {
         setProducts(JSON.parse(cachedProducts));
         setDbCategories(JSON.parse(cachedCategories));
         setAgents(JSON.parse(cachedAgents));
+        if (cachedBanners) setBanners(JSON.parse(cachedBanners));
+        if (cachedBrands) setBrands(JSON.parse(cachedBrands));
         // If we have cache, we can show the UI immediately while the sync happens in background
         setIsInitialLoading(false);
       } catch (e) {
@@ -214,12 +220,19 @@ const Catalog = () => {
     localStorage.setItem('groopy_customer_note', customerNote);
   }, [customerNote]);
 
-  // 🖱️ SCROLL TO TOP MONITOR
+  // 🖱️ SCROLL TO TOP MONITOR (throttled)
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 400);
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(() => {
+          setShowScrollTop(window.scrollY > 400);
+          ticking = false;
+        });
+      }
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -282,11 +295,13 @@ const Catalog = () => {
 
   const fetchInitialData = async () => {
     try {
-      // 1. Fetch Products, Agents & Categories in parallel
-      const [productsRes, agentsRes, categoriesRes] = await Promise.all([
+      // 1. Fetch Products, Agents, Categories, Banners & Brands in parallel
+      const [productsRes, agentsRes, categoriesRes, bannersRes, brandsRes] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('agents').select('*').order('name'),
-        supabase.from('categories').select('*').order('order_index', { ascending: true })
+        supabase.from('categories').select('*').order('order_index', { ascending: true }),
+        supabase.from('banners').select('*').order('order_index', { ascending: true }),
+        supabase.from('brands').select('*').order('type', { ascending: true, nullsFirst: false }).order('name')
       ]);
 
       if (!isMounted.current) return;
@@ -308,6 +323,18 @@ const Catalog = () => {
         localStorage.setItem('groopy_cache_categories', JSON.stringify(categoriesRes.data));
       }
       if (categoriesRes.error) console.error('Error loading categories:', categoriesRes.error);
+
+      if (bannersRes.data) {
+        setBanners(bannersRes.data);
+        localStorage.setItem('groopy_cache_banners', JSON.stringify(bannersRes.data));
+      }
+      if (bannersRes.error) console.error('Error loading banners:', bannersRes.error);
+
+      if (brandsRes.data) {
+        setBrands(brandsRes.data);
+        localStorage.setItem('groopy_cache_brands', JSON.stringify(brandsRes.data));
+      }
+      if (brandsRes.error) console.error('Error loading brands:', brandsRes.error);
 
       const agentsData = agentsRes.data;
 
@@ -402,12 +429,16 @@ const Catalog = () => {
     return result;
   }, [products, dbCategories, allowedCategories]);
 
+  // ⚡ Deferred search for smoother typing
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
   // Filtering Logic
   const filteredProducts = useMemo(() => {
+    const lowerSearch = deferredSearchTerm.toLowerCase();
     return products.filter(product => {
       const matchesSearch = 
-        product.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+        product.name?.toLowerCase().includes(lowerSearch) || 
+        product.sku?.toLowerCase().includes(lowerSearch);
       
       const normalizedProductCat = product.category;
         
@@ -432,10 +463,17 @@ const Catalog = () => {
       
       return matchesSearch && matchesCategory && matchesBadge;
     });
-  }, [searchTerm, selectedCategory, selectedBadge, products]);
+  }, [deferredSearchTerm, selectedCategory, selectedBadge, products, allowedCategories]);
+
+  // ⚡ Pre-computed cart lookup map for O(1) access
+  const cartMap = useMemo(() => {
+    const map = new Map();
+    cart.forEach(item => map.set(item.id, item.quantity));
+    return map;
+  }, [cart]);
 
   // Cart Management
-  const addToCart = (product, quantity) => {
+  const addToCart = useCallback((product, quantity) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       
@@ -457,11 +495,11 @@ const Catalog = () => {
     });
     // Clear restorable cart if user adds new items
     if (restorableCart.length > 0) setRestorableCart([]);
-  };
+  }, [restorableCart.length]);
 
-  const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
+  const removeFromCart = useCallback((id) => setCart(prev => prev.filter(item => item.id !== id)), []);
 
-  const updateQuantity = (id, direction) => {
+  const updateQuantity = useCallback((id, direction) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
         const defaultQty = Number(item.default_quantity || 12);
@@ -488,14 +526,14 @@ const Catalog = () => {
       }
       return item;
     }).filter(item => item.quantity > 0));
-  };
+  }, []);
 
   useEffect(() => {
     scrollToActiveCategory();
   }, [selectedCategory]);
 
-  const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPrice = useMemo(() => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0), [cart]);
+  const totalItems = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
   const handleRestoreCart = () => {
     if (restorableCart.length > 0) {
@@ -603,7 +641,7 @@ const Catalog = () => {
     setTimeout(() => setIsSent(false), 3000);
   };
 
-  const handleBannerClick = (banner) => {
+  const handleBannerClick = useCallback((banner) => {
     if (banner.target_type === 'badge') {
       setSelectedBadge(banner.target_value);
       scrollToFilters();
@@ -618,7 +656,7 @@ const Catalog = () => {
         setIsProductModalOpen(true);
       }
     }
-  };
+  }, [products]);
 
   if (isConfigLoading && searchParams.get('s')) {
     return (
@@ -768,11 +806,11 @@ const Catalog = () => {
             <p className="text-slate-400 text-sm md:text-base font-bold uppercase tracking-[0.2em]">גרופי מתנות בע"מ</p>
           </div>
 
-          <PromotionBanners onBannerClick={handleBannerClick} allowedBannerIds={allowedBannerIds} />
+          <PromotionBanners banners={banners} onBannerClick={handleBannerClick} allowedBannerIds={allowedBannerIds} />
           </div>
 
           <div className="max-w-7xl mx-auto">
-            <BrandCarousel />
+            <BrandCarousel brands={brands} />
           </div>
 
           {/* QUICK FILTER BADGES */}
@@ -858,10 +896,9 @@ const Catalog = () => {
               <ProductCard 
                 key={product.id || `product-${idx}`} 
                 product={product} 
-                idx={idx} 
                 addToCart={addToCart} 
                 onImageClick={() => openProductModal(product)}
-                cartCount={cart.find(item => item.id === product.id)?.quantity || 0}
+                cartCount={cartMap.get(product.id) || 0}
               />
             ))}
           </AnimatePresence>
@@ -936,7 +973,7 @@ const Catalog = () => {
         onClose={closeProductModal}
         product={selectedProduct}
         addToCart={addToCart}
-        cartCount={cart.find(item => item.id === selectedProduct?.id)?.quantity || 0}
+        cartCount={cartMap.get(selectedProduct?.id) || 0}
       />
 
       {/* 🏛️ FOOTER */}

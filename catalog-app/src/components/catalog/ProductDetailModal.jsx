@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { formatCartonCount } from '../../utils/cartonUtils';
 
-const ProductDetailModal = ({ 
+const ProductDetailModal = React.memo(({ 
   isOpen, 
   onClose, 
   product, 
@@ -252,6 +252,8 @@ const ProductDetailModal = ({
       )}
     </AnimatePresence>
   );
-};
+});
+
+ProductDetailModal.displayName = 'ProductDetailModal';
 
 export default ProductDetailModal;

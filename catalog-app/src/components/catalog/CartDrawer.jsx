@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { formatCartonCount } from '../../utils/cartonUtils';
 
-const CartDrawer = ({ 
+const CartDrawer = React.memo(({ 
   isCartOpen, 
   setIsCartOpen, 
   cart, 
@@ -358,6 +358,8 @@ const CartDrawer = ({
       </AnimatePresence>
     </>
   );
-};
+});
+
+CartDrawer.displayName = 'CartDrawer';
 
 export default CartDrawer;

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserCheck, ChevronLeft } from 'lucide-react';
 
-const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems, isLocked }) => {
+const FloatingAgentStatus = React.memo(({ activeAgent, onOpenSelector, totalItems, isLocked }) => {
   // Calculate bottom position based on mini-cart visibility
   // Mini-cart sits at bottom-4 (16px) or bottom-6 (24px)
   // We want to be ~12px above it.
@@ -56,6 +56,8 @@ const FloatingAgentStatus = ({ activeAgent, onOpenSelector, totalItems, isLocked
       </motion.div>
     </AnimatePresence>
   );
-};
+});
+
+FloatingAgentStatus.displayName = 'FloatingAgentStatus';
 
 export default FloatingAgentStatus;

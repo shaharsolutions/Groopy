@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../../supabaseClient';
+import React, { useMemo } from 'react';
 
 const FALLBACK_BRANDS = [
   { name: 'Nici', logo: '/images/brands/nici.png' },
@@ -9,37 +8,14 @@ const FALLBACK_BRANDS = [
   { name: 'InWay', logo: '/images/brands/inway.png' },
 ];
 
-const BrandCarousel = () => {
-  const [brands, setBrands] = useState(FALLBACK_BRANDS.slice(0, 2));
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchBrands = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('brands')
-          .select('*')
-          .order('type', { ascending: true, nullsFirst: false })
-          .order('name');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const visibleBrands = data.filter(brand => brand.show_in_carousel !== false);
-          setBrands(visibleBrands.length > 0 ? visibleBrands : FALLBACK_BRANDS);
-        } else {
-          setBrands(FALLBACK_BRANDS);
-        }
-      } catch (err) {
-        console.error('Error fetching brands:', err);
-        setBrands(FALLBACK_BRANDS);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBrands();
-  }, []);
+const BrandCarousel = React.memo(({ brands: propBrands }) => {
+  const brands = useMemo(() => {
+    if (propBrands && propBrands.length > 0) {
+      const visibleBrands = propBrands.filter(brand => brand.show_in_carousel !== false);
+      return visibleBrands.length > 0 ? visibleBrands : FALLBACK_BRANDS;
+    }
+    return FALLBACK_BRANDS;
+  }, [propBrands]);
 
   // Ensure the list is long enough to fill any screen. 
   // We repeat the brands list within each "set" until we have at least 15 items.
@@ -60,7 +36,7 @@ const BrandCarousel = () => {
       </div>
 
       <div className="relative min-h-[128px] md:min-h-[176px]">
-        <div className="flex w-max animate-scroll-right-infinite">
+        <div className="flex w-max animate-scroll-right-infinite" style={{ willChange: 'transform' }}>
           {/* We only need 2 sets for a perfect 0-50% marquee loop */}
           {[0, 1].map((setIdx) => (
             <div 
@@ -75,6 +51,8 @@ const BrandCarousel = () => {
                   <img 
                     src={brand.logo} 
                     alt={brand.name} 
+                    loading="lazy"
+                    decoding="async"
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>
@@ -85,6 +63,8 @@ const BrandCarousel = () => {
       </div>
     </div>
   );
-};
+});
+
+BrandCarousel.displayName = 'BrandCarousel';
 
 export default BrandCarousel;

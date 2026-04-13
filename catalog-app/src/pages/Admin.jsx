@@ -58,6 +58,7 @@ const Admin = () => {
     customers, setCustomers,
     sortedCustomers,
     personalizedLinks, setPersonalizedLinks,
+    brokenImageIds, reportBrokenImage,
     fetchData
   } = adminData;
 
@@ -916,6 +917,8 @@ const Admin = () => {
             confirmingProductDelete={confirmingProductDelete} 
             setConfirmingProductDelete={setConfirmingProductDelete} 
             handleDeleteProduct={handleDeleteProduct} 
+            brokenImageIds={brokenImageIds}
+            reportBrokenImage={reportBrokenImage}
           />
         )}
         {activeTab === 'agents' && (

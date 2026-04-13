@@ -12,6 +12,16 @@ export const useAdminData = () => {
   const [banners, setBanners] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [personalizedLinks, setPersonalizedLinks] = useState([]);
+  const [brokenImageIds, setBrokenImageIds] = useState(new Set());
+  
+  const reportBrokenImage = (id) => {
+    setBrokenImageIds(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -20,7 +30,9 @@ export const useAdminData = () => {
     is_hot_deal: false,
     is_new: false,
     is_default_carton: false,
-    is_incremental_add: false
+    is_incremental_add: false,
+    no_image: false,
+    is_image_broken: false
   });
   const [filterMode, setFilterMode] = useState('include'); // 'include' or 'exclude'
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
@@ -80,7 +92,16 @@ export const useAdminData = () => {
       // If a filter is active (true), the product must match (or not match if inverse) that flag
       const matchesFlags = Object.entries(activeFilters).every(([flag, isActive]) => {
         if (!isActive) return true;
-        const productVal = p[flag] === true;
+        
+        let productVal;
+        if (flag === 'no_image') {
+          productVal = !p.image;
+        } else if (flag === 'is_image_broken') {
+          productVal = brokenImageIds.has(p.id);
+        } else {
+          productVal = p[flag] === true;
+        }
+        
         return filterMode === 'include' ? productVal : !productVal;
       });
         
@@ -217,6 +238,7 @@ export const useAdminData = () => {
     customersWithStats,
     sortedCustomers,
     personalizedLinks, setPersonalizedLinks,
+    brokenImageIds, reportBrokenImage,
     fetchData
   };
 };

@@ -13,7 +13,11 @@ import {
   X,
   ShoppingBag,
   Package,
-  MousePointerClick
+  MousePointerClick,
+  ImageOff,
+  Link2Off,
+  Copy,
+  ClipboardCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -41,10 +45,23 @@ const ProductManagement = ({
     setEditingProduct, 
     confirmingProductDelete, 
     setConfirmingProductDelete, 
-    handleDeleteProduct 
+    handleDeleteProduct,
+    brokenImageIds,
+    reportBrokenImage
 }) => {
   const [isFilterMenuOpen, setIsFilterMenuOpen] = React.useState(false);
+  const [isCopyMenuOpen, setIsCopyMenuOpen] = React.useState(false);
   const [isConfirmingBulkDelete, setIsConfirmingBulkDelete] = React.useState(false);
+  const [copyFeedback, setCopyFeedback] = React.useState(false);
+  const [copyFormat, setCopyFormat] = React.useState('spreadsheet'); // 'spreadsheet' or 'text'
+  const [copyColumns, setCopyColumns] = React.useState({
+    name: true,
+    sku: true,
+    price: true,
+    image: false,
+    category: false,
+    description: false
+  });
 
   const activeFiltersCount = useMemo(() => {
     return Object.values(activeFilters).filter(v => v).length;
@@ -60,9 +77,55 @@ const ProductManagement = ({
       is_hot_deal: false,
       is_new: false,
       is_default_carton: false,
-      is_incremental_add: false
+      is_incremental_add: false,
+      no_image: false,
+      is_image_broken: false
     });
     setFilterMode('include');
+  };
+  
+  const handleCopyData = async () => {
+    const productsToCopy = selectedProductIds.length > 0 
+      ? sortedProducts.filter(p => selectedProductIds.includes(p.id))
+      : sortedProducts;
+
+    if (productsToCopy.length === 0) return;
+
+    // Define column mapping
+    const columnMap = [
+      { id: 'name', label: 'שם המוצר', key: 'name' },
+      { id: 'sku', label: 'מק״ט', key: 'sku' },
+      { id: 'price', label: 'מחיר', key: 'price' },
+      { id: 'image', label: 'קישור לתמונה', key: 'image' },
+      { id: 'category', label: 'קטגוריה', key: 'category' },
+      { id: 'description', label: 'תיאור', key: 'description' }
+    ];
+
+    const activeCols = columnMap.filter(col => copyColumns[col.id]);
+    const separator = copyFormat === 'text' ? ' | ' : '\t';
+    
+    // Headers
+    let output = activeCols.map(c => c.label).join(separator) + '\n';
+
+    // Rows
+    productsToCopy.forEach(p => {
+      output += activeCols.map(col => {
+        let val = p[col.key] || '';
+        if (col.id === 'price') val = parseFloat(val).toFixed(2);
+        // Clean value of internal tabs or newlines to keep separation clear
+        val = String(val).replace(/\t/g, ' ').replace(/[\n\r]+/g, ' ').trim();
+        return val;
+      }).join(separator) + '\n';
+    });
+
+    try {
+      await navigator.clipboard.writeText(output);
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 2000);
+      setIsCopyMenuOpen(false);
+    } catch (err) {
+      console.error('Failed to copy!', err);
+    }
   };
 
   return (
@@ -145,6 +208,8 @@ const ProductManagement = ({
                           { id: 'is_new', label: 'מוצר חדש', icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-50' },
                           { id: 'is_default_carton', label: 'מכירת קרטון', icon: Package, color: 'text-purple-500', bg: 'bg-purple-50' },
                           { id: 'is_incremental_add', label: 'תוספת הדרגתית', icon: MousePointerClick, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+                          { id: 'no_image', label: 'חסרה תמונה', icon: ImageOff, color: 'text-red-500', bg: 'bg-red-50' },
+                          { id: 'is_image_broken', label: 'קישור שבור', icon: Link2Off, color: 'text-rose-600', bg: 'bg-rose-50' },
                         ].map(filter => (
                           <button
                             key={filter.id}
@@ -162,6 +227,88 @@ const ProductManagement = ({
                             {activeFilters[filter.id] && <Check size={14} className="mr-auto text-primary-500" strokeWidth={3} />}
                           </button>
                         ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="relative">
+                <button 
+                  onClick={() => setIsCopyMenuOpen(!isCopyMenuOpen)}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-xs transition-all shadow-sm border ${
+                    copyFeedback 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {copyFeedback ? <ClipboardCheck size={16} /> : <Copy size={16} />}
+                  <span>{copyFeedback ? 'הועתק!' : 'העתק נתונים'}</span>
+                </button>
+
+                <AnimatePresence>
+                  {isCopyMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsCopyMenuOpen(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        className="absolute left-0 top-full mt-2 w-64 bg-white rounded-3xl shadow-xl border border-slate-100 p-4 z-50 overflow-hidden space-y-3"
+                      >
+                        <div className="border-b border-slate-50 pb-2 mb-2 flex items-center justify-between">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">פורמט העתקה</span>
+                          <div className="flex bg-slate-100 p-1 rounded-xl">
+                            <button 
+                              onClick={() => setCopyFormat('spreadsheet')}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${copyFormat === 'spreadsheet' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-400'}`}
+                            >
+                              אקסל
+                            </button>
+                            <button 
+                              onClick={() => setCopyFormat('text')}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${copyFormat === 'text' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400'}`}
+                            >
+                              טקסט (|)
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="border-b border-slate-50 pb-2 mb-2">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">בחר עמודות</span>
+                        </div>
+
+                        {[
+                          { id: 'name', label: 'שם המוצר' },
+                          { id: 'sku', label: 'מק״ט' },
+                          { id: 'price', label: 'מחיר' },
+                          { id: 'image', label: 'קישור לתמונה' },
+                          { id: 'category', label: 'קטגוריה' },
+                          { id: 'description', label: 'תיאור' }
+                        ].map(col => (
+                          <button
+                            key={col.id}
+                            onClick={() => setCopyColumns(prev => ({ ...prev, [col.id]: !prev[col.id] }))}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all border ${
+                              copyColumns[col.id] 
+                              ? 'bg-primary-50 border-transparent' 
+                              : 'bg-white border-transparent hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${copyColumns[col.id] ? 'bg-primary-500 border-primary-500 text-white' : 'bg-white border-slate-200'}`}>
+                              {copyColumns[col.id] && <Check size={12} strokeWidth={4} />}
+                            </div>
+                            <span className={`text-xs font-bold ${copyColumns[col.id] ? 'text-slate-900' : 'text-slate-600'}`}>{col.label}</span>
+                          </button>
+                        ))}
+
+                        <button 
+                          onClick={handleCopyData}
+                          className="w-full mt-4 bg-slate-900 text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Copy size={16} />
+                          העתק {selectedProductIds.length > 0 ? `${selectedProductIds.length} נבחרים` : 'הכל'}
+                        </button>
                       </motion.div>
                     </>
                   )}
@@ -303,12 +450,21 @@ const ProductManagement = ({
                       </button>
                    </td>
                    <td className="px-8 py-6">
-                     <div className="w-16 h-16 bg-slate-100 rounded-2xl overflow-hidden shadow-inner border border-slate-100">
-                        {p.image ? (
-                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                     <div className="w-16 h-16 bg-slate-100 rounded-2xl overflow-hidden shadow-inner border border-slate-100 flex items-center justify-center">
+                        {p.image && !brokenImageIds?.has(p.id) ? (
+                          <img 
+                            src={p.image} 
+                            alt={p.name} 
+                            className="w-full h-full object-cover" 
+                            onError={() => reportBrokenImage(p.id)}
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-slate-300">
-                             <Tag size={24} />
+                             {brokenImageIds?.has(p.id) ? (
+                               <Link2Off size={24} className="text-rose-300" />
+                             ) : (
+                               <Tag size={24} />
+                             )}
                           </div>
                         )}
                      </div>

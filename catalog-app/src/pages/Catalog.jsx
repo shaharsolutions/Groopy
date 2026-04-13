@@ -822,7 +822,7 @@ const Catalog = () => {
 
           <div 
             ref={categoryContainerRef}
-            className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0 max-w-7xl mx-auto"
+            className="flex items-center justify-start md:justify-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar -mx-6 px-6 md:mx-0 md:px-0 max-w-7xl mx-auto"
           >
             {categories.map((cat, idx) => (
               <button

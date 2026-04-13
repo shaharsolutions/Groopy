@@ -35,13 +35,16 @@ const ProductManagement = ({
     toggleProductSelection, 
     toggleAllProducts, 
     isBulkUpdatingProducts, 
+    isBulkDeletingProducts,
     setIsBulkEditModalOpen,
+    handleBulkDeleteProducts,
     setEditingProduct, 
     confirmingProductDelete, 
     setConfirmingProductDelete, 
     handleDeleteProduct 
 }) => {
   const [isFilterMenuOpen, setIsFilterMenuOpen] = React.useState(false);
+  const [isConfirmingBulkDelete, setIsConfirmingBulkDelete] = React.useState(false);
 
   const activeFiltersCount = useMemo(() => {
     return Object.values(activeFilters).filter(v => v).length;
@@ -196,7 +199,7 @@ const ProductManagement = ({
                 
                 <button 
                   onClick={() => setIsBulkEditModalOpen(true)}
-                  disabled={isBulkUpdatingProducts}
+                  disabled={isBulkUpdatingProducts || isBulkDeletingProducts}
                   className="bg-primary-500 text-white px-6 py-2 rounded-xl text-xs font-black hover:bg-primary-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary-500/20"
                 >
                   {isBulkUpdatingProducts ? (
@@ -206,6 +209,40 @@ const ProductManagement = ({
                   )}
                   <span>פעולות קבוצתיות</span>
                 </button>
+
+                {isConfirmingBulkDelete ? (
+                  <div className="flex items-center gap-2 bg-red-100 p-1.5 rounded-xl border border-red-200 animate-in fade-in slide-in-from-right-2">
+                    <span className="text-[10px] font-black text-red-600 px-2 uppercase tracking-widest">בטוח?</span>
+                    <button 
+                      onClick={() => {
+                        handleBulkDeleteProducts();
+                        setIsConfirmingBulkDelete(false);
+                      }}
+                      className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors shadow-sm"
+                    >
+                      <Check size={14} strokeWidth={3} />
+                    </button>
+                    <button 
+                      onClick={() => setIsConfirmingBulkDelete(false)}
+                      className="bg-white text-slate-400 p-2 rounded-lg hover:bg-slate-50 transition-colors border border-slate-200"
+                    >
+                      <X size={14} strokeWidth={3} />
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setIsConfirmingBulkDelete(true)}
+                    disabled={isBulkUpdatingProducts || isBulkDeletingProducts}
+                    className="bg-white text-red-500 border border-red-100 px-6 py-2 rounded-xl text-xs font-black hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                  >
+                    {isBulkDeletingProducts ? (
+                      <div className="w-3 h-3 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                    <span>מחק נבחרים</span>
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

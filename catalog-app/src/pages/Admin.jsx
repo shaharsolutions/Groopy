@@ -112,6 +112,7 @@ const Admin = () => {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [activeStatusMenu, setActiveStatusMenu] = useState({ id: null, rect: null });
   const [confirmingOrderDelete, setConfirmingOrderDelete] = useState(null);
+  const [isBulkDeletingProducts, setIsBulkDeletingProducts] = useState(false);
 
   // Templates for new items
   const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null });
@@ -247,6 +248,26 @@ const Admin = () => {
       setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה בעדכון קבוצתי', type: 'error' });
     } finally {
       setIsBulkUpdatingProducts(false);
+    }
+  };
+  
+  const handleBulkDeleteProducts = async () => {
+    setIsBulkDeletingProducts(true);
+    try {
+      const { error } = await supabase.from('products').delete().in('id', selectedProductIds);
+      if (!error) { 
+        setProducts(products.filter(p => !selectedProductIds.includes(p.id))); 
+        setSelectedProductIds([]); 
+        setAlertConfig({ isOpen: true, message: 'המוצרים נמחקו בהצלחה', type: 'success' });
+      } else {
+        console.error('Error bulk deleting products:', error);
+        setAlertConfig({ isOpen: true, message: 'שגיאה במחיקה קבוצתית: ' + error.message, type: 'error' });
+      }
+    } catch (err) {
+      console.error('Unexpected error bulk deleting products:', err);
+      setAlertConfig({ isOpen: true, message: 'שגיאה לא צפויה במחיקה קבוצתית', type: 'error' });
+    } finally {
+      setIsBulkDeletingProducts(false);
     }
   };
 
@@ -886,9 +907,11 @@ const Admin = () => {
             toggleProductSelection={toggleProductSelection} 
             toggleAllProducts={toggleAllProducts} 
             isBulkUpdatingProducts={isBulkUpdatingProducts} 
+            isBulkDeletingProducts={isBulkDeletingProducts}
             isBulkEditModalOpen={isBulkEditModalOpen}
             setIsBulkEditModalOpen={setIsBulkEditModalOpen}
             handleBulkUpdateProducts={handleBulkUpdateProducts}
+            handleBulkDeleteProducts={handleBulkDeleteProducts}
             setEditingProduct={setEditingProduct} 
             confirmingProductDelete={confirmingProductDelete} 
             setConfirmingProductDelete={setConfirmingProductDelete} 

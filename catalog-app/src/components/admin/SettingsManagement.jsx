@@ -82,14 +82,15 @@ const SettingsManagement = ({ settings, setSettings }) => {
             <button
               onClick={() => handleToggle('show_quick_filters')}
               disabled={isUpdating}
-              className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+              dir="ltr"
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
                 showQuickFilters ? 'bg-primary-500' : 'bg-slate-200'
               }`}
             >
               <span
                 aria-hidden="true"
-                className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  showQuickFilters ? 'translate-x-6' : 'translate-x-0'
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-300 ease-in-out ${
+                  showQuickFilters ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

@@ -17,7 +17,7 @@ const ProductCard = React.memo(({ product, addToCart, onImageClick, cartCount })
         onClick={() => onImageClick && onImageClick(product.image, product.name)}
       >
         {product.image ? (
-          <img src={product.image} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+          <img src={product.image} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center opacity-10 group-hover:opacity-20 group-hover:scale-125 transition-all duration-700">
             <Package size={120} strokeWidth={1} />

@@ -336,7 +336,7 @@ const OrderDetailsModal = (props) => {
                           className="flex items-center gap-6 p-6 bg-slate-50 border border-slate-100 rounded-[32px] group hover:bg-white hover:border-primary-100 hover:shadow-xl hover:shadow-primary-100/20 transition-all duration-300"
                         >
                           <div className="w-20 h-20 bg-white rounded-2xl overflow-hidden shadow-inner border border-slate-100 group-hover:scale-105 transition-transform duration-500">
-                            <img src={item.image} alt="" className="w-full h-full object-cover" />
+                            <img src={item.image} alt="" className="w-full h-full object-contain" />
                           </div>
                           
                           <div className="flex-1 flex flex-col md:flex-row md:items-center justify-between gap-4">

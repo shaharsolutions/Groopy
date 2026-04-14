@@ -113,7 +113,7 @@ const OrderEditModal = ({
                          className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl transition-all group text-right"
                        >
                           <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden shadow-inner border border-slate-100">
-                             <img src={p.image} alt="" className="w-full h-full object-cover" />
+                             <img src={p.image} alt="" className="w-full h-full object-contain" />
                           </div>
                           <div className="flex-1">
                              <h5 className="font-black text-slate-800 text-sm tracking-tight">{p.name}</h5>
@@ -143,7 +143,7 @@ const OrderEditModal = ({
                    className="flex items-center gap-6 p-5 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:border-slate-200 transition-all"
                  >
                     <div className="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden border border-slate-50 shrink-0">
-                       <img src={item.image} alt="" className="w-full h-full object-cover" />
+                       <img src={item.image} alt="" className="w-full h-full object-contain" />
                     </div>
                     <div className="flex-1 min-w-0">
                        <h4 className="font-black text-slate-800 text-base tracking-tight truncate leading-none mb-1">{item.name}</h4>

@@ -102,7 +102,7 @@ const CartDrawer = React.memo(({
                       {/* Item Image */}
                       <div className="w-16 h-16 md:w-24 md:h-24 bg-slate-50 rounded-xl md:rounded-3xl flex-shrink-0 flex items-center justify-center border border-slate-100 overflow-hidden relative group-hover:scale-105 transition-transform">
                         {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                          <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
                         ) : (
                           <Package size={32} className="md:w-[40px] md:h-[40px] opacity-10" />
                         )}

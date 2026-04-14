@@ -19,7 +19,8 @@ const AgentManagement = ({
     setConfirmingAgentDelete, 
     handleDeleteAgent, 
     setEditingAgent,
-    onSelectCategoryForLink
+    onSelectCategoryForLink,
+    onImageClick
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -30,13 +31,16 @@ const AgentManagement = ({
           className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden"
         >
           <div className="flex items-center gap-5 mb-8">
-            <div className="w-16 h-16 bg-gradient-to-tr from-slate-100 to-slate-200 rounded-3xl flex items-center justify-center text-slate-400 shadow-inner overflow-hidden">
+            <button 
+              onClick={() => agent.image && onImageClick(agent.image)}
+              className={`w-16 h-16 bg-gradient-to-tr from-slate-100 to-slate-200 rounded-3xl flex items-center justify-center text-slate-400 shadow-inner overflow-hidden transition-all active:scale-95 ${agent.image ? 'cursor-zoom-in hover:brightness-95' : 'cursor-default'}`}
+            >
               {agent.image ? (
                 <img src={agent.image} alt={agent.name} className="w-full h-full object-cover" />
               ) : (
                 <User size={28} />
               )}
-            </div>
+            </button>
             <div>
               <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">{agent.name}</h3>
               {agent.description && (

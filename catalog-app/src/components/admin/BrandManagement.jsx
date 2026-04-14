@@ -16,7 +16,8 @@ const BrandManagement = ({
     confirmingBrandDelete, 
     setConfirmingBrandDelete, 
     handleDeleteBrand, 
-    setEditingBrand 
+    setEditingBrand,
+    onImageClick
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -27,13 +28,16 @@ const BrandManagement = ({
           className="bg-white rounded-[40px] p-8 border border-slate-200 shadow-sm relative group overflow-hidden"
         >
           <div className="flex items-center gap-5 mb-8">
-            <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center overflow-hidden shadow-inner shrink-0 group-hover:scale-105 transition-transform duration-500">
+            <button 
+              onClick={() => brand.logo && onImageClick(brand.logo)}
+              className={`w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center overflow-hidden shadow-inner shrink-0 group-hover:scale-105 transition-all duration-500 active:scale-95 ${brand.logo ? 'cursor-zoom-in hover:bg-slate-100' : 'cursor-default'}`}
+            >
                {brand.logo ? (
                  <img src={brand.logo} alt={brand.name} className="w-full h-full object-contain p-2" />
                ) : (
                  <Building2 size={24} className="text-slate-300" />
                )}
-            </div>
+            </button>
             <div className="min-w-0 flex-1">
               <h3 className="text-2xl font-black text-slate-800 tracking-tight truncate">{brand.name}</h3>
               <div className="flex items-center gap-2 mt-1">

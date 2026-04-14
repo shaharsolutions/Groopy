@@ -7,7 +7,8 @@ const BannerManagement = ({
     confirmingBannerDelete, 
     setConfirmingBannerDelete, 
     handleDeleteBanner, 
-    setEditingBanner 
+    setEditingBanner,
+    onImageClick
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -18,7 +19,10 @@ const BannerManagement = ({
           className="bg-white rounded-[40px] border border-slate-200 shadow-sm relative group overflow-hidden flex flex-col"
         >
           {/* Banner Image Preview */}
-          <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
+          <button 
+            onClick={() => banner.image && onImageClick(banner.image)}
+            className={`aspect-[16/10] w-full bg-slate-100 overflow-hidden relative transition-all active:scale-[0.98] ${banner.image ? 'cursor-zoom-in hover:brightness-95' : 'cursor-default'}`}
+          >
             {banner.image ? (
               <img 
                 src={banner.image} 
@@ -50,7 +54,7 @@ const BannerManagement = ({
             <div className="absolute top-6 right-6 bg-white/90 backdrop-blur-md border border-slate-200 w-10 h-10 rounded-2xl flex items-center justify-center text-slate-900 font-black shadow-sm">
               {banner.order_index}
             </div>
-          </div>
+          </button>
 
           <div className="p-8">
             <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">{banner.title || 'באנר ללא כותרת'}</h3>

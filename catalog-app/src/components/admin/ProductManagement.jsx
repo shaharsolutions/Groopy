@@ -47,7 +47,8 @@ const ProductManagement = ({
     setConfirmingProductDelete, 
     handleDeleteProduct,
     brokenImageIds,
-    reportBrokenImage
+    reportBrokenImage,
+    onImageClick
 }) => {
   const [isFilterMenuOpen, setIsFilterMenuOpen] = React.useState(false);
   const [isCopyMenuOpen, setIsCopyMenuOpen] = React.useState(false);
@@ -452,26 +453,29 @@ const ProductManagement = ({
                         {selectedProductIds.includes(p.id) && <Check size={14} strokeWidth={4} />}
                       </button>
                    </td>
-                   <td className="px-8 py-6">
-                     <div className="w-16 h-16 bg-slate-100 rounded-2xl overflow-hidden shadow-inner border border-slate-100 flex items-center justify-center">
-                        {p.image && !brokenImageIds?.has(p.id) ? (
-                          <img 
-                            src={p.image} 
-                            alt={p.name} 
-                            className="w-full h-full object-cover" 
-                            onError={() => reportBrokenImage(p.id)}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-300">
-                             {brokenImageIds?.has(p.id) ? (
-                               <Link2Off size={24} className="text-rose-300" />
-                             ) : (
-                               <Tag size={24} />
-                             )}
-                          </div>
-                        )}
-                     </div>
-                   </td>
+                    <td className="px-8 py-6">
+                      <button 
+                        onClick={() => p.image && !brokenImageIds?.has(p.id) && onImageClick(p.image)}
+                        className={`w-16 h-16 bg-slate-100 rounded-2xl overflow-hidden shadow-inner border border-slate-100 flex items-center justify-center transition-transform active:scale-95 ${p.image && !brokenImageIds?.has(p.id) ? 'cursor-zoom-in hover:brightness-90' : 'cursor-default'}`}
+                      >
+                         {p.image && !brokenImageIds?.has(p.id) ? (
+                           <img 
+                             src={p.image} 
+                             alt={p.name} 
+                             className="w-full h-full object-cover" 
+                             onError={() => reportBrokenImage(p.id)}
+                           />
+                         ) : (
+                           <div className="w-full h-full flex items-center justify-center text-slate-300">
+                              {brokenImageIds?.has(p.id) ? (
+                                <Link2Off size={24} className="text-rose-300" />
+                              ) : (
+                                <Tag size={24} />
+                              )}
+                           </div>
+                         )}
+                      </button>
+                    </td>
                    <td className="px-8 py-6 font-black text-slate-800 text-base">
                      <div className="flex items-center gap-3">
                         <span className="flex-1">{p.name}</span>

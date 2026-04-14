@@ -30,6 +30,7 @@ import OrderEditModal from '../components/admin/Modals/OrderEditModal';
 import CustomerFormModal from '../components/admin/Modals/CustomerFormModal';
 import AgentCategoryLinkModal from '../components/admin/Modals/AgentCategoryLinkModal';
 import BulkProductEditModal from '../components/admin/Modals/BulkProductEditModal';
+import ImageZoomModal from '../components/admin/Modals/ImageZoomModal';
 
 
 // Utilities
@@ -114,6 +115,7 @@ const Admin = () => {
   const [activeStatusMenu, setActiveStatusMenu] = useState({ id: null, rect: null });
   const [confirmingOrderDelete, setConfirmingOrderDelete] = useState(null);
   const [isBulkDeletingProducts, setIsBulkDeletingProducts] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState(null);
 
   // Templates for new items
   const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null });
@@ -902,6 +904,7 @@ const Admin = () => {
             setActiveFilters={setActiveFilters}
             filterMode={filterMode}
             setFilterMode={setFilterMode}
+            onImageClick={setZoomedImage}
             requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} 
             sortConfig={sortConfig} 
             selectedProductIds={selectedProductIds} 
@@ -933,6 +936,7 @@ const Admin = () => {
               setConfirmingAgentDelete={setConfirmingAgentDelete} 
               handleDeleteAgent={handleDeleteAgent} 
               setEditingAgent={setEditingAgent} 
+              onImageClick={setZoomedImage}
             />
             <LinksManagement 
               links={personalizedLinks}
@@ -956,8 +960,8 @@ const Admin = () => {
             products={products}
           />
         )}
-        {activeTab === 'brands' && <BrandManagement brands={brands} confirmingBrandDelete={confirmingBrandDelete} setConfirmingBrandDelete={setConfirmingBrandDelete} handleDeleteBrand={handleDeleteBrand} setEditingBrand={setEditingBrand} />}
-        {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} />}
+        {activeTab === 'brands' && <BrandManagement brands={brands} confirmingBrandDelete={confirmingBrandDelete} setConfirmingBrandDelete={setConfirmingBrandDelete} handleDeleteBrand={handleDeleteBrand} setEditingBrand={setEditingBrand} onImageClick={setZoomedImage} />}
+        {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} onImageClick={setZoomedImage} />}
         {activeTab === 'customers' && <CustomerManagement customers={sortedCustomers} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} sortConfig={sortConfig} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} />}
         {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} />}
       </main>
@@ -1064,6 +1068,12 @@ const Admin = () => {
         message={alertConfig.message}
         type={alertConfig.type}
         title={alertConfig.title}
+      />
+
+      <ImageZoomModal 
+        isOpen={!!zoomedImage} 
+        imageSource={zoomedImage} 
+        onClose={() => setZoomedImage(null)} 
       />
 
       {/* 🚀 Floating Status Dropdown (Portal-like) */}

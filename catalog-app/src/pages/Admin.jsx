@@ -14,6 +14,7 @@ import BrandManagement from '../components/admin/BrandManagement';
 import BannerManagement from '../components/admin/BannerManagement';
 import CustomerManagement from '../components/admin/CustomerManagement';
 import LinksManagement from '../components/admin/LinksManagement';
+import SettingsManagement from '../components/admin/SettingsManagement';
 import { statusMap } from '../components/admin/OrderManagement';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check } from 'lucide-react';
@@ -59,6 +60,7 @@ const Admin = () => {
     customers, setCustomers,
     sortedCustomers,
     personalizedLinks, setPersonalizedLinks,
+    settings, setSettings,
     brokenImageIds, reportBrokenImage,
     fetchData
   } = adminData;

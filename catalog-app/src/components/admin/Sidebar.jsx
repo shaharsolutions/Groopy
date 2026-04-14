@@ -8,7 +8,8 @@ import {
   Tag, 
   Star, 
   Image, 
-  ChevronRight 
+  ChevronRight,
+  Settings
 } from 'lucide-react';
 
 const Sidebar = ({ 
@@ -27,6 +28,7 @@ const Sidebar = ({
     { id: 'categories', label: 'ניהול קטגוריות', icon: Tag },
     { id: 'brands', label: 'ניהול מותגים', icon: Star },
     { id: 'banners', label: 'ניהול באנרים', icon: Image },
+    { id: 'settings', label: 'הגדרות', icon: Settings },
   ];
 
   return (

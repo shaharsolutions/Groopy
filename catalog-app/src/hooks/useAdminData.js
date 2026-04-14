@@ -12,6 +12,7 @@ export const useAdminData = () => {
   const [banners, setBanners] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [personalizedLinks, setPersonalizedLinks] = useState([]);
+  const [settings, setSettings] = useState([]);
   const [brokenImageIds, setBrokenImageIds] = useState(new Set());
   
   const reportBrokenImage = (id) => {
@@ -47,7 +48,8 @@ export const useAdminData = () => {
         { data: brandsData },
         { data: bannersData },
         { data: customersData },
-        { data: linksData }
+        { data: linksData },
+        { data: settingsData }
       ] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('agents').select('*').order('name'),
@@ -56,7 +58,8 @@ export const useAdminData = () => {
         supabase.from('brands').select('*').order('type', { ascending: true, nullsFirst: false }).order('name'),
         supabase.from('banners').select('*').order('order_index', { ascending: true }),
         supabase.from('customers').select('*').order('business_name'),
-        supabase.from('personalized_links').select('*').order('created_at', { ascending: false })
+        supabase.from('personalized_links').select('*').order('created_at', { ascending: false }),
+        supabase.from('settings').select('*')
       ]);
 
       if (productsData) setProducts(productsData);
@@ -67,6 +70,7 @@ export const useAdminData = () => {
       if (bannersData) setBanners(bannersData);
       if (customersData) setCustomers(customersData);
       if (linksData) setPersonalizedLinks(linksData);
+      if (settingsData) setSettings(settingsData);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     }
@@ -238,6 +242,7 @@ export const useAdminData = () => {
     customersWithStats,
     sortedCustomers,
     personalizedLinks, setPersonalizedLinks,
+    settings, setSettings,
     brokenImageIds, reportBrokenImage,
     fetchData
   };

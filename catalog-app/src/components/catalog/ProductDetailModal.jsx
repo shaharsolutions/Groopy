@@ -57,12 +57,9 @@ const ProductDetailModal = React.memo(({
     let step = 1;
     let minQty = cartCount === 0 ? defaultQty : 1;
 
-    if (product.incremental_step) {
-      step = Number(product.incremental_step);
+    if (product.is_incremental_add) {
+      step = product.incremental_step ? Number(product.incremental_step) : 1;
       minQty = cartCount === 0 ? defaultQty : step;
-    } else if (product.is_incremental_add) {
-      step = 1;
-      minQty = cartCount === 0 ? defaultQty : 1;
     } else if (product.is_default_carton) {
       step = defaultQty;
       minQty = defaultQty;

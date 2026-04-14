@@ -98,9 +98,9 @@ const ProductFormModal = ({
                         type="button"
                         onClick={() => {
                           if (mode.id === 'standard') {
-                            setProduct({ ...product, is_default_carton: false, is_incremental_add: false });
+                            setProduct({ ...product, is_default_carton: false, is_incremental_add: false, incremental_step: null });
                           } else if (mode.id === 'cartons') {
-                            setProduct({ ...product, is_default_carton: true, is_incremental_add: false });
+                            setProduct({ ...product, is_default_carton: true, is_incremental_add: false, incremental_step: null });
                           } else {
                             setProduct({ ...product, is_default_carton: false, is_incremental_add: true });
                           }

@@ -566,10 +566,8 @@ const Catalog = () => {
         const defaultQty = Number(item.default_quantity || 12);
         let step = 1;
         
-        if (item.incremental_step) {
-          step = Number(item.incremental_step);
-        } else if (item.is_incremental_add) {
-          step = 1;
+        if (item.is_incremental_add) {
+          step = item.incremental_step ? Number(item.incremental_step) : 1;
         } else if (item.is_default_carton) {
           step = defaultQty;
         }

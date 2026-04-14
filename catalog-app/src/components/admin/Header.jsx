@@ -88,7 +88,7 @@ const Header = ({
       </div>
 
       <div className="flex flex-wrap md:flex-nowrap gap-3 md:gap-4 w-full md:w-auto">
-        {activeTab !== 'orders' && (
+        {activeTab !== 'orders' && activeTab !== 'settings' && (
           <button 
             onClick={handleAddClick}
             className="flex-1 md:flex-none btn-primary w-full md:w-fit flex items-center justify-center gap-2"

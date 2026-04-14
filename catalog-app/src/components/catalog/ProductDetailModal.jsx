@@ -64,8 +64,8 @@ const ProductDetailModal = React.memo(({
       step = 1;
       minQty = cartCount === 0 ? defaultQty : 1;
     } else if (product.is_default_carton) {
-      step = Math.max(1, Math.round(defaultQty * 0.25));
-      minQty = cartCount === 0 ? defaultQty : step;
+      step = defaultQty;
+      minQty = defaultQty;
     }
     
     setQuantity(prev => Math.round(Math.max(minQty, Number(prev) + (direction * step))));

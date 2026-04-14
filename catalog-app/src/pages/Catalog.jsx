@@ -510,7 +510,7 @@ const Catalog = () => {
         } else if (item.is_incremental_add) {
           step = 1;
         } else if (item.is_default_carton) {
-          step = Math.max(1, Math.round(defaultQty * 0.25));
+          step = defaultQty;
         }
         
         const minQty = defaultQty;

@@ -8,7 +8,8 @@ import {
   Send, 
   ShoppingBag, 
   Package, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronLeft, 
   ArrowLeft,
   ChevronDown,
   Trash2,
@@ -97,6 +98,8 @@ const Catalog = () => {
   const mainRef = useRef(null);
   const filtersRef = useRef(null);
   const categoryContainerRef = useRef(null);
+  const [showLeftScrollHint, setShowLeftScrollHint] = useState(false);
+  const [showRightScrollHint, setShowRightScrollHint] = useState(false);
 
   const scrollToFilters = () => {
     filtersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -117,6 +120,33 @@ const Catalog = () => {
       });
     }
   };
+
+  // 🔄 CATEGORY SCROLL INDICATORS
+  const checkCategoryScroll = useCallback(() => {
+    const el = categoryContainerRef.current;
+    if (!el) return;
+
+    const { scrollWidth, clientWidth } = el;
+    const isScrollable = scrollWidth > clientWidth + 5;
+
+    if (!isScrollable) {
+      setShowLeftScrollHint(false);
+      setShowRightScrollHint(false);
+      return;
+    }
+
+    // Use getBoundingClientRect for reliable RTL scroll detection
+    const containerRect = el.getBoundingClientRect();
+    const buttons = el.querySelectorAll('button');
+    if (buttons.length === 0) return;
+
+    const firstRect = buttons[0].getBoundingClientRect();
+    const lastRect = buttons[buttons.length - 1].getBoundingClientRect();
+
+    // RTL layout: first button is rightmost, last button is leftmost
+    setShowRightScrollHint(firstRect.right > containerRect.right + 5);
+    setShowLeftScrollHint(lastRect.left < containerRect.left - 5);
+  }, []);
 
   // 🖼️ Product Modal Handlers
   const openProductModal = useCallback((product) => {
@@ -438,6 +468,28 @@ const Catalog = () => {
     return result;
   }, [products, dbCategories, allowedCategories]);
 
+  // 🔄 Re-check scroll indicators when categories change or on mount
+  useEffect(() => {
+    checkCategoryScroll();
+
+    const el = categoryContainerRef.current;
+    if (!el) return;
+
+    const resizeObserver = new ResizeObserver(() => checkCategoryScroll());
+    resizeObserver.observe(el);
+
+    return () => resizeObserver.disconnect();
+  }, [categories, checkCategoryScroll]);
+
+  const navigateCategory = useCallback((direction) => {
+    // direction: -1 = right arrow (previous in RTL), +1 = left arrow (next in RTL)
+    const currentIndex = categories.indexOf(selectedCategory);
+    const newIndex = currentIndex + direction;
+    if (newIndex >= 0 && newIndex < categories.length) {
+      setSelectedCategory(categories[newIndex]);
+    }
+  }, [categories, selectedCategory]);
+
   // ⚡ Deferred search for smoother typing
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
@@ -653,11 +705,11 @@ const Catalog = () => {
   const handleBannerClick = useCallback((banner) => {
     if (banner.target_type === 'badge') {
       setSelectedBadge(banner.target_value);
-      scrollToFilters();
+      setTimeout(() => scrollToFilters(), 100);
     } else if (banner.target_type === 'category') {
       setSelectedCategory(banner.target_value);
       setSelectedBadge(null);
-      scrollToProducts();
+      setTimeout(() => scrollToProducts(), 100);
     } else if (banner.target_type === 'product') {
       const product = products.find(p => p.sku === banner.target_value || p.id === banner.target_value);
       if (product) {
@@ -870,30 +922,73 @@ const Catalog = () => {
           </div>
 
           <div className="max-w-7xl mx-auto px-4 md:px-0">
-            <div 
-              ref={categoryContainerRef}
-              className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar"
-              style={{ scrollBehavior: 'smooth' }}
-            >
-              <div className="hidden md:block flex-1" />
-              {categories.map((cat, idx) => (
-                <button
-                  key={`cat-${cat}-${idx}`}
-                  data-active={selectedCategory === cat}
-                  onClick={() => {
-                    setSelectedCategory(cat);
-                    scrollToProducts();
-                  }}
-                  className={`px-6 md:px-10 py-4 rounded-full text-lg font-black transition-all duration-500 shrink-0 ${
-                    selectedCategory === cat 
-                      ? 'bg-[#0f172a] text-white shadow-xl shadow-slate-200 scale-[1.02]' 
-                      : 'bg-white border border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1] hover:bg-slate-50/50'
-                  }`}
-                >
-                  {cat === 'All' ? 'כל המוצרים' : cat === 'New' ? 'מוצרים חדשים' : cat}
-                </button>
-              ))}
-              <div className="hidden md:block flex-1" />
+            <div className="relative">
+              {/* ← Left scroll arrow */}
+              <AnimatePresence>
+                {showLeftScrollHint && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute left-0 top-0 bottom-4 w-16 bg-gradient-to-r from-white via-white/80 to-transparent z-10 flex items-center justify-start pl-1"
+                  >
+                    <button
+                      onClick={() => navigateCategory(1)}
+                      className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-90 shadow-lg shadow-slate-300 flex items-center justify-center transition-all cursor-pointer"
+                    >
+                      <ChevronLeft size={22} className="text-white" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* → Right scroll arrow */}
+              <AnimatePresence>
+                {showRightScrollHint && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-white via-white/80 to-transparent z-10 flex items-center justify-end pr-1"
+                  >
+                    <button
+                      onClick={() => navigateCategory(-1)}
+                      className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-90 shadow-lg shadow-slate-300 flex items-center justify-center transition-all cursor-pointer"
+                    >
+                      <ChevronRight size={22} className="text-white" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div 
+                ref={categoryContainerRef}
+                className="flex items-center gap-3 mt-4 overflow-x-auto pb-4 thin-scrollbar"
+                style={{ scrollBehavior: 'smooth' }}
+                onScroll={checkCategoryScroll}
+              >
+                <div className="hidden md:block flex-1" />
+                {categories.map((cat, idx) => (
+                  <button
+                    key={`cat-${cat}-${idx}`}
+                    data-active={selectedCategory === cat}
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setTimeout(() => scrollToProducts(), 100);
+                    }}
+                    className={`px-6 md:px-10 py-4 rounded-full text-lg font-black transition-all duration-500 shrink-0 ${
+                      selectedCategory === cat 
+                        ? 'bg-[#0f172a] text-white shadow-xl shadow-slate-200 scale-[1.02]' 
+                        : 'bg-white border border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1] hover:bg-slate-50/50'
+                    }`}
+                  >
+                    {cat === 'All' ? 'כל המוצרים' : cat === 'New' ? 'מוצרים חדשים' : cat}
+                  </button>
+                ))}
+                <div className="hidden md:block flex-1" />
+              </div>
             </div>
           </div>
         </div>

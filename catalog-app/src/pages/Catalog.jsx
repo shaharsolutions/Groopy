@@ -63,7 +63,7 @@ const Catalog = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
-  const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
+  const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '', onConfirm: null, confirmText: '', cancelText: '' });
 
   // 🔗 SHORT LINK STATE
   const [fetchedConfig, setFetchedConfig] = useState(null);
@@ -160,47 +160,59 @@ const Catalog = () => {
   
   // 👔 AGENT SYSTEM
   const [activeAgent, setActiveAgent] = useState(null);
-  const [agents, setAgents] = useState([]);
+  const [agents, setAgents] = useState(() => {
+    try {
+      const cached = localStorage.getItem('groopy_cache_agents');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [isAgentLocked, setIsAgentLocked] = useState(() => localStorage.getItem('groopy_agent_locked') === 'true');
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(() => {
+    // Determine if we have enough cached data to skip initial loader
+    const cachedProducts = localStorage.getItem('groopy_cache_products');
+    const cachedCategories = localStorage.getItem('groopy_cache_categories');
+    const cachedAgents = localStorage.getItem('groopy_cache_agents');
+    return !(cachedProducts && cachedCategories && cachedAgents);
+  });
   const defaultWhatsApp = "972500000000"; // Fallback number
 
   // Load persistence
-  const [products, setProducts] = useState([]);
-  const [dbCategories, setDbCategories] = useState([]);
-  const [banners, setBanners] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [settings, setSettings] = useState([]);
+  const [products, setProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('groopy_cache_products');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [dbCategories, setDbCategories] = useState(() => {
+    try {
+      const cached = localStorage.getItem('groopy_cache_categories');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [banners, setBanners] = useState(() => {
+    try {
+      const cached = localStorage.getItem('groopy_cache_banners');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [brands, setBrands] = useState(() => {
+    try {
+      const cached = localStorage.getItem('groopy_cache_brands');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [settings, setSettings] = useState(() => {
+    try {
+      const cached = localStorage.getItem('groopy_cache_settings');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
   const currentAgentRef = useRef(null);
   const isMounted = useRef(true);
 
   useEffect(() => {
     isMounted.current = true;
-    
-    // ⚡ INSTANT LOAD FROM CACHE (Stale-While-Revalidate)
-    const cachedProducts = localStorage.getItem('groopy_cache_products');
-    const cachedCategories = localStorage.getItem('groopy_cache_categories');
-    const cachedAgents = localStorage.getItem('groopy_cache_agents');
-    const cachedBanners = localStorage.getItem('groopy_cache_banners');
-    const cachedBrands = localStorage.getItem('groopy_cache_brands');
-    const cachedSettings = localStorage.getItem('groopy_cache_settings');
-
-    if (cachedProducts && cachedCategories && cachedAgents) {
-      try {
-        setProducts(JSON.parse(cachedProducts));
-        setDbCategories(JSON.parse(cachedCategories));
-        setAgents(JSON.parse(cachedAgents));
-        if (cachedBanners) setBanners(JSON.parse(cachedBanners));
-        if (cachedBrands) setBrands(JSON.parse(cachedBrands));
-        if (cachedSettings) setSettings(JSON.parse(cachedSettings));
-        // If we have cache, we can show the UI immediately while the sync happens in background
-        setIsInitialLoading(false);
-      } catch (e) {
-        console.error('Error parsing cache', e);
-      }
-    }
-
     fetchInitialData();
     resolveShortLink();
     return () => {
@@ -602,6 +614,18 @@ const Catalog = () => {
     }
   };
 
+  const clearCart = useCallback(() => {
+    setAlertConfig({
+      isOpen: true,
+      title: 'פינוי סל הקניות',
+      message: 'האם אתה בטוח שברצונך <strong class="text-red-500 underline">למחוק את כל הפריטים</strong> מהסל?',
+      type: 'warning',
+      confirmText: 'כן, נקה הכל',
+      cancelText: 'ביטול',
+      onConfirm: () => setCart([])
+    });
+  }, []);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleWhatsAppSend = () => {
@@ -873,7 +897,7 @@ const Catalog = () => {
           </div>
 
           {/* QUICK FILTER BADGES */}
-          {settings.find(s => s.key === 'show_quick_filters')?.value !== false && (
+          {!isInitialLoading && settings.find(s => s.key === 'show_quick_filters')?.value !== false && (
             <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-4 md:mt-5 mb-4 md:mb-5 scroll-mt-28 md:scroll-mt-32 max-w-7xl mx-auto">
               {[
                 { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
@@ -1060,6 +1084,7 @@ const Catalog = () => {
         restorableCart={restorableCart}
         onRestoreCart={handleRestoreCart}
         onDismissRestore={() => setRestorableCart([])}
+        onClearCart={clearCart}
       />
 
       {/* 👔 AGENT SELECTOR MODAL */}
@@ -1132,6 +1157,9 @@ const Catalog = () => {
       <AlertModal 
         isOpen={alertConfig.isOpen}
         onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+        onConfirm={alertConfig.onConfirm}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
         message={alertConfig.message}
         type={alertConfig.type}
         title={alertConfig.title}

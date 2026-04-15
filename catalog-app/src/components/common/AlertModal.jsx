@@ -5,8 +5,11 @@ import { X, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 const AlertModal = ({ 
   isOpen, 
   onClose, 
+  onConfirm,
+  confirmText,
+  cancelText = 'סגור',
   message, 
-  type = 'error', // 'error' | 'success' | 'info'
+  type = 'error', // 'error' | 'success' | 'info' | 'warning'
   title
 }) => {
   if (!isOpen) return null;
@@ -32,6 +35,13 @@ const AlertModal = ({
       border: 'border-primary-100',
       button: 'bg-primary-500 hover:bg-primary-600 shadow-primary-200',
       defaultTitle: 'הודעה'
+    },
+    warning: {
+      icon: <AlertCircle className="text-amber-500" size={32} />,
+      bg: 'bg-amber-50',
+      border: 'border-amber-100',
+      button: 'bg-amber-500 hover:bg-amber-600 shadow-amber-200',
+      defaultTitle: 'אזהרה'
     }
   };
 
@@ -76,11 +86,22 @@ const AlertModal = ({
 
             {/* Actions */}
             <div className="p-8 pt-0 flex flex-col gap-3">
+              {onConfirm && (
+                <button 
+                  onClick={() => {
+                    onConfirm();
+                    onClose();
+                  }}
+                  className={`w-full py-4 rounded-2xl text-white font-black text-lg shadow-xl transition-all active:scale-95 ${current.button}`}
+                >
+                  {confirmText || 'אישור'}
+                </button>
+              )}
               <button 
                 onClick={onClose}
-                className={`w-full py-4 rounded-2xl text-white font-black text-lg shadow-xl transition-all active:scale-95 ${current.button}`}
+                className={`w-full py-4 rounded-2xl ${onConfirm ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'text-white ' + current.button} font-black text-lg shadow-xl transition-all active:scale-95`}
               >
-                סגור
+                {cancelText}
               </button>
             </div>
 

@@ -39,7 +39,8 @@ const CartDrawer = React.memo(({
   isAgentLocked,
   restorableCart = [],
   onRestoreCart,
-  onDismissRestore
+  onDismissRestore,
+  onClearCart
 }) => {
   return (
     <>
@@ -70,7 +71,18 @@ const CartDrawer = React.memo(({
                   </div>
                   <div>
                     <h2 className="text-xl md:text-4xl font-black text-slate-900 tracking-tighter leading-tight">הסל שלך</h2>
-                    <p className="text-xs md:text-base font-bold text-slate-400 uppercase tracking-widest">{totalItems} פריטים נבחרו</p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs md:text-base font-bold text-slate-400 uppercase tracking-widest">{totalItems} פריטים נבחרו</p>
+                      {cart.length > 0 && (
+                        <button 
+                          onClick={onClearCart}
+                          className="text-[10px] md:text-sm font-black text-red-500 hover:text-red-600 transition-colors uppercase tracking-widest flex items-center gap-1.5 bg-red-50 px-2 md:px-3 py-1 rounded-lg border border-red-100/50 active:scale-95 transition-all"
+                        >
+                          <Trash2 size={12} className="md:w-3.5 md:h-3.5" />
+                          נקה עגלה
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <button 

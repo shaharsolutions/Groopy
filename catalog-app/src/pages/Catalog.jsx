@@ -943,7 +943,7 @@ const Catalog = () => {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-4 md:px-0">
+          <div className="max-w-[1400px] mx-auto px-2 md:px-0">
             <div className="relative">
               {/* ← Left scroll arrow */}
               <AnimatePresence>
@@ -953,13 +953,13 @@ const Catalog = () => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="absolute left-0 top-0 bottom-4 w-16 bg-gradient-to-r from-white via-white/80 to-transparent z-10 flex items-center justify-start pl-1"
+                    className="absolute -left-2 md:-left-6 top-0 bottom-4 w-20 bg-gradient-to-r from-white via-white/80 to-transparent z-10 flex items-center justify-end"
                   >
                     <button
                       onClick={() => navigateCategory(1)}
-                      className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-90 shadow-lg shadow-slate-300 flex items-center justify-center transition-all cursor-pointer"
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-90 shadow-xl shadow-slate-300 flex items-center justify-center transition-all cursor-pointer"
                     >
-                      <ChevronLeft size={22} className="text-white" />
+                      <ChevronLeft size={24} className="text-white" />
                     </button>
                   </motion.div>
                 )}
@@ -973,13 +973,13 @@ const Catalog = () => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-white via-white/80 to-transparent z-10 flex items-center justify-end pr-1"
+                    className="absolute -right-2 md:-right-6 top-0 bottom-4 w-20 bg-gradient-to-l from-white via-white/80 to-transparent z-10 flex items-center justify-start"
                   >
                     <button
                       onClick={() => navigateCategory(-1)}
-                      className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-90 shadow-lg shadow-slate-300 flex items-center justify-center transition-all cursor-pointer"
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-90 shadow-xl shadow-slate-300 flex items-center justify-center transition-all cursor-pointer"
                     >
-                      <ChevronRight size={22} className="text-white" />
+                      <ChevronRight size={24} className="text-white" />
                     </button>
                   </motion.div>
                 )}
@@ -1147,7 +1147,7 @@ const Catalog = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5, y: 20 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className={`fixed ${totalItems > 0 ? 'bottom-56' : 'bottom-24'} right-2 md:right-8 z-[60] w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white`}
+            className={`fixed ${totalItems > 0 ? 'bottom-56' : 'bottom-24'} right-1 md:right-4 z-[60] w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-300 border-4 border-white`}
           >
             <ArrowUp size={24} strokeWidth={3} />
           </motion.button>

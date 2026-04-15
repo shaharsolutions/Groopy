@@ -860,7 +860,7 @@ const Catalog = () => {
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    className="absolute -top-1.5 -right-1.5 bg-accent-500 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-4 border-white shadow-lg shadow-accent-200"
+                    className={`absolute -top-1.5 -right-1.5 bg-accent-500 text-white text-xs font-black min-w-[1.5rem] h-6 flex items-center justify-center rounded-full border-[3px] border-white shadow-lg shadow-accent-200 z-10 ${totalItems > 9 ? 'px-1.5' : ''}`}
                   >
                     {totalItems}
                   </motion.span>

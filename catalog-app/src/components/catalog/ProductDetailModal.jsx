@@ -132,15 +132,15 @@ const ProductDetailModal = React.memo(({
             <div className="w-full md:w-1/2 p-6 md:p-16 flex flex-col min-h-0 relative bg-white">
               <button 
                 onClick={onClose}
-                className="absolute top-4 left-4 w-10 h-10 md:w-12 md:h-12 bg-slate-50 hover:bg-slate-100 rounded-xl md:rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all z-30 shadow-sm md:shadow-none"
+                className="absolute top-4 left-4 w-11 h-11 md:w-14 md:h-14 bg-slate-900 text-white hover:bg-primary-600 rounded-2xl flex items-center justify-center transition-all z-30 shadow-xl shadow-slate-200 active:scale-90"
               >
-                <X size={20} />
+                <X size={24} strokeWidth={3} className="text-red-500" />
               </button>
 
               <div className="flex-1 overflow-y-auto px-1">
                 <div className="flex flex-col gap-1 mb-4 md:mb-6 mt-2 md:mt-0 text-right">
-                  <span className="text-[10px] md:text-sm font-black text-accent-500 uppercase tracking-[0.2em]">{product.category || 'GENERAL'}</span>
-                  <p className="text-slate-400 font-bold text-[10px] md:text-sm">מק״ט: {product.sku}</p>
+                  <span className="text-xs md:text-lg font-black text-accent-500 uppercase tracking-[0.2em]">{product.category || 'GENERAL'}</span>
+                  <p className="text-slate-400 font-bold text-sm md:text-lg">מק״ט: {product.sku}</p>
                 </div>
 
                 <h2 className="text-2xl md:text-4xl font-[1000] text-slate-900 leading-tight tracking-tighter mb-4 text-right">

@@ -64,13 +64,13 @@ const CartDrawer = React.memo(({
               className="fixed inset-y-0 right-0 w-full max-w-xl bg-white z-[100] shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.3)] flex flex-col"
             >
               {/* Cart Header */}
-              <div className="p-4 md:p-8 pb-4 md:pb-6 flex items-center justify-between">
+              <div className="p-4 md:p-6 pb-4 md:pb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3 md:gap-4">
-                   <div className="w-9 h-9 md:w-14 md:h-14 bg-slate-100 rounded-xl md:rounded-3xl flex items-center justify-center text-slate-800">
-                    <ShoppingBag size={18} className="md:w-[28px] md:h-[28px]" />
+                   <div className="w-9 h-9 md:w-12 md:h-12 bg-slate-100 rounded-xl md:rounded-2xl flex items-center justify-center text-slate-800">
+                    <ShoppingBag size={18} className="md:w-[24px] md:h-[24px]" />
                   </div>
                   <div>
-                    <h2 className="text-xl md:text-4xl font-black text-slate-900 tracking-tighter leading-tight">הסל שלך</h2>
+                    <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tighter leading-tight">הסל שלך</h2>
                     <div className="flex items-center gap-3">
                       <p className="text-xs md:text-base font-bold text-slate-400 uppercase tracking-widest">{totalItems} פריטים נבחרו</p>
                       {cart.length > 0 && (
@@ -94,7 +94,7 @@ const CartDrawer = React.memo(({
               </div>
 
               {/* Cart Items Area */}
-              <div className="flex-1 overflow-y-auto px-4 md:px-8 py-2 md:py-4 space-y-4 md:space-y-8 scrollbar-hide">
+              <div className="flex-1 overflow-y-auto px-4 md:px-8 py-2 md:py-4 space-y-4 md:space-y-6 thin-scrollbar">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                     <div className="p-8 md:p-12 bg-slate-50 rounded-full mb-6">
@@ -109,10 +109,10 @@ const CartDrawer = React.memo(({
                      initial={{ opacity: 0, x: 20 }}
                      animate={{ opacity: 1, x: 0 }}
                      key={item.id || `cart-item-${idx}`} 
-                     className="flex gap-4 md:gap-6 group relative"
+                     className="flex gap-4 md:gap-5 group relative"
                     >
                       {/* Item Image */}
-                      <div className="w-16 h-16 md:w-24 md:h-24 bg-slate-50 rounded-xl md:rounded-3xl flex-shrink-0 flex items-center justify-center border border-slate-100 overflow-hidden relative group-hover:scale-105 transition-transform">
+                      <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-50 rounded-xl md:rounded-2xl flex-shrink-0 flex items-center justify-center border border-slate-100 overflow-hidden relative group-hover:scale-105 transition-transform">
                         {item.image ? (
                           <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
                         ) : (
@@ -124,7 +124,7 @@ const CartDrawer = React.memo(({
                       {/* Item Meta */}
                       <div className="flex-1 py-0.5 md:py-1">
                         <div className="flex justify-between items-start mb-1 md:mb-2">
-                           <h4 className="font-bold text-slate-800 text-sm md:text-xl leading-tight line-clamp-2 max-w-[80%]">
+                           <h4 className="font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%]">
                             {item.name}
                           </h4>
                           <button 
@@ -134,7 +134,7 @@ const CartDrawer = React.memo(({
                             <Trash2 size={16} className="md:w-[20px] md:h-[20px]" />
                           </button>
                         </div>
-                        <div className="text-xs text-slate-400 font-black mb-2 md:mb-4 uppercase tracking-widest">
+                        <div className="text-[10px] md:text-xs text-slate-400 font-black mb-1 md:mb-3 uppercase tracking-widest">
                           מק״ט: {item.sku}
                         </div>
                         
@@ -142,12 +142,12 @@ const CartDrawer = React.memo(({
                           <div className="flex items-center gap-2 md:gap-3 bg-slate-50 p-1 md:p-1.5 rounded-xl md:rounded-2xl">
                             <button 
                               onClick={() => updateQuantity(item.id, -1)}
-                              className="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
+                              className="w-7 h-7 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
                             >
-                              <Minus size={12} className="md:w-[18px] md:h-[18px]" />
+                              <Minus size={12} className="md:w-[16px] md:h-[16px]" />
                             </button>
                             <div className="flex flex-col items-center">
-                              <span className="w-7 md:w-10 text-center font-black text-base md:text-2xl text-slate-900 leading-none">
+                              <span className="w-7 md:w-9 text-center font-black text-base md:text-xl text-slate-900 leading-none">
                                 {item.quantity}
                               </span>
                               <span className="text-[8px] font-black text-slate-400 uppercase">
@@ -158,14 +158,14 @@ const CartDrawer = React.memo(({
                               onClick={() => updateQuantity(item.id, 1)}
                               className="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
                             >
-                              <Plus size={12} className="md:w-[18px] md:h-[18px]" />
+                              <Plus size={12} className="md:w-[16px] md:h-[16px]" />
                             </button>
                           </div>
                           <div className="text-right">
                              <div className="text-xs font-black text-slate-400 uppercase mb-0.5">
                                {item.is_default_carton ? `${formatCartonCount(item.quantity, item.default_quantity || 12)} קרטון` : ''}
                              </div>
-                              <div className="font-black text-lg md:text-3xl text-slate-900 tracking-tight">₪{(item.price * item.quantity).toFixed(2)}</div>
+                              <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{(item.price * item.quantity).toFixed(2)}</div>
                           </div>
                         </div>
                       </div>
@@ -176,10 +176,10 @@ const CartDrawer = React.memo(({
 
               {/* Cart Footer Checkout */}
                {cart.length > 0 && (
-                   <div className="p-2.5 md:p-8 bg-slate-50/80 backdrop-blur-3xl border-t border-slate-100 space-y-2 md:space-y-6 rounded-t-[24px] md:rounded-t-[40px] shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.05)]">
+                   <div className="p-2.5 md:p-6 bg-slate-50/80 backdrop-blur-3xl border-t border-slate-100 space-y-2 md:space-y-4 rounded-t-[24px] md:rounded-t-[40px] shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.05)]">
                     {/* Name Input */}
                     <div className="space-y-1 text-right">
-                      <label className="flex items-center justify-end gap-2 text-xs md:text-base font-[900] text-slate-700 uppercase tracking-widest pl-2">
+                      <label className="flex items-center justify-end gap-2 text-xs md:text-sm font-[900] text-slate-700 uppercase tracking-widest pl-2">
                          שם הלקוח המזמין
                          <CheckCircle size={12} className={customerName.length > 2 ? 'text-primary-500' : 'text-slate-300'} />
                       </label>
@@ -221,15 +221,15 @@ const CartDrawer = React.memo(({
                     </div>
   
                     {/* Pricing Summary */}
-                    <div className="bg-white rounded-[20px] md:rounded-[32px] p-3 md:p-8 border border-slate-200 shadow-sm flex flex-col gap-1.5 md:gap-4">
-                      <div className="flex justify-between items-center text-slate-400 font-bold text-xs md:text-base">
+                    <div className="bg-white rounded-[20px] md:rounded-[32px] p-3 md:p-6 border border-slate-200 shadow-sm flex flex-col gap-1.5 md:gap-3">
+                      <div className="flex justify-between items-center text-slate-400 font-bold text-xs md:text-sm">
                         <span>סה״כ פריטים:</span>
                         <span className="bg-slate-50 px-2 md:px-3 py-0.5 md:py-1 rounded-lg text-slate-800 font-black">{totalItems}</span>
                       </div>
                        <div className="flex justify-between items-center md:items-end border-t border-slate-50 pt-1.5 md:pt-4">
                         <div className="text-right">
-                          <span className="block text-[10px] md:text-base font-black text-primary-500 uppercase tracking-wider mb-0 md:mb-1">לתשלום סופי</span>
-                          <span className="text-2xl md:text-5xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{totalPrice.toFixed(2)}</span>
+                          <span className="block text-[10px] md:text-sm font-black text-primary-500 uppercase tracking-wider mb-0 md:mb-1">לתשלום סופי</span>
+                          <span className="text-2xl md:text-4xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{totalPrice.toFixed(2)}</span>
                         </div>
                         <div className="hidden md:block">
                           <TrendingDown size={32} className="text-primary-100 -mb-2" />

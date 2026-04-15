@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import { 
   X, 
   Check, 
@@ -9,9 +8,11 @@ import {
   CheckCircle2,
   Share2,
   MousePointer2,
-  Clock
+  Clock,
+  Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import { supabase } from '../../../supabaseClient';
 
 
@@ -23,12 +24,33 @@ const AgentCategoryLinkModal = ({
   banners,
   onCopyLink, 
   onShareLink,
-  copyFeedback 
+  copyFeedback,
+  editingLink = null // Added for editing mode
 }) => {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedBannerIds, setSelectedBannerIds] = useState([]);
   const [selectedExpiration, setSelectedExpiration] = useState(null); // days: 1, 7, 14, null
   const [linkDescription, setLinkDescription] = useState('');
+
+  // 🔄 Initialize state if editing
+  useEffect(() => {
+    if (editingLink) {
+      setSelectedCategories(editingLink.categories || []);
+      setSelectedBannerIds(editingLink.banners || []);
+      setLinkDescription(editingLink.description || '');
+      
+      // Calculate selectedExpiration if possible
+      if (editingLink.expires_at && editingLink.created_at) {
+        const createdTs = new Date(editingLink.created_at).getTime();
+        const diffDays = Math.round((editingLink.expires_at - createdTs) / (24 * 60 * 60 * 1000));
+        if ([1, 7, 14].includes(diffDays)) {
+          setSelectedExpiration(diffDays);
+        } else {
+          setSelectedExpiration(null);
+        }
+      }
+    }
+  }, [editingLink]);
 
   if (!agent) return null;
 
@@ -71,36 +93,53 @@ const AgentCategoryLinkModal = ({
     try {
       let expiresAt = null;
       if (selectedExpiration) {
-        expiresAt = Date.now() + (selectedExpiration * 24 * 60 * 60 * 1000);
+        // If editing and we have a created_at, use that as base for consistency
+        const baseTs = editingLink ? new Date(editingLink.created_at).getTime() : Date.now();
+        expiresAt = baseTs + (selectedExpiration * 24 * 60 * 60 * 1000);
       }
 
-      // 1. Save to DB and get generated ID
-      const { data, error } = await supabase
-        .from('personalized_links')
-        .insert([{
-          agent_id: agent.id,
-          categories: selectedCategories,
-          banners: selectedBannerIds,
-          expires_at: expiresAt,
-          description: linkDescription
-        }])
-        .select('id')
-        .single();
+      let shortId;
+      if (editingLink) {
+        // UPDATE MODE
+        const { error } = await supabase
+          .from('personalized_links')
+          .update({
+            categories: selectedCategories,
+            banners: selectedBannerIds,
+            expires_at: expiresAt,
+            description: linkDescription
+          })
+          .eq('id', editingLink.id);
 
-      if (error) {
-        console.error('Error saving personalized link:', error);
-        return;
+        if (error) throw error;
+        shortId = editingLink.id;
+      } else {
+        // INSERT MODE
+        const { data, error } = await supabase
+          .from('personalized_links')
+          .insert([{
+            agent_id: agent.id,
+            categories: selectedCategories,
+            banners: selectedBannerIds,
+            expires_at: expiresAt,
+            description: linkDescription
+          }])
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        shortId = data.id;
       }
-
-      const shortId = data.id;
 
       if (type === 'copy') {
         onCopyLink(agent, selectedCategories, selectedBannerIds, expiresAt, shortId);
       } else {
         onShareLink(agent, selectedCategories, selectedBannerIds, expiresAt, shortId);
       }
+
+      if (editingLink) onClose(); // Close on edit success
     } catch (err) {
-      console.error('Unexpected error generating link:', err);
+      console.error('Error saving link:', err);
     } finally {
       setIsGenerating(false);
     }
@@ -118,11 +157,17 @@ const AgentCategoryLinkModal = ({
         <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-white sticky top-0 z-10">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Layers size={16} className="text-primary-500" />
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">התאמת תוכן לקישור</h2>
+              {editingLink ? (
+                <Pencil size={16} className="text-primary-500" />
+              ) : (
+                <Layers size={16} className="text-primary-500" />
+              )}
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                {editingLink ? 'עריכת קישור אישי' : 'התאמת תוכן לקישור'}
+              </h2>
             </div>
             <p className="text-slate-400 text-sm font-bold tracking-tight">
-              יצירת קישור אישי לסוכן: <span className="text-slate-600">{agent.name}</span>
+              {editingLink ? `עריכת מזהה: #${editingLink.id}` : `יצירת קישור אישי לסוכן: ${agent.name}`}
             </p>
           </div>
           <button 
@@ -271,16 +316,16 @@ const AgentCategoryLinkModal = ({
               className={`flex-1 h-16 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl transition-all shadow-xl shadow-primary-100 flex items-center justify-center gap-3 active:scale-[0.98] ${isGenerating ? 'opacity-70 cursor-wait' : ''}`}
             >
               {isGenerating ? (
-                <span className="font-black text-lg animate-pulse">מפיק קישור...</span>
-              ) : copyFeedback === agent.id ? (
+                <span className="font-black text-lg animate-pulse">{editingLink ? 'מעדכן...' : 'מפיק קישור...'}</span>
+              ) : copyFeedback === (editingLink ? editingLink.id : agent.id) ? (
                 <>
                   <Check size={20} className="animate-in zoom-in" />
-                  <span className="font-black text-lg">הקישור הועתק!</span>
+                  <span className="font-black text-lg">עודכן בהצלחה!</span>
                 </>
               ) : (
                 <>
-                  <ChainLink size={20} />
-                  <span className="font-black text-lg">העתק קישור מותאם</span>
+                  {editingLink ? <Check size={20} /> : <ChainLink size={20} />}
+                  <span className="font-black text-lg">{editingLink ? 'עדכן קישור' : 'העתק קישור מותאם'}</span>
                 </>
               )}
             </button>

@@ -12,7 +12,8 @@ import {
   Package,
   Image as ImageIcon,
   Copy,
-  Check
+  Check,
+  Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,7 +24,8 @@ const LinksManagement = ({
   banners,
   onToggleActive, 
   onDeleteLink, 
-  onCopyLink 
+  onCopyLink,
+  onEditLink // Added for editing support
 }) => {
   const [copyFeedback, setCopyFeedback] = useState(null);
 
@@ -195,6 +197,13 @@ const LinksManagement = ({
                     </td>
                     <td className="p-6">
                       <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => onEditLink(link)}
+                          className="p-2 bg-slate-50 text-slate-400 hover:bg-primary-50 hover:text-primary-500 rounded-lg transition-all"
+                          title="ערוך קישור"
+                        >
+                          <Pencil size={16} />
+                        </button>
                         <button 
                           onClick={() => handleCopy(link.id, link.agent_id)}
                           className={`p-2 rounded-lg transition-all ${

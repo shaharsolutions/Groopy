@@ -82,6 +82,8 @@ const Admin = () => {
   const [isUpdatingAgent, setIsUpdatingAgent] = useState(false);
   const [confirmingAgentDelete, setConfirmingAgentDelete] = useState(null);
   const [copyFeedback, setCopyFeedback] = useState(null);
+  const [selectedAgentForLink, setSelectedAgentForLink] = useState(null);
+  const [editingPersonalizedLink, setEditingPersonalizedLink] = useState(null);
 
   // Categories
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -155,9 +157,6 @@ const Admin = () => {
   const [confirmingNoteDelete, setConfirmingNoteDelete] = useState(null);
   
   const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
-  
-  // Agent Category Link Modal
-  const [selectedAgentForLink, setSelectedAgentForLink] = useState(null);
   
   const activeCategories = useMemo(() => {
     if (!products || !categories) return [];
@@ -948,6 +947,7 @@ const Admin = () => {
               onToggleActive={handleToggleLinkActive}
               onDeleteLink={handleDeleteLink}
               onCopyLink={handleCopyAgentLink}
+              onEditLink={setEditingPersonalizedLink}
             />
           </div>
         )}
@@ -996,12 +996,16 @@ const Admin = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        {!!selectedAgentForLink && (
+        {(!!selectedAgentForLink || !!editingPersonalizedLink) && (
           <AgentCategoryLinkModal 
-            isOpen={true} 
-            onClose={() => setSelectedAgentForLink(null)} 
-            agent={selectedAgentForLink} 
-            categories={activeCategories} 
+            isOpen={true}
+            onClose={() => {
+              setSelectedAgentForLink(null);
+              setEditingPersonalizedLink(null);
+            }}
+            agent={selectedAgentForLink || agents.find(a => a.id === editingPersonalizedLink?.agent_id)}
+            editingLink={editingPersonalizedLink}
+            categories={activeCategories}
             banners={banners}
             onCopyLink={(...args) => {
               handleCopyAgentLink(...args);
@@ -1011,7 +1015,7 @@ const Admin = () => {
               handleShareAgent(...args);
               fetchData(); // Refresh links table
             }}
-            copyFeedback={copyFeedback} 
+            copyFeedback={copyFeedback}
           />
         )}
       </AnimatePresence>

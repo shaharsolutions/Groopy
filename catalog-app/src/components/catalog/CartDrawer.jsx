@@ -299,7 +299,7 @@ const CartDrawer = React.memo(({
           >
             <button 
               onClick={() => setIsCartOpen(true)}
-              className="pointer-events-auto max-w-sm mx-auto w-full glass-card border-none bg-slate-900 border-slate-800 text-white p-2 md:p-4 rounded-[24px] md:rounded-[28px] shadow-2xl flex items-center justify-between group overflow-hidden"
+              className="pointer-events-auto max-w-sm mx-auto w-full glass-card border-none bg-slate-900 border-slate-800 text-white p-2 md:p-4 rounded-[24px] md:rounded-[28px] shadow-2xl flex items-center justify-between group"
             >
               <div className="flex items-center gap-2 md:gap-3 relative z-10 pl-1 md:pl-2">
                 <div className="relative w-10 h-10 md:w-14 md:h-14 bg-white/10 backdrop-blur-md rounded-xl md:rounded-2xl flex items-center justify-center group-hover:rotate-6 transition-transform">
@@ -310,7 +310,7 @@ const CartDrawer = React.memo(({
                         initial={{ scale: 0, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0, opacity: 0 }}
-                        className={`absolute -top-1.5 -right-1.5 bg-accent-500 text-white text-[10px] md:text-xs font-black min-w-[1.25rem] md:min-w-[1.5rem] h-5 md:h-6 flex items-center justify-center rounded-full border-2 md:border-[3px] border-slate-900 shadow-lg z-10 ${totalItems > 9 ? 'px-1 md:px-1.5' : ''}`}
+                        className={`absolute -top-1.5 -right-1.5 bg-accent-500 text-white text-[10px] md:text-xs font-[900] min-w-[1.25rem] md:min-w-[1.5rem] h-5 md:h-6 flex items-center justify-center rounded-full border-2 border-slate-900 shadow-xl z-10 ${totalItems > 9 ? 'px-1.5' : ''}`}
                       >
                         {totalItems}
                       </motion.span>
@@ -328,7 +328,7 @@ const CartDrawer = React.memo(({
                 </div>
                 <ChevronDown className="-rotate-90 text-primary-400" size={20} md:size={24} />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-r from-primary-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute inset-0 bg-gradient-to-r from-primary-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[24px] md:rounded-[28px]" />
             </button>
           </motion.div>
         )}

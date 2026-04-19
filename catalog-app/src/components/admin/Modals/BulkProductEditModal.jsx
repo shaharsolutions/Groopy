@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Tag, Star, Flame, Zap, Layers, Package, MousePointerClick, ShoppingBag, Check } from 'lucide-react';
+import { X, Tag, Star, Flame, Zap, Layers, Package, MousePointerClick, ShoppingBag, Check, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const BulkProductEditModal = ({ 
@@ -14,7 +14,8 @@ const BulkProductEditModal = ({
   const [flagsState, setFlagsState] = useState({
     is_new: 'keep',
     is_best_seller: 'keep',
-    is_hot_deal: 'keep'
+    is_hot_deal: 'keep',
+    is_visible: 'keep'
   });
 
   const [categoryUpdate, setCategoryUpdate] = useState({
@@ -78,6 +79,7 @@ const BulkProductEditModal = ({
     { id: 'is_new', label: 'מוצר חדש', icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-50' },
     { id: 'is_best_seller', label: 'נמכר ביותר', icon: Star, color: 'text-blue-500', bg: 'bg-blue-50' },
     { id: 'is_hot_deal', label: 'מבצע חם', icon: Flame, color: 'text-orange-500', bg: 'bg-orange-50' },
+    { id: 'is_visible', label: 'מוצג בקטלוג', icon: Eye, color: 'text-emerald-500', bg: 'bg-emerald-50' },
   ];
 
   const hasChanges = categoryUpdate.active || quantityUpdate.active || saleModeUpdate.active || Object.values(flagsState).some(s => s !== 'keep');

@@ -262,7 +262,8 @@ CREATE TABLE IF NOT EXISTS "public"."products" (
     "default_quantity" integer DEFAULT 12,
     "is_default_carton" boolean DEFAULT false,
     "is_incremental_add" boolean DEFAULT false,
-    "incremental_step" numeric
+    "incremental_step" numeric,
+    "is_visible" boolean DEFAULT true
 );
 
 

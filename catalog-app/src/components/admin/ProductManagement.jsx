@@ -17,7 +17,9 @@ import {
   ImageOff,
   Link2Off,
   Copy,
-  ClipboardCheck
+  ClipboardCheck,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -46,6 +48,7 @@ const ProductManagement = ({
     confirmingProductDelete, 
     setConfirmingProductDelete, 
     handleDeleteProduct,
+    handleToggleVisibility,
     brokenImageIds,
     reportBrokenImage,
     onImageClick
@@ -440,7 +443,7 @@ const ProductManagement = ({
              </thead>
              <tbody className="divide-y divide-slate-50">
                {sortedProducts.map((p, pIdx) => (
-                 <tr key={p.id || `product-${pIdx}`} className={`group hover:bg-slate-50/50 transition-colors ${selectedProductIds.includes(p.id) ? 'bg-primary-50/30' : ''}`}>
+                 <tr key={p.id || `product-${pIdx}`} className={`group hover:bg-slate-50/50 transition-colors ${selectedProductIds.includes(p.id) ? 'bg-primary-50/30' : ''} ${p.is_visible === false ? 'opacity-60 grayscale-[0.4] bg-slate-50/30' : ''}`}>
                    <td className="px-8 py-6">
                       <button 
                         onClick={() => toggleProductSelection(p.id)}
@@ -480,6 +483,11 @@ const ProductManagement = ({
                      <div className="flex items-center gap-3">
                         <span className="flex-1">{p.name}</span>
                         <div className="flex items-center gap-2">
+                          {p.is_visible === false && (
+                            <div className="bg-slate-100 text-slate-400 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-slate-200" title="מוסתר מהקטלוג">
+                              מוסתר
+                            </div>
+                          )}
 
                           {p.is_best_seller && (
                             <div className="bg-blue-50 text-blue-600 p-1.5 rounded-xl border border-blue-100 flex items-center justify-center shrink-0" title="נמכר ביותר">
@@ -533,6 +541,12 @@ const ProductManagement = ({
                            animate={{ opacity: 1 }}
                            className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                          >
+                           <button 
+                             onClick={() => handleToggleVisibility(p.id, p.is_visible !== false)} 
+                             className={`p-2 rounded-lg shadow-sm border border-transparent transition-all ${p.is_visible === false ? 'text-orange-500 hover:text-orange-600 hover:bg-orange-50 hover:border-orange-100' : 'text-slate-400 hover:text-primary-600 hover:bg-white hover:border-slate-100'}`}
+                           >
+                             {p.is_visible === false ? <EyeOff size={18} /> : <Eye size={18} />}
+                           </button>
                            <button onClick={() => setEditingProduct(p)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Edit size={18} /></button>
                            <button onClick={() => setConfirmingProductDelete(p.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all"><Trash2 size={18} /></button>
                          </motion.div>

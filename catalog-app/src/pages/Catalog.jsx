@@ -512,6 +512,8 @@ const Catalog = () => {
       const matchesSearch = 
         product.name?.toLowerCase().includes(lowerSearch) || 
         product.sku?.toLowerCase().includes(lowerSearch);
+
+      const isVisible = product.is_visible !== false;
       
       const normalizedProductCat = product.category;
         
@@ -534,7 +536,7 @@ const Catalog = () => {
         matchesBadge = !!product[selectedBadge];
       }
       
-      return matchesSearch && matchesCategory && matchesBadge;
+      return isVisible && matchesSearch && matchesCategory && matchesBadge;
     });
   }, [deferredSearchTerm, selectedCategory, selectedBadge, products, allowedCategories]);
 

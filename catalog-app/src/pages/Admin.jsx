@@ -122,7 +122,7 @@ const Admin = () => {
   const [zoomedImage, setZoomedImage] = useState(null);
 
   // Templates for new items
-  const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null });
+  const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null, is_visible: true });
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '', description: '' });
   const [newCategory, setNewCategory] = useState({ name: '' });
   const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '', show_in_carousel: true });
@@ -228,6 +228,14 @@ const Admin = () => {
   const handleDeleteProduct = async (id) => {
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (!error) { setProducts(products.filter(p => p.id !== id)); setConfirmingProductDelete(null); }
+  };
+
+  const handleToggleVisibility = async (id, currentVisibility) => {
+    const newVisibility = !currentVisibility;
+    const { error } = await supabase.from('products').update({ is_visible: newVisibility }).eq('id', id);
+    if (!error) {
+      setProducts(products.map(p => p.id === id ? { ...p, is_visible: newVisibility } : p));
+    }
   };
 
   const toggleProductSelection = (id) => setSelectedProductIds(prev => prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]);
@@ -921,6 +929,7 @@ const Admin = () => {
             confirmingProductDelete={confirmingProductDelete} 
             setConfirmingProductDelete={setConfirmingProductDelete} 
             handleDeleteProduct={handleDeleteProduct} 
+            handleToggleVisibility={handleToggleVisibility}
             brokenImageIds={brokenImageIds}
             reportBrokenImage={reportBrokenImage}
           />

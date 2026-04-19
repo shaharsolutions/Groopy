@@ -174,20 +174,27 @@ const ProductFormModal = ({
                 { id: 'is_new', label: 'חדש' },
                 { id: 'is_best_seller', label: 'נמכר ביותר' },
                 { id: 'is_hot_deal', label: 'מבצע חם' },
-              ].map(flag => (
-                <button
-                  key={flag.id}
-                  type="button"
-                  onClick={() => setProduct({...product, [flag.id]: !product[flag.id]})}
-                  className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                    product[flag.id] 
-                      ? 'bg-primary-500 border-primary-500 text-white shadow-lg' 
-                      : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
-                  }`}
-                >
-                  {flag.label}
-                </button>
-              ))}
+                { id: 'is_visible', label: 'מוצג בקטלוג' },
+              ].map(flag => {
+                const isFlagActive = flag.id === 'is_visible' 
+                  ? (product[flag.id] !== false) 
+                  : !!product[flag.id];
+                
+                return (
+                  <button
+                    key={flag.id}
+                    type="button"
+                    onClick={() => setProduct({...product, [flag.id]: flag.id === 'is_visible' ? (product[flag.id] === false) : !product[flag.id]})}
+                    className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                      isFlagActive 
+                        ? 'bg-primary-500 border-primary-500 text-white shadow-lg' 
+                        : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                    }`}
+                  >
+                    {flag.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

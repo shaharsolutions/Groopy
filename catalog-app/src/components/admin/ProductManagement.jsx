@@ -83,7 +83,8 @@ const ProductManagement = ({
       is_default_carton: false,
       is_incremental_add: false,
       no_image: false,
-      is_image_broken: false
+      is_image_broken: false,
+      is_visible: false
     });
     setFilterMode('include');
   };
@@ -217,6 +218,7 @@ const ProductManagement = ({
                           { id: 'is_incremental_add', label: 'תוספת הדרגתית', icon: MousePointerClick, color: 'text-emerald-500', bg: 'bg-emerald-50' },
                           { id: 'no_image', label: 'חסרה תמונה', icon: ImageOff, color: 'text-red-500', bg: 'bg-red-50' },
                           { id: 'is_image_broken', label: 'קישור שבור', icon: Link2Off, color: 'text-rose-600', bg: 'bg-rose-50' },
+                          { id: 'is_visible', label: 'מוצג בקטלוג', icon: Eye, color: 'text-emerald-500', bg: 'bg-emerald-50' },
                         ].map(filter => (
                           <button
                             key={filter.id}

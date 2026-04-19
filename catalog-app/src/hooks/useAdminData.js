@@ -33,7 +33,8 @@ export const useAdminData = () => {
     is_default_carton: false,
     is_incremental_add: false,
     no_image: false,
-    is_image_broken: false
+    is_image_broken: false,
+    is_visible: false
   });
   const [filterMode, setFilterMode] = useState('include'); // 'include' or 'exclude'
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
@@ -102,6 +103,8 @@ export const useAdminData = () => {
           productVal = !p.image;
         } else if (flag === 'is_image_broken') {
           productVal = brokenImageIds.has(p.id);
+        } else if (flag === 'is_visible') {
+          productVal = p.is_visible !== false;
         } else {
           productVal = p[flag] === true;
         }

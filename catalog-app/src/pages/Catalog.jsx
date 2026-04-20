@@ -899,34 +899,43 @@ const Catalog = () => {
           </div>
 
           {/* QUICK FILTER BADGES */}
-          {!isInitialLoading && settings.find(s => s.key === 'show_quick_filters')?.value !== false && (
-            <div ref={filtersRef} className="grid grid-cols-3 gap-3 md:gap-6 mt-4 md:mt-5 mb-4 md:mb-5 scroll-mt-28 md:scroll-mt-32 max-w-7xl mx-auto">
-              {[
-                { id: 'is_hot_deal', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
-                { id: 'is_best_seller', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
-                { id: 'is_new', label: 'מוצרים חדשים', icon: Zap, color: { bg: 'bg-[#FDF2FF]', border: 'border-[#F1D0FF]', iconBg: 'bg-[#EBD2FF]', iconColor: 'text-[#8E24AA]' } },
-              ].map((badge) => (
-                <button 
-                  key={badge.id}
-                  onClick={() => {
-                    const isActivating = selectedBadge !== badge.id;
-                    setSelectedBadge(isActivating ? badge.id : null);
-                    scrollToFilters();
-                  }}
-                  className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${
-                    selectedBadge === badge.id 
-                      ? `${badge.color.bg} ${badge.color.border} scale-[1.02] shadow-xl shadow-slate-200` 
-                      : `bg-white border-slate-100 hover:border-slate-200 hover:shadow-lg items-center`
-                  }`}
-                >
-                  <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full ${badge.color.iconBg} flex items-center justify-center mb-1.5 md:mb-4 transition-all duration-500 group-hover:scale-110 shadow-inner`}>
-                    <badge.icon size={20} className={`${badge.color.iconColor} md:w-8 md:h-8`} />
-                  </div>
-                  <span className="text-sm md:text-3xl font-[900] text-slate-800 tracking-tight text-center leading-tight whitespace-pre-wrap">{badge.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          {!isInitialLoading && (() => {
+            const availableBadges = [
+              { id: 'is_hot_deal', settingKey: 'show_hot_deals', label: 'מבצעים חמים', icon: Flame, color: { bg: 'bg-[#FFF3E0]', border: 'border-[#FFE0B2]', iconBg: 'bg-[#FFE5D3]', iconColor: 'text-[#F4511E]' } },
+              { id: 'is_best_seller', settingKey: 'show_best_sellers', label: 'נמכרים ביותר', icon: Star, color: { bg: 'bg-[#E3F2FD]', border: 'border-[#BBDEFB]', iconBg: 'bg-[#C7E9FF]', iconColor: 'text-[#0288D1]' } },
+              { id: 'is_new', settingKey: 'show_new_products', label: 'מוצרים חדשים', icon: Zap, color: { bg: 'bg-[#FDF2FF]', border: 'border-[#F1D0FF]', iconBg: 'bg-[#EBD2FF]', iconColor: 'text-[#8E24AA]' } },
+            ].filter(badge => settings.find(s => s.key === badge.settingKey)?.value !== false);
+
+            if (availableBadges.length === 0) return null;
+
+            const gridCols = availableBadges.length === 1 ? 'grid-cols-1 max-w-sm' : 
+                            availableBadges.length === 2 ? 'grid-cols-2 max-w-2xl' : 'grid-cols-3 max-w-7xl';
+
+            return (
+              <div ref={filtersRef} className={`grid ${gridCols} gap-3 md:gap-6 mt-4 md:mt-5 mb-4 md:mb-5 scroll-mt-28 md:scroll-mt-32 mx-auto`}>
+                {availableBadges.map((badge) => (
+                  <button 
+                    key={badge.id}
+                    onClick={() => {
+                      const isActivating = selectedBadge !== badge.id;
+                      setSelectedBadge(isActivating ? badge.id : null);
+                      scrollToFilters();
+                    }}
+                    className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${
+                      selectedBadge === badge.id 
+                        ? `${badge.color.bg} ${badge.color.border} scale-[1.02] shadow-xl shadow-slate-200` 
+                        : `bg-white border-slate-100 hover:border-slate-200 hover:shadow-lg items-center`
+                    }`}
+                  >
+                    <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full ${badge.color.iconBg} flex items-center justify-center mb-1.5 md:mb-4 transition-all duration-500 group-hover:scale-110 shadow-inner`}>
+                      <badge.icon size={20} className={`${badge.color.iconColor} md:w-8 md:h-8`} />
+                    </div>
+                    <span className="text-sm md:text-3xl font-[900] text-slate-800 tracking-tight text-center leading-tight whitespace-pre-wrap">{badge.label}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* SEARCH BAR */}
           <div className="relative group mx-auto mb-5 max-w-7xl">

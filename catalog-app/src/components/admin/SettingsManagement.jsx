@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../supabaseClient';
-import { Settings, Save, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Settings, Save, CheckCircle2, RotateCcw, Flame, Star, Zap } from 'lucide-react';
 
 const SettingsManagement = ({ settings, setSettings }) => {
   const [isUpdating, setIsUpdating] = useState(false);
@@ -72,33 +72,46 @@ const SettingsManagement = ({ settings, setSettings }) => {
 
       {/* ⚙️ SETTINGS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Quick Filters Toggle */}
-        <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-all hover:shadow-md">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-xl font-black text-slate-900 mb-1">הצגת כפתורי סינון מהיר</h3>
-              <p className="text-slate-500 text-sm font-medium">שליטה על הצגת מבצעים חמים, נמכרים ביותר ומוצרים חדשים בקטלוג.</p>
+        {[
+          { key: 'show_hot_deals', label: 'מבצעים חמים', desc: 'שליטה על הצגת כפתור מבצעים חמים בקטלוג.', icon: Flame, iconColor: 'text-orange-500', bgColor: 'bg-orange-50' },
+          { key: 'show_best_sellers', label: 'נמכרים ביותר', desc: 'שליטה על הצגת כפתור נמכרים ביותר בקטלוג.', icon: Star, iconColor: 'text-blue-500', bgColor: 'bg-blue-50' },
+          { key: 'show_new_products', label: 'מוצרים חדשים', desc: 'שליטה על הצגת כפתור מוצרים חדשים בקטלוג.', icon: Zap, iconColor: 'text-purple-500', bgColor: 'bg-purple-50' },
+        ].map((setting) => {
+          const isActive = getSetting(setting.key, true);
+          return (
+            <div key={setting.key} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-all hover:shadow-md">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 ${setting.bgColor} ${setting.iconColor} rounded-2xl flex items-center justify-center`}>
+                    <setting.icon size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 mb-1">{setting.label}</h3>
+                    <p className="text-slate-500 text-sm font-medium">{setting.desc}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleToggle(setting.key)}
+                  disabled={isUpdating}
+                  dir="ltr"
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                    isActive ? 'bg-primary-500' : 'bg-slate-200'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-300 ease-in-out ${
+                      isActive ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className={`text-xs font-bold uppercase tracking-widest ${isActive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                {isActive ? 'פעיל - מוצג בקטלוג' : 'כבוי - מוסתר מהקטלוג'}
+              </div>
             </div>
-            <button
-              onClick={() => handleToggle('show_quick_filters')}
-              disabled={isUpdating}
-              dir="ltr"
-              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                showQuickFilters ? 'bg-primary-500' : 'bg-slate-200'
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-300 ease-in-out ${
-                  showQuickFilters ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          <div className={`text-xs font-bold uppercase tracking-widest ${showQuickFilters ? 'text-emerald-500' : 'text-slate-400'}`}>
-            {showQuickFilters ? 'פעיל - מוצג בקטלוג' : 'כבוי - מוסתר מהקטלוג'}
-          </div>
-        </div>
+          );
+        })}
       </div>
     </div>
   );

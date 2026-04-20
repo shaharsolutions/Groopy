@@ -47,6 +47,7 @@ const Admin = () => {
     products, setProducts,
     sortedProducts,
     agents, setAgents,
+    agentsWithStats,
     orders, setOrders,
     categories, setCategories,
     brands, setBrands,
@@ -937,7 +938,7 @@ const Admin = () => {
         {activeTab === 'agents' && (
           <div className="flex flex-col gap-12">
             <AgentManagement 
-              agents={agents} 
+              agents={agentsWithStats} 
               onSelectCategoryForLink={setSelectedAgentForLink} 
               handleCopyAgentLink={handleCopyAgentLink} 
               copyFeedback={copyFeedback} 

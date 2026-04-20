@@ -6,7 +6,8 @@ import {
   Check, 
   Users,
   ChevronDown,
-  Plus
+  Plus,
+  ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -42,7 +43,15 @@ const AgentManagement = ({
               )}
             </button>
             <div>
-              <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">{agent.name}</h3>
+              <div className="flex items-center gap-3 mb-1">
+                <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">{agent.name}</h3>
+                {agent.orderCount > 0 && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-600 rounded-full border border-green-100 shadow-sm" title="מספר הזמנות שבוצעו">
+                    <ShoppingBag size={10} strokeWidth={3} />
+                    <span className="text-[10px] font-black">{agent.orderCount}</span>
+                  </div>
+                )}
+              </div>
               {agent.description && (
                 <p className="text-primary-600 font-black text-[11px] mb-1 pr-0.5">
                   {agent.description}

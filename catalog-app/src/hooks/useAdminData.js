@@ -199,6 +199,16 @@ export const useAdminData = () => {
     });
   }, [customers, orders]);
 
+  const agentsWithStats = useMemo(() => {
+    return agents.map(agent => {
+      const agentOrders = orders.filter(o => o.agent_id === agent.id);
+      return {
+        ...agent,
+        orderCount: agentOrders.length
+      };
+    });
+  }, [agents, orders]);
+
   const sortedCustomers = useMemo(() => {
     const sortableItems = [...customersWithStats];
     if (sortConfig !== null) {
@@ -231,6 +241,7 @@ export const useAdminData = () => {
     products, setProducts,
     sortedProducts,
     agents, setAgents,
+    agentsWithStats,
     orders: ordersWithIds, setOrders,
     categories, setCategories,
     brands, setBrands,

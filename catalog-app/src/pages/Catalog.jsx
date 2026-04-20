@@ -729,6 +729,7 @@ const Catalog = () => {
   const handleBannerClick = useCallback((banner) => {
     if (banner.target_type === 'badge') {
       setSelectedBadge(banner.target_value);
+      setSelectedCategory('All');
       setTimeout(() => scrollToFilters(), 100);
     } else if (banner.target_type === 'category') {
       setSelectedCategory(banner.target_value);
@@ -919,6 +920,7 @@ const Catalog = () => {
                     onClick={() => {
                       const isActivating = selectedBadge !== badge.id;
                       setSelectedBadge(isActivating ? badge.id : null);
+                      setSelectedCategory('All');
                       scrollToFilters();
                     }}
                     className={`group flex flex-col items-center justify-center p-3 md:p-8 rounded-[24px] md:rounded-[40px] border-2 transition-all duration-500 ${
@@ -1009,6 +1011,7 @@ const Catalog = () => {
                     data-active={selectedCategory === cat}
                     onClick={() => {
                       setSelectedCategory(cat);
+                      setSelectedBadge(null);
                       setTimeout(() => scrollToProducts(), 100);
                     }}
                     className={`px-6 md:px-10 py-4 rounded-full text-lg font-black transition-all duration-500 shrink-0 ${

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Tag, Star, Flame, Zap, Layers, Package, MousePointerClick, ShoppingBag, Check, Eye } from 'lucide-react';
+import { X, Tag, Star, Flame, Zap, Layers, Package, MousePointerClick, ShoppingBag, Check, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const BulkProductEditModal = ({ 
@@ -116,6 +116,32 @@ const BulkProductEditModal = ({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-8 md:p-10 pt-4 thin-scrollbar">
           <div className="space-y-8">
+            {/* Quick Visibility Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button 
+                onClick={() => onSave({ is_visible: true })}
+                disabled={isUpdating}
+                className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-6 rounded-3xl font-black text-sm hover:bg-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-3 shadow-sm"
+              >
+                <Eye size={24} />
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-widest opacity-60 mb-0.5">פעולה מהירה</div>
+                  <div className="text-base">הצג הכל בקטלוג</div>
+                </div>
+              </button>
+              <button 
+                onClick={() => onSave({ is_visible: false })}
+                disabled={isUpdating}
+                className="bg-orange-50 text-orange-600 border border-orange-100 p-6 rounded-3xl font-black text-sm hover:bg-orange-100 transition-all active:scale-95 flex items-center justify-center gap-3 shadow-sm"
+              >
+                <EyeOff size={24} />
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-widest opacity-60 mb-0.5">פעולה מהירה</div>
+                  <div className="text-base">הסתר הכל מהקטלוג</div>
+                </div>
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Category Update */}
               <div className={`p-6 rounded-3xl border-2 transition-all ${categoryUpdate.active ? 'bg-primary-50/30 border-primary-200' : 'bg-slate-50 border-transparent'}`}>

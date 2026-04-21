@@ -43,6 +43,7 @@ const ProductManagement = ({
     isBulkUpdatingProducts, 
     isBulkDeletingProducts,
     setIsBulkEditModalOpen,
+    handleBulkUpdateProducts,
     handleBulkDeleteProducts,
     setEditingProduct, 
     confirmingProductDelete, 

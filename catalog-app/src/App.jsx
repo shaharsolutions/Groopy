@@ -1,5 +1,6 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import Catalog from './pages/Catalog';
 import ScrollToTop from './components/common/ScrollToTop';
 
@@ -29,6 +30,7 @@ const App = () => {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>
+      <Analytics />
     </Router>
   );
 };

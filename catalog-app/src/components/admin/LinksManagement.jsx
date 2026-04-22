@@ -142,12 +142,14 @@ const LinksManagement = ({
                         )}
                         {link.banners && link.banners.length > 0 && (
                           <div className="flex flex-wrap gap-1">
-                            {link.banners.map(ban => (
-                              <span key={ban} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-[10px] font-black text-primary-600 rounded-md border border-primary-100">
-                                <ImageIcon size={10} className="text-primary-400" />
-                                {getBannerTitle(ban)}
-                              </span>
-                            ))}
+                            {link.banners
+                              .filter(banId => banners.some(b => b.id === banId))
+                              .map(ban => (
+                                <span key={ban} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-[10px] font-black text-primary-600 rounded-md border border-primary-100">
+                                  <ImageIcon size={10} className="text-primary-400" />
+                                  {getBannerTitle(ban)}
+                                </span>
+                              ))}
                           </div>
                         )}
                         {(!link.categories?.length && !link.banners?.length) && (

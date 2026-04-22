@@ -36,7 +36,11 @@ const AgentCategoryLinkModal = ({
   useEffect(() => {
     if (editingLink) {
       setSelectedCategories(editingLink.categories || []);
-      setSelectedBannerIds(editingLink.banners || []);
+      // Filter out banners that no longer exist
+      const validBannerIds = (editingLink.banners || []).filter(id => 
+        banners.some(b => b.id === id)
+      );
+      setSelectedBannerIds(validBannerIds);
       setLinkDescription(editingLink.description || '');
       
       // Calculate selectedExpiration if possible

@@ -101,10 +101,25 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
                 onClick={(e) => {
                   e.stopPropagation();
                   const defaultQty = Number(product.default_quantity || 12);
-                  if (cartCount <= defaultQty) {
+                  const plusStep = product.is_incremental_add 
+                    ? (product.incremental_step ? Number(product.incremental_step) : 1) 
+                    : defaultQty;
+                    
+                  let minusStep = 1;
+                  if (product.is_incremental_add) {
+                    minusStep = product.incremental_step ? Number(product.incremental_step) : 1;
+                  } else if (product.is_default_carton) {
+                    minusStep = defaultQty;
+                  }
+                  
+                  const times = Math.round(plusStep / minusStep);
+                  
+                  if (cartCount <= plusStep) {
                     removeFromCart(product.id);
                   } else {
-                    updateQuantity(product.id, -1);
+                    for (let i = 0; i < times; i++) {
+                      updateQuantity(product.id, -1);
+                    }
                   }
                 }}
                 className="flex items-center justify-center px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-accent-600 text-white shadow-accent-200 hover:scale-102 active:scale-95 shadow-lg"

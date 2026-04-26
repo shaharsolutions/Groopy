@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Package, Plus, Zap, Star, Flame } from 'lucide-react';
+import { Package, Plus, Zap, Star, Flame, Minus } from 'lucide-react';
 
-const ProductCard = React.memo(({ product, addToCart, onImageClick, cartCount }) => {
+const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuantity, onImageClick, cartCount }) => {
   return (
     <motion.div
       layout
@@ -71,29 +71,49 @@ const ProductCard = React.memo(({ product, addToCart, onImageClick, cartCount })
             <span className="text-[9px] md:text-[9px] font-bold text-slate-400 block -mb-1">מחיר יחידה</span>
             <span className="text-lg md:text-xl font-black text-slate-900 leading-none">₪{product.price.toFixed(2)}</span>
           </div>
-          <button 
-            onClick={() => addToCart(product)}
-            className={`
-              flex items-center justify-center gap-1 md:gap-1.5 px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto]
-              ${cartCount > 0 
-                ? 'bg-accent-600 text-white shadow-accent-200' 
-                : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
-              }
-              hover:scale-102 active:scale-95 shadow-lg
-            `}
-          >
-            <div className="flex items-center gap-1.5 md:gap-1.5">
-              <Plus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
-              <span className={`font-black text-xs md:text-sm whitespace-nowrap ${cartCount > 0 ? 'hidden md:inline' : 'inline'}`}>
-                להזמנה
-              </span>
-            </div>
+          <div className="flex items-stretch gap-1 md:gap-1.5">
+            <button 
+              onClick={() => addToCart(product)}
+              className={`
+                flex items-center justify-center gap-1 md:gap-1.5 px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto]
+                ${cartCount > 0 
+                  ? 'bg-accent-600 text-white shadow-accent-200' 
+                  : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
+                }
+                hover:scale-102 active:scale-95 shadow-lg
+              `}
+            >
+              <div className="flex items-center gap-1.5 md:gap-1.5">
+                <Plus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
+                <span className={`font-black text-xs md:text-sm whitespace-nowrap ${cartCount > 0 ? 'hidden md:inline' : 'inline'}`}>
+                  להזמנה
+                </span>
+              </div>
+              {cartCount > 0 && (
+                <span className="bg-white text-accent-600 min-w-[20px] md:min-w-[22px] h-5 md:h-5.5 px-1 rounded-md md:rounded-lg flex items-center justify-center text-[10px] md:text-xs font-black shadow-sm">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+
             {cartCount > 0 && (
-              <span className="bg-white text-accent-600 min-w-[20px] md:min-w-[22px] h-5 md:h-5.5 px-1 rounded-md md:rounded-lg flex items-center justify-center text-[10px] md:text-xs font-black shadow-sm">
-                {cartCount}
-              </span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const defaultQty = Number(product.default_quantity || 12);
+                  if (cartCount <= defaultQty) {
+                    removeFromCart(product.id);
+                  } else {
+                    updateQuantity(product.id, -1);
+                  }
+                }}
+                className="flex items-center justify-center px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-accent-600 text-white shadow-accent-200 hover:scale-102 active:scale-95 shadow-lg"
+                title="הסר"
+              >
+                <Minus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
+              </button>
             )}
-          </button>
+          </div>
         </div>
       </div>
     </motion.div>

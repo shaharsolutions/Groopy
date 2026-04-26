@@ -1039,6 +1039,8 @@ const Catalog = () => {
                 key={product.id || `product-${idx}`} 
                 product={product} 
                 addToCart={addToCart} 
+                removeFromCart={removeFromCart}
+                updateQuantity={updateQuantity}
                 onImageClick={() => openProductModal(product)}
                 cartCount={cartMap.get(product.id) || 0}
               />

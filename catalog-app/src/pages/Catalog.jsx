@@ -22,7 +22,8 @@ import {
   Flame,
   UserCheck,
   ArrowUp,
-  Link as ChainLink
+  Link as ChainLink,
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -1154,6 +1155,26 @@ const Catalog = () => {
           </div>
         </div>
       </footer>
+
+      {/* 🔄 RESET CATEGORY FLOATING BUTTON */}
+      <AnimatePresence>
+        {(selectedCategory !== 'All' || selectedBadge !== null) && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.5, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 20 }}
+            onClick={() => {
+              setSelectedCategory('All');
+              setSelectedBadge(null);
+              scrollToProducts();
+            }}
+            className={`fixed ${totalItems > 0 ? 'bottom-56' : 'bottom-24'} left-1 md:left-4 z-[60] h-14 bg-white/90 text-slate-900 rounded-full flex items-center justify-center gap-3 px-6 shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:bg-slate-50 hover:scale-105 active:scale-95 transition-all duration-300 border border-slate-100/80 backdrop-blur-md cursor-pointer`}
+          >
+            <RotateCcw size={20} className="text-slate-600" />
+            <span className="text-base font-black tracking-tight">חזרה לכל המוצרים</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* 🚀 SCROLL TO TOP BUTTON */}
       <AnimatePresence>

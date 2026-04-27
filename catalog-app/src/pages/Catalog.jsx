@@ -98,6 +98,11 @@ const Catalog = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
   const filtersRef = useRef(null);
+  
+  // ⚡ LOCAL INFINITE SCROLL STATE
+  const [visibleCount, setVisibleCount] = useState(48);
+  const loadMoreRef = useRef(null);
+
   const categoryContainerRef = useRef(null);
   const [showLeftScrollHint, setShowLeftScrollHint] = useState(false);
   const [showRightScrollHint, setShowRightScrollHint] = useState(false);
@@ -541,7 +546,36 @@ const Catalog = () => {
     });
   }, [deferredSearchTerm, selectedCategory, selectedBadge, products, allowedCategories]);
 
+  // ⚡ Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(48);
+  }, [deferredSearchTerm, selectedCategory, selectedBadge]);
+
+  // ⚡ Intersection Observer for Infinite Scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + 24);
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [filteredProducts.length, visibleCount]);
+
   // ⚡ Pre-computed cart lookup map for O(1) access
+
   const cartMap = useMemo(() => {
     const map = new Map();
     cart.forEach(item => map.set(item.id, item.quantity));
@@ -1035,7 +1069,7 @@ const Catalog = () => {
       <main ref={mainRef} className="flex-1 container mx-auto px-6 py-12 scroll-mt-24 md:scroll-mt-32">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 md:gap-8">
           <AnimatePresence mode="popLayout">
-            {filteredProducts.map((product, idx) => (
+            {filteredProducts.slice(0, visibleCount).map((product, idx) => (
               <ProductCard 
                 key={product.id || `product-${idx}`} 
                 product={product} 
@@ -1048,6 +1082,14 @@ const Catalog = () => {
             ))}
           </AnimatePresence>
         </div>
+
+        {/* Load More Trigger */}
+        {filteredProducts.length > visibleCount && (
+          <div ref={loadMoreRef} className="h-20 w-full flex items-center justify-center mt-8">
+            <div className="w-8 h-8 border-4 border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+          </div>
+        )}
+
 
         {filteredProducts.length === 0 && (
           <div className="text-center py-32 bg-slate-50/50 rounded-[40px] border-2 border-dashed border-slate-100">

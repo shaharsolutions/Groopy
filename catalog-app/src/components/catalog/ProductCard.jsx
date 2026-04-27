@@ -66,66 +66,68 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
           {product.description}
         </p>
 
-        <div className="mt-auto flex flex-wrap items-end justify-between gap-y-2 gap-1 px-0.5">
-          <div className="shrink-0 mb-0.5">
+        <div className="mt-auto flex flex-col items-center gap-2 px-0.5 w-full">
+          <div className="text-center">
             <span className="text-[9px] md:text-[9px] font-bold text-slate-400 block -mb-1">מחיר יחידה</span>
             <span className="text-lg md:text-xl font-black text-slate-900 leading-none">₪{product.price.toFixed(2)}</span>
           </div>
-          <div className="flex items-stretch gap-1 md:gap-1.5">
-            <button 
-              onClick={() => addToCart(product)}
-              className={`
-                flex items-center justify-center gap-1 md:gap-1.5 px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto]
-                ${cartCount > 0 
-                  ? 'bg-accent-600 text-white shadow-accent-200' 
-                  : 'bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100'
-                }
-                hover:scale-102 active:scale-95 shadow-lg
-              `}
-            >
-              <div className="flex items-center gap-1.5 md:gap-1.5">
+          <div className="flex items-stretch justify-center gap-1 md:gap-1.5 w-full">
+            {cartCount > 0 ? (
+              <>
+                <button 
+                  onClick={() => addToCart(product)}
+                  className="flex items-center justify-center px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-accent-600 text-white shadow-accent-200 hover:scale-102 active:scale-95 shadow-lg"
+                  title="הוסף"
+                >
+                  <Plus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
+                </button>
+
+                <div className="flex items-center justify-center bg-slate-50 border border-slate-100 px-3 rounded-lg md:rounded-xl min-h-[36px] md:min-h-[auto] min-w-[36px] shadow-inner">
+                  <span className="font-black text-slate-800 text-sm md:text-base">
+                    {cartCount}
+                  </span>
+                </div>
+
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const defaultQty = Number(product.default_quantity || 12);
+                    const plusStep = product.is_incremental_add 
+                      ? (product.incremental_step ? Number(product.incremental_step) : 1) 
+                      : defaultQty;
+                      
+                    let minusStep = 1;
+                    if (product.is_incremental_add) {
+                      minusStep = product.incremental_step ? Number(product.incremental_step) : 1;
+                    } else if (product.is_default_carton) {
+                      minusStep = defaultQty;
+                    }
+                    
+                    const times = Math.round(plusStep / minusStep);
+                    
+                    if (cartCount <= plusStep) {
+                      removeFromCart(product.id);
+                    } else {
+                      for (let i = 0; i < times; i++) {
+                        updateQuantity(product.id, -1);
+                      }
+                    }
+                  }}
+                  className="flex items-center justify-center px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-accent-600 text-white shadow-accent-200 hover:scale-102 active:scale-95 shadow-lg"
+                  title="הסר"
+                >
+                  <Minus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={() => addToCart(product)}
+                className="flex items-center justify-center gap-1 md:gap-1.5 px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-slate-900 text-white hover:bg-accent-600 shadow-slate-100 hover:scale-102 active:scale-95 shadow-lg"
+              >
                 <Plus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
-                <span className={`font-black text-xs md:text-sm whitespace-nowrap ${cartCount > 0 ? 'hidden md:inline' : 'inline'}`}>
+                <span className="font-black text-xs md:text-sm whitespace-nowrap">
                   להזמנה
                 </span>
-              </div>
-              {cartCount > 0 && (
-                <span className="bg-white text-accent-600 min-w-[20px] md:min-w-[22px] h-5 md:h-5.5 px-1 rounded-md md:rounded-lg flex items-center justify-center text-[10px] md:text-xs font-black shadow-sm">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-
-            {cartCount > 0 && (
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const defaultQty = Number(product.default_quantity || 12);
-                  const plusStep = product.is_incremental_add 
-                    ? (product.incremental_step ? Number(product.incremental_step) : 1) 
-                    : defaultQty;
-                    
-                  let minusStep = 1;
-                  if (product.is_incremental_add) {
-                    minusStep = product.incremental_step ? Number(product.incremental_step) : 1;
-                  } else if (product.is_default_carton) {
-                    minusStep = defaultQty;
-                  }
-                  
-                  const times = Math.round(plusStep / minusStep);
-                  
-                  if (cartCount <= plusStep) {
-                    removeFromCart(product.id);
-                  } else {
-                    for (let i = 0; i < times; i++) {
-                      updateQuantity(product.id, -1);
-                    }
-                  }
-                }}
-                className="flex items-center justify-center px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-accent-600 text-white shadow-accent-200 hover:scale-102 active:scale-95 shadow-lg"
-                title="הסר"
-              >
-                <Minus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
               </button>
             )}
           </div>

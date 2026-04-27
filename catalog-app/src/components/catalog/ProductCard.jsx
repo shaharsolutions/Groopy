@@ -75,20 +75,6 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
             {cartCount > 0 ? (
               <>
                 <button 
-                  onClick={() => addToCart(product)}
-                  className="flex items-center justify-center px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-accent-600 text-white shadow-accent-200 hover:scale-102 active:scale-95 shadow-lg"
-                  title="הוסף"
-                >
-                  <Plus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
-                </button>
-
-                <div className="flex items-center justify-center bg-slate-50 border border-slate-100 px-3 rounded-lg md:rounded-xl min-h-[36px] md:min-h-[auto] min-w-[36px] shadow-inner">
-                  <span className="font-black text-slate-800 text-sm md:text-base">
-                    {cartCount}
-                  </span>
-                </div>
-
-                <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     const defaultQty = Number(product.default_quantity || 12);
@@ -117,6 +103,20 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
                   title="הסר"
                 >
                   <Minus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
+                </button>
+
+                <div className="flex items-center justify-center bg-slate-50 border border-slate-100 px-3 rounded-lg md:rounded-xl min-h-[36px] md:min-h-[auto] min-w-[36px] shadow-inner">
+                  <span className="font-black text-slate-800 text-sm md:text-base">
+                    {cartCount}
+                  </span>
+                </div>
+
+                <button 
+                  onClick={() => addToCart(product)}
+                  className="flex items-center justify-center px-3 md:px-3 py-2 md:py-2 rounded-lg md:rounded-xl transition-all duration-300 min-h-[36px] md:min-h-[auto] bg-accent-600 text-white shadow-accent-200 hover:scale-102 active:scale-95 shadow-lg"
+                  title="הוסף"
+                >
+                  <Plus size={14} md:size={15} strokeWidth={4} className="shrink-0" />
                 </button>
               </>
             ) : (

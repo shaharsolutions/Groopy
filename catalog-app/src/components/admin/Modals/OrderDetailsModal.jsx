@@ -333,15 +333,15 @@ const OrderDetailsModal = (props) => {
                       {(order.items || []).map((item, idx) => (
                         <div 
                           key={`item-${item.sku || idx}`}
-                          className="flex items-center gap-6 p-6 bg-slate-50 border border-slate-100 rounded-[32px] group hover:bg-white hover:border-primary-100 hover:shadow-xl hover:shadow-primary-100/20 transition-all duration-300"
+                          className="flex items-center gap-4 md:gap-6 p-4 md:p-6 bg-slate-50 border border-slate-100 rounded-[32px] group hover:bg-white hover:border-primary-100 hover:shadow-xl hover:shadow-primary-100/20 transition-all duration-300"
                         >
-                          <div className="w-20 h-20 bg-white rounded-2xl overflow-hidden shadow-inner border border-slate-100 group-hover:scale-105 transition-transform duration-500">
+                          <div className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-2xl overflow-hidden shadow-inner border border-slate-100 group-hover:scale-105 transition-transform duration-500 shrink-0">
                             <img src={item.image} alt="" className="w-full h-full object-contain" />
                           </div>
                           
-                          <div className="flex-1 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="text-right">
-                              <h4 className="text-xl font-black text-slate-800 tracking-tight leading-none mb-1">{item.name}</h4>
+                          <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="text-right w-full md:w-auto">
+                              <h4 className="text-base md:text-xl font-black text-slate-800 tracking-tight leading-tight mb-1 break-words">{item.name}</h4>
                               <div className="flex items-center gap-2 justify-end">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-tight">מק"ט: {item.sku}</span>
                                 <span className="w-1 h-1 rounded-full bg-slate-200" />
@@ -349,14 +349,14 @@ const OrderDetailsModal = (props) => {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-12">
+                            <div className="flex items-center gap-6 md:gap-12">
                                <div className="flex flex-col items-center">
                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-40 mb-1">כמות</span>
-                                  <span className="text-2xl font-[1000] text-slate-900 tracking-tighter tabular-nums">{item.quantity}</span>
+                                  <span className="text-lg md:text-2xl font-[1000] text-slate-900 tracking-tighter tabular-nums">{item.quantity}</span>
                                </div>
                                <div className="flex flex-col text-right">
                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-40 mb-1">סה"כ</span>
-                                  <span className="text-2xl font-black text-slate-900 tracking-tighter tabular-nums">₪{(parseFloat(item.price || 0) * (parseInt(item.quantity) || 0)).toFixed(2)}</span>
+                                  <span className="text-lg md:text-2xl font-black text-slate-900 tracking-tighter tabular-nums">₪{(parseFloat(item.price || 0) * (parseInt(item.quantity) || 0)).toFixed(2)}</span>
                                </div>
                             </div>
                           </div>

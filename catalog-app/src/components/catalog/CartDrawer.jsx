@@ -122,9 +122,9 @@ const CartDrawer = React.memo(({
                       </div>
                       
                       {/* Item Meta */}
-                      <div className="flex-1 py-0.5 md:py-1">
+                      <div className="flex-1 min-w-0 py-0.5 md:py-1">
                         <div className="flex justify-between items-start mb-1 md:mb-2">
-                           <h4 className="font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%]">
+                           <h4 className="font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%] break-words">
                             {item.name}
                           </h4>
                           <button 

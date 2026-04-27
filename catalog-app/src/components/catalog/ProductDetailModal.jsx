@@ -143,7 +143,7 @@ const ProductDetailModal = React.memo(({
                   <p className="text-slate-400 font-bold text-sm md:text-lg">מק״ט: {product.sku}</p>
                 </div>
 
-                <h2 className="text-2xl md:text-4xl font-[1000] text-slate-900 leading-tight tracking-tighter mb-4 text-right">
+                <h2 className="text-2xl md:text-4xl font-[1000] text-slate-900 leading-tight tracking-tighter mb-4 text-right break-words">
                   {product.name}
                 </h2>
 

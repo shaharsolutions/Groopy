@@ -59,7 +59,7 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
            (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
            product.category}
         </span>
-        <h3 className="font-bold text-[14px] md:text-base text-slate-800 leading-tight mb-1 md:mb-2 min-h-[2.5rem] md:min-h-[3.2rem] flex items-start">
+        <h3 className="font-bold text-[14px] md:text-base text-slate-800 leading-tight mb-1 md:mb-2 min-h-[2.5rem] md:min-h-[3.2rem] flex items-start break-words">
           {product.name}
         </h3>
         <p className="text-xs md:text-xs text-slate-400 font-bold tracking-tight mb-3 md:mb-4 line-clamp-1 opacity-80">

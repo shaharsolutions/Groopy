@@ -365,7 +365,7 @@ const OrderDetailsModal = (props) => {
                     </div>
 
                     {/* Summary Card */}
-                    <div className="mt-12 bg-slate-900 text-white p-10 rounded-[48px] shadow-2xl relative overflow-hidden">
+                    <div className="mt-12 bg-slate-900 text-white px-16 py-10 rounded-[48px] shadow-2xl relative overflow-hidden">
                        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-primary-600/20 to-transparent pointer-events-none" />
                        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 text-right">
                           <div className="space-y-1">
@@ -376,7 +376,7 @@ const OrderDetailsModal = (props) => {
                              <span className="text-[10px] font-black text-primary-400 uppercase tracking-widest block">הנחה ({discountPct}%)</span>
                              <span className="text-3xl font-black text-primary-400 tracking-tighter tabular-nums" dir="ltr">-₪{discountAmount.toFixed(2)}</span>
                           </div>
-                          <div className="space-y-1 md:border-r border-white/10 md:pr-8">
+                          <div className="space-y-1 md:border-r border-white/10 md:pr-8 pl-8">
                              <span className="text-[10px] font-black text-white/50 uppercase tracking-widest block">סה"כ לתשלום</span>
                              <span className="text-5xl font-[1000] tracking-tighter tabular-nums">₪{total.toFixed(2)}</span>
                           </div>

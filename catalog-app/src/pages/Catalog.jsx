@@ -22,8 +22,7 @@ import {
   UserCheck,
   ArrowUp,
   Link as ChainLink,
-  RotateCcw,
-  BookOpen
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -920,13 +919,6 @@ const Catalog = () => {
               title="Admin Panel"
             >
               <Settings size={20} />
-            </button>
-            <button 
-              onClick={() => navigate('/catalog-2026')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition-all font-bold border border-primary-100 shadow-sm"
-            >
-              <BookOpen size={18} />
-              <span className="hidden sm:inline">קטלוג דיגיטלי 2026</span>
             </button>
           </div>
 

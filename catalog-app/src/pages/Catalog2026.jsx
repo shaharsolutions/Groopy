@@ -9,21 +9,22 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 
 const PDFPage = React.forwardRef((props, ref) => {
   return (
-    <div className="page bg-white" ref={ref} style={{ width: props.width, height: props.height }}>
-      <Page 
-        pageNumber={props.number} 
-        width={props.width}
-        height={props.height}
-        renderAnnotationLayer={false}
-        renderTextLayer={false}
-        scale={1}
-        devicePixelRatio={1}
-        loading={
-          <div className="flex items-center justify-center bg-slate-100" style={{ width: props.width, height: props.height }}>
-            <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        }
-      />
+    <div className="page bg-white" ref={ref}>
+      <div className="w-full h-full flex items-center justify-center">
+        <Page 
+          pageNumber={props.number} 
+          width={props.width}
+          height={props.height}
+          renderAnnotationLayer={false}
+          renderTextLayer={false}
+          className="shadow-inner"
+          loading={
+            <div className="flex items-center justify-center" style={{ width: props.width, height: props.height }}>
+              <div className="w-8 h-8 border-2 border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+            </div>
+          }
+        />
+      </div>
     </div>
   );
 });
@@ -32,35 +33,25 @@ const Catalog2026 = () => {
   const [numPages, setNumPages] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [loadError, setLoadError] = useState(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const flipBookRef = useRef(null);
   const containerRef = useRef(null);
 
   function onDocumentLoadSuccess({ numPages }) {
-    console.log("PDF Document loaded with", numPages, "pages");
     setNumPages(numPages);
     setIsLoaded(true);
   }
 
-  function onDocumentLoadError(error) {
-    console.error("PDF Document Load Error:", error);
-    setLoadError(error.message);
-  }
-
+  // Update dimensions based on container size
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
-        const containerWidth = containerRef.current.clientWidth;
-        const containerHeight = containerRef.current.clientHeight;
+        const containerWidth = containerRef.current.offsetWidth;
+        const containerHeight = containerRef.current.offsetHeight;
         
-        // Asymmetric padding: minimal at top, more at sides/bottom for controls
-        let paddingTop = 10;
-        let paddingBottom = 30;
-        let paddingX = 40;
-        
-        let availableWidth = containerWidth - (paddingX * 2);
-        let availableHeight = containerHeight - (paddingTop + paddingBottom);
+        let padding = 80;
+        let availableWidth = containerWidth - padding;
+        let availableHeight = containerHeight - padding;
 
         let pageWidth = availableWidth / 2;
         let pageHeight = pageWidth * 1.414;
@@ -70,16 +61,13 @@ const Catalog2026 = () => {
           pageWidth = pageHeight / 1.414;
         }
 
-        setDimensions({ 
-          width: Math.floor(pageWidth), 
-          height: Math.floor(pageHeight) 
-        });
+        setDimensions({ width: Math.floor(pageWidth), height: Math.floor(pageHeight) });
       }
     };
 
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
-    const timer = setTimeout(updateDimensions, 500);
+    const timer = setTimeout(updateDimensions, 100);
     return () => {
       window.removeEventListener('resize', updateDimensions);
       clearTimeout(timer);
@@ -87,11 +75,11 @@ const Catalog2026 = () => {
   }, []);
 
   const nextButtonClick = () => {
-    if (flipBookRef.current) flipBookRef.current.pageFlip().flipNext();
+    flipBookRef.current.pageFlip().flipNext();
   };
 
   const prevButtonClick = () => {
-    if (flipBookRef.current) flipBookRef.current.pageFlip().flipPrev();
+    flipBookRef.current.pageFlip().flipPrev();
   };
 
   const onPage = (e) => {
@@ -99,69 +87,77 @@ const Catalog2026 = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1115] text-white flex flex-col font-sans overflow-hidden" dir="rtl">
-      <header className="p-3 md:px-8 flex justify-between items-center bg-[#1a1d23]/90 backdrop-blur-xl border-b border-white/5 z-20">
+    <div className="min-h-screen bg-[#1a1c23] text-white flex flex-col font-sans overflow-hidden" dir="rtl">
+      {/* Header */}
+      <header className="p-4 md:px-8 flex justify-between items-center bg-[#252833]/80 backdrop-blur-xl border-b border-white/5 z-20">
         <div className="flex items-center gap-4">
           <Link to="/" className="p-2 hover:bg-white/10 rounded-full transition-colors group">
-            <ArrowLeft className="w-5 h-5 group-hover:translate-x-1 transition-transform rotate-180" />
+            <ArrowLeft className="w-6 h-6 group-hover:translate-x-1 transition-transform rotate-180" />
           </Link>
-          <h1 className="text-lg md:text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Groopy 2026</h1>
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">קטלוג Groopy 2026</h1>
+            <p className="text-[10px] uppercase tracking-widest text-primary-400 font-bold">Premium Experience</p>
+          </div>
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-3 bg-white/5 px-4 py-1.5 rounded-full border border-white/10" dir="ltr">
+          <div className="hidden md:flex items-center gap-3 bg-white/5 px-4 py-2 rounded-full border border-white/10" dir="ltr">
              <span className="text-sm font-black text-white">{currentPage + 1}-{Math.min(currentPage + 2, numPages || 0)} <span className="text-slate-500 font-normal">/</span> {numPages || '...'}</span>
              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">PAGES</span>
           </div>
-          <a href="/catalog2026/CatalogWeb%202026.pdf" download className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 px-4 py-2 rounded-full transition-all shadow-lg text-sm font-bold">
-            <Download className="w-4 h-4" /> PDF
+          
+          <a 
+            href="/catalog2026.pdf" 
+            download 
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 px-5 py-2.5 rounded-full transition-all shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] text-sm font-bold"
+          >
+            <Download className="w-4 h-4" />
+            PDF
           </a>
         </div>
       </header>
 
-      <main ref={containerRef} className="flex-1 relative flex items-start justify-center overflow-hidden bg-[#0f1115] pt-2">
-        {loadError && (
-          <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl text-center max-w-md z-30">
-            <h2 className="text-red-400 font-bold text-lg mb-2">שגיאה בטעינת הקובץ</h2>
-            <p className="text-slate-400 text-sm mb-4">{loadError}</p>
-            <button onClick={() => window.location.reload()} className="bg-red-500 text-white px-4 py-2 rounded-lg font-bold">נסה שוב</button>
+      {/* Main Content */}
+      <main ref={containerRef} className="flex-1 relative flex items-center justify-center p-4 md:p-12 overflow-hidden bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-950">
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+
+        {!isLoaded && (
+          <div className="flex flex-col items-center gap-6 animate-pulse">
+            <div className="w-16 h-16 border-4 border-white/5 border-t-primary-500 rounded-full animate-spin" />
+            <div className="text-center">
+              <p className="text-white font-bold text-lg">טוען קטלוג דיגיטלי</p>
+              <p className="text-slate-500 text-sm">מכין את חווית הדפדוף...</p>
+            </div>
           </div>
         )}
 
-        {!isLoaded && !loadError && (
-          <div className="flex flex-col items-center gap-4 animate-pulse z-30">
-            <div className="w-12 h-12 border-4 border-white/5 border-t-primary-500 rounded-full animate-spin" />
-            <p className="text-slate-400 text-sm font-bold">מכין את הקטלוג...</p>
-          </div>
-        )}
-
-        <div className={`relative ${!isLoaded ? 'opacity-0' : 'opacity-100'}`} dir="ltr">
-          <Document
-            file="/catalog2026/CatalogWeb%202026.pdf"
-            onLoadSuccess={onDocumentLoadSuccess}
-            onLoadError={onDocumentLoadError}
-            className="flex justify-center"
-          >
-            {isLoaded && dimensions.width > 0 && (
+        {isLoaded && dimensions.width > 0 && (
+          <div className="relative group/book" dir="ltr">
+            <Document
+              file="/catalog2026.pdf"
+              onLoadSuccess={onDocumentLoadSuccess}
+              className="flex justify-center"
+            >
               <HTMLFlipBook
                 width={dimensions.width}
                 height={dimensions.height}
                 size="fixed"
                 minWidth={200}
-                maxWidth={1400}
+                maxWidth={1000}
                 minHeight={300}
-                maxHeight={2000}
+                maxHeight={1414}
                 drawShadow={true}
                 flippingTime={800}
                 usePortrait={false}
                 startZIndex={0}
                 autoSize={true}
-                maxShadowOpacity={0.4}
+                maxShadowOpacity={0.3}
                 showCover={false}
                 mobileScrollSupport={true}
                 onFlip={onPage}
-                className="catalog-book"
+                className="shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]"
                 ref={flipBookRef}
+                style={{ backgroundColor: 'transparent' }}
               >
                 {Array.from(new Array(numPages), (el, index) => (
                   <PDFPage 
@@ -172,58 +168,66 @@ const Catalog2026 = () => {
                   />
                 ))}
               </HTMLFlipBook>
-            )}
-          </Document>
+            </Document>
 
-          {isLoaded && (
-            <>
-              <button onClick={prevButtonClick} disabled={currentPage === 0} className="absolute -left-12 md:-left-20 top-1/2 -translate-y-1/2 p-4 bg-white/5 hover:bg-white/10 disabled:opacity-0 rounded-full border border-white/10 transition-all z-10">
-                <ChevronLeft className="w-8 h-8" />
-              </button>
-              <button onClick={nextButtonClick} disabled={currentPage >= (numPages || 0) - 2} className="absolute -right-12 md:-right-20 top-1/2 -translate-y-1/2 p-4 bg-white/5 hover:bg-white/10 disabled:opacity-0 rounded-full border border-white/10 transition-all z-10">
-                <ChevronRight className="w-8 h-8" />
-              </button>
-            </>
-          )}
-        </div>
+            <button 
+              onClick={prevButtonClick}
+              disabled={currentPage === 0}
+              className="absolute -left-12 md:-left-20 top-1/2 -translate-y-1/2 p-5 bg-white/5 hover:bg-white/10 disabled:opacity-0 disabled:pointer-events-none backdrop-blur-md rounded-full border border-white/10 transition-all z-10 group/btn"
+            >
+              <ChevronLeft className="w-8 h-8 group-hover/btn:-translate-x-1 transition-transform" />
+            </button>
+            <button 
+              onClick={nextButtonClick}
+              disabled={currentPage >= numPages - 2}
+              className="absolute -right-12 md:-right-20 top-1/2 -translate-y-1/2 p-5 bg-white/5 hover:bg-white/10 disabled:opacity-0 disabled:pointer-events-none backdrop-blur-md rounded-full border border-white/10 transition-all z-10 group/btn"
+            >
+              <ChevronRight className="w-8 h-8 group-hover/btn:translate-x-1 transition-transform" />
+            </button>
+          </div>
+        )}
       </main>
 
-      <footer className="p-3 bg-[#1a1d23] flex justify-between items-center px-8 z-20 border-t border-white/5">
+      <footer className="p-4 bg-[#252833]/80 backdrop-blur-xl flex justify-between items-center px-8 z-20 border-t border-white/5">
         <div className="flex items-center gap-6">
-          <button onClick={() => flipBookRef.current?.pageFlip().flip(0)} className="text-[10px] text-slate-500 hover:text-white uppercase font-black">התחלה</button>
-          <button onClick={() => flipBookRef.current?.pageFlip().flip(numPages - 1)} className="text-[10px] text-slate-500 hover:text-white uppercase font-black">סוף</button>
+          <button 
+            onClick={() => flipBookRef.current.pageFlip().flip(0)} 
+            className="text-[10px] text-slate-500 hover:text-primary-400 uppercase tracking-[0.2em] font-black transition-colors"
+          >
+            התחלה
+          </button>
+          <div className="w-px h-3 bg-white/10"></div>
+          <button 
+            onClick={() => flipBookRef.current.pageFlip().flip(numPages - 1)} 
+            className="text-[10px] text-slate-500 hover:text-primary-400 uppercase tracking-[0.2em] font-black transition-colors"
+          >
+            סוף
+          </button>
         </div>
+
         <div className="flex items-center gap-2">
-           <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse"></div>
-           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Interactive</span>
+           <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></div>
+           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Interactive Catalog</span>
         </div>
       </footer>
 
       <style dangerouslySetInnerHTML={{ __html: `
         .page {
           background-color: white;
-          overflow: hidden;
+          box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
         }
-        .catalog-book {
-          box-shadow: 0 0 50px rgba(0,0,0,0.5);
-        }
-        .react-pdf__Page {
-          display: flex !important;
-          justify-content: center !important;
-          align-items: center !important;
+        .stf__parent {
+          perspective: 2000px;
         }
         .react-pdf__Page__canvas {
           max-width: 100% !important;
           max-height: 100% !important;
           height: auto !important;
           width: auto !important;
-          display: block !important;
         }
-        .page-even {
-          box-shadow: inset -20px 0 30px -20px rgba(0,0,0,0.3) !important;
-        }
-        .page-odd {
-          box-shadow: inset 20px 0 30px -20px rgba(0,0,0,0.3) !important;
+        .react-pdf__Document {
+          display: flex;
+          justify-content: center;
         }
       `}} />
     </div>

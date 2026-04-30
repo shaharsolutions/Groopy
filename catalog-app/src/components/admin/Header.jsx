@@ -38,7 +38,7 @@ const Header = ({
       case 'banners': return `סה״כ ${bannersCount} באנרים פעילים במערכת`;
       case 'brands': return `ניהול לוגואים של מותגים לקרוסלה`;
       case 'categories': return 'עריכת קטגוריות המוצרים בקטלוג';
-      case 'promotions': return 'ניהול תוכן שיווקי ומבצעים שמופיעים בהוספה לסל';
+      case 'promotions': return 'ניהול תוכן שיווקי ומבצעים';
       default: return '';
     }
   };

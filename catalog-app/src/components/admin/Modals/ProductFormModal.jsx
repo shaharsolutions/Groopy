@@ -82,14 +82,13 @@ const ProductFormModal = ({
               </div>
               <div className="md:col-span-2 flex flex-col gap-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שיטת מכירה</label>
-                <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100/50 rounded-2xl border border-slate-200/60 h-14">
+                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100/50 rounded-2xl border border-slate-200/60 h-14">
                   {[
                     { id: 'standard', label: 'יחידות' },
-                    { id: 'cartons', label: 'קרטונים', flag: 'is_default_carton' },
                     { id: 'custom', label: 'מארז/תוספת', flag: 'is_incremental_add' }
                   ].map(mode => {
                     const isActive = mode.id === 'standard' 
-                      ? (!product.is_default_carton && !product.is_incremental_add)
+                      ? (!product.is_incremental_add)
                       : product[mode.flag];
                     
                     return (
@@ -98,11 +97,9 @@ const ProductFormModal = ({
                         type="button"
                         onClick={() => {
                           if (mode.id === 'standard') {
-                            setProduct({ ...product, is_default_carton: false, is_incremental_add: false, incremental_step: null });
-                          } else if (mode.id === 'cartons') {
-                            setProduct({ ...product, is_default_carton: true, is_incremental_add: false, incremental_step: null });
+                            setProduct({ ...product, is_incremental_add: false, incremental_step: null });
                           } else {
-                            setProduct({ ...product, is_default_carton: false, is_incremental_add: true });
+                            setProduct({ ...product, is_incremental_add: true });
                           }
                         }}
                         className={`rounded-xl text-[10px] font-black transition-all flex items-center justify-center ${

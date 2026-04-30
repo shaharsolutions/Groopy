@@ -9,7 +9,8 @@ import {
   Star, 
   Image, 
   ChevronRight,
-  Settings
+  Settings,
+  Megaphone
 } from 'lucide-react';
 
 const Sidebar = ({ 
@@ -28,6 +29,7 @@ const Sidebar = ({
     { id: 'categories', label: 'ניהול קטגוריות', icon: Tag },
     { id: 'brands', label: 'ניהול מותגים', icon: Star },
     { id: 'banners', label: 'ניהול באנרים', icon: Image },
+    { id: 'promotions', label: 'מבצעים', icon: Megaphone },
     { id: 'settings', label: 'הגדרות', icon: Settings },
   ];
 

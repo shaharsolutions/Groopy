@@ -82,7 +82,6 @@ const ProductManagement = ({
       is_best_seller: false,
       is_hot_deal: false,
       is_new: false,
-      is_default_carton: false,
       is_incremental_add: false,
       no_image: false,
       is_image_broken: false,
@@ -216,7 +215,6 @@ const ProductManagement = ({
                           { id: 'is_best_seller', label: 'נמכר ביותר', icon: Star, color: 'text-blue-500', bg: 'bg-blue-50' },
                           { id: 'is_hot_deal', label: 'מבצע חם', icon: Flame, color: 'text-orange-500', bg: 'bg-orange-50' },
                           { id: 'is_new', label: 'מוצר חדש', icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-50' },
-                          { id: 'is_default_carton', label: 'מכירת קרטון', icon: Package, color: 'text-purple-500', bg: 'bg-purple-50' },
                           { id: 'is_incremental_add', label: 'תוספת הדרגתית', icon: MousePointerClick, color: 'text-emerald-500', bg: 'bg-emerald-50' },
                           { id: 'no_image', label: 'חסרה תמונה', icon: ImageOff, color: 'text-red-500', bg: 'bg-red-50' },
                           { id: 'is_image_broken', label: 'קישור שבור', icon: Link2Off, color: 'text-rose-600', bg: 'bg-rose-50' },
@@ -508,11 +506,7 @@ const ProductManagement = ({
                               <Zap size={14} fill="currentColor" />
                             </div>
                           )}
-                          {p.is_default_carton && (
-                            <div className="bg-purple-50 text-purple-600 p-1.5 rounded-xl border border-purple-100 flex items-center justify-center shrink-0" title="נמכר בקרטונים">
-                              <Package size={14} />
-                            </div>
-                          )}
+
                           {p.is_incremental_add && (
                             <div className="bg-emerald-50 text-emerald-600 p-1.5 rounded-xl border border-emerald-100 flex items-center justify-center shrink-0" title="תוספת הדרגתית (+1)">
                               <MousePointerClick size={14} />

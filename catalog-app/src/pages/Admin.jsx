@@ -14,6 +14,7 @@ import BrandManagement from '../components/admin/BrandManagement';
 import BannerManagement from '../components/admin/BannerManagement';
 import CustomerManagement from '../components/admin/CustomerManagement';
 import LinksManagement from '../components/admin/LinksManagement';
+import PromotionsManagement from '../components/admin/PromotionManagement';
 import SettingsManagement from '../components/admin/SettingsManagement';
 import { statusMap } from '../components/admin/OrderManagement';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -31,6 +32,7 @@ import OrderEditModal from '../components/admin/Modals/OrderEditModal';
 import CustomerFormModal from '../components/admin/Modals/CustomerFormModal';
 import AgentCategoryLinkModal from '../components/admin/Modals/AgentCategoryLinkModal';
 import BulkProductEditModal from '../components/admin/Modals/BulkProductEditModal';
+import PromotionFormModal from '../components/admin/Modals/PromotionFormModal';
 import ImageZoomModal from '../components/admin/Modals/ImageZoomModal';
 
 
@@ -62,6 +64,7 @@ const Admin = () => {
     sortedCustomers,
     personalizedLinks, setPersonalizedLinks,
     settings, setSettings,
+    promotions, setPromotions,
     brokenImageIds, reportBrokenImage,
     fetchData
   } = adminData;
@@ -104,6 +107,12 @@ const Admin = () => {
   const [isUpdatingBanner, setIsUpdatingBanner] = useState(false);
   const [confirmingBannerDelete, setConfirmingBannerDelete] = useState(null);
 
+  // Promotions
+  const [isAddingPromotion, setIsAddingPromotion] = useState(false);
+  const [editingPromotion, setEditingPromotion] = useState(null);
+  const [isUpdatingPromotion, setIsUpdatingPromotion] = useState(false);
+  const [confirmingPromotionDelete, setConfirmingPromotionDelete] = useState(null);
+
   // Customers
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -123,7 +132,7 @@ const Admin = () => {
   const [zoomedImage, setZoomedImage] = useState(null);
 
   // Templates for new items
-  const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null, is_visible: true });
+  const [newProduct, setNewProduct] = useState({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_incremental_add: false, default_quantity: 12, incremental_step: null, is_visible: true });
   const [newAgent, setNewAgent] = useState({ name: '', phone: '', image: '', description: '' });
   const [newCategory, setNewCategory] = useState({ name: '' });
   const [newBrand, setNewBrand] = useState({ name: '', logo: '', type: '', show_in_carousel: true });
@@ -138,6 +147,16 @@ const Admin = () => {
     pos_y: 50,
     zoom: 1,
     object_fit: 'cover'
+  });
+  const [newPromotion, setNewPromotion] = useState({ 
+    title: '', 
+    message: '',
+    content: '', 
+    is_active: true,
+    display_trigger: 'cart_drawer',
+    discount_type: 'none',
+    discount_value: 0,
+    min_order_value: 0
   });
   const [newCustomer, setNewCustomer] = useState({ 
     business_name: '', 
@@ -201,7 +220,7 @@ const Admin = () => {
       if (!error) { 
         setProducts([...products, data[0]]); 
         setIsAddingProduct(false); 
-        setNewProduct({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_default_carton: false, is_incremental_add: false, default_quantity: 12, incremental_step: null }); 
+        setNewProduct({ name: '', sku: '', price: '', category: '', description: '', image: '', is_new: false, is_clearing: false, is_best_seller: false, is_hot_deal: false, is_incremental_add: false, default_quantity: 12, incremental_step: null }); 
       } else {
         console.error('Error adding product:', error);
         setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת מוצר: ' + (error.message || 'שגיאה לא ידועה'), type: 'error' });
@@ -536,6 +555,73 @@ const Admin = () => {
   const handleDeleteBanner = async (id) => {
     const { error } = await supabase.from('banners').delete().eq('id', id);
     if (!error) { setBanners(banners.filter(b => b.id !== id)); setConfirmingBannerDelete(null); }
+  };
+
+  // Promotions
+  const handleAddPromotion = async () => {
+    setIsUpdatingPromotion(true);
+    try {
+      const promotionToInsert = { ...newPromotion, id: generateUUID() };
+      const { data, error } = await supabase.from('promotions').insert([promotionToInsert]).select();
+      if (!error) { 
+        setPromotions([...promotions, data[0]]); 
+        setIsAddingPromotion(false); 
+        setNewPromotion({ 
+          title: '', 
+          message: '', 
+          content: '', 
+          is_active: true, 
+          display_trigger: 'cart_drawer',
+          discount_type: 'none',
+          discount_value: 0,
+          min_order_value: 0
+        }); 
+        setAlertConfig({ isOpen: true, message: 'המבצע נוסף בהצלחה', type: 'success' });
+      } else {
+        console.error('Error adding promotion:', error);
+        setAlertConfig({ isOpen: true, message: 'שגיאה בהוספת מבצע: ' + error.message, type: 'error' });
+      }
+    } catch (err) {
+      console.error('Unexpected error adding promotion:', err);
+    } finally {
+      setIsUpdatingPromotion(false);
+    }
+  };
+
+  const handleUpdatePromotion = async () => {
+    setIsUpdatingPromotion(true);
+    try {
+      const { error } = await supabase.from('promotions').update(editingPromotion).eq('id', editingPromotion.id);
+      if (!error) { 
+        setPromotions(promotions.map(p => p.id === editingPromotion.id ? editingPromotion : p)); 
+        setEditingPromotion(null); 
+        setAlertConfig({ isOpen: true, message: 'המבצע עודכן בהצלחה', type: 'success' });
+      } else {
+        console.error('Error updating promotion:', error);
+        setAlertConfig({ isOpen: true, message: 'שגיאה בעדכון מבצע: ' + error.message, type: 'error' });
+      }
+    } finally {
+      setIsUpdatingPromotion(false);
+    }
+  };
+
+  const handleDeletePromotion = async (id) => {
+    const { error } = await supabase.from('promotions').delete().eq('id', id);
+    if (!error) { 
+      setPromotions(promotions.filter(p => p.id !== id)); 
+      setConfirmingPromotionDelete(null); 
+      setAlertConfig({ isOpen: true, message: 'המבצע נמחק בהצלחה', type: 'success' });
+    } else {
+      console.error('Error deleting promotion:', error);
+      setAlertConfig({ isOpen: true, message: 'שגיאה במחיקת מבצע', type: 'error' });
+    }
+  };
+
+  const handleTogglePromotionActive = async (id, isActive) => {
+    const { error } = await supabase.from('promotions').update({ is_active: isActive }).eq('id', id);
+    if (!error) {
+      setPromotions(promotions.map(p => p.id === id ? { ...p, is_active: isActive } : p));
+    }
   };
 
   // Customers
@@ -899,7 +985,7 @@ const Admin = () => {
     <div className="flex h-screen bg-[#FDFDFE] text-slate-900 overflow-hidden" dir="rtl">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} logo={logo} ordersStats={ordersStats} />
       <main className="flex-1 p-6 md:p-12 overflow-y-auto w-full">
-        <Header activeTab={activeTab} productsCount={products.length} bannersCount={banners.length} setIsSidebarOpen={setIsSidebarOpen} setIsAddingProduct={setIsAddingProduct} setIsAddingAgent={setIsAddingAgent} setIsAddingBrand={setIsAddingBrand} setIsAddingBanner={setIsAddingBanner} setIsAddingCategory={setIsAddingCategory} setIsAddingCustomer={setIsAddingCustomer} />
+        <Header activeTab={activeTab} productsCount={products.length} bannersCount={banners.length} setIsSidebarOpen={setIsSidebarOpen} setIsAddingProduct={setIsAddingProduct} setIsAddingAgent={setIsAddingAgent} setIsAddingBrand={setIsAddingBrand} setIsAddingBanner={setIsAddingBanner} setIsAddingCategory={setIsAddingCategory} setIsAddingCustomer={setIsAddingCustomer} setIsAddingPromotion={setIsAddingPromotion} />
 
         {activeTab === 'products' && (
           <ProductManagement 
@@ -976,6 +1062,7 @@ const Admin = () => {
         {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} onImageClick={setZoomedImage} />}
         {activeTab === 'customers' && <CustomerManagement customers={sortedCustomers} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} sortConfig={sortConfig} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} />}
         {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} />}
+        {activeTab === 'promotions' && <PromotionsManagement promotions={promotions} confirmingPromotionDelete={confirmingPromotionDelete} setConfirmingPromotionDelete={setConfirmingPromotionDelete} handleDeletePromotion={handleDeletePromotion} setEditingPromotion={setEditingPromotion} handleTogglePromotionActive={handleTogglePromotionActive} />}
         {activeTab === 'settings' && <SettingsManagement settings={settings} setSettings={setSettings} />}
       </main>
 
@@ -985,6 +1072,7 @@ const Admin = () => {
         {(isAddingCategory || !!editingCategory) && <CategoryFormModal key="category-modal" isOpen={true} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />}
         {(isAddingBrand || !!editingBrand) && <BrandFormModal key="brand-modal" isOpen={true} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />}
         {(isAddingBanner || !!editingBanner) && <BannerFormModal key="banner-modal" isOpen={true} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />}
+        {(isAddingPromotion || !!editingPromotion) && <PromotionFormModal key="promotion-modal" isOpen={true} onClose={() => { setIsAddingPromotion(false); setEditingPromotion(null); }} promotion={editingPromotion || newPromotion} setPromotion={editingPromotion ? setEditingPromotion : setNewPromotion} onSave={editingPromotion ? handleUpdatePromotion : handleAddPromotion} isUpdating={isUpdatingPromotion} isEdit={!!editingPromotion} />}
         {(isAddingCustomer || !!editingCustomer || !!selectedCustomerDetails) && (
           <CustomerFormModal 
             key="customer-modal"

@@ -48,15 +48,9 @@ const BulkProductEditModal = ({
 
     if (saleModeUpdate.active) {
       if (saleModeUpdate.mode === 'standard') {
-        changes.is_default_carton = false;
-        changes.is_incremental_add = false;
-        changes.incremental_step = null;
-      } else if (saleModeUpdate.mode === 'cartons') {
-        changes.is_default_carton = true;
         changes.is_incremental_add = false;
         changes.incremental_step = null;
       } else if (saleModeUpdate.mode === 'custom') {
-        changes.is_default_carton = false;
         changes.is_incremental_add = true;
         changes.incremental_step = parseInt(saleModeUpdate.incrementalStep) || 1;
       }
@@ -249,7 +243,6 @@ const BulkProductEditModal = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {[
                         { id: 'standard', label: 'יחידות', icon: Tag },
-                        { id: 'cartons', label: 'קרטונים', icon: Package },
                         { id: 'custom', label: 'מארז/תוספת', icon: MousePointerClick }
                       ].map(mode => (
                         <button

@@ -86,8 +86,6 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
                     let minusStep = 1;
                     if (product.is_incremental_add) {
                       minusStep = product.incremental_step ? Number(product.incremental_step) : 1;
-                    } else if (product.is_default_carton) {
-                      minusStep = defaultQty;
                     }
                     
                     const times = Math.round(plusStep / minusStep);

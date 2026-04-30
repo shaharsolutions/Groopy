@@ -13,6 +13,7 @@ export const useAdminData = () => {
   const [customers, setCustomers] = useState([]);
   const [personalizedLinks, setPersonalizedLinks] = useState([]);
   const [settings, setSettings] = useState([]);
+  const [promotions, setPromotions] = useState([]);
   const [brokenImageIds, setBrokenImageIds] = useState(new Set());
   
   const reportBrokenImage = (id) => {
@@ -30,7 +31,6 @@ export const useAdminData = () => {
     is_best_seller: false,
     is_hot_deal: false,
     is_new: false,
-    is_default_carton: false,
     is_incremental_add: false,
     no_image: false,
     is_image_broken: false,
@@ -50,7 +50,8 @@ export const useAdminData = () => {
         { data: bannersData },
         { data: customersData },
         { data: linksData },
-        { data: settingsData }
+        { data: settingsData },
+        { data: promotionsData }
       ] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('agents').select('*').order('name'),
@@ -60,7 +61,8 @@ export const useAdminData = () => {
         supabase.from('banners').select('*').order('order_index', { ascending: true }),
         supabase.from('customers').select('*').order('business_name'),
         supabase.from('personalized_links').select('*').order('created_at', { ascending: false }),
-        supabase.from('settings').select('*')
+        supabase.from('settings').select('*'),
+        supabase.from('promotions').select('*').order('created_at', { ascending: false })
       ]);
 
       if (productsData) setProducts(productsData);
@@ -72,6 +74,7 @@ export const useAdminData = () => {
       if (customersData) setCustomers(customersData);
       if (linksData) setPersonalizedLinks(linksData);
       if (settingsData) setSettings(settingsData);
+      if (promotionsData) setPromotions(promotionsData);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     }
@@ -257,6 +260,7 @@ export const useAdminData = () => {
     sortedCustomers,
     personalizedLinks, setPersonalizedLinks,
     settings, setSettings,
+    promotions, setPromotions,
     brokenImageIds, reportBrokenImage,
     fetchData
   };

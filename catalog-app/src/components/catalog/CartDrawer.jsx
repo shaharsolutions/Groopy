@@ -11,11 +11,11 @@ import {
   Send,
   ShoppingCart,
   ChevronDown,
-  Package,
   UserCheck,
-  RotateCcw
+  RotateCcw,
+  Megaphone,
+  Percent
 } from 'lucide-react';
-import { formatCartonCount } from '../../utils/cartonUtils';
 import { formatPrice } from '../../utils/formatUtils';
 
 const CartDrawer = React.memo(({ 
@@ -41,7 +41,10 @@ const CartDrawer = React.memo(({
   restorableCart = [],
   onRestoreCart,
   onDismissRestore,
-  onClearCart
+  onClearCart,
+  promotions = [],
+  cartSubtotal = 0,
+  activeDiscount = null
 }) => {
   return (
     <>
@@ -104,74 +107,96 @@ const CartDrawer = React.memo(({
                     <p className="text-lg md:text-xl font-bold">הסל ריק כרגע...</p>
                   </div>
                 ) : (
-                 cart.map((item, idx) => (
-                   <motion.div 
-                     layout
-                     initial={{ opacity: 0, x: 20 }}
-                     animate={{ opacity: 1, x: 0 }}
-                     key={item.id || `cart-item-${idx}`} 
-                     className="flex gap-4 md:gap-5 group relative"
-                    >
-                      {/* Item Image */}
-                      <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-50 rounded-xl md:rounded-2xl flex-shrink-0 flex items-center justify-center border border-slate-100 overflow-hidden relative group-hover:scale-105 transition-transform">
-                        {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
-                        ) : (
-                          <Package size={32} className="md:w-[40px] md:h-[40px] opacity-10" />
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-tr from-primary-500/5 to-accent-500/5" />
-                      </div>
-                      
-                      {/* Item Meta */}
-                      <div className="flex-1 min-w-0 py-0.5 md:py-1">
-                        <div className="flex justify-between items-start mb-1 md:mb-2">
-                           <h4 className="font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%] break-words">
-                            {item.name}
-                          </h4>
-                          <button 
-                            onClick={() => removeFromCart(item.id)}
-                            className="p-1 md:p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          >
-                            <Trash2 size={16} className="md:w-[20px] md:h-[20px]" />
-                          </button>
+                  <>
+                    {/* 🚀 Active Promotions Ad (Cart Drawer Trigger) */}
+                    {promotions.filter(p => p.is_active && (p.display_trigger === 'cart_drawer' || !p.display_trigger)).map((promo, pidx) => (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        key={`promo-ad-${pidx}`}
+                        className="bg-primary-50 rounded-3xl p-6 md:p-8 border-2 border-primary-100 relative overflow-hidden group mb-6"
+                      >
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500 to-accent-500" />
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="w-10 h-10 bg-primary-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-primary-200">
+                            <Megaphone size={20} />
+                          </div>
+                          <h4 className="font-black text-primary-900 text-lg md:text-xl tracking-tight">{promo.title}</h4>
                         </div>
-                        <div className="text-[10px] md:text-xs text-slate-400 font-black mb-1 md:mb-3 uppercase tracking-widest">
-                          מק״ט: {item.sku}
+                        <div 
+                          className="prose prose-sm max-w-none text-primary-800 font-bold leading-relaxed"
+                          dangerouslySetInnerHTML={{ __html: promo.content }}
+                        />
+                      </motion.div>
+                    ))}
+
+                    {cart.map((item, idx) => (
+                      <motion.div 
+                        layout
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        key={item.id || `cart-item-${idx}`} 
+                        className="flex gap-4 md:gap-5 group relative"
+                      >
+                        {/* Item Image */}
+                        <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-50 rounded-xl md:rounded-2xl flex-shrink-0 flex items-center justify-center border border-slate-100 overflow-hidden relative group-hover:scale-105 transition-transform">
+                          {item.image ? (
+                            <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                          ) : (
+                            <Package size={32} className="md:w-[40px] md:h-[40px] opacity-10" />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-tr from-primary-500/5 to-accent-500/5" />
                         </div>
                         
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 md:gap-3 bg-slate-50 p-1 md:p-1.5 rounded-xl md:rounded-2xl">
+                        {/* Item Meta */}
+                        <div className="flex-1 min-w-0 py-0.5 md:py-1">
+                          <div className="flex justify-between items-start mb-1 md:mb-2">
+                             <h4 className="font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%] break-words">
+                              {item.name}
+                            </h4>
                             <button 
-                              onClick={() => updateQuantity(item.id, -1)}
-                              className="w-7 h-7 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
+                              onClick={() => removeFromCart(item.id)}
+                              className="p-1 md:p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                             >
-                              <Minus size={12} className="md:w-[16px] md:h-[16px]" />
-                            </button>
-                            <div className="flex flex-col items-center">
-                              <span className="w-7 md:w-9 text-center font-black text-base md:text-xl text-slate-900 leading-none">
-                                {item.quantity}
-                              </span>
-                              <span className="text-[8px] font-black text-slate-400 uppercase">
-                                יח'
-                              </span>
-                            </div>
-                            <button 
-                              onClick={() => updateQuantity(item.id, 1)}
-                              className="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
-                            >
-                              <Plus size={12} className="md:w-[16px] md:h-[16px]" />
+                              <Trash2 size={16} className="md:w-[20px] md:h-[20px]" />
                             </button>
                           </div>
-                          <div className="text-right">
-                             <div className="text-xs font-black text-slate-400 uppercase mb-0.5">
-                               {item.is_default_carton ? `${formatCartonCount(item.quantity, item.default_quantity || 12)} קרטון` : ''}
-                             </div>
-                              <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{formatPrice(item.price * item.quantity)}</div>
+                          <div className="text-[10px] md:text-xs text-slate-400 font-black mb-1 md:mb-3 uppercase tracking-widest">
+                            מק״ט: {item.sku}
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 md:gap-3 bg-slate-50 p-1 md:p-1.5 rounded-xl md:rounded-2xl">
+                              <button 
+                                onClick={() => updateQuantity(item.id, -1)}
+                                className="w-7 h-7 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
+                              >
+                                <Minus size={12} className="md:w-[16px] md:h-[16px]" />
+                              </button>
+                              <div className="flex flex-col items-center">
+                                <span className="w-7 md:w-9 text-center font-black text-base md:text-xl text-slate-900 leading-none">
+                                  {item.quantity}
+                                </span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase">
+                                  יח'
+                                </span>
+                              </div>
+                              <button 
+                                onClick={() => updateQuantity(item.id, 1)}
+                                className="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-white transition-all text-slate-800 active:scale-90"
+                              >
+                                <Plus size={12} className="md:w-[16px] md:h-[16px]" />
+                              </button>
+                            </div>
+                            <div className="text-right">
+  
+                                <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{formatPrice(item.price * item.quantity)}</div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  ))
+                      </motion.div>
+                    ))}
+                  </>
                 )}
               </div>
 
@@ -227,7 +252,27 @@ const CartDrawer = React.memo(({
                         <span>סה״כ פריטים:</span>
                         <span className="bg-slate-50 px-2 md:px-3 py-0.5 md:py-1 rounded-lg text-slate-800 font-black">{totalItems}</span>
                       </div>
-                       <div className="flex justify-between items-center md:items-end border-t border-slate-50 pt-1.5 md:pt-4">
+                      
+                      <div className="flex justify-between items-center text-slate-400 font-bold text-xs md:text-sm">
+                        <span>סכום ביניים:</span>
+                        <span className="text-slate-700 font-black">₪{formatPrice(cartSubtotal)}</span>
+                      </div>
+
+                      {activeDiscount && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="flex justify-between items-center text-green-500 font-bold text-xs md:text-sm"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Percent size={14} />
+                            <span>הנחת מבצע ({activeDiscount.title}):</span>
+                          </div>
+                          <span className="font-black">-₪{formatPrice(activeDiscount.calculatedAmount)}</span>
+                        </motion.div>
+                      )}
+
+                      <div className="flex justify-between items-center md:items-end border-t border-slate-50 pt-1.5 md:pt-4">
                         <div className="text-right">
                           <span className="block text-[10px] md:text-sm font-black text-primary-500 uppercase tracking-wider mb-0 md:mb-1">לתשלום סופי</span>
                           <span className="text-2xl md:text-4xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{formatPrice(totalPrice)}</span>

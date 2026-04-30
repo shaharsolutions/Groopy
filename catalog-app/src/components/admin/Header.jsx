@@ -12,7 +12,8 @@ const Header = ({
     setIsAddingBrand, 
     setIsAddingBanner, 
     setIsAddingCategory,
-    setIsAddingCustomer 
+    setIsAddingCustomer,
+    setIsAddingPromotion 
 }) => {
   const getTitle = () => {
     switch (activeTab) {
@@ -23,6 +24,7 @@ const Header = ({
       case 'brands': return 'ניהול מותגים';
       case 'banners': return 'ניהול באנרים';
       case 'categories': return 'ניהול קטגוריות';
+      case 'promotions': return 'ניהול מבצעים';
       default: return 'ניהול מערכת';
     }
   };
@@ -36,6 +38,7 @@ const Header = ({
       case 'banners': return `סה״כ ${bannersCount} באנרים פעילים במערכת`;
       case 'brands': return `ניהול לוגואים של מותגים לקרוסלה`;
       case 'categories': return 'עריכת קטגוריות המוצרים בקטלוג';
+      case 'promotions': return 'ניהול תוכן שיווקי ומבצעים שמופיעים בהוספה לסל';
       default: return '';
     }
   };
@@ -48,6 +51,7 @@ const Header = ({
       case 'banners': return 'באנר חדש';
       case 'customers': return 'לקוח חדש';
       case 'categories': return 'קטגוריה חדשה';
+      case 'promotions': return 'מבצע חדש';
       default: return '';
     }
   };
@@ -58,6 +62,7 @@ const Header = ({
     else if (activeTab === 'brands') setIsAddingBrand(true);
     else if (activeTab === 'banners') setIsAddingBanner(true);
     else if (activeTab === 'customers') setIsAddingCustomer(true);
+    else if (activeTab === 'promotions') setIsAddingPromotion(true);
     else setIsAddingCategory(true);
   };
 

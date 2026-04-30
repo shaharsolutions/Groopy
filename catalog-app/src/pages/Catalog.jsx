@@ -7,7 +7,6 @@ import {
   Minus, 
   Send, 
   ShoppingBag, 
-  Package, 
   ChevronRight,
   ChevronLeft, 
   ArrowLeft,
@@ -36,9 +35,10 @@ import AgentSelectorModal from '../components/catalog/AgentSelectorModal';
 import FloatingAgentStatus from '../components/catalog/FloatingAgentStatus';
 import PromotionBanners from '../components/catalog/PromotionBanners';
 import ProductDetailModal from '../components/catalog/ProductDetailModal';
-import { formatCartonCount } from '../utils/cartonUtils';
+
 import { formatPrice } from '../utils/formatUtils';
 import AlertModal from '../components/common/AlertModal';
+import PromotionPopup from '../components/catalog/PromotionPopup';
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
@@ -215,6 +215,15 @@ const Catalog = () => {
       return cached ? JSON.parse(cached) : [];
     } catch (e) { return []; }
   });
+  const [promotions, setPromotions] = useState(() => {
+    try {
+      const cached = localStorage.getItem('groopy_cache_promotions');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [activePopupPromotion, setActivePopupPromotion] = useState(null);
+  const [hasShownLoadPopup, setHasShownLoadPopup] = useState(false);
+  const [hasShownAddPopup, setHasShownAddPopup] = useState(false);
   const currentAgentRef = useRef(null);
   const isMounted = useRef(true);
 
@@ -348,13 +357,14 @@ const Catalog = () => {
   const fetchInitialData = async () => {
     try {
       // 1. Fetch Products, Agents, Categories, Banners & Brands in parallel
-      const [productsRes, agentsRes, categoriesRes, bannersRes, brandsRes, settingsRes] = await Promise.all([
+      const [productsRes, agentsRes, categoriesRes, bannersRes, brandsRes, settingsRes, promotionsRes] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('agents').select('*').order('name'),
         supabase.from('categories').select('*').order('order_index', { ascending: true }),
         supabase.from('banners').select('*').order('order_index', { ascending: true }),
         supabase.from('brands').select('*').order('type', { ascending: true, nullsFirst: false }).order('name'),
-        supabase.from('settings').select('*')
+        supabase.from('settings').select('*'),
+        supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false })
       ]);
 
       if (!isMounted.current) return;
@@ -392,6 +402,18 @@ const Catalog = () => {
       if (settingsRes.data) {
         setSettings(settingsRes.data);
         localStorage.setItem('groopy_cache_settings', JSON.stringify(settingsRes.data));
+      }
+      
+      if (promotionsRes.data) {
+        setPromotions(promotionsRes.data);
+        localStorage.setItem('groopy_cache_promotions', JSON.stringify(promotionsRes.data));
+        
+        // Trigger popup_on_load
+        const loadPromo = promotionsRes.data.find(p => p.is_active && p.display_trigger === 'popup_on_load');
+        if (loadPromo && !hasShownLoadPopup) {
+          setActivePopupPromotion(loadPromo);
+          setHasShownLoadPopup(true);
+        }
       }
 
       const agentsData = agentsRes.data;
@@ -588,6 +610,15 @@ const Catalog = () => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       
+      // Trigger popup_on_add
+      if (prev.length === 0 && !hasShownAddPopup) {
+        const addPromo = promotions.find(p => p.is_active && p.display_trigger === 'popup_on_add');
+        if (addPromo) {
+          setActivePopupPromotion(addPromo);
+          setHasShownAddPopup(true);
+        }
+      }
+      
       // 🚀 Incremental Addition Logic:
       // If product is already in cart, additions increment.
       if (existing && product.is_incremental_add) {
@@ -618,8 +649,6 @@ const Catalog = () => {
         
         if (item.is_incremental_add) {
           step = item.incremental_step ? Number(item.incremental_step) : 1;
-        } else if (item.is_default_carton) {
-          step = defaultQty;
         }
         
         const minQty = defaultQty;
@@ -641,7 +670,32 @@ const Catalog = () => {
     scrollToActiveCategory();
   }, [selectedCategory]);
 
-  const totalPrice = useMemo(() => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0), [cart]);
+  const cartSubtotal = useMemo(() => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0), [cart]);
+
+  const activeDiscount = useMemo(() => {
+    if (cart.length === 0) return null;
+    
+    // Find all active promotions with a discount that meet the minimum order value
+    const applicablePromotions = promotions
+      .filter(p => p.is_active && p.discount_type !== 'none' && cartSubtotal >= (parseFloat(p.min_order_value) || 0))
+      .map(p => {
+        let discountAmount = 0;
+        if (p.discount_type === 'percentage') {
+          discountAmount = (cartSubtotal * (parseFloat(p.discount_value) || 0)) / 100;
+        } else if (p.discount_type === 'fixed') {
+          discountAmount = parseFloat(p.discount_value) || 0;
+        }
+        return { ...p, calculatedAmount: discountAmount };
+      })
+      .sort((a, b) => b.calculatedAmount - a.calculatedAmount); // Get the best discount
+
+    return applicablePromotions[0] || null;
+  }, [cartSubtotal, promotions, cart.length]);
+
+  const totalPrice = useMemo(() => {
+    const discount = activeDiscount ? activeDiscount.calculatedAmount : 0;
+    return Math.max(0, cartSubtotal - discount);
+  }, [cartSubtotal, activeDiscount]);
   const totalItems = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
   const handleRestoreCart = () => {
@@ -727,9 +781,7 @@ const Catalog = () => {
     cart.forEach((item, index) => {
       message += `\u200F*${index + 1}. ${item.name}*\n`;
       message += `\u200Fמק"ט: ${item.sku}\n`;
-      const cartonCountValue = formatCartonCount(item.quantity, item.default_quantity || 12);
-      const cartonText = item.is_default_carton ? ` (${cartonCountValue} קרטון)` : '';
-      message += `\u200Fכמות: ${item.quantity} יחידות${cartonText}\n`;
+      message += `\u200Fכמות: ${item.quantity} יחידות\n`;
       message += `\u200Fמחיר יחידה: ₪${formatPrice(item.price)}\n`;
       
       if (index < cart.length - 1) {
@@ -737,7 +789,14 @@ const Catalog = () => {
       }
     });
     
-    message += `\n\u200F*סה"כ לתשלום: ₪${formatPrice(totalPrice)}*\n\n`;
+    message += `\n\u200F*סיכום הזמנה:*\n`;
+    message += `\u200Fסכום פריטים: ₪${formatPrice(cartSubtotal)}\n`;
+    
+    if (activeDiscount) {
+      message += `\u200Fהנחה (${activeDiscount.title}): -₪${formatPrice(activeDiscount.calculatedAmount)}\n`;
+    }
+    
+    message += `\u200F*סה"כ לתשלום סופי: ₪${formatPrice(totalPrice)}*\n\n`;
     message += `\u200Fנא ליצור איתי קשר לתיאום אספקה. תודה!`;
 
     const encoded = encodeURIComponent(message);
@@ -1145,6 +1204,16 @@ const Catalog = () => {
         onRestoreCart={handleRestoreCart}
         onDismissRestore={() => setRestorableCart([])}
         onClearCart={clearCart}
+        promotions={promotions}
+        cartSubtotal={cartSubtotal}
+        activeDiscount={activeDiscount}
+      />
+
+      {/* 🎊 PROMOTION POPUP */}
+      <PromotionPopup 
+        isOpen={!!activePopupPromotion}
+        onClose={() => setActivePopupPromotion(null)}
+        promotion={activePopupPromotion}
       />
 
       {/* 👔 AGENT SELECTOR MODAL */}

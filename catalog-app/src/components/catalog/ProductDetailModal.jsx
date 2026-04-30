@@ -10,7 +10,6 @@ import {
   Flame, 
   Zap,
 } from 'lucide-react';
-import { formatCartonCount } from '../../utils/cartonUtils';
 import { formatPrice } from '../../utils/formatUtils';
 
 const ProductDetailModal = React.memo(({ 
@@ -29,12 +28,10 @@ const ProductDetailModal = React.memo(({
       let initialQty = Number(product.default_quantity || 12);
       
       if (product.is_incremental_add) {
-        // If not in cart, default to full carton (1.0). If already in cart, use custom step or 1 unit.
-        const fullCarton = Number(product.default_quantity || 12);
+        // If not in cart, default to full quantity. If already in cart, use custom step or 1 unit.
+        const fullQty = Number(product.default_quantity || 12);
         const step = product.incremental_step ? Number(product.incremental_step) : 1;
-        initialQty = cartCount === 0 ? fullCarton : step;
-      } else if (product.is_default_carton) {
-        initialQty = Number(product.default_quantity || 12);
+        initialQty = cartCount === 0 ? fullQty : step;
       }
       
       setQuantity(initialQty);
@@ -61,9 +58,6 @@ const ProductDetailModal = React.memo(({
     if (product.is_incremental_add) {
       step = product.incremental_step ? Number(product.incremental_step) : 1;
       minQty = cartCount === 0 ? defaultQty : step;
-    } else if (product.is_default_carton) {
-      step = defaultQty;
-      minQty = defaultQty;
     }
     
     setQuantity(prev => Math.round(Math.max(minQty, Number(prev) + (direction * step))));
@@ -187,11 +181,7 @@ const ProductDetailModal = React.memo(({
                         <span className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest block mt-0.5 whitespace-nowrap">
                           יחידות סה״כ
                         </span>
-                        {product.is_default_carton && (
-                          <span className="text-[6px] md:text-[8px] font-bold text-slate-300 uppercase tracking-tighter block -mt-0.5">
-                            ({formatCartonCount(quantity, product.default_quantity || 12)} קרטון)
-                          </span>
-                        )}
+
                      </div>
                      <button 
                         onClick={() => adjustQuantity(1)}

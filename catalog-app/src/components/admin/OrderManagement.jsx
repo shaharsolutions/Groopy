@@ -13,6 +13,7 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatPrice } from '../../utils/formatUtils';
 
 export const statusMap = {
   'New': { label: 'חדש', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
@@ -123,7 +124,7 @@ const OrderManagement = ({
                       </div>
                     </td>
                     <td className="px-8 py-6 font-black text-slate-900 text-lg">
-                      ₪{parseFloat(order.total_price || 0).toFixed(2)}
+                      ₪{formatPrice(order.total_price || 0)}
                     </td>
                     <td className="px-8 py-6">
                       <div className="relative">

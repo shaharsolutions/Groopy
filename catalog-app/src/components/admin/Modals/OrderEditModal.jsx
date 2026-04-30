@@ -10,6 +10,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatPrice } from '../../../utils/formatUtils';
 
 const OrderEditModal = ({ 
     isOpen, 
@@ -117,7 +118,7 @@ const OrderEditModal = ({
                           </div>
                           <div className="flex-1">
                              <h5 className="font-black text-slate-800 text-sm tracking-tight">{p.name}</h5>
-                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">מק"ט: {p.sku} • ₪{p.price}</span>
+                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">מק"ט: {p.sku} • ₪{formatPrice(p.price)}</span>
                           </div>
                           <div className="w-10 h-10 bg-slate-50 text-slate-300 group-hover:text-primary-500 group-hover:bg-primary-50 rounded-xl flex items-center justify-center transition-all">
                              <Plus size={20} />
@@ -147,7 +148,7 @@ const OrderEditModal = ({
                     </div>
                     <div className="flex-1 min-w-0">
                        <h4 className="font-black text-slate-800 text-base tracking-tight truncate leading-none mb-1">{item.name}</h4>
-                       <span className="text-xs font-bold text-slate-400">מק"ט: {item.sku} • ₪{parseFloat(item.price).toFixed(2)}</span>
+                       <span className="text-xs font-bold text-slate-400">מק"ט: {item.sku} • ₪{formatPrice(item.price)}</span>
                     </div>
 
                     <div className="flex items-center bg-slate-50 p-1.5 rounded-2xl gap-3">
@@ -172,7 +173,7 @@ const OrderEditModal = ({
                   <div className="space-y-6">
                      <div className="flex items-center justify-between text-slate-400">
                         <span className="text-sm font-black uppercase tracking-widest">סיכום ביניים</span>
-                        <span className="text-xl font-black tabular-nums">₪{subtotal.toFixed(2)}</span>
+                        <span className="text-xl font-black tabular-nums">₪{formatPrice(subtotal)}</span>
                      </div>
                      <div className="flex items-center justify-between">
                         <span className="text-sm font-black text-primary-400 uppercase tracking-widest">הנחה באחוזים</span>
@@ -188,7 +189,7 @@ const OrderEditModal = ({
                      </div>
                      <div className="pt-6 border-t border-white/10 flex items-center justify-between">
                         <span className="text-sm font-black text-white/50 uppercase tracking-widest">סה"כ לתשלום</span>
-                        <span className="text-4xl font-[1000] tracking-tighter tabular-nums">₪{total.toFixed(2)}</span>
+                        <span className="text-4xl font-[1000] tracking-tighter tabular-nums">₪{formatPrice(total)}</span>
                      </div>
                   </div>
 

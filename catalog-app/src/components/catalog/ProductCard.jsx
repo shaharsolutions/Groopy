@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Package, Plus, Zap, Star, Flame, Minus } from 'lucide-react';
+import { formatPrice } from '../../utils/formatUtils';
 
 const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuantity, onImageClick, cartCount }) => {
   return (
@@ -69,7 +70,7 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
         <div className="mt-auto flex flex-col items-center gap-2 px-0.5 w-full">
           <div className="text-center">
             <span className="text-[9px] md:text-[9px] font-bold text-slate-400 block -mb-1">מחיר יחידה</span>
-            <span className="text-lg md:text-xl font-black text-slate-900 leading-none">₪{product.price.toFixed(2)}</span>
+            <span className="text-lg md:text-xl font-black text-slate-900 leading-none">₪{formatPrice(product.price)}</span>
           </div>
           <div className="flex items-stretch justify-center gap-1 md:gap-1.5 w-full">
             {cartCount > 0 ? (

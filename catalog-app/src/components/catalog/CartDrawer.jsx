@@ -16,6 +16,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { formatCartonCount } from '../../utils/cartonUtils';
+import { formatPrice } from '../../utils/formatUtils';
 
 const CartDrawer = React.memo(({ 
   isCartOpen, 
@@ -165,7 +166,7 @@ const CartDrawer = React.memo(({
                              <div className="text-xs font-black text-slate-400 uppercase mb-0.5">
                                {item.is_default_carton ? `${formatCartonCount(item.quantity, item.default_quantity || 12)} קרטון` : ''}
                              </div>
-                              <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{(item.price * item.quantity).toFixed(2)}</div>
+                              <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{formatPrice(item.price * item.quantity)}</div>
                           </div>
                         </div>
                       </div>
@@ -229,7 +230,7 @@ const CartDrawer = React.memo(({
                        <div className="flex justify-between items-center md:items-end border-t border-slate-50 pt-1.5 md:pt-4">
                         <div className="text-right">
                           <span className="block text-[10px] md:text-sm font-black text-primary-500 uppercase tracking-wider mb-0 md:mb-1">לתשלום סופי</span>
-                          <span className="text-2xl md:text-4xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{totalPrice.toFixed(2)}</span>
+                          <span className="text-2xl md:text-4xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{formatPrice(totalPrice)}</span>
                         </div>
                         <div className="hidden md:block">
                           <TrendingDown size={32} className="text-primary-100 -mb-2" />
@@ -319,7 +320,7 @@ const CartDrawer = React.memo(({
                 </div>
                 <div>
                   <div className="text-[8px] md:text-[10px] font-black opacity-40 uppercase tracking-widest mb-0.5 md:mb-1">הסל שלך</div>
-                  <div className="font-black text-xl md:text-3xl tracking-tighter">₪{totalPrice.toFixed(2)}</div>
+                  <div className="font-black text-xl md:text-3xl tracking-tighter">₪{formatPrice(totalPrice)}</div>
                 </div>
               </div>
               <div className="flex items-center gap-1 md:gap-2 pr-0 md:pr-4 relative z-10">

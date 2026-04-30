@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmCancelModal from './ConfirmCancelModal';
+import { formatPrice } from '../../../utils/formatUtils';
 
 const statusMap = {
   'New': { label: 'חדש', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
@@ -345,7 +346,7 @@ const OrderDetailsModal = (props) => {
                               <div className="flex items-center gap-2 justify-end">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-tight">מק"ט: {item.sku}</span>
                                 <span className="w-1 h-1 rounded-full bg-slate-200" />
-                                <span className="text-xs font-black text-slate-600 tracking-tight">₪{parseFloat(item.price || 0).toFixed(2)} ליח'</span>
+                                <span className="text-xs font-black text-slate-600 tracking-tight">₪{formatPrice(item.price || 0)} ליח'</span>
                               </div>
                             </div>
 
@@ -356,7 +357,7 @@ const OrderDetailsModal = (props) => {
                                </div>
                                <div className="flex flex-col text-right">
                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-40 mb-1">סה"כ</span>
-                                  <span className="text-lg md:text-2xl font-black text-slate-900 tracking-tighter tabular-nums">₪{(parseFloat(item.price || 0) * (parseInt(item.quantity) || 0)).toFixed(2)}</span>
+                                  <span className="text-lg md:text-2xl font-black text-slate-900 tracking-tighter tabular-nums">₪{formatPrice(parseFloat(item.price || 0) * (parseInt(item.quantity) || 0))}</span>
                                </div>
                             </div>
                           </div>
@@ -370,15 +371,15 @@ const OrderDetailsModal = (props) => {
                        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 text-right">
                           <div className="space-y-1">
                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">סיכום ביניים</span>
-                             <span className="text-3xl font-black tracking-tighter tabular-nums">₪{subtotal.toFixed(2)}</span>
+                             <span className="text-3xl font-black tracking-tighter tabular-nums">₪{formatPrice(subtotal)}</span>
                           </div>
                           <div className="space-y-1">
                              <span className="text-[10px] font-black text-primary-400 uppercase tracking-widest block">הנחה ({discountPct}%)</span>
-                             <span className="text-3xl font-black text-primary-400 tracking-tighter tabular-nums" dir="ltr">-₪{discountAmount.toFixed(2)}</span>
+                             <span className="text-3xl font-black text-primary-400 tracking-tighter tabular-nums" dir="ltr">-₪{formatPrice(discountAmount)}</span>
                           </div>
-                          <div className="space-y-1 md:border-r border-white/10 md:pr-8 pl-8">
+                          <div className="space-y-1 md:border-r border-white/10 md:pr-8 pl-12">
                              <span className="text-[10px] font-black text-white/50 uppercase tracking-widest block">סה"כ לתשלום</span>
-                             <span className="text-5xl font-[1000] tracking-tighter tabular-nums">₪{total.toFixed(2)}</span>
+                             <span className="text-4xl font-[1000] tracking-tighter tabular-nums">₪{formatPrice(total)}</span>
                           </div>
                        </div>
                     </div>

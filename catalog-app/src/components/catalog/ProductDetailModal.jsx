@@ -11,6 +11,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { formatCartonCount } from '../../utils/cartonUtils';
+import { formatPrice } from '../../utils/formatUtils';
 
 const ProductDetailModal = React.memo(({ 
   isOpen, 
@@ -157,7 +158,7 @@ const ProductDetailModal = React.memo(({
                   <div className="flex items-end justify-between gap-4">
                     <div className="text-right">
                       <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">מחיר ליחידה</span>
-                      <span className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">₪{product.price.toFixed(2)}</span>
+                      <span className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">₪{formatPrice(product.price)}</span>
                     </div>
                     {cartCount > 0 && (
                       <div className="text-left">
@@ -202,7 +203,7 @@ const ProductDetailModal = React.memo(({
 
                    <div className="text-left">
                       <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest block mb-0.5">סה״כ להזמנה</span>
-                      <span className="text-lg md:text-2xl font-black text-primary-600 leading-none">₪{(product.price * quantity).toFixed(2)}</span>
+                      <span className="text-lg md:text-2xl font-black text-primary-600 leading-none">₪{formatPrice(product.price * quantity)}</span>
                    </div>
                 </div>
 

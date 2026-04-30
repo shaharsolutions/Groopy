@@ -16,6 +16,7 @@ import {
   Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatPrice } from '../../../utils/formatUtils';
 
 const CustomerFormModal = ({ 
   isOpen, 
@@ -326,7 +327,7 @@ const CustomerFormModal = ({
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex flex-col">
                           <span className="text-xs font-black text-slate-400 uppercase tracking-widest">הזמנה #{order.sequentialId}</span>
-                          <span className="text-slate-800 font-black">₪{parseFloat(order.total_price || 0).toLocaleString()}</span>
+                          <span className="text-slate-800 font-black">₪{formatPrice(order.total_price || 0)}</span>
                         </div>
                         <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                           order.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :

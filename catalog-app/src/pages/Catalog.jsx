@@ -37,6 +37,7 @@ import FloatingAgentStatus from '../components/catalog/FloatingAgentStatus';
 import PromotionBanners from '../components/catalog/PromotionBanners';
 import ProductDetailModal from '../components/catalog/ProductDetailModal';
 import { formatCartonCount } from '../utils/cartonUtils';
+import { formatPrice } from '../utils/formatUtils';
 import AlertModal from '../components/common/AlertModal';
 
 const Catalog = () => {
@@ -729,14 +730,14 @@ const Catalog = () => {
       const cartonCountValue = formatCartonCount(item.quantity, item.default_quantity || 12);
       const cartonText = item.is_default_carton ? ` (${cartonCountValue} קרטון)` : '';
       message += `\u200Fכמות: ${item.quantity} יחידות${cartonText}\n`;
-      message += `\u200Fמחיר יחידה: ₪${item.price.toFixed(2)}\n`;
+      message += `\u200Fמחיר יחידה: ₪${formatPrice(item.price)}\n`;
       
       if (index < cart.length - 1) {
         message += `\u200F────────\n`;
       }
     });
     
-    message += `\n\u200F*סה"כ לתשלום: ₪${totalPrice.toFixed(2)}*\n\n`;
+    message += `\n\u200F*סה"כ לתשלום: ₪${formatPrice(totalPrice)}*\n\n`;
     message += `\u200Fנא ליצור איתי קשר לתיאום אספקה. תודה!`;
 
     const encoded = encodeURIComponent(message);

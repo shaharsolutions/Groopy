@@ -22,6 +22,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatPrice } from '../../utils/formatUtils';
 
 const ProductManagement = ({ 
     sortedProducts, 
@@ -117,7 +118,7 @@ const ProductManagement = ({
     productsToCopy.forEach(p => {
       output += activeCols.map(col => {
         let val = p[col.key] || '';
-        if (col.id === 'price') val = parseFloat(val).toFixed(2);
+        if (col.id === 'price') val = formatPrice(val);
         // Clean value of internal tabs or newlines to keep separation clear
         val = String(val).replace(/\t/g, ' ').replace(/[\n\r]+/g, ' ').trim();
         return val;
@@ -521,7 +522,7 @@ const ProductManagement = ({
                      </div>
                    </td>
                    <td className="px-8 py-6 font-bold text-slate-400 text-sm">{p.sku}</td>
-                   <td className="px-8 py-6 font-black text-slate-900">{parseFloat(p.price).toFixed(2)}</td>
+                   <td className="px-8 py-6 font-black text-slate-900">{formatPrice(p.price)}</td>
 
                     <td className="px-8 py-5">
                      <AnimatePresence mode="wait">

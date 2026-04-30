@@ -8,6 +8,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const Login = lazy(() => import('./pages/Login'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Accessibility = lazy(() => import('./pages/Accessibility'));
+const Catalog2026 = lazy(() => import('./pages/Catalog2026'));
 
 // Minimal loading spinner for lazy routes
 const LazyFallback = () => (
@@ -23,6 +24,7 @@ const App = () => {
       <Suspense fallback={<LazyFallback />}>
         <Routes>
           <Route path="/" element={<Catalog />} />
+          <Route path="/catalog-2026" element={<Catalog2026 />} />
           <Route path="/admin" element={<AdminRoute />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/accessibility" element={<Accessibility />} />

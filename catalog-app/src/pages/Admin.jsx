@@ -321,7 +321,9 @@ const Admin = () => {
 
   const handleUpdateAgent = async () => {
     setIsUpdatingAgent(true);
-    const { error } = await supabase.from('agents').update(editingAgent).eq('id', editingAgent.id);
+    // eslint-disable-next-line no-unused-vars
+    const { orderCount, ...agentData } = editingAgent;
+    const { error } = await supabase.from('agents').update(agentData).eq('id', editingAgent.id);
     if (!error) { 
       setAgents(agents.map(a => a.id === editingAgent.id ? editingAgent : a)); 
       setEditingAgent(null); 

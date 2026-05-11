@@ -70,6 +70,7 @@ const Catalog = () => {
   // 🔗 SHORT LINK STATE
   const [fetchedConfig, setFetchedConfig] = useState(null);
   const [isConfigLoading, setIsConfigLoading] = useState(() => !!searchParams.get('s'));
+  const [isLinkNotFound, setIsLinkNotFound] = useState(false);
 
   const [selectedBadge, setSelectedBadge] = useState(() => searchParams.get('badge') || null); // 'is_clearing', 'is_best_seller', 'is_hot_deal'
   
@@ -87,6 +88,7 @@ const Catalog = () => {
   }, [searchParams, fetchedConfig]);
 
   const isLinkExpired = useMemo(() => {
+    if (isLinkNotFound) return true;
     if (fetchedConfig) {
       if (fetchedConfig.is_active === false) return true; // Manually deactivated
       return fetchedConfig.expires_at ? Date.now() > fetchedConfig.expires_at : false;
@@ -94,7 +96,7 @@ const Catalog = () => {
     const expiry = searchParams.get('expires_at');
     if (!expiry) return false;
     return Date.now() > parseInt(expiry);
-  }, [searchParams, fetchedConfig]);
+  }, [searchParams, fetchedConfig, isLinkNotFound]);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainRef = useRef(null);
@@ -250,6 +252,7 @@ const Catalog = () => {
       
       if (!error && data) {
         setFetchedConfig(data);
+        setIsLinkNotFound(false);
         
         // Determine if active
         const isActuallyActive = data.is_active !== false && (!data.expires_at || Date.now() < data.expires_at);
@@ -259,6 +262,7 @@ const Catalog = () => {
         await supabase.from('personalized_links').update({ [fieldToUpdate]: (data[fieldToUpdate] || 0) + 1 }).eq('id', shortId);
       } else {
         console.error('Error resolving short link:', error);
+        setIsLinkNotFound(true);
       }
     } catch (err) {
       console.error('Unexpected error resolving short link:', err);

@@ -406,10 +406,35 @@ const Admin = () => {
     }
   };
 
-  const handleDeleteLink = async (id) => {
+  const handleDeleteLink = (id) => {
+    const link = personalizedLinks.find(l => l.id === id);
+    const agentName = agents.find(a => a.id === link?.agent_id)?.name || 'סוכן לא ידוע';
+    
+    setAlertConfig({
+      isOpen: true,
+      title: 'מחיקת קישור אישי',
+      message: `
+        <div class="text-right">
+          <p class="mb-4">האם אתה בטוח שברצונך למחוק את הקישור של <strong>${agentName}</strong>?</p>
+          <div class="bg-red-50 border border-red-100 p-4 rounded-2xl mb-4 text-red-700 text-sm">
+            <strong>אזהרה:</strong> הקישור <code class="bg-red-100 px-1.5 py-0.5 rounded font-mono text-red-900">#${id}</code> יוסר לצמיתות. לא ניתן יהיה לגשת אליו יותר או לשחזר את הנתונים שלו.
+          </div>
+        </div>
+      `,
+      type: 'error',
+      confirmText: 'כן, מחק קישור',
+      cancelText: 'ביטול',
+      onConfirm: () => executeDeleteLink(id)
+    });
+  };
+
+  const executeDeleteLink = async (id) => {
     const { error } = await supabase.from('personalized_links').delete().eq('id', id);
     if (!error) {
       setPersonalizedLinks(p => p.filter(l => l.id !== id));
+      setAlertConfig({ isOpen: true, message: 'הקישור נמחק בהצלחה', type: 'success' });
+    } else {
+      setAlertConfig({ isOpen: true, message: 'שגיאה במחיקת הקישור', type: 'error' });
     }
   };
 

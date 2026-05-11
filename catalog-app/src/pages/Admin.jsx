@@ -500,6 +500,63 @@ const Admin = () => {
     }
   };
 
+  const handleRestoreLink = async (id) => {
+    try {
+      // 1. Try to find the link
+      const { data, error: fetchError } = await supabase
+        .from('personalized_links')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !data) {
+        setAlertConfig({ 
+          isOpen: true, 
+          message: `הקישור עם המזהה <b>#${id}</b> לא נמצא במערכת. ייתכן שהוא נמחק לצמיתות ולא ניתן לשחזור.`, 
+          type: 'error',
+          title: 'קישור לא נמצא'
+        });
+        return;
+      }
+
+      // 2. If found, reactivate it
+      if (data.is_active) {
+        setAlertConfig({ 
+          isOpen: true, 
+          message: `הקישור <b>#${id}</b> כבר פעיל במערכת.`, 
+          type: 'info' 
+        });
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('personalized_links')
+        .update({ is_active: true })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      // 3. Update local state
+      setPersonalizedLinks(prev => {
+        if (prev.some(l => l.id === data.id)) {
+          return prev.map(l => l.id === data.id ? { ...l, is_active: true } : l);
+        } else {
+          return [ ...prev, { ...data, is_active: true } ];
+        }
+      });
+
+      setAlertConfig({ 
+        isOpen: true, 
+        message: `הקישור של <b>${agents.find(a => a.id === data.agent_id)?.name || 'סוכן'}</b> (מזהה #${id}) הופעל מחדש בהצלחה!`, 
+        type: 'success' 
+      });
+      
+    } catch (err) {
+      console.error('Error restoring link:', err);
+      setAlertConfig({ isOpen: true, message: 'שגיאה בשחזור הקישור', type: 'error' });
+    }
+  };
+
   // Categories
   const handleAddCategory = async () => {
     setIsUpdatingCategory(true);
@@ -1134,6 +1191,7 @@ const Admin = () => {
               onCopyLink={handleCopyAgentLink}
               onEditLink={setEditingPersonalizedLink}
               onRegenerateLink={handleRegenerateLink}
+              onRestoreLink={handleRestoreLink}
             />
           </div>
         )}

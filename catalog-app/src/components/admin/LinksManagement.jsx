@@ -31,6 +31,7 @@ const LinksManagement = ({
   onRegenerateLink
 }) => {
   const [copyFeedback, setCopyFeedback] = useState(null);
+  const [copyAllFeedback, setCopyAllFeedback] = useState(false);
 
   const getAgentName = (agentId) => {
     const agent = agents.find(a => a.id === agentId);
@@ -73,6 +74,25 @@ const LinksManagement = ({
     return Date.now() > expiresAt;
   };
 
+  const handleCopyAllActiveLinks = () => {
+    const activeLinks = links.filter(l => l.is_active && !isExpired(l.expires_at));
+    
+    if (activeLinks.length === 0) {
+      alert('אין קישורים פעילים להעתקה');
+      return;
+    }
+
+    const text = activeLinks.map(link => {
+      const agentName = getAgentName(link.agent_id);
+      const url = `${window.location.origin}/#/?agent=${link.agent_id}&s=${link.id}`;
+      return `קישור של ${agentName} - ${url}`;
+    }).join('\n');
+
+    navigator.clipboard.writeText(text);
+    setCopyAllFeedback(true);
+    setTimeout(() => setCopyAllFeedback(false), 2000);
+  };
+
   const getDaysActive = (createdAt) => {
     const created = new Date(createdAt);
     const now = new Date();
@@ -96,6 +116,17 @@ const LinksManagement = ({
           </div>
           <p className="text-slate-400 text-sm font-bold">מעקב ובקרה אחר קישורים שהופקו לסוכנים</p>
         </div>
+        <button 
+          onClick={handleCopyAllActiveLinks}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg ${
+            copyAllFeedback 
+              ? 'bg-green-500 text-white shadow-green-200' 
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-slate-100'
+          }`}
+        >
+          {copyAllFeedback ? <Check size={18} /> : <Copy size={18} />}
+          <span>{copyAllFeedback ? 'הועתק!' : 'העתק את כל הקישורים הפעילים'}</span>
+        </button>
       </div>
 
       <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">

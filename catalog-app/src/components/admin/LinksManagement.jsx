@@ -15,8 +15,7 @@ import {
   Check,
   Pencil,
   RefreshCw,
-  Activity,
-  Unlock
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,12 +28,9 @@ const LinksManagement = ({
   onDeleteLink, 
   onCopyLink,
   onEditLink, // Added for editing support
-  onRegenerateLink,
-  onRestoreLink
+  onRegenerateLink
 }) => {
   const [copyFeedback, setCopyFeedback] = useState(null);
-  const [restoreInput, setRestoreInput] = useState('');
-  const [isRestoring, setIsRestoring] = useState(false);
 
   const getAgentName = (agentId) => {
     const agent = agents.find(a => a.id === agentId);
@@ -77,27 +73,6 @@ const LinksManagement = ({
     return Date.now() > expiresAt;
   };
 
-  const handleRestoreClick = async () => {
-    if (!restoreInput.trim()) return;
-    
-    // Extract ID from URL or use as is
-    let linkId = restoreInput.trim();
-    if (linkId.includes('s=')) {
-      const match = linkId.match(/s=(\d+)/);
-      if (match) linkId = match[1];
-    } else if (linkId.includes('/')) {
-      // Try to get last part
-      const parts = linkId.split('/');
-      const last = parts[parts.length - 1];
-      if (/^\d+$/.test(last)) linkId = last;
-    }
-
-    setIsRestoring(true);
-    await onRestoreLink(linkId);
-    setIsRestoring(false);
-    setRestoreInput('');
-  };
-
   const getDaysActive = (createdAt) => {
     const created = new Date(createdAt);
     const now = new Date();
@@ -120,27 +95,6 @@ const LinksManagement = ({
             <h2 className="text-2xl font-black text-slate-800 tracking-tight">ניהול קישורים אישיים</h2>
           </div>
           <p className="text-slate-400 text-sm font-bold">מעקב ובקרה אחר קישורים שהופקו לסוכנים</p>
-        </div>
-
-        <div className="flex items-center gap-3 bg-white p-2 pr-4 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Unlock size={16} />
-            <span className="text-xs font-black uppercase tracking-widest whitespace-nowrap">שחזור קישור:</span>
-          </div>
-          <input 
-            type="text" 
-            value={restoreInput}
-            onChange={(e) => setRestoreInput(e.target.value)}
-            placeholder="הזן מזהה או URL של הקישור..."
-            className="bg-slate-50 border-none outline-none px-4 py-2 rounded-xl text-sm font-bold w-64 focus:ring-2 ring-primary-500/20 transition-all"
-          />
-          <button 
-            onClick={handleRestoreClick}
-            disabled={isRestoring || !restoreInput.trim()}
-            className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-primary-100 disabled:opacity-50 disabled:shadow-none"
-          >
-            {isRestoring ? 'בודק...' : 'פתח קישור'}
-          </button>
         </div>
       </div>
 

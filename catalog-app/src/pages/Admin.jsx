@@ -176,7 +176,7 @@ const Admin = () => {
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [confirmingNoteDelete, setConfirmingNoteDelete] = useState(null);
   
-  const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '' });
+  const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '', type: 'error', title: '', onConfirm: null, confirmText: '', cancelText: '' });
   
   const activeCategories = useMemo(() => {
     if (!products || !categories) return [];
@@ -410,6 +410,68 @@ const Admin = () => {
     const { error } = await supabase.from('personalized_links').delete().eq('id', id);
     if (!error) {
       setPersonalizedLinks(p => p.filter(l => l.id !== id));
+    }
+  };
+
+  const handleRegenerateLink = (link) => {
+    setAlertConfig({
+      isOpen: true,
+      title: 'שינוי וחידוש URL',
+      message: `
+        <div class="text-right">
+          <p class="mb-4">האם אתה בטוח שברצונך לשנות את כתובת הקישור?</p>
+          <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl mb-4 text-amber-700 text-sm">
+            <strong>שים לב:</strong> הקישור הישן <code class="bg-amber-200/50 px-1.5 py-0.5 rounded text-amber-800 font-mono">#${link.id}</code> יפסיק לעבוד באופן מיידי.
+          </div>
+          <p class="text-slate-500 text-xs font-bold">ייווצר קישור חדש עם אותו תוכן בדיוק.</p>
+        </div>
+      `,
+      type: 'warning',
+      confirmText: 'כן, שנה URL',
+      cancelText: 'ביטול',
+      onConfirm: () => executeRegenerateLink(link)
+    });
+  };
+
+  const executeRegenerateLink = async (link) => {
+    try {
+      // 1. Insert new link with same config
+      const { data, error: insertError } = await supabase
+        .from('personalized_links')
+        .insert([{
+          agent_id: link.agent_id,
+          categories: link.categories,
+          banners: link.banners,
+          expires_at: link.expires_at,
+          description: link.description,
+          is_active: link.is_active
+        }])
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // 2. Block old link (instead of deleting) to track inactive views
+      const { error: blockError } = await supabase
+        .from('personalized_links')
+        .update({ is_active: false })
+        .eq('id', link.id);
+
+      if (blockError) throw blockError;
+
+      // 3. Update local state: Update old link and add new link
+      setPersonalizedLinks(prev => 
+        prev.map(l => l.id === link.id ? { ...l, is_active: false } : l).concat(data)
+      );
+      
+      setAlertConfig({ 
+        isOpen: true, 
+        message: `הקישור חודש בהצלחה!<br/>המזהה החדש הוא <b>#${data.id}</b>.<br/>ה-URL הישן בוטל.`, 
+        type: 'success' 
+      });
+    } catch (err) {
+      console.error('Error regenerating link:', err);
+      setAlertConfig({ isOpen: true, message: 'שגיאה בחידוש הקישור', type: 'error' });
     }
   };
 
@@ -1046,6 +1108,7 @@ const Admin = () => {
               onDeleteLink={handleDeleteLink}
               onCopyLink={handleCopyAgentLink}
               onEditLink={setEditingPersonalizedLink}
+              onRegenerateLink={handleRegenerateLink}
             />
           </div>
         )}
@@ -1175,6 +1238,9 @@ const Admin = () => {
         message={alertConfig.message}
         type={alertConfig.type}
         title={alertConfig.title}
+        onConfirm={alertConfig.onConfirm}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
       />
 
       <ImageZoomModal 

@@ -13,7 +13,9 @@ import {
   Image as ImageIcon,
   Copy,
   Check,
-  Pencil
+  Pencil,
+  RefreshCw,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,7 +27,8 @@ const LinksManagement = ({
   onToggleActive, 
   onDeleteLink, 
   onCopyLink,
-  onEditLink // Added for editing support
+  onEditLink, // Added for editing support
+  onRegenerateLink
 }) => {
   const [copyFeedback, setCopyFeedback] = useState(null);
 
@@ -68,6 +71,17 @@ const LinksManagement = ({
   const isExpired = (expiresAt) => {
     if (!expiresAt) return false;
     return Date.now() > expiresAt;
+  };
+
+  const getDaysActive = (createdAt) => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffTime = Math.abs(now - created);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'פעיל מהיום';
+    if (diffDays === 1) return 'פעיל יום אחד';
+    return `פעיל ${diffDays} ימים`;
   };
 
   return (
@@ -162,6 +176,10 @@ const LinksManagement = ({
                         <Calendar size={14} className="text-slate-300" />
                         <span className="text-xs font-bold">{new Date(link.created_at).toLocaleDateString('he-IL')}</span>
                       </div>
+                      <div className="flex items-center gap-1.5 mt-1.5 text-primary-600 bg-primary-50 px-2 py-0.5 rounded-md w-fit border border-primary-100/50">
+                        <Activity size={10} className="text-primary-400" />
+                        <span className="text-[10px] font-black uppercase tracking-tight">{getDaysActive(link.created_at)}</span>
+                      </div>
                     </td>
                     <td className="p-6">
                       <div className={`flex items-center gap-2 ${isExpired(link.expires_at) ? 'text-red-400' : 'text-slate-500'}`}>
@@ -205,6 +223,13 @@ const LinksManagement = ({
                           title="ערוך קישור"
                         >
                           <Pencil size={16} />
+                        </button>
+                        <button 
+                          onClick={() => onRegenerateLink(link)}
+                          className="p-2 bg-slate-50 text-slate-400 hover:bg-amber-50 hover:text-amber-600 rounded-lg transition-all"
+                          title="שנה וחדש URL (הקישור הישן ימחק)"
+                        >
+                          <RefreshCw size={16} />
                         </button>
                         <button 
                           onClick={() => handleCopy(link.id, link.agent_id)}

@@ -86,7 +86,7 @@ const LinksManagement = ({
       const agentName = getAgentName(link.agent_id);
       const url = `${window.location.origin}/#/?agent=${link.agent_id}&s=${link.id}`;
       return `קישור של ${agentName} - ${url}`;
-    }).join('\n');
+    }).join('\n\n');
 
     navigator.clipboard.writeText(text);
     setCopyAllFeedback(true);

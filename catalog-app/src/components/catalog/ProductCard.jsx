@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Package, Plus, Zap, Star, Flame, Minus } from 'lucide-react';
 import { formatPrice } from '../../utils/formatUtils';
 
-const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuantity, onImageClick, cartCount }) => {
+const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuantity, onImageClick, cartCount, isDemoMode }) => {
   return (
     <motion.div
       layout
@@ -60,7 +60,7 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
            (product.category === 'Lunch Boxes' || product.category === 'קופסאות אוכל') ? 'קופסאות אוכל' : 
            product.category}
         </span>
-        <h3 className="font-bold text-[14px] md:text-base text-slate-800 leading-tight mb-1 md:mb-2 min-h-[2.5rem] md:min-h-[3.2rem] flex items-start break-words">
+        <h3 className={`font-bold text-[14px] md:text-base text-slate-800 leading-tight mb-1 md:mb-2 min-h-[2.5rem] md:min-h-[3.2rem] flex items-start break-words ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>
           {product.name}
         </h3>
         <p className="text-xs md:text-xs text-slate-400 font-bold tracking-tight mb-3 md:mb-4 line-clamp-1 opacity-80">
@@ -70,7 +70,7 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
         <div className="mt-auto flex flex-col items-center gap-2 px-0.5 w-full">
           <div className="text-center">
             <span className="text-[9px] md:text-[9px] font-bold text-slate-400 block -mb-1">מחיר יחידה</span>
-            <span className="text-lg md:text-xl font-black text-slate-900 leading-none">₪{formatPrice(product.price)}</span>
+            <span className={`text-lg md:text-xl font-black text-slate-900 leading-none ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>₪{formatPrice(product.price)}</span>
           </div>
           <div className="flex items-stretch justify-center gap-1 md:gap-1.5 w-full">
             {cartCount > 0 ? (

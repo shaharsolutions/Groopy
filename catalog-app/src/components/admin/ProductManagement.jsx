@@ -53,7 +53,8 @@ const ProductManagement = ({
     handleToggleVisibility,
     brokenImageIds,
     reportBrokenImage,
-    onImageClick
+    onImageClick,
+    isDemoMode
 }) => {
   const [isFilterMenuOpen, setIsFilterMenuOpen] = React.useState(false);
   const [isCopyMenuOpen, setIsCopyMenuOpen] = React.useState(false);
@@ -483,7 +484,7 @@ const ProductManagement = ({
                     </td>
                    <td className="px-8 py-6 font-black text-slate-800 text-base">
                      <div className="flex items-center gap-3">
-                        <span className="flex-1">{p.name}</span>
+                        <span className={`flex-1 ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>{p.name}</span>
                         <div className="flex items-center gap-2">
                           {p.is_visible === false && (
                             <div className="bg-slate-100 text-slate-400 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-slate-200" title="מוסתר מהקטלוג">
@@ -516,7 +517,7 @@ const ProductManagement = ({
                      </div>
                    </td>
                    <td className="px-8 py-6 font-bold text-slate-400 text-sm">{p.sku}</td>
-                   <td className="px-8 py-6 font-black text-slate-900">{formatPrice(p.price)}</td>
+                   <td className={`px-8 py-6 font-black text-slate-900 ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>{formatPrice(p.price)}</td>
 
                     <td className="px-8 py-5">
                      <AnimatePresence mode="wait">

@@ -42,6 +42,7 @@ import PromotionPopup from '../components/catalog/PromotionPopup';
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
+  const isDemoMode = searchParams.get('demo') === 'true' || window.location.href.includes('demo=true');
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(() => searchParams.get('category') || 'All');
@@ -1142,6 +1143,7 @@ const Catalog = () => {
                 updateQuantity={updateQuantity}
                 onImageClick={() => openProductModal(product)}
                 cartCount={cartMap.get(product.id) || 0}
+                isDemoMode={isDemoMode}
               />
             ))}
           </AnimatePresence>
@@ -1211,6 +1213,7 @@ const Catalog = () => {
         promotions={promotions}
         cartSubtotal={cartSubtotal}
         activeDiscount={activeDiscount}
+        isDemoMode={isDemoMode}
       />
 
       {/* 🎊 PROMOTION POPUP */}
@@ -1236,6 +1239,7 @@ const Catalog = () => {
         product={selectedProduct}
         addToCart={addToCart}
         cartCount={cartMap.get(selectedProduct?.id) || 0}
+        isDemoMode={isDemoMode}
       />
 
       {/* 🏛️ FOOTER */}

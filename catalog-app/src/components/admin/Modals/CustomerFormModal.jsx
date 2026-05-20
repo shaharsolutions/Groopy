@@ -31,7 +31,8 @@ const CustomerFormModal = ({
   onAddNote,
   onDeleteNote,
   isSubmittingNote,
-  error
+  error,
+  isDemoMode
 }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [newNote, setNewNote] = useState('');
@@ -147,7 +148,7 @@ const CustomerFormModal = ({
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם העסק / לקוח (חובה)</label>
                   <input 
-                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                    className={`w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                     placeholder="שם העסק..."
                     value={customer.business_name || ''} 
                     onChange={e => setCustomer({ ...customer, business_name: e.target.value })} 
@@ -156,7 +157,7 @@ const CustomerFormModal = ({
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">שם איש קשר עיקרי</label>
                   <input 
-                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                    className={`w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                     placeholder="שם איש קשר..."
                     value={customer.contact_name || ''} 
                     onChange={e => setCustomer({ ...customer, contact_name: e.target.value })} 
@@ -165,7 +166,7 @@ const CustomerFormModal = ({
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">אימייל</label>
                   <input 
-                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all text-left"
+                    className={`w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all text-left ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                     placeholder="email@example.com"
                     value={customer.email || ''} 
                     onChange={e => setCustomer({ ...customer, email: e.target.value })} 
@@ -174,7 +175,7 @@ const CustomerFormModal = ({
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">טלפון</label>
                   <input 
-                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all text-left"
+                    className={`w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all text-left ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                     placeholder="050-0000000"
                     value={customer.phone || ''} 
                     onChange={e => setCustomer({ ...customer, phone: e.target.value })} 
@@ -183,7 +184,7 @@ const CustomerFormModal = ({
                 <div className="md:col-span-2 space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-2">כתובת</label>
                   <input 
-                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                    className={`w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-slate-800 focus:ring-2 focus:ring-primary-500/20 transition-all ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                     placeholder="רחוב, עיר..."
                     value={customer.address || ''} 
                     onChange={e => setCustomer({ ...customer, address: e.target.value })} 
@@ -213,20 +214,20 @@ const CustomerFormModal = ({
                       className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-slate-50 rounded-2xl relative group"
                     >
                       <input 
-                        className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                        className={`bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500/20 transition-all ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                         placeholder="שם..."
                         value={contact.name}
                         onChange={e => handleUpdateContact(idx, 'name', e.target.value)}
                       />
                       <input 
-                        className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                        className={`bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500/20 transition-all ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                         placeholder="תפקיד..."
                         value={contact.role}
                         onChange={e => handleUpdateContact(idx, 'role', e.target.value)}
                       />
                       <div className="flex items-center gap-2">
                         <input 
-                          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                          className={`flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500/20 transition-all ${isDemoMode ? 'blur-md bg-slate-200 text-transparent select-none pointer-events-none' : ''}`}
                           placeholder="טלפון..."
                           value={contact.phone}
                           onChange={e => handleUpdateContact(idx, 'phone', e.target.value)}
@@ -327,7 +328,7 @@ const CustomerFormModal = ({
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex flex-col">
                           <span className="text-xs font-black text-slate-400 uppercase tracking-widest">הזמנה #{order.sequentialId}</span>
-                          <span className="text-slate-800 font-black">₪{formatPrice(order.total_price || 0)}</span>
+                          <span className={`text-slate-800 font-black ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded select-none pointer-events-none' : ''}`}>₪{formatPrice(order.total_price || 0)}</span>
                         </div>
                         <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                           order.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :

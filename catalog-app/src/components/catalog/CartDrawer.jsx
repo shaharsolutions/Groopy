@@ -44,7 +44,8 @@ const CartDrawer = React.memo(({
   onClearCart,
   promotions = [],
   cartSubtotal = 0,
-  activeDiscount = null
+  activeDiscount = null,
+  isDemoMode = false
 }) => {
   return (
     <>
@@ -151,7 +152,7 @@ const CartDrawer = React.memo(({
                         {/* Item Meta */}
                         <div className="flex-1 min-w-0 py-0.5 md:py-1">
                           <div className="flex justify-between items-start mb-1 md:mb-2">
-                             <h4 className="font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%] break-words">
+                             <h4 className={`font-bold text-slate-800 text-sm md:text-lg leading-tight line-clamp-2 max-w-[80%] break-words ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>
                               {item.name}
                             </h4>
                             <button 
@@ -190,7 +191,7 @@ const CartDrawer = React.memo(({
                             </div>
                             <div className="text-right">
   
-                                <div className="font-black text-lg md:text-2xl text-slate-900 tracking-tight">₪{formatPrice(item.price * item.quantity)}</div>
+                                <div className={`font-black text-lg md:text-2xl text-slate-900 tracking-tight ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>₪{formatPrice(item.price * item.quantity)}</div>
                             </div>
                           </div>
                         </div>
@@ -255,7 +256,7 @@ const CartDrawer = React.memo(({
                       
                       <div className="flex justify-between items-center text-slate-400 font-bold text-xs md:text-sm">
                         <span>סכום ביניים:</span>
-                        <span className="text-slate-700 font-black">₪{formatPrice(cartSubtotal)}</span>
+                        <span className={`text-slate-700 font-black ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-md select-none pointer-events-none' : ''}`}>₪{formatPrice(cartSubtotal)}</span>
                       </div>
 
                       {activeDiscount && (
@@ -268,14 +269,14 @@ const CartDrawer = React.memo(({
                             <Percent size={14} />
                             <span>הנחת מבצע ({activeDiscount.title}):</span>
                           </div>
-                          <span className="font-black">-₪{formatPrice(activeDiscount.calculatedAmount)}</span>
+                          <span className={`font-black ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-md select-none pointer-events-none' : ''}`}>-₪{formatPrice(activeDiscount.calculatedAmount)}</span>
                         </motion.div>
                       )}
 
                       <div className="flex justify-between items-center md:items-end border-t border-slate-50 pt-1.5 md:pt-4">
                         <div className="text-right">
                           <span className="block text-[10px] md:text-sm font-black text-primary-500 uppercase tracking-wider mb-0 md:mb-1">לתשלום סופי</span>
-                          <span className="text-2xl md:text-4xl font-[1000] text-slate-900 tracking-tighter leading-none">₪{formatPrice(totalPrice)}</span>
+                          <span className={`text-2xl md:text-4xl font-[1000] text-slate-900 tracking-tighter leading-none ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-xl select-none pointer-events-none' : ''}`}>₪{formatPrice(totalPrice)}</span>
                         </div>
                         <div className="hidden md:block">
                           <TrendingDown size={32} className="text-primary-100 -mb-2" />
@@ -365,7 +366,7 @@ const CartDrawer = React.memo(({
                 </div>
                 <div>
                   <div className="text-[8px] md:text-[10px] font-black opacity-40 uppercase tracking-widest mb-0.5 md:mb-1">הסל שלך</div>
-                  <div className="font-black text-xl md:text-3xl tracking-tighter">₪{formatPrice(totalPrice)}</div>
+                  <div className={`font-black text-xl md:text-3xl tracking-tighter ${isDemoMode ? 'blur-md bg-slate-200/50 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>₪{formatPrice(totalPrice)}</div>
                 </div>
               </div>
               <div className="flex items-center gap-1 md:gap-2 pr-0 md:pr-4 relative z-10">

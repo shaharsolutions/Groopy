@@ -31,7 +31,8 @@ const CustomerManagement = ({
   handleDeleteCustomer,
   setSelectedCustomerDetails,
   sortConfig,
-  requestSort
+  requestSort,
+  isDemoMode
 }) => {
   const filteredCustomers = customers.filter(c => 
     c.business_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -123,7 +124,7 @@ const CustomerManagement = ({
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-black text-slate-800">{customer.business_name}</span>
+                        <span className={`text-base font-black text-slate-800 ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>{customer.business_name}</span>
                         {String(customer.id).startsWith('virtual-') ? (
                           <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 uppercase tracking-tighter">הזמנות</span>
                         ) : (
@@ -131,29 +132,29 @@ const CustomerManagement = ({
                         )}
                       </div>
                       {customer.address && (
-                        <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold">
+                        <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-1">
                           <MapPin size={10} />
-                          <span>{customer.address}</span>
+                          <span className={isDemoMode ? 'blur-sm bg-slate-200 text-transparent rounded select-none pointer-events-none' : ''}>{customer.address}</span>
                         </div>
                       )}
                     </div>
                   </div>
                 </td>
                 <td className="px-8 py-6">
-                  <span className="text-sm font-bold text-slate-600">{customer.contact_name || '---'}</span>
+                  <span className={`text-sm font-bold text-slate-600 ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded select-none pointer-events-none' : ''}`}>{customer.contact_name || '---'}</span>
                 </td>
                 <td className="px-8 py-6">
                   <div className="flex flex-col gap-1">
                     {customer.email && (
                       <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
                         <Mail size={12} className="text-slate-300" />
-                        <span>{customer.email}</span>
+                        <span className={isDemoMode ? 'blur-sm bg-slate-200 text-transparent rounded select-none pointer-events-none' : ''}>{customer.email}</span>
                       </div>
                     )}
                     {customer.phone && (
                       <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
                         <Phone size={12} className="text-slate-300" />
-                        <span>{customer.phone}</span>
+                        <span className={isDemoMode ? 'blur-sm bg-slate-200 text-transparent rounded select-none pointer-events-none' : ''}>{customer.phone}</span>
                       </div>
                     )}
                   </div>

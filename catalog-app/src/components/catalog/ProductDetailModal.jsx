@@ -17,7 +17,8 @@ const ProductDetailModal = React.memo(({
   onClose, 
   product, 
   addToCart, 
-  cartCount 
+  cartCount,
+  isDemoMode
 }) => {
   const defaultQty = Number(product?.default_quantity || 12);
   const [quantity, setQuantity] = useState(defaultQty);
@@ -138,7 +139,7 @@ const ProductDetailModal = React.memo(({
                   <p className="text-slate-400 font-bold text-sm md:text-lg">מק״ט: {product.sku}</p>
                 </div>
 
-                <h2 className="text-2xl md:text-4xl font-[1000] text-slate-900 leading-tight tracking-tighter mb-4 text-right break-words">
+                <h2 className={`text-2xl md:text-4xl font-[1000] text-slate-900 leading-tight tracking-tighter mb-4 text-right break-words ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-xl select-none pointer-events-none' : ''}`}>
                   {product.name}
                 </h2>
 
@@ -152,7 +153,7 @@ const ProductDetailModal = React.memo(({
                   <div className="flex items-end justify-between gap-4">
                     <div className="text-right">
                       <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">מחיר ליחידה</span>
-                      <span className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">₪{formatPrice(product.price)}</span>
+                      <span className={`text-3xl md:text-5xl font-black text-slate-900 tracking-tighter ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-xl select-none pointer-events-none' : ''}`}>₪{formatPrice(product.price)}</span>
                     </div>
                     {cartCount > 0 && (
                       <div className="text-left">
@@ -193,7 +194,7 @@ const ProductDetailModal = React.memo(({
 
                    <div className="text-left">
                       <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest block mb-0.5">סה״כ להזמנה</span>
-                      <span className="text-lg md:text-2xl font-black text-primary-600 leading-none">₪{formatPrice(product.price * quantity)}</span>
+                      <span className={`text-lg md:text-2xl font-black text-primary-600 leading-none ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>₪{formatPrice(product.price * quantity)}</span>
                    </div>
                 </div>
 

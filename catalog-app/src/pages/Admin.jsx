@@ -101,6 +101,8 @@ const Admin = () => {
   const [isUpdatingBrand, setIsUpdatingBrand] = useState(false);
   const [confirmingBrandDelete, setConfirmingBrandDelete] = useState(null);
 
+  const isDemoMode = window.location.href.includes('demo=true');
+
   // Banners
   const [isAddingBanner, setIsAddingBanner] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
@@ -1106,8 +1108,8 @@ const Admin = () => {
             setConfirmingProductDelete={setConfirmingProductDelete} 
             handleDeleteProduct={handleDeleteProduct} 
             handleToggleVisibility={handleToggleVisibility}
-            brokenImageIds={brokenImageIds}
             reportBrokenImage={reportBrokenImage}
+            isDemoMode={isDemoMode}
           />
         )}
         {activeTab === 'agents' && (
@@ -1150,8 +1152,8 @@ const Admin = () => {
         )}
         {activeTab === 'brands' && <BrandManagement brands={brands} confirmingBrandDelete={confirmingBrandDelete} setConfirmingBrandDelete={setConfirmingBrandDelete} handleDeleteBrand={handleDeleteBrand} setEditingBrand={setEditingBrand} onImageClick={setZoomedImage} />}
         {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} onImageClick={setZoomedImage} />}
-        {activeTab === 'customers' && <CustomerManagement customers={sortedCustomers} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} sortConfig={sortConfig} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} />}
-        {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} />}
+        {activeTab === 'customers' && <CustomerManagement customers={sortedCustomers} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} sortConfig={sortConfig} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} isDemoMode={isDemoMode} />}
+        {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} isDemoMode={isDemoMode} />}
         {activeTab === 'promotions' && <PromotionsManagement promotions={promotions} confirmingPromotionDelete={confirmingPromotionDelete} setConfirmingPromotionDelete={setConfirmingPromotionDelete} handleDeletePromotion={handleDeletePromotion} setEditingPromotion={setEditingPromotion} handleTogglePromotionActive={handleTogglePromotionActive} />}
         {activeTab === 'settings' && <SettingsManagement settings={settings} setSettings={setSettings} />}
       </main>
@@ -1179,6 +1181,7 @@ const Admin = () => {
             onDeleteNote={handleDeleteCustomerNote}
             isSubmittingNote={isSubmittingCustomerNote}
             error={customerError}
+            isDemoMode={isDemoMode}
           />
         )}
       </AnimatePresence>
@@ -1215,6 +1218,7 @@ const Admin = () => {
           setIsEditingOrder={setIsEditingOrder}
           handleUpdateOrderStatus={handleUpdateOrderStatus}
           setSelectedOrder={setSelectedOrder}
+          isDemoMode={isDemoMode}
           adminName={adminName}
           setAdminName={setAdminName}
           newNoteText={newNoteText}

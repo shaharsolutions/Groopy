@@ -36,7 +36,8 @@ const OrderManagement = ({
     setSelectedOrder, 
     setConfirmingOrderDelete, 
     confirmingOrderDelete, 
-    handleDeleteOrder 
+    handleDeleteOrder,
+    isDemoMode
 }) => {
   return (
     <div className="space-y-6">
@@ -111,7 +112,11 @@ const OrderManagement = ({
                         </span>
                       </div>
                     </td>
-                    <td className="px-8 py-6 font-black text-slate-800 text-base">{order.customer_name}</td>
+                    <td className="px-8 py-6">
+                      <span className={`font-black text-slate-800 text-base ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none inline-block' : ''}`}>
+                        {order.customer_name}
+                      </span>
+                    </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-2">
                         {order.agent_name ? (
@@ -123,8 +128,10 @@ const OrderManagement = ({
                         )}
                       </div>
                     </td>
-                    <td className="px-8 py-6 font-black text-slate-900 text-lg">
-                      ₪{formatPrice(order.total_price || 0)}
+                    <td className="px-8 py-6">
+                      <span className={`font-black text-slate-900 text-lg ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none inline-block' : ''}`}>
+                        ₪{formatPrice(order.total_price || 0)}
+                      </span>
                     </td>
                     <td className="px-8 py-6">
                       <div className="relative">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../supabaseClient';
-import { Settings, Save, CheckCircle2, RotateCcw, Flame, Star, Zap } from 'lucide-react';
+import { Settings, Save, CheckCircle2, RotateCcw, Flame, Star, Zap, EyeOff } from 'lucide-react';
 
 const SettingsManagement = ({ settings, setSettings }) => {
   const [isUpdating, setIsUpdating] = useState(false);
@@ -112,6 +112,39 @@ const SettingsManagement = ({ settings, setSettings }) => {
             </div>
           );
         })}
+        
+        {/* DEMO MODE CARD - LOCAL VIEW ONLY */}
+        <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-all hover:shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center">
+                <EyeOff size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 mb-1">מצב דמו (תצוגה מקומית)</h3>
+                <p className="text-slate-500 text-sm font-medium">טשטוש שמות ומחירים להצגת המערכת מבלי לחשוף מידע מסחרי.</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-4">
+            <a 
+              href="#/?demo=true" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black transition-colors"
+            >
+              קטלוג (דמו) <EyeOff size={18} />
+            </a>
+            <a 
+              href="#/admin?demo=true" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-black transition-colors"
+            >
+              פאנל ניהול (דמו) <EyeOff size={18} />
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );

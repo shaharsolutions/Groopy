@@ -47,7 +47,8 @@ const OrderDetailsModal = (props) => {
     setConfirmingNoteDelete,
     handleDeleteNote,
     customers = [],
-    onOpenCustomer
+    onOpenCustomer,
+    isDemoMode
   } = props;
 
   // Removed activeTab state as we are moving to a single scrollable view
@@ -108,8 +109,8 @@ const OrderDetailsModal = (props) => {
                     <User size={24} />
                   </div>
                   <div className="flex flex-col">
-                    <h4 className="text-xl font-black text-slate-800 tracking-tight leading-none">{order.customer_name}</h4>
-                    <span className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-tight">
+                    <h4 className={`text-xl font-black text-slate-800 tracking-tight leading-none ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>{order.customer_name}</h4>
+                    <span className={`text-xs font-bold text-slate-400 mt-1 uppercase tracking-tight ${isDemoMode ? 'blur-sm bg-slate-200 text-transparent rounded select-none pointer-events-none' : ''}`}>
                       {customers.find(c => c.business_name === order.customer_name)?.contact_name || 'לקוח פרטי'}
                     </span>
                   </div>
@@ -342,11 +343,11 @@ const OrderDetailsModal = (props) => {
                           
                           <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="text-right w-full md:w-auto">
-                              <h4 className="text-base md:text-xl font-black text-slate-800 tracking-tight leading-tight mb-1 break-words">{item.name}</h4>
+                              <h4 className={`text-base md:text-xl font-black text-slate-800 tracking-tight leading-tight mb-1 break-words ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none' : ''}`}>{item.name}</h4>
                               <div className="flex items-center gap-2 justify-end">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-tight">מק"ט: {item.sku}</span>
                                 <span className="w-1 h-1 rounded-full bg-slate-200" />
-                                <span className="text-xs font-black text-slate-600 tracking-tight">₪{formatPrice(item.price || 0)} ליח'</span>
+                                <span className={`text-xs font-black text-slate-600 tracking-tight ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded select-none pointer-events-none' : ''}`}>₪{formatPrice(item.price || 0)} ליח'</span>
                               </div>
                             </div>
 
@@ -357,7 +358,7 @@ const OrderDetailsModal = (props) => {
                                </div>
                                <div className="flex flex-col text-right">
                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-40 mb-1">סה"כ</span>
-                                  <span className="text-lg md:text-2xl font-black text-slate-900 tracking-tighter tabular-nums">₪{formatPrice(parseFloat(item.price || 0) * (parseInt(item.quantity) || 0))}</span>
+                                  <span className={`text-lg md:text-2xl font-black text-slate-900 tracking-tighter tabular-nums ${isDemoMode ? 'blur-md bg-slate-200 text-transparent rounded-lg select-none pointer-events-none inline-block' : ''}`}>₪{formatPrice(parseFloat(item.price || 0) * (parseInt(item.quantity) || 0))}</span>
                                </div>
                             </div>
                           </div>
@@ -371,15 +372,15 @@ const OrderDetailsModal = (props) => {
                        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 text-right">
                           <div className="space-y-1">
                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">סיכום ביניים</span>
-                             <span className="text-3xl font-black tracking-tighter tabular-nums">₪{formatPrice(subtotal)}</span>
+                             <span className={`text-3xl font-black tracking-tighter tabular-nums ${isDemoMode ? 'blur-md bg-slate-200/30 text-transparent rounded-xl select-none pointer-events-none inline-block' : ''}`}>₪{formatPrice(subtotal)}</span>
                           </div>
                           <div className="space-y-1">
                              <span className="text-[10px] font-black text-primary-400 uppercase tracking-widest block">הנחה ({discountPct}%)</span>
-                             <span className="text-3xl font-black text-primary-400 tracking-tighter tabular-nums" dir="ltr">-₪{formatPrice(discountAmount)}</span>
+                             <span className={`text-3xl font-black text-primary-400 tracking-tighter tabular-nums ${isDemoMode ? 'blur-md bg-slate-200/30 text-transparent rounded-xl select-none pointer-events-none inline-block' : ''}`} dir="ltr">-₪{formatPrice(discountAmount)}</span>
                           </div>
                           <div className="space-y-1 md:border-r border-white/10 md:pr-8 pl-12">
                              <span className="text-[10px] font-black text-white/50 uppercase tracking-widest block">סה"כ לתשלום</span>
-                             <span className="text-4xl font-[1000] tracking-tighter tabular-nums">₪{formatPrice(total)}</span>
+                             <span className={`text-4xl font-[1000] tracking-tighter tabular-nums ${isDemoMode ? 'blur-md bg-slate-200/30 text-transparent rounded-xl select-none pointer-events-none inline-block' : ''}`}>₪{formatPrice(total)}</span>
                           </div>
                        </div>
                     </div>

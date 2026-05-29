@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { 
   Search, 
   Tag, 
@@ -19,7 +19,11 @@ import {
   Copy,
   ClipboardCheck,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronRight,
+  ChevronLeft,
+  ChevronsRight,
+  ChevronsLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatPrice } from '../../utils/formatUtils';
@@ -61,6 +65,8 @@ const ProductManagement = ({
   const [isConfirmingBulkDelete, setIsConfirmingBulkDelete] = React.useState(false);
   const [copyFeedback, setCopyFeedback] = React.useState(false);
   const [copyFormat, setCopyFormat] = React.useState('spreadsheet'); // 'spreadsheet' or 'text'
+  const [itemsPerPage, setItemsPerPage] = React.useState(50);
+  const [currentPage, setCurrentPage] = React.useState(1);
   const [copyColumns, setCopyColumns] = React.useState({
     name: true,
     sku: true,
@@ -73,6 +79,17 @@ const ProductManagement = ({
   const activeFiltersCount = useMemo(() => {
     return Object.values(activeFilters).filter(v => v).length;
   }, [activeFilters]);
+
+  // Reset to page 1 whenever the filtered/sorted list changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortedProducts.length, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedProducts.slice(start, start + itemsPerPage);
+  }, [sortedProducts, currentPage, itemsPerPage]);
 
   const toggleFilter = (flag) => {
     setActiveFilters(prev => ({ ...prev, [flag]: !prev[flag] }));
@@ -445,7 +462,7 @@ const ProductManagement = ({
                </tr>
              </thead>
              <tbody className="divide-y divide-slate-50">
-               {sortedProducts.map((p, pIdx) => (
+               {paginatedProducts.map((p, pIdx) => (
                  <tr key={p.id || `product-${pIdx}`} className={`group hover:bg-slate-50/50 transition-colors ${selectedProductIds.includes(p.id) ? 'bg-primary-50/30' : ''} ${p.is_visible === false ? 'opacity-60 grayscale-[0.4] bg-slate-50/30' : ''}`}>
                    <td className="px-8 py-6">
                       <button 
@@ -569,6 +586,102 @@ const ProductManagement = ({
                     נקה את כל המסננים ונסה שוב
                   </button>
                 )}
+             </div>
+           )}
+
+           {/* ── Pagination Footer ── */}
+           {sortedProducts.length > 0 && (
+             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-8 py-5 border-t border-slate-100 bg-slate-50/40">
+               {/* Items-per-page selector */}
+               <div className="flex items-center gap-3">
+                 <span className="text-xs font-bold text-slate-400 whitespace-nowrap">מוצרים בעמוד</span>
+                 <div className="flex bg-white border border-slate-200 rounded-2xl p-1 gap-1 shadow-sm">
+                   {[25, 50, 100].map(n => (
+                     <button
+                       key={n}
+                       onClick={() => { setItemsPerPage(n); setCurrentPage(1); }}
+                       className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all ${
+                         itemsPerPage === n
+                           ? 'bg-slate-900 text-white shadow-sm'
+                           : 'text-slate-500 hover:bg-slate-100'
+                       }`}
+                     >
+                       {n}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+
+               {/* Page info */}
+               <span className="text-xs font-bold text-slate-400">
+                 {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, sortedProducts.length)} מתוך {sortedProducts.length}
+               </span>
+
+               {/* Page navigation */}
+               <div className="flex items-center gap-1">
+                 <button
+                   onClick={() => setCurrentPage(1)}
+                   disabled={currentPage === 1}
+                   className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all"
+                   title="עמוד ראשון"
+                 >
+                   <ChevronsRight size={16} />
+                 </button>
+                 <button
+                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                   disabled={currentPage === 1}
+                   className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all"
+                   title="עמוד קודם"
+                 >
+                   <ChevronRight size={16} />
+                 </button>
+
+                 {/* Page number pills */}
+                 <div className="flex items-center gap-1 mx-1">
+                   {Array.from({ length: totalPages }, (_, i) => i + 1)
+                     .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                     .reduce((acc, p, idx, arr) => {
+                       if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                       acc.push(p);
+                       return acc;
+                     }, [])
+                     .map((item, idx) =>
+                       item === '...' ? (
+                         <span key={`ellipsis-${idx}`} className="px-1 text-xs text-slate-300 font-bold">...</span>
+                       ) : (
+                         <button
+                           key={item}
+                           onClick={() => setCurrentPage(item)}
+                           className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${
+                             currentPage === item
+                               ? 'bg-slate-900 text-white shadow-sm'
+                               : 'text-slate-500 hover:bg-slate-100'
+                           }`}
+                         >
+                           {item}
+                         </button>
+                       )
+                     )
+                   }
+                 </div>
+
+                 <button
+                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                   disabled={currentPage === totalPages}
+                   className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all"
+                   title="עמוד הבא"
+                 >
+                   <ChevronLeft size={16} />
+                 </button>
+                 <button
+                   onClick={() => setCurrentPage(totalPages)}
+                   disabled={currentPage === totalPages}
+                   className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all"
+                   title="עמוד אחרון"
+                 >
+                   <ChevronsLeft size={16} />
+                 </button>
+               </div>
              </div>
            )}
         </div>

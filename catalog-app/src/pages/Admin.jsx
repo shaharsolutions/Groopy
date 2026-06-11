@@ -158,7 +158,8 @@ const Admin = () => {
     display_trigger: 'cart_drawer',
     discount_type: 'none',
     discount_value: 0,
-    min_order_value: 0
+    min_order_value: 0,
+    product_ids: []
   });
   const [newCustomer, setNewCustomer] = useState({ 
     business_name: '', 
@@ -665,7 +666,8 @@ const Admin = () => {
           display_trigger: 'cart_drawer',
           discount_type: 'none',
           discount_value: 0,
-          min_order_value: 0
+          min_order_value: 0,
+          product_ids: []
         }); 
         setAlertConfig({ isOpen: true, message: 'המבצע נוסף בהצלחה', type: 'success' });
       } else {
@@ -1154,7 +1156,7 @@ const Admin = () => {
         {activeTab === 'banners' && <BannerManagement banners={banners} confirmingBannerDelete={confirmingBannerDelete} setConfirmingBannerDelete={setConfirmingBannerDelete} handleDeleteBanner={handleDeleteBanner} setEditingBanner={setEditingBanner} onImageClick={setZoomedImage} />}
         {activeTab === 'customers' && <CustomerManagement customers={sortedCustomers} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleDownloadTemplate={downloadCustomerTemplate} handleImportExcel={handleImportCustomers} setEditingCustomer={setEditingCustomer} confirmingCustomerDelete={confirmingCustomerDelete} setConfirmingCustomerDelete={setConfirmingCustomerDelete} handleDeleteCustomer={handleDeleteCustomer} setSelectedCustomerDetails={setSelectedCustomerDetails} sortConfig={sortConfig} requestSort={(k) => setSortConfig({ key: k, direction: sortConfig.key === k && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} isDemoMode={isDemoMode} />}
         {activeTab === 'orders' && <OrderManagement orders={orders} selectedOrderIds={selectedOrderIds} handleBulkDeleteOrders={handleBulkDeleteOrders} isBulkDeleting={isBulkDeleting} setSelectedOrderIds={setSelectedOrderIds} toggleAllOrders={() => setSelectedOrderIds(selectedOrderIds.length === orders.length ? [] : orders.map(o => o.id))} toggleOrderSelection={(id) => setSelectedOrderIds(p => p.includes(id) ? p.filter(oid => oid !== id) : [...p, id])} activeStatusMenu={activeStatusMenu} setActiveStatusMenu={setActiveStatusMenu} handleUpdateOrderStatus={handleUpdateOrderStatus} setSelectedOrder={setSelectedOrder} setConfirmingOrderDelete={setConfirmingOrderDelete} confirmingOrderDelete={confirmingOrderDelete} handleDeleteOrder={handleDeleteOrder} isDemoMode={isDemoMode} />}
-        {activeTab === 'promotions' && <PromotionsManagement promotions={promotions} confirmingPromotionDelete={confirmingPromotionDelete} setConfirmingPromotionDelete={setConfirmingPromotionDelete} handleDeletePromotion={handleDeletePromotion} setEditingPromotion={setEditingPromotion} handleTogglePromotionActive={handleTogglePromotionActive} />}
+        {activeTab === 'promotions' && <PromotionsManagement promotions={promotions} confirmingPromotionDelete={confirmingPromotionDelete} setConfirmingPromotionDelete={setConfirmingPromotionDelete} handleDeletePromotion={handleDeletePromotion} setEditingPromotion={setEditingPromotion} handleTogglePromotionActive={handleTogglePromotionActive} products={products} />}
         {activeTab === 'settings' && <SettingsManagement settings={settings} setSettings={setSettings} />}
       </main>
 
@@ -1164,7 +1166,7 @@ const Admin = () => {
         {(isAddingCategory || !!editingCategory) && <CategoryFormModal key="category-modal" isOpen={true} onClose={() => { setIsAddingCategory(false); setEditingCategory(null); }} category={editingCategory || newCategory} setCategory={editingCategory ? setEditingCategory : setNewCategory} onSave={editingCategory ? handleUpdateCategory : handleAddCategory} isUpdating={isUpdatingCategory} title={editingCategory ? 'עריכת קטגוריה' : 'הוספת קטגוריה חדשה'} />}
         {(isAddingBrand || !!editingBrand) && <BrandFormModal key="brand-modal" isOpen={true} onClose={() => { setIsAddingBrand(false); setEditingBrand(null); }} brand={editingBrand || newBrand} setBrand={editingBrand ? setEditingBrand : setNewBrand} onSave={editingBrand ? handleUpdateBrand : handleAddBrand} isUpdating={isUpdatingBrand} title={editingBrand ? 'עריכת מותג' : 'הוספת מותג חדש'} />}
         {(isAddingBanner || !!editingBanner) && <BannerFormModal key="banner-modal" isOpen={true} onClose={() => { setIsAddingBanner(false); setEditingBanner(null); }} banner={editingBanner || newBanner} setBanner={editingBanner ? setEditingBanner : setNewBanner} onSave={editingBanner ? handleUpdateBanner : handleAddBanner} isUpdating={isUpdatingBanner} title={editingBanner ? 'עריכת באנר' : 'הוספת באנר חדש'} categories={categories} products={products} />}
-        {(isAddingPromotion || !!editingPromotion) && <PromotionFormModal key="promotion-modal" isOpen={true} onClose={() => { setIsAddingPromotion(false); setEditingPromotion(null); }} promotion={editingPromotion || newPromotion} setPromotion={editingPromotion ? setEditingPromotion : setNewPromotion} onSave={editingPromotion ? handleUpdatePromotion : handleAddPromotion} isUpdating={isUpdatingPromotion} isEdit={!!editingPromotion} />}
+        {(isAddingPromotion || !!editingPromotion) && <PromotionFormModal key="promotion-modal" isOpen={true} onClose={() => { setIsAddingPromotion(false); setEditingPromotion(null); }} promotion={editingPromotion || newPromotion} setPromotion={editingPromotion ? setEditingPromotion : setNewPromotion} onSave={editingPromotion ? handleUpdatePromotion : handleAddPromotion} isUpdating={isUpdatingPromotion} isEdit={!!editingPromotion} products={products} />}
         {(isAddingCustomer || !!editingCustomer || !!selectedCustomerDetails) && (
           <CustomerFormModal 
             key="customer-modal"

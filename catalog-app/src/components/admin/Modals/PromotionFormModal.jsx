@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Megaphone, MousePointer2, Layout, Type, Percent, Banknote, Target } from 'lucide-react';
+import { X, Save, Megaphone, MousePointer2, Layout, Type, Percent, Banknote, Target, Package, Search, Check } from 'lucide-react';
 
 const PromotionFormModal = ({ 
     isOpen, 
@@ -8,10 +8,12 @@ const PromotionFormModal = ({
     promotion, 
     setPromotion, 
     isUpdating, 
-    isEdit = false 
+    isEdit = false,
+    products = []
 }) => {
     const [editMode, setEditMode] = useState('simple'); // 'simple' or 'html'
     const [selectedTemplate, setSelectedTemplate] = useState('primary');
+    const [prodSearch, setProdSearch] = useState('');
 
     const templates = {
         primary: {
@@ -119,6 +121,107 @@ const PromotionFormModal = ({
                             placeholder="לדוגמה: מבצע סוף עונה!"
                             className="w-full bg-slate-50 border-2 border-transparent focus:border-primary-500 focus:bg-white rounded-2xl p-4 text-slate-900 font-bold transition-all outline-none"
                         />
+                    </div>
+
+                    {/* Specific Product Association */}
+                    <div className="space-y-4 p-6 bg-slate-50 rounded-[32px] border border-slate-100">
+                        <label className="text-sm font-black text-slate-700 mr-2 uppercase tracking-widest flex items-center gap-2">
+                            <Package size={16} />
+                            שיוך למוצרים ספציפיים בקטלוג (אופציונלי)
+                        </label>
+                        
+                        {/* Selected Products Chips */}
+                        {(() => {
+                            const selectedIds = promotion.product_ids || [];
+                            if (selectedIds.length === 0) return null;
+                            return (
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-3 bg-white rounded-2xl border border-slate-100 thin-scrollbar">
+                                    {selectedIds.map(id => {
+                                        const prod = products.find(p => p.id === id);
+                                        if (!prod) return null;
+                                        return (
+                                            <div key={id} className="bg-primary-50 text-primary-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-primary-100">
+                                                <span>{prod.name} (מק"ט: {prod.sku})</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const updated = selectedIds.filter(x => x !== id);
+                                                        setPromotion({ ...promotion, product_ids: updated });
+                                                    }}
+                                                    className="hover:text-primary-950 p-0.5 rounded-full hover:bg-primary-100 transition-colors"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Search Input */}
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="חפש מוצר לפי שם או מק״ט..."
+                                value={prodSearch}
+                                onChange={(e) => setProdSearch(e.target.value)}
+                                className="w-full bg-white border border-slate-200 focus:border-primary-500 rounded-2xl p-4 pr-11 text-slate-900 font-bold transition-all outline-none"
+                            />
+                            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        </div>
+
+                        {/* Products List Scrollbox */}
+                        <div className="border border-slate-200/60 rounded-2xl max-h-60 overflow-y-auto thin-scrollbar divide-y divide-slate-100 bg-white">
+                            {(() => {
+                                const selectedIds = promotion.product_ids || [];
+                                const filteredProds = products.filter(p => 
+                                    p.name?.toLowerCase().includes(prodSearch.toLowerCase()) || 
+                                    p.sku?.toLowerCase().includes(prodSearch.toLowerCase())
+                                );
+
+                                if (filteredProds.length === 0) {
+                                    return <div className="p-4 text-center text-slate-400 text-sm font-bold">לא נמצאו מוצרים תואמים</div>;
+                                }
+
+                                return filteredProds.map(prod => {
+                                    const isSelected = selectedIds.includes(prod.id);
+                                    return (
+                                        <button
+                                            key={prod.id}
+                                            type="button"
+                                            onClick={() => {
+                                                let updated;
+                                                if (isSelected) {
+                                                    updated = selectedIds.filter(x => x !== prod.id);
+                                                } else {
+                                                    updated = [...selectedIds, prod.id];
+                                                }
+                                                setPromotion({ ...promotion, product_ids: updated });
+                                            }}
+                                            className={`w-full flex items-center justify-between p-4 text-right transition-colors ${
+                                                isSelected ? 'bg-primary-50/20' : 'hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                                    isSelected ? 'border-primary-500 bg-primary-500 text-white' : 'border-slate-300 bg-white'
+                                                    }`}>
+                                                    {isSelected && <Check size={14} strokeWidth={3} />}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-bold text-sm text-slate-900 leading-tight">{prod.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">מק״ט: {prod.sku} | ₪{prod.price}</p>
+                                                </div>
+                                            </div>
+                                            {prod.image && (
+                                                <img src={prod.image} alt="" className="w-10 h-10 object-contain rounded-lg border border-slate-100 bg-slate-50" />
+                                            )}
+                                        </button>
+                                    );
+                                });
+                            })()}
+                        </div>
                     </div>
 
                     {/* Discount Configuration */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit, Trash2, Check, X, Megaphone } from 'lucide-react';
+import { Edit, Trash2, Check, X, Megaphone, Package } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const PromotionManagement = ({ 
@@ -8,7 +8,8 @@ const PromotionManagement = ({
     setConfirmingPromotionDelete, 
     handleDeletePromotion, 
     setEditingPromotion,
-    handleTogglePromotionActive
+    handleTogglePromotionActive,
+    products = []
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -37,10 +38,46 @@ const PromotionManagement = ({
             </div>
 
             <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-primary-50 rounded-2xl flex items-center justify-center text-primary-500">
+                <div className="w-12 h-12 bg-primary-50 rounded-2xl flex items-center justify-center text-primary-500 shrink-0">
                     <Megaphone size={24} />
                 </div>
-                <h3 className="text-2xl font-black text-slate-800 tracking-tight">{promo.title || 'מבצע ללא כותרת'}</h3>
+                <div>
+                    <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">{promo.title || 'מבצע ללא כותרת'}</h3>
+                    {(() => {
+                        const ids = promo.product_ids || [];
+                        if (ids.length === 1) {
+                            const targetProduct = products?.find(p => p.id === ids[0]);
+                            if (targetProduct) {
+                                return (
+                                    <div className="flex items-center gap-1 text-xs font-bold text-slate-500 mt-1">
+                                        <Package size={12} className="text-slate-400" />
+                                        <span>מוצר: <strong className="text-slate-700">{targetProduct.name}</strong> (מק"ט: {targetProduct.sku})</span>
+                                    </div>
+                                );
+                            }
+                        } else if (ids.length > 1) {
+                            const names = ids.map(id => products?.find(p => p.id === id)?.name).filter(Boolean);
+                            return (
+                                <div className="flex items-center gap-1 text-xs font-bold text-slate-500 mt-1">
+                                    <Package size={12} className="text-slate-400" />
+                                    <span>משויך ל-<strong className="text-slate-700">{ids.length} מוצרים</strong> <span className="text-slate-400">({names.slice(0, 2).join(', ')}{names.length > 2 ? ' ועוד...' : ''})</span></span>
+                                </div>
+                            );
+                        } else if (promo.product_id) {
+                            // Fallback for old single product relation
+                            const targetProduct = products?.find(p => p.id === promo.product_id);
+                            if (targetProduct) {
+                                return (
+                                    <div className="flex items-center gap-1 text-xs font-bold text-slate-500 mt-1">
+                                        <Package size={12} className="text-slate-400" />
+                                        <span>מוצר: <strong className="text-slate-700">{targetProduct.name}</strong> (מק"ט: {targetProduct.sku})</span>
+                                    </div>
+                                );
+                            }
+                        }
+                        return null;
+                    })()}
+                </div>
             </div>
             
             <div className="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100 max-h-40 overflow-y-auto thin-scrollbar">

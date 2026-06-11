@@ -682,20 +682,54 @@ const Catalog = () => {
     
     // Find all active promotions with a discount that meet the minimum order value
     const applicablePromotions = promotions
-      .filter(p => p.is_active && p.discount_type !== 'none' && cartSubtotal >= (parseFloat(p.min_order_value) || 0))
+      .filter(p => {
+        if (!p.is_active || p.discount_type === 'none') return false;
+        
+        // Check minimum order value constraint
+        if (cartSubtotal < (parseFloat(p.min_order_value) || 0)) return false;
+        
+        // If product-specific, at least one of the products must be in the cart
+        if (p.product_ids && p.product_ids.length > 0) {
+          return cart.some(item => p.product_ids.includes(item.id));
+        } else if (p.product_id) {
+          return cart.some(item => item.id === p.product_id);
+        }
+        
+        return true;
+      })
       .map(p => {
         let discountAmount = 0;
-        if (p.discount_type === 'percentage') {
-          discountAmount = (cartSubtotal * (parseFloat(p.discount_value) || 0)) / 100;
-        } else if (p.discount_type === 'fixed') {
-          discountAmount = parseFloat(p.discount_value) || 0;
+        const targetProductIds = p.product_ids && p.product_ids.length > 0
+          ? p.product_ids
+          : (p.product_id ? [p.product_id] : null);
+
+        if (targetProductIds && targetProductIds.length > 0) {
+          // Calculate discount based on the specific products in the cart
+          const matchingItems = cart.filter(item => targetProductIds.includes(item.id));
+          const itemsSubtotal = matchingItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+          
+          if (p.discount_type === 'percentage') {
+            discountAmount = (itemsSubtotal * (parseFloat(p.discount_value) || 0)) / 100;
+          } else if (p.discount_type === 'fixed') {
+            discountAmount = parseFloat(p.discount_value) || 0;
+            // Cap discount at matching items subtotal
+            if (discountAmount > itemsSubtotal) discountAmount = itemsSubtotal;
+          }
+        } else {
+          // General cart promotion
+          if (p.discount_type === 'percentage') {
+            discountAmount = (cartSubtotal * (parseFloat(p.discount_value) || 0)) / 100;
+          } else if (p.discount_type === 'fixed') {
+            discountAmount = parseFloat(p.discount_value) || 0;
+            if (discountAmount > cartSubtotal) discountAmount = cartSubtotal;
+          }
         }
         return { ...p, calculatedAmount: discountAmount };
       })
       .sort((a, b) => b.calculatedAmount - a.calculatedAmount); // Get the best discount
 
     return applicablePromotions[0] || null;
-  }, [cartSubtotal, promotions, cart.length]);
+  }, [cartSubtotal, promotions, cart]);
 
   const totalPrice = useMemo(() => {
     const discount = activeDiscount ? activeDiscount.calculatedAmount : 0;
@@ -1144,6 +1178,7 @@ const Catalog = () => {
                 onImageClick={() => openProductModal(product)}
                 cartCount={cartMap.get(product.id) || 0}
                 isDemoMode={isDemoMode}
+                promotions={promotions}
               />
             ))}
           </AnimatePresence>
@@ -1240,6 +1275,7 @@ const Catalog = () => {
         addToCart={addToCart}
         cartCount={cartMap.get(selectedProduct?.id) || 0}
         isDemoMode={isDemoMode}
+        promotions={promotions}
       />
 
       {/* 🏛️ FOOTER */}

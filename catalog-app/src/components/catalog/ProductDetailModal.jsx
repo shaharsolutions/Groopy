@@ -9,6 +9,7 @@ import {
   Star, 
   Flame, 
   Zap,
+  Percent
 } from 'lucide-react';
 import { formatPrice } from '../../utils/formatUtils';
 
@@ -18,7 +19,8 @@ const ProductDetailModal = React.memo(({
   product, 
   addToCart, 
   cartCount,
-  isDemoMode
+  isDemoMode,
+  promotions = []
 }) => {
   const defaultQty = Number(product?.default_quantity || 12);
   const [quantity, setQuantity] = useState(defaultQty);
@@ -121,6 +123,23 @@ const ProductDetailModal = React.memo(({
                     חדש במלאי
                   </div>
                 )}
+                {(() => {
+                  const productPromotion = promotions?.find(p => p.is_active && ((p.product_ids && p.product_ids.includes(product.id)) || p.product_id === product.id));
+                  if (!productPromotion) return null;
+                  
+                  const badgeText = productPromotion.discount_type === 'percentage'
+                    ? `${productPromotion.discount_value}% הנחה`
+                    : productPromotion.discount_type === 'fixed'
+                      ? `₪${productPromotion.discount_value} הנחה`
+                      : 'מבצע';
+                      
+                  return (
+                    <div className="bg-red-500 text-white px-3 py-1.5 rounded-xl text-[10px] md:text-xs font-black flex items-center gap-1.5 shadow-lg shadow-red-200 animate-pulse">
+                      <Percent size={12} />
+                      {badgeText}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

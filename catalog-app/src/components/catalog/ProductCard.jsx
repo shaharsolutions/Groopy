@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Package, Plus, Zap, Star, Flame, Minus } from 'lucide-react';
+import { Package, Plus, Zap, Star, Flame, Minus, Percent } from 'lucide-react';
 import { formatPrice } from '../../utils/formatUtils';
 
-const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuantity, onImageClick, cartCount, isDemoMode }) => {
+const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuantity, onImageClick, cartCount, isDemoMode, promotions = [] }) => {
   return (
     <motion.div
       layout
@@ -50,6 +50,23 @@ const ProductCard = React.memo(({ product, addToCart, removeFromCart, updateQuan
               מבצע חם
             </div>
           )}
+          {(() => {
+            const productPromotion = promotions?.find(p => p.is_active && ((p.product_ids && p.product_ids.includes(product.id)) || p.product_id === product.id));
+            if (!productPromotion) return null;
+            
+            const badgeText = productPromotion.discount_type === 'percentage'
+              ? `${productPromotion.discount_value}% הנחה`
+              : productPromotion.discount_type === 'fixed'
+                ? `₪${productPromotion.discount_value} הנחה`
+                : 'מבצע';
+                
+            return (
+              <div className="bg-red-500 text-white px-2 py-1 rounded-lg text-[10px] font-[900] flex items-center gap-1 shadow-lg shadow-red-200">
+                <Percent size={10} />
+                {badgeText}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

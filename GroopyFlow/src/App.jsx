@@ -5,7 +5,6 @@ import Header from './components/Header';
 import AdminDashboard from './pages/AdminDashboard';
 import ExternalDashboard from './pages/ExternalDashboard';
 import SettingsPage from './pages/SettingsPage';
-import UserGuideModal from './components/UserGuideModal';
 import { getGlobalSettings, saveGlobalSettings } from './utils/storage';
 import './App.css';
 
@@ -23,7 +22,6 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState(null);
   const [currentView, setCurrentView] = useState('dashboard');
-  const [isGuideOpen, setIsGuideOpen] = useState(false);
   
   // Dynamic application settings
   const [settings, setSettings] = useState({
@@ -140,7 +138,6 @@ export default function App() {
         showSwitcher={!isSharedLink} 
         currentView={currentView}
         onViewChange={setCurrentView}
-        onOpenGuide={() => setIsGuideOpen(true)}
       />
       {userRole === 'admin' ? (
         currentView === 'settings' ? (
@@ -154,10 +151,6 @@ export default function App() {
         )
       ) : (
         <ExternalDashboard settings={settings} />
-      )}
-      
-      {isGuideOpen && (
-        <UserGuideModal onClose={() => setIsGuideOpen(false)} />
       )}
     </div>
   );

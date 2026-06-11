@@ -70,9 +70,6 @@ const generateNextJobNumber = (tasks) => {
 
 export const getTasks = async () => {
   try {
-    // Attempt to seed if empty on first loading attempt
-    await seedDatabaseIfEmpty();
-    
     const querySnapshot = await getDocs(collection(db, TASKS_COLLECTION));
     const tasks = [];
     querySnapshot.forEach((doc) => {

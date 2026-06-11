@@ -75,7 +75,7 @@ service cloud.firestore {
       let allowedFields = [
         'title', 'description', 'workType', 'storeName', 'supplierName',
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
-        'driveLink', 'jobNumber', 'createdAt', 'updatedAt'
+        'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments'
       ];
       
       let requiredFields = [
@@ -97,18 +97,21 @@ service cloud.firestore {
              (data.contactPerson is string && data.contactPerson.size() <= 100) &&
              (data.importManager is string && data.importManager.size() <= 100) &&
              isValidDateString(data.deadline) &&
-             isValidUrl(data.driveLink);
+             isValidUrl(data.driveLink) &&
+             (!('attachments' in data) || data.attachments is list);
     }
     
     function isValidComment(data) {
-      let allowedFields = ['jobId', 'authorName', 'text', 'createdAt'];
+      let allowedFields = ['jobId', 'authorName', 'text', 'createdAt', 'attachmentUrl', 'attachmentName'];
       
-      return hasRequiredFields(data, allowedFields) &&
+      return hasRequiredFields(data, ['jobId', 'authorName', 'text', 'createdAt']) &&
              hasOnlyAllowedFields(data, allowedFields) &&
              data.jobId is string && data.jobId.size() > 0 &&
              data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
              data.text is string && data.text.size() >= 1 && data.text.size() <= 5000 &&
-             data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*");
+             data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
+             (!('attachmentUrl' in data) || data.attachmentUrl is string) &&
+             (!('attachmentName' in data) || data.attachmentName is string);
     }
 
     function isValidPrivateNote(data) {

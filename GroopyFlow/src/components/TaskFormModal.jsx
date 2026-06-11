@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPrivateNotes } from '../utils/storage';
+import { getPrivateNotes, uploadFileToStorage } from '../utils/storage';
 
 export default function TaskFormModal({ task, settings, onClose, onSave }) {
   const {
@@ -27,9 +27,16 @@ export default function TaskFormModal({ task, settings, onClose, onSave }) {
   const [driveLink, setDriveLink] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
   
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
+    setUploadError('');
+    setUploading(false);
     if (task) {
       setTitle(task.title || '');
       setDescription(task.description || '');
@@ -42,6 +49,7 @@ export default function TaskFormModal({ task, settings, onClose, onSave }) {
       setPriority(task.priority || PRIORITIES[0] || 'רגילה');
       setDeadline(task.deadline || '');
       setDriveLink(task.driveLink || '');
+      setAttachments(task.attachments || []);
       setInternalNotes('');
       
       const loadPrivateNotes = async () => {
@@ -62,9 +70,58 @@ export default function TaskFormModal({ task, settings, onClose, onSave }) {
       setPriority(PRIORITIES[0] || 'רגילה');
       setDeadline('');
       setDriveLink('');
+      setAttachments([]);
       setInternalNotes('');
     }
   }, [task, settings, DEFAULT_STATUS, PRIORITIES, WORK_TYPES]);
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await handleUploadFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    if (e.target.files && e.target.files[0]) {
+      await handleUploadFiles(e.target.files);
+    }
+  };
+
+  const handleUploadFiles = async (files) => {
+    setUploading(true);
+    setUploadError('');
+    try {
+      const uploadedList = [...attachments];
+      for (let i = 0; i < files.length; i++) {
+        const result = await uploadFileToStorage(files[i], 'tasks');
+        uploadedList.push(result);
+      }
+      setAttachments(uploadedList);
+    } catch (err) {
+      console.error(err);
+      setUploadError('שגיאה בהעלאת הקבצים. אנא ודא ש-Storage פעיל.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteAttachment = (indexToDelete) => {
+    setAttachments(attachments.filter((_, idx) => idx !== indexToDelete));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -92,6 +149,7 @@ export default function TaskFormModal({ task, settings, onClose, onSave }) {
       priority,
       deadline,
       driveLink: driveLink.trim(),
+      attachments,
       internalNotes: internalNotes.trim()
     };
 
@@ -315,6 +373,76 @@ export default function TaskFormModal({ task, settings, onClose, onSave }) {
                 value={driveLink}
                 onChange={(e) => setDriveLink(e.target.value)}
               />
+            </div>
+
+            {/* File Upload / Attachments */}
+            <div className="form-group">
+              <label className="form-label">קבצים מצורפים (תמונות, קובצי PDF או מסמכי עבודה)</label>
+              
+              <div 
+                className={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById('task-file-input').click()}
+              >
+                <div className="file-upload-icon">📁</div>
+                <div className="file-upload-text">
+                  <strong>גררי לכאן קבצים</strong> או לחצי לבחירה מהמחשב
+                </div>
+                <input 
+                  type="file" 
+                  id="task-file-input" 
+                  multiple 
+                  className="file-upload-input" 
+                  onChange={handleFileChange}
+                />
+              </div>
+
+              {uploading && (
+                <div style={{ marginTop: '10px', textAlign: 'center', color: 'var(--primary)' }}>
+                  <span>🔄 מעלה קבצים לענן...</span>
+                </div>
+              )}
+
+              {uploadError && (
+                <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '6px' }}>
+                  {uploadError}
+                </div>
+              )}
+
+              {attachments.length > 0 && (
+                <div className="attachments-list" style={{ marginTop: '12px' }}>
+                  {attachments.map((file, idx) => {
+                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                    return (
+                      <div key={idx} className="attachment-row">
+                        <a 
+                          href={file.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="attachment-info"
+                          title="צפייה בקובץ"
+                        >
+                          <span className="attachment-icon">{isImage ? '🖼️' : '📄'}</span>
+                          <span style={{ direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {file.name}
+                          </span>
+                        </a>
+                        <button 
+                          type="button" 
+                          className="attachment-delete-btn"
+                          onClick={() => handleDeleteAttachment(idx)}
+                          title="הסר קובץ"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Internal Notes */}

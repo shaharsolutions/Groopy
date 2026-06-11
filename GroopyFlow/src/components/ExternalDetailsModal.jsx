@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getCommentsForTask, addComment } from '../utils/storage';
+import { getCommentsForTask, addComment, uploadFileToStorage } from '../utils/storage';
 
 export default function ExternalDetailsModal({ task, settings, onClose }) {
   const {
@@ -11,6 +11,27 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
   });
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
+
+  const [attachedFile, setAttachedFile] = useState(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const handleCommentFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setUploadingFile(true);
+    setUploadError('');
+    try {
+      const result = await uploadFileToStorage(file, 'comments');
+      setAttachedFile(result);
+    } catch (err) {
+      console.error(err);
+      setUploadError('שגיאה בהעלאת הקובץ. אנא ודא ש-Storage פעיל.');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
 
   useEffect(() => {
     if (task) {
@@ -39,9 +60,16 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
       return;
     }
 
-    await addComment(task.id, authorName, commentText);
+    await addComment(
+      task.id, 
+      authorName, 
+      commentText, 
+      attachedFile ? attachedFile.url : null, 
+      attachedFile ? attachedFile.name : null
+    );
     localStorage.setItem('groopy_comment_author', authorName.trim());
     setCommentText('');
+    setAttachedFile(null);
     const fetchedComments = await getCommentsForTask(task.id);
     setComments(fetchedComments); // Reload comments
   };
@@ -143,15 +171,41 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                   </div>
                 ) : (
                   <div className="comments-list">
-                    {comments.map(c => (
-                      <div key={c.id} className="comment-item">
-                        <div className="comment-header">
-                          <span className="comment-author">{c.authorName}</span>
-                          <span>{formatDate(c.createdAt)}</span>
+                    {comments.map(c => {
+                      const isImage = c.attachmentName && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.attachmentName);
+                      return (
+                        <div key={c.id} className="comment-item">
+                          <div className="comment-header">
+                            <span className="comment-author">{c.authorName}</span>
+                            <span>{formatDate(c.createdAt)}</span>
+                          </div>
+                          <div className="comment-text">{c.text}</div>
+                          {c.attachmentUrl && (
+                            <div style={{ marginTop: '8px' }}>
+                              {isImage && (
+                                <a href={c.attachmentUrl} target="_blank" rel="noopener noreferrer">
+                                  <img 
+                                    src={c.attachmentUrl} 
+                                    alt={c.attachmentName} 
+                                    className="comment-image-preview" 
+                                  />
+                                </a>
+                              )}
+                              <div>
+                                <a 
+                                  href={c.attachmentUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="comment-attachment-link"
+                                >
+                                  📎 {c.attachmentName || 'קובץ מצורף'}
+                                </a>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="comment-text">{c.text}</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -183,9 +237,38 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                     />
                   </div>
                   
+                  {/* File Attachment Input */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">צירוף קובץ או תמונה (אופציונלי)</label>
+                    {attachedFile ? (
+                      <div className="comment-attachment-preview-chip">
+                        <span>📎 {attachedFile.name}</span>
+                        <button type="button" onClick={() => setAttachedFile(null)} title="הסר קובץ">&times;</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button 
+                          type="button" 
+                          className="comment-attachment-btn"
+                          onClick={() => document.getElementById('comment-file-input-external').click()}
+                          disabled={uploadingFile}
+                        >
+                          {uploadingFile ? '🔄 מעלה קובץ...' : '📎 בחירת קובץ'}
+                        </button>
+                        <input 
+                          type="file" 
+                          id="comment-file-input-external"
+                          style={{ display: 'none' }}
+                          onChange={handleCommentFileChange}
+                        />
+                        {uploadError && <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>{uploadError}</span>}
+                      </div>
+                    )}
+                  </div>
+                  
                   {commentError && <span className="form-error">{commentError}</span>}
                   
-                  <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                  <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }} disabled={uploadingFile}>
                     הוסף הערה 
                   </button>
                 </form>
@@ -244,6 +327,35 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                   </a>
                 ) : (
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>לא צורף קישור</span>
+                )}
+              </div>
+
+              <div className="sidebar-row">
+                <span className="sidebar-label">קבצים שהועלו</span>
+                {task.attachments && task.attachments.length > 0 ? (
+                  <div className="attachments-list" style={{ marginTop: '4px' }}>
+                    {task.attachments.map((file, idx) => {
+                      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                      return (
+                        <a 
+                          key={idx} 
+                          href={file.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="attachment-info"
+                          style={{ fontSize: '0.8rem', padding: '4px 0' }}
+                          title={file.name}
+                        >
+                          <span className="attachment-icon">{isImage ? '🖼️' : '📄'}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right' }}>
+                            {file.name}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>אין קבצים מצורפים</span>
                 )}
               </div>
 

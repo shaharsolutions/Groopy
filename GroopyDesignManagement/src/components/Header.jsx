@@ -31,25 +31,6 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
       </div>
       
       <div className="header-actions">
-        {userRole === 'admin' && currentView === 'dashboard' && (
-          <button 
-            className="btn btn-secondary" 
-            onClick={handleCopyLink}
-            style={{ 
-              backgroundColor: '#e6f7ed', 
-              color: '#1e4620', 
-              borderColor: '#1e4620',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px'
-            }}
-            title="העתק קישור שיתוף עבור ספקים או לקוחות שצריכים רק לצפות במערכת"
-          >
-            {copied ? '✔️ הועתק בהצלחה!' : '🔗 העתקת קישור לשיתוף'}
-          </button>
-        )}
 
         {userRole === 'admin' && onViewChange && (
           currentView === 'settings' ? (

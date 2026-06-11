@@ -6,7 +6,7 @@
  * Hebrew sample tasks and comments so the app is immediately populated.
  */
 
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import { 
   collection, 
   doc, 
@@ -19,7 +19,22 @@ import {
   query, 
   where 
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { INITIAL_TASKS, INITIAL_COMMENTS } from '../data/mockData';
+
+// Helper to upload files to Firebase Storage
+export const uploadFileToStorage = async (file, folderPath = 'uploads') => {
+  const filename = `${Date.now()}_${file.name}`;
+  const fileRef = ref(storage, `${folderPath}/${filename}`);
+  await uploadBytes(fileRef, file);
+  const downloadUrl = await getDownloadURL(fileRef);
+  return {
+    url: downloadUrl,
+    name: file.name,
+    size: file.size,
+    uploadedAt: new Date().toISOString()
+  };
+};
 
 const TASKS_COLLECTION = 'tasks';
 const COMMENTS_COLLECTION = 'comments';
@@ -98,7 +113,7 @@ export const getCommentsForTask = async (taskId) => {
   }
 };
 
-export const addComment = async (jobId, authorName, text) => {
+export const addComment = async (jobId, authorName, text, attachmentUrl = null, attachmentName = null) => {
   try {
     const now = new Date().toISOString();
     const commentData = {
@@ -107,6 +122,13 @@ export const addComment = async (jobId, authorName, text) => {
       text: text.trim(),
       createdAt: now
     };
+    
+    if (attachmentUrl) {
+      commentData.attachmentUrl = attachmentUrl;
+    }
+    if (attachmentName) {
+      commentData.attachmentName = attachmentName;
+    }
     
     const docRef = await addDoc(collection(db, COMMENTS_COLLECTION), commentData);
     

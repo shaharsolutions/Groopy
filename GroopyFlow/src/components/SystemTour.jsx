@@ -424,7 +424,7 @@ export default function SystemTour({ userRole, currentView, setView }) {
                   className="tour-btn tour-btn-primary" 
                   onClick={handleNext}
                 >
-                  {activeStep === currentSteps.length - 1 ? 'סיום סיור 🎉' : 'הבא ➔'}
+                  {activeStep === currentSteps.length - 1 ? 'סיום סיור 🎉' : 'הבא ⟵'}
                 </button>
               </div>
             </div>

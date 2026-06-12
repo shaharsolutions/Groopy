@@ -160,6 +160,55 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                 )}
               </div>
 
+              {/* Sub-tasks Section (Read-only for External viewers) */}
+              <div className="subtasks-container">
+                <div className="subtasks-header">
+                  <h4>📋 תתי-משימות לעבודה</h4>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                    {task.subtasks && task.subtasks.length > 0 
+                      ? `${task.subtasks.filter(s => s.completed).length} מתוך ${task.subtasks.length} הושלמו`
+                      : 'אין תתי-משימות'
+                    }
+                  </span>
+                </div>
+
+                {task.subtasks && task.subtasks.length > 0 && (
+                  <div className="subtask-progress-bar-container">
+                    <div 
+                      className="subtask-progress-bar" 
+                      style={{ 
+                        width: `${(task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100}%` 
+                      }}
+                    />
+                  </div>
+                )}
+
+                {task.subtasks && task.subtasks.length > 0 ? (
+                  <div className="subtask-list">
+                    {task.subtasks.map((sub) => (
+                      <div key={sub.id} className="subtask-item" style={{ cursor: 'default' }}>
+                        <div className="subtask-main">
+                          <input 
+                            type="checkbox" 
+                            className="subtask-checkbox" 
+                            checked={sub.completed}
+                            disabled
+                            style={{ cursor: 'default' }}
+                          />
+                          <span className={`subtask-text ${sub.completed ? 'completed' : ''}`} title={sub.title}>
+                            {sub.title}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="subtasks-empty-state">
+                    אין תתי-משימות מוגדרות לעבודה זו.
+                  </div>
+                )}
+              </div>
+
               {/* Comments Section */}
               <div className="comments-section">
                 <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>

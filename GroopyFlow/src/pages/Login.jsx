@@ -1,63 +1,44 @@
 import { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
-import { auth } from '../firebase';
 
 /**
  * Login Component - Groopy Work Manager
  * 
- * Authenticates users securely against Firebase Authentication.
- * Passwords are temporarily disabled; logins use a background token.
+ * Authenticates users using a shared password.
+ * Admin password: Kefy0507
  */
 export default function Login({ onLogin }) {
   const [activeTab, setActiveTab] = useState('admin'); // 'admin' or 'external'
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLoginSubmit = async (e) => {
+  const handleLoginSubmit = (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const email = activeTab === 'admin' ? 'admin@groopy.com' : 'viewer@groopy.com';
-    const oldPasscode = activeTab === 'admin' ? 'admin123' : 'briut4all';
-    const noPasswordToken = 'no-password-for-now';
-
-    try {
-      // 1. Try to sign in with the passwordless token
-      await signInWithEmailAndPassword(auth, email, noPasswordToken);
-      onLogin(activeTab);
-    } catch (signInError) {
-      console.log("Passwordless token sign-in failed, trying fallback", signInError);
-      // 2. If it fails, try with the old default passcode (transition/migration)
-      try {
-        await signInWithEmailAndPassword(auth, email, oldPasscode);
-        // Migrate to the new passwordless token in the background
-        if (auth.currentUser) {
-          try {
-            await updatePassword(auth.currentUser, noPasswordToken);
-          } catch (updateErr) {
-            console.warn("Background password migration failed", updateErr);
-          }
+    setTimeout(() => {
+      if (activeTab === 'admin') {
+        if (!password) {
+          setError('אנא הזן סיסמת כניסה.');
+          setLoading(false);
+          return;
         }
-        onLogin(activeTab);
-      } catch (oldSignInError) {
-        console.log("Fallback password sign-in failed, registering new account", oldSignInError);
-        // 3. If that also fails, the account might not exist yet, let's create it
-        try {
-          await createUserWithEmailAndPassword(auth, email, noPasswordToken);
-          onLogin(activeTab);
-        } catch (signUpError) {
-          console.error("Auto registration failed", signUpError);
-          if (signUpError.code === 'auth/operation-not-allowed') {
-            setError('שגיאה: יש להפעיל את Email/Password ב-Firebase Console תחת Authentication -> Sign-in method.');
-          } else {
-            setError(`שגיאה בהתחברות או ברישום: ${signUpError.message} (${signUpError.code})`);
-          }
+        if (password !== 'Kefy0507') {
+          setError('סיסמה שגויה. אנא נסי שנית.');
+          setLoading(false);
+          return;
         }
+        // Correct password
+        localStorage.setItem('groopy_admin_authenticated', 'true');
+        onLogin('admin');
+      } else {
+        // External viewer mode - no password required
+        onLogin('external');
       }
-    } finally {
       setLoading(false);
-    }
+    }, 400); // Small delay for premium feel / visual transition
   };
 
   return (
@@ -76,6 +57,7 @@ export default function Login({ onLogin }) {
             onClick={() => {
               setActiveTab('admin');
               setError('');
+              setPassword('');
             }}
             disabled={loading}
           >
@@ -87,6 +69,7 @@ export default function Login({ onLogin }) {
             onClick={() => {
               setActiveTab('external');
               setError('');
+              setPassword('');
             }}
             disabled={loading}
           >
@@ -95,12 +78,39 @@ export default function Login({ onLogin }) {
         </div>
 
         <form onSubmit={handleLoginSubmit}>
-          <div className="form-group" style={{ textAlign: 'center', margin: '24px 0 32px 0' }}>
-            <p style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>
-              התחברות מיידית במצב: <strong>{activeTab === 'admin' ? 'מנהלת (מעצבת)' : 'שותפים (צפייה חיצונית)'}</strong>
-            </p>
-            {error && <div className="form-error" style={{ marginTop: '12px' }}>{error}</div>}
-          </div>
+          {activeTab === 'admin' ? (
+            <div className="form-group">
+              <label className="form-label" htmlFor="password">סיסמת כניסה</label>
+              <div className="password-wrapper">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-control"
+                  placeholder="הזינו סיסמת מנהלת..."
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  style={{ textAlign: 'right', direction: 'ltr' }}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-text"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                >
+                  {showPassword ? 'הסתר' : 'הצג'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="form-group" style={{ textAlign: 'center', margin: '24px 0 32px 0' }}>
+              <p style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                התחברות מהירה במצב <strong>שותפים ולקוחות</strong> לצורך צפייה בלבד במצב המשימות וניהול שיח בבקרת ייצור.
+              </p>
+            </div>
+          )}
+
+          {error && <div className="form-error" style={{ marginBottom: '16px', textAlign: 'center' }}>⚠️ {error}</div>}
 
           <button 
             type="submit" 
@@ -113,13 +123,16 @@ export default function Login({ onLogin }) {
         </form>
 
         <div style={{ marginTop: '24px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4' }}>
-          <strong>מצב פיתוח/צפייה חופשית:</strong> הסיסמאות בוטלו זמנית.
-          <br />
-          התחברות מהירה בלחיצת כפתור לפי התפקיד המבוקש.
+          {activeTab === 'admin' ? (
+            <span>הגישה למנהלת מוגנת באמצעות סיסמת האבטחה של Groopy.</span>
+          ) : (
+            <span>אין צורך בסיסמה לצורך צפייה חיצונית בלוח המשימות.</span>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 
 

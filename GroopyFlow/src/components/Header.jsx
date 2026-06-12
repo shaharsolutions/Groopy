@@ -5,7 +5,7 @@ import { useState } from 'react';
  * 
  * Top bar with logo, share link generator for admin, and role toggling.
  */
-export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange }) {
+export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -115,6 +115,22 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
               ✏️ מעבר למצב מנהלת
             </button>
           )
+        )}
+
+        {onLogout && (
+          <button 
+            className="btn btn-secondary" 
+            onClick={onLogout}
+            style={{ 
+              backgroundColor: 'var(--priority-urgent-bg)', 
+              color: 'var(--priority-urgent-text)', 
+              borderColor: 'rgba(239, 68, 68, 0.2)',
+              fontWeight: '600'
+            }}
+            title="התנתקות ונעילת המערכת"
+          >
+            🔒 התנתקות
+          </button>
         )}
       </div>
     </header>

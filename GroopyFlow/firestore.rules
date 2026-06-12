@@ -75,7 +75,7 @@ service cloud.firestore {
       let allowedFields = [
         'title', 'description', 'workType', 'storeName', 'supplierName',
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
-        'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments'
+        'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks'
       ];
       
       let requiredFields = [
@@ -98,7 +98,8 @@ service cloud.firestore {
              (data.importManager is string && data.importManager.size() <= 100) &&
              isValidDateString(data.deadline) &&
              isValidUrl(data.driveLink) &&
-             (!('attachments' in data) || data.attachments is list);
+             (!('attachments' in data) || data.attachments is list) &&
+             (!('subtasks' in data) || data.subtasks is list);
     }
     
     function isValidComment(data) {

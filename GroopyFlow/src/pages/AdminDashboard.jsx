@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { getTasks, createTask, updateTask, deleteTask } from '../utils/storage';
-import TaskFormModal from '../components/TaskFormModal';
 import AdminDetailsModal from '../components/AdminDetailsModal';
 import StatusPicker from '../components/StatusPicker';
 
@@ -20,14 +19,19 @@ export default function AdminDashboard({ settings }) {
   const [priorityFilter, setPriorityFilter] = useState('');
 
   // Modals State
-  const [editingTask, setEditingTask] = useState(null); // holds task being edited, or null
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [startInEditMode, setStartInEditMode] = useState(false);
   const [viewingTask, setViewingTask] = useState(null); // holds task being viewed, or null
   const [deletingTaskId, setDeletingTaskId] = useState(null); // holds task id to delete, or null
 
   const loadTasks = async () => {
     const fetchedTasks = await getTasks();
     setTasks(fetchedTasks);
+    setViewingTask(prev => {
+      if (!prev) return null;
+      const updated = fetchedTasks.find(t => t.id === prev.id);
+      return updated || prev;
+    });
   };
 
   // Fetch tasks on mount
@@ -85,22 +89,18 @@ export default function AdminDashboard({ settings }) {
   };
 
   const handleSaveTask = async (taskData) => {
-    if (editingTask) {
-      // Edit mode
-      await updateTask(editingTask.id, taskData);
-      setEditingTask(null);
-    } else {
-      // Create mode
-      await createTask(taskData);
-    }
-    setIsFormOpen(false);
-    await loadTasks();
-    // If viewing the details modal, refresh it
     if (viewingTask) {
+      // Edit mode
+      await updateTask(viewingTask.id, taskData);
       const allTasks = await getTasks();
       const updated = allTasks.find(t => t.id === viewingTask.id);
       setViewingTask(updated || null);
+    } else {
+      // Create mode
+      await createTask(taskData);
+      setIsCreateOpen(false);
     }
+    await loadTasks();
   };
 
   const handleCellClick = (task, e) => {
@@ -190,8 +190,9 @@ export default function AdminDashboard({ settings }) {
         <button 
           className="btn btn-primary"
           onClick={() => {
-            setEditingTask(null);
-            setIsFormOpen(true);
+            setViewingTask(null);
+            setStartInEditMode(false);
+            setIsCreateOpen(true);
           }}
         >
           ➕ עבודה חדשה
@@ -285,8 +286,9 @@ export default function AdminDashboard({ settings }) {
             className="btn btn-primary" 
             style={{ marginTop: '16px' }}
             onClick={() => {
-              setEditingTask(null);
-              setIsFormOpen(true);
+              setViewingTask(null);
+              setStartInEditMode(false);
+              setIsCreateOpen(true);
             }}
           >
             ➕ יצירת העבודה הראשונה
@@ -376,8 +378,8 @@ export default function AdminDashboard({ settings }) {
                           className="btn btn-secondary btn-icon"
                           title="עריכת משימה"
                           onClick={() => {
-                            setEditingTask(task);
-                            setIsFormOpen(true);
+                            setStartInEditMode(true);
+                            setViewingTask(task);
                           }}
                         >
                           ✏️
@@ -462,8 +464,8 @@ export default function AdminDashboard({ settings }) {
                     className="btn btn-secondary" 
                     style={{ padding: '8px' }}
                     onClick={() => {
-                      setEditingTask(task);
-                      setIsFormOpen(true);
+                      setStartInEditMode(true);
+                      setViewingTask(task);
                     }}
                   >
                     ערוך
@@ -482,30 +484,18 @@ export default function AdminDashboard({ settings }) {
         </>
       )}
 
-      {/* Task Form Modal (Create or Edit) */}
-      {isFormOpen && (
-        <TaskFormModal 
-          task={editingTask}
-          settings={settings}
-          onClose={() => {
-            setIsFormOpen(false);
-            setEditingTask(null);
-          }}
-          onSave={handleSaveTask}
-        />
-      )}
-
-      {/* Task Details Modal */}
-      {viewingTask && (
+      {/* Unified Task details/edit/create Modal */}
+      {(viewingTask || isCreateOpen) && (
         <AdminDetailsModal 
           task={viewingTask}
           settings={settings}
-          onClose={() => setViewingTask(null)}
-          onEdit={(t) => {
+          startInEditMode={startInEditMode}
+          onClose={() => {
             setViewingTask(null);
-            setEditingTask(t);
-            setIsFormOpen(true);
+            setIsCreateOpen(false);
+            setStartInEditMode(false);
           }}
+          onSave={handleSaveTask}
           onDelete={(id) => setDeletingTaskId(id)}
           onRefresh={loadTasks}
         />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * SystemTour Component - Guided walkthrough for Groopy Flow
@@ -8,9 +8,12 @@ import React, { useState, useEffect } from 'react';
 export default function SystemTour({ userRole, currentView, setView }) {
   const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [isTourActive, setIsTourActive] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [spotlightStyle, setSpotlightStyle] = useState(null);
   const [tooltipStyle, setTooltipStyle] = useState(null);
+
+  const highlightedElementRef = useRef(null);
 
   // Steps configuration for Administrator Role
   const adminSteps = [
@@ -80,7 +83,49 @@ export default function SystemTour({ userRole, currentView, setView }) {
     }
   ];
 
-  const currentSteps = userRole === 'admin' ? adminSteps : externalSteps;
+  // Steps configuration for Details Modal (Both Admin and External)
+  const modalSteps = [
+    {
+      title: 'סיור בחלון פרטי העבודה 🔎',
+      body: 'ברוכים הבאים לכרטיס המשימה המורחב! כאן מרוכזים כל המידע הטכני, הקבצים המצורפים והשיח סביב עבודת העיצוב.',
+      selector: null
+    },
+    {
+      title: 'מידע מרכזי וקבצי עיצוב 📁',
+      body: 'בחלק המרכזי תוכלו לקרוא את תיאור המשימה המלא, לגשת לקישור תיקיית הדרייב/קבצים של העבודה, ולצפות בקבצים שהועלו (כולל הורדת קבצי עיצוב וצפייה בתמונות).',
+      selector: '.details-main'
+    },
+    {
+      title: 'פרטי סיווג ומטא-דאטה 📋',
+      body: 'בסרגל הצדי מופיעים כל פרטי הסיווג של המשימה: הסטטוס שלה, רמת העדיפות, סוג העבודה (למשל "אריזה" או "לוגו"), החנות המזמינה, שם הספק ואיש הקשר לתיאום.',
+      selector: '.details-sidebar'
+    },
+    {
+      title: 'שיח, הערות ותיקונים 💬',
+      body: 'זהו אזור התקשורת! כאן המעצבת, מנהל היבוא והספק יכולים לנהל שיח ישיר. תוכלו לכתוב תגובה, להעלות קובץ תיקון או צילום מסך, ולשמור על כולם מעודכנים בזמן אמת.',
+      selector: '.comments-section'
+    }
+  ];
+
+  const currentSteps = isModalOpen ? modalSteps : (userRole === 'admin' ? adminSteps : externalSteps);
+
+  const removeHighlight = () => {
+    if (highlightedElementRef.current) {
+      highlightedElementRef.current.classList.remove('tour-highlight-element');
+      highlightedElementRef.current = null;
+    }
+  };
+
+  const applyHighlight = (selector) => {
+    removeHighlight();
+    if (selector) {
+      const el = document.querySelector(selector);
+      if (el) {
+        el.classList.add('tour-highlight-element');
+        highlightedElementRef.current = el;
+      }
+    }
+  };
 
   const updateSpotlightPosition = () => {
     if (!isTourActive) return;
@@ -92,7 +137,8 @@ export default function SystemTour({ userRole, currentView, setView }) {
         position: 'fixed',
         top: '50%',
         left: '50%',
-        transform: 'translate(-50%, -50%)'
+        transform: 'translate(-50%, -50%)',
+        zIndex: 1070
       });
       return;
     }
@@ -102,18 +148,24 @@ export default function SystemTour({ userRole, currentView, setView }) {
       const rect = element.getBoundingClientRect();
       
       // Spotlight settings (adds padding around targeted element)
-      setSpotlightStyle({
-        position: 'fixed',
-        top: rect.top - 8,
-        left: rect.left - 8,
-        width: rect.width + 16,
-        height: rect.height + 16,
-        zIndex: 1005,
-        boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.75)',
-        borderRadius: '12px',
-        pointerEvents: 'none',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-      });
+      if (isModalOpen) {
+        // When modal is open, we do not draw a box shadow backdrop overlay
+        // since the modal overlay already darkens the dashboard background.
+        setSpotlightStyle(null);
+      } else {
+        setSpotlightStyle({
+          position: 'fixed',
+          top: rect.top - 8,
+          left: rect.left - 8,
+          width: rect.width + 16,
+          height: rect.height + 16,
+          zIndex: 1005,
+          boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.75)',
+          borderRadius: '12px',
+          pointerEvents: 'none',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        });
+      }
 
       // Tooltip position algorithm
       const tooltipWidth = 350;
@@ -150,7 +202,8 @@ export default function SystemTour({ userRole, currentView, setView }) {
         position: 'fixed',
         top: top,
         left: left,
-        transform: 'none'
+        transform: 'none',
+        zIndex: 1070
       });
     } else {
       // Target element missing (fallback to center dialog)
@@ -159,7 +212,8 @@ export default function SystemTour({ userRole, currentView, setView }) {
         position: 'fixed',
         top: '50%',
         left: '50%',
-        transform: 'translate(-50%, -50%)'
+        transform: 'translate(-50%, -50%)',
+        zIndex: 1070
       });
     }
   };
@@ -173,6 +227,9 @@ export default function SystemTour({ userRole, currentView, setView }) {
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+        applyHighlight(step.selector);
+      } else {
+        removeHighlight();
       }
 
       // Brief delay to allow scroll to settle before measuring coordinates
@@ -181,8 +238,10 @@ export default function SystemTour({ userRole, currentView, setView }) {
       }, 300);
 
       return () => clearTimeout(timer);
+    } else {
+      removeHighlight();
     }
-  }, [activeStep, isTourActive, userRole]);
+  }, [activeStep, isTourActive, isModalOpen, userRole]);
 
   // Handle window resizing and scroll recalculation
   useEffect(() => {
@@ -199,7 +258,25 @@ export default function SystemTour({ userRole, currentView, setView }) {
         window.removeEventListener('scroll', handleResizeOrScroll);
       };
     }
-  }, [isTourActive, activeStep, userRole]);
+  }, [isTourActive, activeStep, isModalOpen, userRole]);
+
+  // Monitor modal state during the tour to prevent hanging states
+  useEffect(() => {
+    if (isTourActive) {
+      const checkModalState = setInterval(() => {
+        const modalExists = !!document.querySelector('.details-grid');
+        if (isModalOpen && !modalExists) {
+          // Modal tour was running but user closed the modal -> end tour
+          handleEndTour();
+        } else if (!isModalOpen && modalExists) {
+          // Dashboard tour was running but user opened a modal -> end tour to avoid overlay conflicts
+          handleEndTour();
+        }
+      }, 500);
+
+      return () => clearInterval(checkModalState);
+    }
+  }, [isTourActive, isModalOpen]);
 
   // Terminate tour automatically if user navigates to settings view
   useEffect(() => {
@@ -209,8 +286,14 @@ export default function SystemTour({ userRole, currentView, setView }) {
   }, [currentView]);
 
   const handleStartTour = () => {
-    if (currentView !== 'dashboard') {
-      setView('dashboard');
+    const modalExists = !!document.querySelector('.details-grid');
+    if (modalExists) {
+      setIsModalOpen(true);
+    } else {
+      setIsModalOpen(false);
+      if (currentView !== 'dashboard') {
+        setView('dashboard');
+      }
     }
     setShowStartConfirm(false);
     setIsTourActive(true);
@@ -221,6 +304,7 @@ export default function SystemTour({ userRole, currentView, setView }) {
     setIsTourActive(false);
     setSpotlightStyle(null);
     setTooltipStyle(null);
+    removeHighlight();
   };
 
   const handleNext = () => {
@@ -259,7 +343,9 @@ export default function SystemTour({ userRole, currentView, setView }) {
             <span className="tour-modal-icon">🗺️</span>
             <h3 className="tour-modal-title">סיור מודרך במערכת</h3>
             <p className="tour-modal-text">
-              {currentView === 'settings' 
+              {!!document.querySelector('.details-grid') 
+                ? 'האם ברצונך להתחיל בסיור קצר בחלון פרטי המשימה הנוכחי?'
+                : currentView === 'settings' 
                 ? 'שימו לב: הסיור המודרך יחזיר אתכם ללוח המשימות הראשי כדי להציג את פונקציות המערכת. האם ברצונכם להתחיל בסיור?'
                 : 'האם ברצונך להתחיל בסיור מודרך קצר במערכת "תיקתק" כדי להכיר את כל אזורי העבודה ותפקודיהם?'}
             </p>

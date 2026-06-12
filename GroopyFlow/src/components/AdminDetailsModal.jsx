@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getCommentsForTask, addComment, updateTask, getPrivateNotes, uploadFileToStorage } from '../utils/storage';
+import CustomDatePicker from './CustomDatePicker';
 
 export default function AdminDetailsModal({ 
   task, 
@@ -214,11 +215,20 @@ export default function AdminDetailsModal({
     const file = e.target.files[0];
     if (!file) return;
     
+    const MAX_SIZE = 70 * 1024 * 1024; // 70MB limit
+    if (file.size > MAX_SIZE) {
+      setUploadErrorFile('גודל הקובץ עולה על המותר (מקסימום 70MB)');
+      setAttachedFile(null);
+      e.target.value = '';
+      return;
+    }
+
     setUploadingFile(true);
     setUploadErrorFile('');
     try {
       const result = await uploadFileToStorage(file, 'comments');
       setAttachedFile(result);
+      e.target.value = '';
     } catch (err) {
       console.error(err);
       setUploadErrorFile('שגיאה בהעלאת הקובץ. אנא ודא ש-Storage פעיל.');
@@ -238,6 +248,16 @@ export default function AdminDetailsModal({
   const handleUploadFilesDirectly = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+
+    const MAX_SIZE = 70 * 1024 * 1024; // 70MB limit
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size > MAX_SIZE) {
+        setUploadError(`גודל הקובץ "${files[i].name}" עולה על המותר (מקסימום 70MB)`);
+        e.target.value = '';
+        return;
+      }
+    }
+
     setUploading(true);
     setUploadError('');
     try {
@@ -247,6 +267,7 @@ export default function AdminDetailsModal({
         uploadedList.push(result);
       }
       await updateTask(task.id, { attachments: uploadedList });
+      e.target.value = '';
       onRefresh();
     } catch (err) {
       console.error(err);
@@ -281,10 +302,19 @@ export default function AdminDetailsModal({
   const handleFileChangeCreateMode = async (e) => {
     if (e.target.files && e.target.files[0]) {
       await handleUploadFilesCreateMode(e.target.files);
+      e.target.value = '';
     }
   };
 
   const handleUploadFilesCreateMode = async (files) => {
+    const MAX_SIZE = 70 * 1024 * 1024; // 70MB limit
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size > MAX_SIZE) {
+        setUploadError(`גודל הקובץ "${files[i].name}" עולה על המותר (מקסימום 70MB)`);
+        return;
+      }
+    }
+
     setUploading(true);
     setUploadError('');
     try {
@@ -454,7 +484,7 @@ export default function AdminDetailsModal({
         className="modal-content" 
         onClick={(e) => e.stopPropagation()}
         style={{ 
-          maxWidth: isCreateMode ? '820px' : '750px', 
+          maxWidth: isCreateMode ? '820px' : '1000px', 
           transition: 'max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)' 
         }}
       >
@@ -591,11 +621,9 @@ export default function AdminDetailsModal({
                 
                 <div className="form-group">
                   <label className="form-label">תאריך יעד (דדליין)</label>
-                  <input 
-                    type="date"
-                    className="form-control"
+                  <CustomDatePicker
                     value={createDeadline}
-                    onChange={(e) => setCreateDeadline(e.target.value)}
+                    onChange={(val) => setCreateDeadline(val)}
                   />
                 </div>
               </div>
@@ -1205,16 +1233,34 @@ export default function AdminDetailsModal({
                     <span className="sidebar-label">תאריך יעד</span>
                     {activeEditField === 'deadline' ? (
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <input 
-                          type="date" 
-                          className="form-control" 
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                          value={editDeadline} 
-                          onChange={(e) => setEditDeadline(e.target.value)} 
-                          autoFocus
+                        <CustomDatePicker
+                          value={editDeadline}
+                          onChange={(val) => setEditDeadline(val)}
+                          inputStyle={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
                         />
-                        <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('deadline', editDeadline)}>✔️</button>
-                        <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                        <button 
+                          type="button" 
+                          className="btn btn-primary btn-icon" 
+                          style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+                          onClick={() => handleSaveField('deadline', editDeadline)}
+                          title="שמירה"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        </button>
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary btn-icon" 
+                          style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+                          onClick={handleCancelField}
+                          title="ביטול"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
                       </div>
                     ) : (
                       <span 

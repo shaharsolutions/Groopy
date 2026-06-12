@@ -90,7 +90,7 @@ export default function Login({ onLogin }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  style={{ textAlign: 'right', direction: 'ltr' }}
+                  style={{ textAlign: 'right', direction: 'rtl' }}
                 />
                 <button
                   type="button"
@@ -122,13 +122,11 @@ export default function Login({ onLogin }) {
           </button>
         </form>
 
-        <div style={{ marginTop: '24px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4' }}>
-          {activeTab === 'admin' ? (
-            <span>הגישה למנהלת מוגנת באמצעות סיסמת האבטחה של Groopy.</span>
-          ) : (
+        {activeTab !== 'admin' && (
+          <div style={{ marginTop: '24px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4' }}>
             <span>אין צורך בסיסמה לצורך צפייה חיצונית בלוח המשימות.</span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

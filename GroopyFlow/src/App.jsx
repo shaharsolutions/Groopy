@@ -239,7 +239,7 @@ export default function App() {
                       onChange={(e) => setPasswordInput(e.target.value)}
                       autoFocus
                       required
-                      style={{ textAlign: 'right', direction: 'ltr' }}
+                      style={{ textAlign: 'right', direction: 'rtl' }}
                     />
                     <button
                       type="button"

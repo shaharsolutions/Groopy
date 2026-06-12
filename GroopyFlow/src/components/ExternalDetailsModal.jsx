@@ -20,11 +20,20 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
     const file = e.target.files[0];
     if (!file) return;
     
+    const MAX_SIZE = 3 * 1024 * 1024; // 3MB limit
+    if (file.size > MAX_SIZE) {
+      setUploadError('גודל הקובץ עולה על המותר (מקסימום 3MB)');
+      setAttachedFile(null);
+      e.target.value = '';
+      return;
+    }
+
     setUploadingFile(true);
     setUploadError('');
     try {
       const result = await uploadFileToStorage(file, 'comments');
       setAttachedFile(result);
+      e.target.value = '';
     } catch (err) {
       console.error(err);
       setUploadError('שגיאה בהעלאת הקובץ. אנא ודא ש-Storage פעיל.');

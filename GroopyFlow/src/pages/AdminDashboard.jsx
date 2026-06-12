@@ -375,16 +375,6 @@ export default function AdminDashboard({ settings }) {
                           👁️
                         </button>
                         <button 
-                          className="btn btn-secondary btn-icon"
-                          title="עריכת משימה"
-                          onClick={() => {
-                            setStartInEditMode(true);
-                            setViewingTask(task);
-                          }}
-                        >
-                          ✏️
-                        </button>
-                        <button 
                           className="btn btn-danger btn-icon"
                           title="מחיקת משימה"
                           onClick={() => setDeletingTaskId(task.id)}

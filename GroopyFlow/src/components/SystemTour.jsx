@@ -4,15 +4,18 @@ import React, { useState, useEffect, useRef } from 'react';
  * SystemTour Component - Guided walkthrough for Groopy Flow
  * 
  * Provides interactive step-by-step guidance using dynamic spotlight focus.
+ * The tour card appears centered initially, is draggable, and does not move automatically.
  */
 export default function SystemTour({ userRole, currentView, setView }) {
-  const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [isTourActive, setIsTourActive] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [spotlightStyle, setSpotlightStyle] = useState(null);
-  const [tooltipStyle, setTooltipStyle] = useState(null);
-
+  
+  // Draggable card position state
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const draggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
   const highlightedElementRef = useRef(null);
 
   // Steps configuration for Administrator Role
@@ -133,13 +136,6 @@ export default function SystemTour({ userRole, currentView, setView }) {
     
     if (!step || !step.selector) {
       setSpotlightStyle(null);
-      setTooltipStyle({
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 1070
-      });
       return;
     }
 
@@ -149,8 +145,6 @@ export default function SystemTour({ userRole, currentView, setView }) {
       
       // Spotlight settings (adds padding around targeted element)
       if (isModalOpen) {
-        // When modal is open, we do not draw a box shadow backdrop overlay
-        // since the modal overlay already darkens the dashboard background.
         setSpotlightStyle(null);
       } else {
         setSpotlightStyle({
@@ -166,55 +160,8 @@ export default function SystemTour({ userRole, currentView, setView }) {
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         });
       }
-
-      // Tooltip position algorithm
-      const tooltipWidth = 350;
-      const tooltipHeight = 220; // Estimated max height
-      const margin = 16;
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-
-      let top, left;
-
-      // Check if there is enough space below the element
-      if (rect.bottom + tooltipHeight + margin < viewportHeight) {
-        top = rect.bottom + margin;
-        left = rect.left + (rect.width - tooltipWidth) / 2;
-      } 
-      // Check if there is enough space above the element
-      else if (rect.top - tooltipHeight - margin > 0) {
-        top = rect.top - tooltipHeight - margin;
-        left = rect.left + (rect.width - tooltipWidth) / 2;
-      } 
-      // Default to center if it does not fit anywhere
-      else {
-        top = (viewportHeight - tooltipHeight) / 2;
-        left = (viewportWidth - tooltipWidth) / 2;
-      }
-
-      // Constrain within viewport bounds
-      if (left < 16) left = 16;
-      if (left + tooltipWidth > viewportWidth - 16) {
-        left = viewportWidth - tooltipWidth - 16;
-      }
-
-      setTooltipStyle({
-        position: 'fixed',
-        top: top,
-        left: left,
-        transform: 'none',
-        zIndex: 1070
-      });
     } else {
-      // Target element missing (fallback to center dialog)
       setSpotlightStyle(null);
-      setTooltipStyle({
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 1070
-      });
     }
   };
 
@@ -248,6 +195,23 @@ export default function SystemTour({ userRole, currentView, setView }) {
     if (isTourActive) {
       const handleResizeOrScroll = () => {
         updateSpotlightPosition();
+        
+        // Keep the tooltip inside screen bounds on resize
+        setPosition(prev => {
+          const cardWidth = 350;
+          const cardHeight = 240;
+          let newX = prev.x;
+          let newY = prev.y;
+          if (newX + cardWidth > window.innerWidth - 16) {
+            newX = window.innerWidth - cardWidth - 16;
+          }
+          if (newX < 16) newX = 16;
+          if (newY + cardHeight > window.innerHeight - 16) {
+            newY = window.innerHeight - cardHeight - 16;
+          }
+          if (newY < 16) newY = 16;
+          return { x: newX, y: newY };
+        });
       };
 
       window.addEventListener('resize', handleResizeOrScroll);
@@ -287,15 +251,26 @@ export default function SystemTour({ userRole, currentView, setView }) {
 
   const handleStartTour = () => {
     const modalExists = !!document.querySelector('.details-grid');
+    let targetModalOpen = false;
+    
     if (modalExists) {
+      targetModalOpen = true;
       setIsModalOpen(true);
     } else {
       setIsModalOpen(false);
+      targetModalOpen = false;
       if (currentView !== 'dashboard') {
         setView('dashboard');
       }
     }
-    setShowStartConfirm(false);
+
+    // Set initial position centered on the screen
+    const cardWidth = 350;
+    const cardHeight = 240;
+    const x = (window.innerWidth - cardWidth) / 2;
+    const y = (window.innerHeight - cardHeight) / 2;
+    setPosition({ x, y });
+
     setIsTourActive(true);
     setActiveStep(0);
   };
@@ -303,7 +278,6 @@ export default function SystemTour({ userRole, currentView, setView }) {
   const handleEndTour = () => {
     setIsTourActive(false);
     setSpotlightStyle(null);
-    setTooltipStyle(null);
     removeHighlight();
   };
 
@@ -319,6 +293,98 @@ export default function SystemTour({ userRole, currentView, setView }) {
     if (activeStep > 0) {
       setActiveStep(prev => prev - 1);
     }
+  };
+
+  // Dragging event handlers for mouse
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return; // Only drag on left click
+    if (e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('a')) {
+      return; // Do not drag if clicking interactive elements
+    }
+    
+    draggingRef.current = true;
+    dragStartRef.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e) => {
+    if (!draggingRef.current) return;
+    
+    let newX = e.clientX - dragStartRef.current.x;
+    let newY = e.clientY - dragStartRef.current.y;
+    
+    const cardWidth = 350;
+    const cardHeight = 240;
+    
+    // Contain within screen boundaries
+    if (newX < 16) newX = 16;
+    if (newX + cardWidth > window.innerWidth - 16) {
+      newX = window.innerWidth - cardWidth - 16;
+    }
+    if (newY < 16) newY = 16;
+    if (newY + cardHeight > window.innerHeight - 16) {
+      newY = window.innerHeight - cardHeight - 16;
+    }
+    
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handleMouseUp = () => {
+    draggingRef.current = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+
+  // Dragging event handlers for touch devices
+  const handleTouchStart = (e) => {
+    if (e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('a')) {
+      return;
+    }
+    
+    const touch = e.touches[0];
+    draggingRef.current = true;
+    dragStartRef.current = {
+      x: touch.clientX - position.x,
+      y: touch.clientY - position.y
+    };
+    
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!draggingRef.current) return;
+    const touch = e.touches[0];
+    
+    let newX = touch.clientX - dragStartRef.current.x;
+    let newY = touch.clientY - dragStartRef.current.y;
+    
+    const cardWidth = 350;
+    const cardHeight = 240;
+    
+    if (newX < 16) newX = 16;
+    if (newX + cardWidth > window.innerWidth - 16) {
+      newX = window.innerWidth - cardWidth - 16;
+    }
+    if (newY < 16) newY = 16;
+    if (newY + cardHeight > window.innerHeight - 16) {
+      newY = window.innerHeight - cardHeight - 16;
+    }
+    
+    setPosition({ x: newX, y: newY });
+    e.preventDefault(); // Prevent scrolling page while dragging the tour card
+  };
+
+  const handleTouchEnd = () => {
+    draggingRef.current = false;
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
   };
 
   // Calculate percentage of progress for the bar
@@ -345,8 +411,20 @@ export default function SystemTour({ userRole, currentView, setView }) {
           )}
 
           {/* Interactive Step Tooltip */}
-          <div className="tour-tooltip-card" style={tooltipStyle}>
-            <div className="tour-tooltip-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div 
+            className="tour-tooltip-card" 
+            style={{
+              position: 'fixed',
+              top: `${position.y}px`,
+              left: `${position.x}px`,
+              transform: 'none',
+              zIndex: 1070,
+              cursor: 'grab'
+            }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+          >
+            <div className="tour-tooltip-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h4 className="tour-tooltip-title">{currentSteps[activeStep].title}</h4>
                 <span className="tour-tooltip-step-count">
@@ -378,17 +456,17 @@ export default function SystemTour({ userRole, currentView, setView }) {
               </button>
             </div>
 
-            <p className="tour-tooltip-body">{currentSteps[activeStep].body}</p>
+            <p className="tour-tooltip-body" style={{ userSelect: 'none' }}>{currentSteps[activeStep].body}</p>
 
             {/* Visual Progress Bar */}
-            <div className="tour-progress-container">
+            <div className="tour-progress-container" style={{ userSelect: 'none' }}>
               <div 
                 className="tour-progress-bar" 
                 style={{ width: `${progressPercentage}%` }} 
               />
             </div>
 
-            <div className="tour-tooltip-footer">
+            <div className="tour-tooltip-footer" style={{ userSelect: 'none' }}>
               <button 
                 type="button" 
                 className="tour-btn-text" 

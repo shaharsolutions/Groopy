@@ -7,6 +7,7 @@ import ExternalDashboard from './pages/ExternalDashboard';
 import SettingsPage from './pages/SettingsPage';
 import Login from './pages/Login';
 import { getGlobalSettings, saveGlobalSettings } from './utils/storage';
+import SystemTour from './components/SystemTour';
 import './App.css';
 
 /**
@@ -17,7 +18,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('mode');
     if (mode === 'viewer') return 'external';
-    return localStorage.getItem('groopy_test_role') || 'admin';
+    return localStorage.getItem('tiktak_test_role') || 'admin';
   });
   
   const [initializing, setInitializing] = useState(true);
@@ -61,8 +62,8 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     if (isSharedLink) return true;
     
-    const isAdminAuthenticated = localStorage.getItem('groopy_admin_authenticated') === 'true';
-    const savedRole = localStorage.getItem('groopy_test_role') || 'admin';
+    const isAdminAuthenticated = localStorage.getItem('tiktak_admin_authenticated') === 'true';
+    const savedRole = localStorage.getItem('tiktak_test_role') || 'admin';
     
     if (savedRole === 'admin') {
       return isAdminAuthenticated;
@@ -105,7 +106,7 @@ export default function App() {
 
   const handleRoleChange = (newRole) => {
     if (newRole === 'admin') {
-      const isAdminAuthenticated = localStorage.getItem('groopy_admin_authenticated') === 'true';
+      const isAdminAuthenticated = localStorage.getItem('tiktak_admin_authenticated') === 'true';
       if (!isAdminAuthenticated) {
         setModalError('');
         setPasswordInput('');
@@ -118,25 +119,25 @@ export default function App() {
     setUserRole(newRole);
     setCurrentView('dashboard'); // reset view when changing roles
     if (!isSharedLink) {
-      localStorage.setItem('groopy_test_role', newRole);
+      localStorage.setItem('tiktak_test_role', newRole);
     }
   };
 
   const handlePasswordModalSubmit = (e) => {
     e.preventDefault();
     if (passwordInput === 'Kefy0507') {
-      localStorage.setItem('groopy_admin_authenticated', 'true');
-      localStorage.setItem('groopy_test_role', 'admin');
+      localStorage.setItem('tiktak_admin_authenticated', 'true');
+      localStorage.setItem('tiktak_test_role', 'admin');
       setUserRole('admin');
       setCurrentView('dashboard');
       setShowPasswordModal(false);
     } else {
-      setModalError('סיסמה שגויה. אנא נסי שנית.');
+      setModalError('סיסמה שגויה. אנא נסו שנית.');
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('groopy_admin_authenticated');
+    localStorage.removeItem('tiktak_admin_authenticated');
     setIsLoggedIn(false);
   };
 
@@ -216,7 +217,7 @@ export default function App() {
         <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="modal-content" style={{ maxWidth: '400px' }}>
             <div className="modal-header">
-              <h3 className="modal-title">אימות סיסמת מנהלת</h3>
+              <h3 className="modal-title">אימות סיסמת מנהל/ת</h3>
               <button 
                 className="modal-close" 
                 onClick={() => setShowPasswordModal(false)}
@@ -228,7 +229,7 @@ export default function App() {
             <form onSubmit={handlePasswordModalSubmit}>
               <div className="modal-body">
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" htmlFor="modal-password">הזינו סיסמת מנהלת כדי להמשיך:</label>
+                  <label className="form-label" htmlFor="modal-password">הזינו סיסמת מנהל/ת כדי להמשיך:</label>
                   <div className="password-wrapper">
                     <input
                       id="modal-password"
@@ -272,6 +273,11 @@ export default function App() {
           </div>
         </div>
       )}
+      <SystemTour 
+        userRole={userRole} 
+        currentView={currentView} 
+        setView={setCurrentView} 
+      />
     </div>
   );
 }

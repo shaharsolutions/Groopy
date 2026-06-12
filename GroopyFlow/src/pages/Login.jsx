@@ -31,7 +31,7 @@ export default function Login({ onLogin }) {
           return;
         }
         // Correct password
-        localStorage.setItem('groopy_admin_authenticated', 'true');
+        localStorage.setItem('tiktak_admin_authenticated', 'true');
         onLogin('admin');
       } else {
         // External viewer mode - no password required
@@ -45,9 +45,9 @@ export default function Login({ onLogin }) {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <div className="login-logo">G</div>
-          <h2>Groopy Work Manager</h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>מערכת מעקב וניהול משימות עיצוב גרפי</p>
+          <div className="login-logo">ת</div>
+          <h2>תיקתק</h2>
+          <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>מערכת מעקב וניהול משימות</p>
         </div>
 
         <div className="login-tabs">
@@ -61,7 +61,7 @@ export default function Login({ onLogin }) {
             }}
             disabled={loading}
           >
-            כניסת מנהלת
+            כניסת מנהל/ת
           </button>
           <button
             type="button"
@@ -86,7 +86,7 @@ export default function Login({ onLogin }) {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   className="form-control"
-                  placeholder="הזינו סיסמת מנהלת..."
+                  placeholder="הזינו סיסמת מנהל/ת..."
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}

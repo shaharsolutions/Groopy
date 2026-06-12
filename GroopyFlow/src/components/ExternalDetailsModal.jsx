@@ -7,7 +7,7 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
   } = settings || {};
   const [comments, setComments] = useState([]);
   const [authorName, setAuthorName] = useState(() => {
-    return localStorage.getItem('groopy_comment_author') || '';
+    return localStorage.getItem('tiktak_comment_author') || '';
   });
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
@@ -60,10 +60,7 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
     e.preventDefault();
     setCommentError('');
 
-    if (!authorName.trim()) {
-      setCommentError('נא להזין את שמך (או שם חברה / תפקיד)');
-      return;
-    }
+    const finalAuthorName = authorName.trim() || 'משתמש חיצוני';
     if (!commentText.trim()) {
       setCommentError('נא לכתוב את תוכן ההערה');
       return;
@@ -71,12 +68,16 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
 
     await addComment(
       task.id, 
-      authorName, 
+      finalAuthorName, 
       commentText, 
       attachedFile ? attachedFile.url : null, 
       attachedFile ? attachedFile.name : null
     );
-    localStorage.setItem('groopy_comment_author', authorName.trim());
+    if (authorName.trim()) {
+      localStorage.setItem('tiktak_comment_author', authorName.trim());
+    } else {
+      localStorage.removeItem('tiktak_comment_author');
+    }
     setCommentText('');
     setAttachedFile(null);
     const fetchedComments = await getCommentsForTask(task.id);
@@ -147,7 +148,6 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <span className="task-card-number">{task.jobNumber}</span>
             <h3 className="modal-title">{task.title}</h3>
           </div>
           <button className="modal-close" onClick={onClose}>&times;</button>
@@ -272,14 +272,13 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                   <h5 style={{ fontWeight: '600' }}>הוספת הערה / עדכון חדש</h5>
                   
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">השם שלך *</label>
+                    <label className="form-label">השם שלך (אופציונלי)</label>
                     <input 
                       type="text"
                       className="form-control"
                       value={authorName}
                       onChange={(e) => setAuthorName(e.target.value)}
                       placeholder="לדוגמה: יוסי (דפוס בארץ) / Mr. Wong (ספק סין)"
-                      required
                     />
                   </div>
                   

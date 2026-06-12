@@ -28,7 +28,7 @@ export default function AdminDetailsModal({
 
   // View state: comments
   const [comments, setComments] = useState([]);
-  const [authorName, setAuthorName] = useState('מעצבת Groopy');
+  const [authorName, setAuthorName] = useState('מנהל/ת תיקתק');
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
   
@@ -491,7 +491,6 @@ export default function AdminDetailsModal({
         {/* Modal Header */}
         <div className="modal-header">
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {!isCreateMode && <span className="task-card-number">{task.jobNumber}</span>}
             <h3 className="modal-title" style={{ width: '100%' }}>
               {isCreateMode ? (
                 'יצירת עבודה חדשה'

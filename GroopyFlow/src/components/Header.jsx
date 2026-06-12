@@ -23,10 +23,10 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
   return (
     <header className="app-header">
       <div className="header-brand" onClick={() => onViewChange && onViewChange('dashboard')} style={{ cursor: 'pointer' }}>
-        <div className="header-logo">G</div>
+        <div className="header-logo">ת</div>
         <div>
-          <h1 className="header-title">Groopy Work Manager</h1>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ניהול משימות עיצוב גרפי</p>
+          <h1 className="header-title">תיקתק</h1>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>מערכת מעקב וניהול משימות</p>
         </div>
       </div>
       
@@ -94,7 +94,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
         <div className="user-badge">
           <span>👤</span>
           <span>
-            {userRole === 'admin' ? 'סביבת מנהלת (מעצבת)' : 'מצב צפייה ושיתוף'}
+            {userRole === 'admin' ? 'סביבת מנהל/ת מערכת' : 'מצב צפייה ושיתוף'}
           </span>
         </div>
         
@@ -112,7 +112,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
               className="btn btn-primary" 
               onClick={() => onChangeRole('admin')}
             >
-              ✏️ מעבר למצב מנהלת
+              ✏️ מעבר למצב מנהל/ת
             </button>
           )
         )}

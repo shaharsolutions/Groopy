@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>מדריך למשתמשת - Groopy Work Manager</title>
+  <title>תיקתק - מדריך למשתמש</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <!-- Google Fonts for Rubik (matching the main app) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -473,6 +473,77 @@
       background-color: var(--primary-hover);
       transform: translateY(-2px);
     }
+
+    /* Search Guide Styling */
+    .search-guide-container {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    
+    .search-guide-input {
+      width: 100%;
+      padding: 10px 36px 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s ease;
+      background-color: var(--background);
+    }
+    
+    .search-guide-input:focus {
+      border-color: var(--primary);
+      background-color: var(--surface);
+      box-shadow: 0 0 0 3px var(--primary-light);
+    }
+    
+    .search-icon {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      font-size: 0.9rem;
+    }
+
+    .clear-search-btn {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.95rem;
+      display: none;
+      padding: 4px;
+      line-height: 1;
+    }
+
+    .clear-search-btn:hover {
+      color: var(--text);
+    }
+    
+    .search-highlight {
+      background-color: #fef08a;
+      color: #000;
+      padding: 0 2px;
+      border-radius: 2px;
+      font-weight: bold;
+    }
+    
+    .no-results-card {
+      background-color: var(--surface);
+      border-radius: var(--radius-md);
+      padding: 40px 20px;
+      text-align: center;
+      border: 1px dashed var(--border);
+      color: var(--text-muted);
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -482,9 +553,9 @@
     <!-- Top Header -->
     <header class="guide-header">
       <div class="brand-section">
-        <div class="logo-box">G</div>
+        <div class="logo-box">ת</div>
         <div class="header-title">
-          <h1>Groopy Work Manager - מדריך לשימוש</h1>
+          <h1>תיקתק - מדריך למשתמש</h1>
           <p>הסברים פשוטים, תשובות לשאלות וטיפים לניהול המשימות בקלות ✨</p>
         </div>
       </div>
@@ -496,13 +567,25 @@
       
       <!-- Right Sidebar Nav (Desktop Only) -->
       <nav class="sidebar-nav">
+        <!-- Search input -->
+        <div class="search-guide-container">
+          <span class="search-icon">🔍</span>
+          <input 
+            type="text" 
+            id="guideSearch" 
+            class="search-guide-input" 
+            placeholder="חיפוש במדריך..." 
+          />
+          <button id="clearSearchBtn" class="clear-search-btn" title="נקה חיפוש">❌</button>
+        </div>
+        
         <h3>תוכן המדריך</h3>
         <ul>
-          <li><a href="#welcome" class="active">👋 ברוכה הבאה לגרופי!</a></li>
-          <li><a href="#roles">👥 מצבי עבודה (מנהלת וצופה)</a></li>
+          <li><a href="#welcome" class="active">👋 ברוכים הבאים ל-תיקתק!</a></li>
+          <li><a href="#roles">👥 מצבי עבודה (מנהל/ת וצופה)</a></li>
           <li><a href="#daily-use">🛠️ איך משתמשים בלוח?</a></li>
           <li><a href="#task-details">💬 שיחה, תמונות וקבצים</a></li>
-          <li><a href="#faq">❓ שאלות ותשובות (אמא, זה בשבילך!)</a></li>
+          <li><a href="#faq">❓ שאלות ותשובות נפוצות</a></li>
           <li><a href="#tips">💡 טיפים לעבודה קלה</a></li>
         </ul>
       </nav>
@@ -510,11 +593,18 @@
       <!-- Left Main Content Area -->
       <main class="main-content">
         
+        <!-- No Results Card -->
+        <div id="noResultsCard" class="no-results-card">
+          <div style="font-size: 2.5rem; margin-bottom: 12px;">🔍</div>
+          <h3>לא נמצאו תוצאות חיפוש</h3>
+          <p>נסו להקליד מילים אחרות או מונחים שונים (לדוגמה: "ספק", "קבצים", "שיתוף").</p>
+        </div>
+
         <!-- Welcome Section -->
         <section id="welcome" class="section-card">
-          <h2><span>👋</span> ברוכה הבאה ל-Groopy Work Manager!</h2>
+          <h2><span>👋</span> ברוכים הבאים ל-תיקתק!</h2>
           <p>
-            היי אמא! יצרנו את המערכת הזו במיוחד כדי לעשות לך סדר בעבודה היומיומית עם העיצובים הגרפיים, החנויות והספקים (כולל הספקים בסין).
+            ברוכים הבאים ל-תיקתק – מערכת הניהול והמעקב שלכם למשימות. המערכת מרכזת את כל המשימות, העיצובים והתקשורת מול החנויות והספקים שלכם במקום אחד מסודר.
           </p>
           <p>
             במקום לחפש קבצים מפוזרים במיילים, לעקוב אחרי הערות ותיקונים בוואטסאפ או לשכוח מה כבר נשלח לייצור ומה עדיין מחכה לאישור - המערכת הזו מרכזת הכל בלוח אחד נקי ומאורגן.
@@ -522,14 +612,14 @@
           <div class="alert-box info">
             <span class="alert-icon">💡</span>
             <div>
-              <strong>איך המערכת עוזרת לך?</strong> כל משימת עיצוב מקבלת "כרטיס" משלה. בכרטיס הזה כתובים כל הפרטים, שם נמצאים הקבצים הגרפיים, ושם את והספקים יכולים להתכתב ולהשאיר הערות אחד לשני.
+              <strong>כיצד המערכת מסייעת?</strong> כל משימת עיצוב מקבלת "כרטיס" משלה. בכרטיס זה מרוכזים כל הפרטים, הקישורים והקבצים הגרפיים, ודרכו ניתן לנהל שיח ישיר והערות מול הספקים והמעצבים.
             </div>
           </div>
         </section>
 
         <!-- Roles Section -->
         <section id="roles" class="section-card">
-          <h2><span>👥</span> מצבי עבודה: מנהלת מול צופה חיצוני</h2>
+          <h2><span>👥</span> מצבי עבודה: מנהל/ת מערכת מול צופה חיצוני</h2>
           <p>
             כדי לשמור על בטיחות המידע ולמנוע טעויות, המערכת מפוצלת לשני סוגי שימוש:
           </p>
@@ -537,20 +627,20 @@
           <div class="role-showcase">
             <!-- Admin Role -->
             <div class="role-card admin-theme">
-              <span class="role-badge">סביבת מנהלת (התפקיד שלך)</span>
-              <p>זהו המצב שבו את נמצאת כברירת מחדל. יש לך הרשאות מלאות:</p>
+              <span class="role-badge">סביבת מנהל/ת מערכת</span>
+              <p>זהו המצב הראשי המקנה הרשאות ניהול מלאות במערכת:</p>
               <ul class="styled-list">
                 <li>ליצור משימות עיצוב חדשות ולמחוק משימות ישנות.</li>
                 <li>לשנות ולערוך את כל פרטי המשימה.</li>
                 <li>להיכנס למסך ההגדרות ולהוסיף חנויות, ספקים ואנשי קשר חדשים.</li>
-                <li>להעתיק קישור שיתוף בטוח עבור השותפים שלך.</li>
+                <li>להעתיק קישור שיתוף בטוח עבור השותפים שלכם.</li>
               </ul>
             </div>
             
             <!-- External Role -->
             <div class="role-card viewer-theme">
               <span class="role-badge">מצב צפייה ושיתוף (עבור ספקים ולקוחות)</span>
-              <p>זה המצב שהספקים בסין או מנהלי החנויות רואים כשהם נכנסים לקישור שתשלחי להם:</p>
+              <p>זהו המצב שהשותפים, הספקים או החנויות רואים בעת כניסה דרך קישור השיתוף המהיר:</p>
               <ul class="styled-list">
                 <li>הם יכולים לראות את רשימת המשימות ולסנן לפי סטטוס.</li>
                 <li>הם יכולים ללחוץ על משימה כדי לראות את הפרטים והתיאור שלה.</li>
@@ -574,7 +664,7 @@
             <div class="step-content">
               <h4>יצירת עבודה חדשה במערכת</h4>
               <p>
-                לחצי על הכפתור הכחול <strong>"➕ עבודה חדשה"</strong> בראש המסך. ייפתח לך טופס שבו תמלאי את פרטי המשימה: שם העבודה, מספר העבודה (למשל GP-101), החנות שעבורה העיצוב מיועד, הספק שאמור לייצר את זה, תאריך יעד ועדיפות.
+                לחיצה על הכפתור הכחול <strong>"➕ עבודה חדשה"</strong> בראש המסך תפתח טופס שבו ניתן למלא את פרטי העבודה: שם העבודה, החנות שעבורה העיצוב מיועד, הספק שאמור לייצר אותה, תאריך יעד ועדיפות.
               </p>
             </div>
           </div>
@@ -585,7 +675,7 @@
             <div class="step-content">
               <h4>עדכון סטטוס ועדיפות מהיר</h4>
               <p>
-                בטבלה הראשית, ליד כל משימה מופיע הסטטוס שלה (למשל "חדש", "בטיפול", "ממתין לספק בסין") והעדיפות שלה. את יכולה ללחוץ ישירות על תיבת הסטטוס או העדיפות בתוך השורה בטבלה ולשנות אותם במהירות, ללא צורך לפתוח את כל כרטיס המשימה.
+                בטבלה הראשית, ליד כל משימה מופיע הסטטוס שלה (למשל "חדש", "בטיפול", "ממתין לספק בסין") והעדיפות שלה. ניתן ללחוץ ישירות על תיבת הסטטוס או העדיפות בתוך השורה בטבלה ולשנות אותם במהירות, ללא צורך בפתיחת כרטיס המשימה המלא.
               </p>
             </div>
           </div>
@@ -596,7 +686,7 @@
             <div class="step-content">
               <h4>חיפוש וסינון משימות</h4>
               <p>
-                יש לך משימות רבות בלוח? את יכולה להשתמש בשורת החיפוש החופשי כדי להקליד חלק משם המשימה, מספר המשימה, או שם החנות/הספק. בנוסף, לחיצה על כפתורי הסטטוסים הצבעוניים בראש הלוח (הצ'יפסים) תציג לך רק את המשימות שנמצאות בסטטוס שבחרת (למשל, לראות רק את המשימות ש"נשלחו לייצור").
+                ניתן להשתמש בשורת החיפוש החופשי כדי להקליד מילת מפתח (כמו שם המשימה, שם החנות או הספק) כדי לאתר אותה במהירות. בנוסף, לחיצה על כפתורי הסטטוסים הצבעוניים בראש הלוח (הצ'יפסים) תציג רק את המשימות שנמצאות בסטטוס שנבחר (למשל, לראות רק את המשימות ש"נשלחו לייצור").
               </p>
             </div>
           </div>
@@ -606,90 +696,90 @@
         <section id="task-details" class="section-card">
           <h2><span>💬</span> שיחה, החלפת קבצים והערות בתוך משימה</h2>
           <p>
-            כשאת לוחצת על שורה של משימה כלשהי בטבלה (או לוחצת על כפתור העין 👁️), נפתח חלון מפורט. זהו "לב המשימה". בחלון זה תמצאי:
+            לחיצה על שורת משימה כלשהי בטבלה (או על כפתור העין 👁️) תפתח חלון מפורט המרכז את כל פרטי המשימה:
           </p>
           <ul class="styled-list">
-            <li><strong>תיאור מפורט:</strong> כל הדגשים והבקשות שלך מעצב או לספק.</li>
-            <li><strong>קישורים שימושיים:</strong> מקום להדביק קישור לתיקיית גוגל דרייב, Canva, או כל אתר חיצוני אחר.</li>
+            <li><strong>תיאור מפורט:</strong> דגשים, הנחיות ובקשות למעצב או לספק.</li>
+            <li><strong>קישורים שימושיים:</strong> מקום להדבקת קישור לתיקיית גוגל דרייב, Canva או כל אתר חיצוני רלוונטי.</li>
             <li><strong>קבצים מצורפים:</strong> תמונות של העיצובים או קובצי PDF להורדה.</li>
-            <li><strong>אזור שיחה (תגובות):</strong> למטה תראי היסטוריית תגובות. את יכולה לכתוב הערה (למשל: "הלוגו צריך להיות גדול יותר ב-2 ס"מ") והספק יכול לענות לך שם ולצרף קובץ מתוקן.</li>
+            <li><strong>אזור שיחה (תגובות):</strong> בחלק התחתון מוצגת היסטוריית התגובות. ניתן לכתוב הערה או שאלה, והשותפים/הספקים יכולים להשיב ולצרף קבצים בהתאם.</li>
           </ul>
           <div class="alert-box">
             <span class="alert-icon">⚠️</span>
             <div>
-              <strong>איך מעלים קובץ?</strong> באזור התגובות או בעריכת המשימה, יש אפשרות להעלות קובץ או תמונה ישירות מהמחשב או הטלפון. הקבצים נשמרים בענן בבטחה וזמינים להורדה לכולם.
+              <strong>איך מעלים קובץ?</strong> באזור התגובות או בעריכת המשימה, ניתן להעלות קובץ או תמונה ישירות מהמחשב או מהטלפון הנייד. הקבצים נשמרים בענן בבטחה וזמינים להורדה לכולם.
             </div>
           </div>
         </section>
 
         <!-- FAQ Section -->
         <section id="faq" class="section-card">
-          <h2><span>❓</span> שאלות ותשובות (במיוחד בשבילך, אמא!)</h2>
+          <h2><span>❓</span> שאלות ותשובות נפוצות</h2>
           <p>
-            ריכזנו כאן שאלות שיכולות לעלות במהלך העבודה במערכת:
+            ריכזנו כאן שאלות ותשובות שיכולות לעלות במהלך העבודה במערכת:
           </p>
 
           <div class="faq-container">
             
             <details>
-              <summary>איך אני שולחת את הלוח לספק בסין או למנהל חנות?</summary>
+              <summary>כיצד משתפים את הלוח עם ספקים או מנהלי חנויות?</summary>
               <div class="faq-content">
-                <p>הכנו לך כפתור ייעודי לזה! בראש המסך מופיע כפתור ירוק בהיר בשם <strong>"🔗 העתקת קישור לשיתוף"</strong>.</p>
-                <p>לחיצה אחת עליו תעתיק לזיכרון של המחשב שלך קישור מיוחד. עכשיו את יכולה פשוט להיכנס לוואטסאפ או לאימייל, ללחוץ מקש ימני ועכבר ואז "הדבק" (Paste) ולשלוח להם. הקישור הזה יכניס אותם אוטומטית למצב צפייה בטוח.</p>
+                <p>בראש המסך מופיע כפתור ייעודי בשם <strong>"🔗 העתקת קישור לשיתוף"</strong>.</p>
+                <p>לחיצה עליו תעתיק ללוח הגזירים (Clipboard) קישור שיתוף ייחודי. תוכלו להדביק אותו (Paste) ולשלוח אותו בוואטסאפ או במייל. הקישור יפתח את המערכת במצב צפייה בטוח ומותאם.</p>
               </div>
             </details>
 
             <details>
-              <summary>האם הספק בסין יכול למחוק לי משימות או לקלקל הגדרות?</summary>
+              <summary>האם משתמש חיצוני יכול למחוק משימות או לשנות הגדרות?</summary>
               <div class="faq-content">
-                <p><strong>ממש לא!</strong> הקישור המשותף שאת שולחת פותח להם את המערכת במצב "צפייה בלבד". הם לא יראו את כפתור יצירת המשימה החדשה, לא יוכלו למחוק שום דבר, ולא תהיה להם גישה למסך ההגדרות שלך.</p>
+                <p><strong>ממש לא.</strong> קישור השיתוף פותח את המערכת במצב צפייה והערות בלבד. המשתמשים החיצוניים אינם יכולים למחוק משימות, ליצור משימות חדשות או לגשת למסך הגדרות המערכת.</p>
                 <p>הדבר היחיד שהם יכולים לעשות זה לראות את המשימות שמשויכות אליהם, להגיב עליהן, להעלות קבצים ולעדכן את הסטטוס כשהם סיימו לעבוד.</p>
               </div>
             </details>
 
             <details>
-              <summary>איך אני יודעת מה המשימות הכי דחופות כרגע?</summary>
+              <summary>כיצד מזהים משימות דחופות?</summary>
               <div class="faq-content">
-                <p>יש שני סימונים מרכזיים שיעזרו לך לשים לב לדברים הדחופים:</p>
+                <p>קיימים שני מנגנונים מרכזיים לזיהוי מהיר של משימות בעלות קדימות גבוהה:</p>
                 <ul class="styled-list" style="margin-top: 10px;">
-                  <li><strong>עדיפות דחופה:</strong> משימות שמוגדרות בעדיפות "דחופה" יופיעו עם תג אדום בולט שיש לו אנימציה מהבהבת קלות כדי למשוך את העין.</li>
-                  <li><strong>תאריכי יעד (דדליין):</strong> אם תאריך היעד של המשימה עבר, תראי כיתוב אדום עם ⚠️ "עבר". אם תאריך היעד הוא היום, תראי ⏰ "היום!". ואם נשארו 3 ימים או פחות, תראי סימון כתום של שעון חול ⏳.</li>
+                  <li><strong>עדיפות דחופה:</strong> משימות בעדיפות "דחופה" יסומנו בתג אדום מהבהב קלות למשיכת תשומת הלב.</li>
+                  <li><strong>תאריכי יעד (דדליין):</strong> אם תאריך היעד חלף, יוצג חיווי אדום "⚠️ עבר". אם תאריך היעד הוא היום, יוצג חיווי "⏰ היום!", ובטווח של 3 ימים ומטה יוצג שעון חול כתום ⏳.</li>
                 </ul>
               </div>
             </details>
 
             <details>
-              <summary>הספק סיים את העבודה והעלה קובץ סופי. מה לעשות עכשיו?</summary>
+              <summary>מה עושים לאחר שהעבודה הסתיימה או שהספק העלה קובץ סופי?</summary>
               <div class="faq-content">
-                <p>כאשר ספק מעלה קובץ ומעדכן, מומלץ לעבור על הקובץ (תוכלי להוריד אותו ישירות מהתגובות של המשימה).</p>
-                <p>אם הכל תקין, שנה את הסטטוס של המשימה ל-<strong>"מאושר"</strong> או <strong>"נשלח לייצור"</strong>.</p>
-                <p>כשהמוצר מגיע פיזית והעבודה סגורה לחלוטין, שנו את הסטטוס ל-<strong>"הושלם"</strong>. זה ישמור על הלוח שלך נקי וממוקד בעבודות שעוד דורשות טיפול.</p>
+                <p>מומלץ לעבור על הקובץ שהועלה (ניתן להורידו ישירות מאזור התגובות במשימה).</p>
+                <p>אם העיצוב תקין ומאושר, יש לעדכן את הסטטוס ל-<strong>"מאושר"</strong> או <strong>"נשלח לייצור"</strong>.</p>
+                <p>כשהמוצרים מגיעים פיזית והמשימה נסגרת סופית, מעדכנים לסטטוס ל-<strong>"הושלם"</strong> כדי לשמור על לוח עבודה ממוקד ונקי.</p>
               </div>
             </details>
 
             <details>
-              <summary>איך אני מוסיפה ספק חדש לרשימה, או משנה שמות של חנויות?</summary>
+              <summary>כיצד מנהלים את רשימת החנויות, הספקים ואנשי הקשר?</summary>
               <div class="faq-content">
-                <p>בפינה השמאלית העליונה של המסך (ליד השם שלך) יש כפתור עם גלגל שיניים <strong>"⚙️ הגדרות"</strong>.</p>
-                <p>לחיצה עליו תפתח לך מסך ניהול שבו תוכלי לראות את כל הרשימות של המערכת (סוגי עבודה, סטטוסים, מנהלי יבוא, חנויות, ספקים ואפילו אנשי קשר בסין עם הטלפונים והמיילים שלהם).</p>
-                <p>תוכלי להוסיף שם פריטים חדשים, לערוך קיימים או למחוק. אל תשכחי ללחוץ על הכפתור הכחול <strong>"שמירת הגדרות"</strong> בתחתית המסך כשתסיימי!</p>
+                <p>בפינה השמאלית העליונה של המסך (למנהלי מערכת) מופיע כפתור גלגל השיניים <strong>"⚙️ הגדרות"</strong>.</p>
+                <p>לחיצה עליו תפתח את מסך ניהול הגדרות המערכת (סוגי עבודה, סטטוסים, מנהלי יבוא, חנויות, ספקים ואנשי קשר).</p>
+                <p>שם ניתן להוסיף, לערוך או למחוק פריטים. לסיום, יש ללחוץ על <strong>"שמירת הגדרות"</strong> בתחתית העמוד.</p>
               </div>
             </details>
 
             <details>
-              <summary>המערכת מרגישה לי קצת איטית או שנדמה לי שחסר מידע, מה עושים?</summary>
+              <summary>מה לעשות במקרה של השתהות בטעינת המידע?</summary>
               <div class="faq-content">
                 <p>המערכת מתעדכנת אוטומטית מול הענן של גוגל (Firebase). עם זאת, אם השארת את הטאב פתוח הרבה זמן או שיש בעיית אינטרנט זמנית:</p>
-                <p>פשוט תרענני את הדף בדפדפן (לחיצה על סמל החץ המעוגל 🔄 בראש הדפדפן, או לחיצה על המקלדת Ctrl + R או Cmd + R במקבוק).</p>
-                <p>בנוסף, לחיצה על הלוגו <strong>G</strong> או על השם <strong>Groopy Work Manager</strong> בצד ימין למעלה תמיד תחזיר אותך ללוח הראשי ותטען את המידע מחדש.</p>
+                <p>מומלץ לרענן את העמוד בדפדפן (🔄 או Ctrl+R / Cmd+R במקבוק).</p>
+                <p>בנוסף, לחיצה על לוגו המערכת <strong>ת</strong> או על <strong>תיקתק</strong> תחזיר אתכם ללוח המרכזי ותטען מחדש את הנתונים העדכניים.</p>
               </div>
             </details>
 
             <details>
-              <summary>למה יש כפתור "מעבר למצב צפייה" בראש המסך שלי?</summary>
+              <summary>למה משמש כפתור "מעבר למצב צפייה"?</summary>
               <div class="faq-content">
-                <p>הכפתור הזה מיועד בשבילך כדי שתוכלי "לבדוק" איך המערכת נראית מהצד של הספק בסין או מנהל החנות לפני שאת שולחת להם קישור.</p>
-                <p>לחיצה עליו תעביר אותך זמנית למצב צפייה. אל תדאגי, את תמיד יכולה ללחוץ על הכפתור הכתום <strong>"✏️ מעבר למצב מנהלת"</strong> שיופיע שם כדי לחזור מייד לניהול המלא שלך.</p>
+                <p>כפתור זה מאפשר למנהלי המערכת לדמות ולראות כיצד המערכת נראית עבור שותפים וספקים חיצוניים המשתמשים בקישור השיתוף.</p>
+                <p>לחיצה עליו תעביר אתכם זמנית למצב תצוגה חיצונית. כדי לחזור לניהול המלא, לחצו על הכפתור הכתום <strong>"✏️ מעבר למצב מנהלת"</strong> שיופיע בראש המסך.</p>
               </div>
             </details>
 
@@ -699,12 +789,12 @@
         <!-- Tips Section -->
         <section id="tips" class="section-card">
           <h2><span>💡</span> טיפים קטנים לעבודה קלה ויעילה</h2>
-          <p>הנה כמה הרגלים טובים שיהפכו את העבודה שלך להרבה יותר פשוטה:</p>
+          <p>להלן מספר הרגלים שימושיים לייעול העבודה היומיומית:</p>
           <ul class="styled-list">
-            <li><strong>שמרי במועדפים:</strong> תוסיפי את המערכת לסימניות בדפדפן (לחיצה על הכוכב ⭐ בשורת הכתובת למעלה), כך תוכלי להיכנס אליה בלחיצה אחת בכל בוקר.</li>
-            <li><strong>השתמשי במספרי עבודה עקביים:</strong> כשאת יוצרת עבודה חדשה, תני לה מספר סידורי רץ (למשל: GP-001, GP-002). זה יקל עלייך ועל הספק למצוא את המשימה מייד בשורת החיפוש.</li>
-            <li><strong>נקי מסננים:</strong> אם פתאום את לא רואה משימה שאת בטוחה שקיימת, שימי לב אם לחוץ לך צ'יפס סטטוס מסוים למעלה או שיש טקסט שנשאר בשורת החיפוש. לחיצה על <strong>"❌ נקה מסננים"</strong> תציג לך שוב את כל הרשימה.</li>
-            <li><strong>קישורים חיצוניים:</strong> אם יש לכם תיקיות גדולות בגוגל דרייב של צילומים או קטלוגים, הדביקי את הקישור שלהם בשדה הקישור של המשימה. כך אף אחד לא יצטרך לשאול "איפה התיקייה של הפרויקט?".</li>
+            <li><strong>שמירה במועדפים:</strong> מומלץ להוסיף את המערכת לסימניות בדפדפן (סימון הכוכב ⭐ בשורת הכתובת), לגישה מהירה בלחיצה אחת בכל יום.</li>
+            <li><strong>שמות משימות ברורים:</strong> כדאי להעניק למשימות שמות ברורים ומזהים (למשל: 'עיצוב מדבקה כוס תרמית - ירוק') המקלים על החיפוש והאיתור המהיר.</li>
+            <li><strong>איפוס מסננים:</strong> אם משימה מסוימת אינה מופיעה בלוח, בדקו אם מופעל סינון לפי סטטוס מסוים או אם נותר טקסט בשדה החיפוש. לחיצה על <strong>"❌ נקה מסננים"</strong> תציג שוב את רשימת המשימות המלאה.</li>
+            <li><strong>קישורים חיצוניים:</strong> מומלץ לצרף קישורים רלוונטיים (לגוגל דרייב, Canva וכד') ישירות לשדה הקישור בכרטיס המשימה כדי לרכז את כל המידע והקבצים הנדרשים לפרויקט במקום אחד.</li>
           </ul>
         </section>
 
@@ -714,7 +804,7 @@
 
     <!-- Footer -->
     <footer class="guide-footer">
-      <p>נבנה ועוצב במיוחד עבורך, אמא, כדי להפוך את ניהול העבודות לחוויה פשוטה ומהנה!</p>
+      <p>נבנה ועוצב כדי להפוך את ניהול העבודות והעיצובים לחוויה פשוטה, מאורגנת ומהנה!</p>
       <p style="margin-top: 8px; font-weight: bold; color: var(--text);">מיוצר באהבה על ידי שחר <span class="heart-icon">❤️</span></p>
     </footer>
 
@@ -724,6 +814,135 @@
   <button id="btnBackToTop" class="back-to-top" title="למעלה">↑</button>
 
   <script>
+    // Search Guide Logic
+    const guideSearch = document.getElementById('guideSearch');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const noResultsCard = document.getElementById('noResultsCard');
+    const searchSections = document.querySelectorAll('.main-content > section');
+    const sidebarLinks = document.querySelectorAll('.sidebar-nav ul li');
+
+    // Store original HTML of sections to easily reset highlights
+    const originalHTMLMap = new Map();
+    searchSections.forEach(section => {
+      originalHTMLMap.set(section.id, section.innerHTML);
+    });
+
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    guideSearch.addEventListener('input', () => {
+      const query = guideSearch.value.trim().toLowerCase();
+      
+      if (query) {
+        clearSearchBtn.style.display = 'block';
+      } else {
+        clearSearchBtn.style.display = 'none';
+      }
+
+      let visibleSectionsCount = 0;
+
+      searchSections.forEach(section => {
+        const originalHTML = originalHTMLMap.get(section.id);
+        const textContent = section.textContent.toLowerCase();
+        
+        if (!query) {
+          section.innerHTML = originalHTML;
+          section.style.display = 'block';
+          visibleSectionsCount++;
+          
+          const details = section.querySelectorAll('details');
+          details.forEach(d => d.removeAttribute('open'));
+          return;
+        }
+
+        const isMatch = textContent.includes(query);
+
+        if (isMatch) {
+          section.style.display = 'block';
+          visibleSectionsCount++;
+
+          // Open matching details in FAQ
+          const detailsElements = section.querySelectorAll('details');
+          detailsElements.forEach(detail => {
+            const detailText = detail.textContent.toLowerCase();
+            if (detailText.includes(query)) {
+              detail.setAttribute('open', '');
+            } else {
+              detail.removeAttribute('open');
+            }
+          });
+
+          // Highlight text in section
+          highlightTextInNode(section, query);
+        } else {
+          section.style.display = 'none';
+        }
+      });
+
+      // Update sidebar links
+      sidebarLinks.forEach(li => {
+        const link = li.querySelector('a');
+        if (!link) return;
+        const targetId = link.getAttribute('href').substring(1);
+        const targetSection = document.getElementById(targetId);
+        
+        if (!query) {
+          li.style.display = 'block';
+          link.style.opacity = '1';
+        } else {
+          if (targetSection && targetSection.style.display === 'block') {
+            li.style.display = 'block';
+            link.style.opacity = '1';
+          } else {
+            li.style.display = 'none';
+          }
+        }
+      });
+
+      if (query && visibleSectionsCount === 0) {
+        noResultsCard.style.display = 'block';
+      } else {
+        noResultsCard.style.display = 'none';
+      }
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+      guideSearch.value = '';
+      guideSearch.dispatchEvent(new Event('input'));
+      guideSearch.focus();
+    });
+
+    function highlightTextInNode(rootNode, query) {
+      const originalHTML = originalHTMLMap.get(rootNode.id);
+      rootNode.innerHTML = originalHTML;
+      
+      const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+      const walk = document.createTreeWalker(rootNode, NodeFilter.SHOW_TEXT, null, false);
+      const textNodes = [];
+      let currentNode;
+      
+      while (currentNode = walk.nextNode()) {
+        const parentTag = currentNode.parentNode.tagName.toLowerCase();
+        if (parentTag !== 'script' && parentTag !== 'style') {
+          textNodes.push(currentNode);
+        }
+      }
+      
+      textNodes.forEach(node => {
+        const text = node.nodeValue;
+        if (regex.test(text)) {
+          const span = document.createElement('span');
+          span.innerHTML = text.replace(regex, '<span class="search-highlight">$1</span>');
+          const parent = node.parentNode;
+          while (span.firstChild) {
+            parent.insertBefore(span.firstChild, node);
+          }
+          parent.removeChild(node);
+        }
+      });
+    }
+
     // Highlight active link in sidebar navigation during scroll
     const sections = document.querySelectorAll('section');
     const navLinks = document.querySelectorAll('.sidebar-nav a');

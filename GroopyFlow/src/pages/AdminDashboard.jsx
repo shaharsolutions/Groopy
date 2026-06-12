@@ -43,12 +43,11 @@ export default function AdminDashboard({ settings }) {
   useEffect(() => {
     let result = [...tasks];
 
-    // Search query filter ( jobNumber, title, storeName, supplierName )
+    // Search query filter ( title, storeName, supplierName )
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(t => 
         (t.title && t.title.toLowerCase().includes(q)) ||
-        (t.jobNumber && t.jobNumber.toLowerCase().includes(q)) ||
         (t.storeName && t.storeName.toLowerCase().includes(q)) ||
         (t.supplierName && t.supplierName.toLowerCase().includes(q))
       );
@@ -188,7 +187,7 @@ export default function AdminDashboard({ settings }) {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>מעקב, עריכה ויצירת משימות גרפיקה במערכת</p>
         </div>
         <button 
-          className="btn btn-primary"
+          className="btn btn-primary tour-step-create-btn"
           onClick={() => {
             setViewingTask(null);
             setStartInEditMode(false);
@@ -232,7 +231,7 @@ export default function AdminDashboard({ settings }) {
             <input 
               type="text" 
               className="form-control" 
-              placeholder="חיפוש לפי כותרת, מספר עבודה, חנות או ספק..."
+              placeholder="חיפוש לפי כותרת, חנות או ספק..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -318,7 +317,6 @@ export default function AdminDashboard({ settings }) {
             <table className="task-table">
               <thead>
                 <tr>
-                  <th>מס׳ עבודה</th>
                   <th>כותרת העבודה</th>
                   <th>חנות</th>
                   <th>ספק בסין/ארץ</th>
@@ -332,7 +330,6 @@ export default function AdminDashboard({ settings }) {
               <tbody>
                 {filteredTasks.map(task => (
                   <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                    <td style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{task.jobNumber}</td>
                     <td style={{ fontWeight: '600' }}>{task.title}</td>
                     <td>{task.storeName || '-'}</td>
                     <td>{task.supplierName || '-'}</td>
@@ -395,7 +392,6 @@ export default function AdminDashboard({ settings }) {
               <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
                 <div className="task-card-header">
                   <div>
-                    <span className="task-card-number">{task.jobNumber}</span>
                     <h4 className="task-card-title">{task.title}</h4>
                   </div>
                   <StatusPicker

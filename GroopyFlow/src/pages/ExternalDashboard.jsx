@@ -30,12 +30,11 @@ export default function ExternalDashboard({ settings }) {
   useEffect(() => {
     let result = [...tasks];
 
-    // Search query filter (jobNumber, title, storeName, supplierName)
+    // Search query filter (title, storeName, supplierName)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(t => 
         (t.title && t.title.toLowerCase().includes(q)) ||
-        (t.jobNumber && t.jobNumber.toLowerCase().includes(q)) ||
         (t.storeName && t.storeName.toLowerCase().includes(q)) ||
         (t.supplierName && t.supplierName.toLowerCase().includes(q))
       );
@@ -154,7 +153,7 @@ export default function ExternalDashboard({ settings }) {
           <input 
             type="text" 
             className="form-control" 
-            placeholder="חיפוש לפי כותרת עיצוב, מספר עבודה (GP), חנות או שם ספק..."
+            placeholder="חיפוש לפי כותרת עיצוב, חנות או שם ספק..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -208,7 +207,6 @@ export default function ExternalDashboard({ settings }) {
             <table className="task-table">
               <thead>
                 <tr>
-                  <th>מס׳ עבודה</th>
                   <th>כותרת העבודה</th>
                   <th>חנות</th>
                   <th>ספק</th>
@@ -220,7 +218,6 @@ export default function ExternalDashboard({ settings }) {
               <tbody>
                 {filteredTasks.map(task => (
                   <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                    <td style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{task.jobNumber}</td>
                     <td style={{ fontWeight: '600' }}>{task.title}</td>
                     <td>{task.storeName || '-'}</td>
                     <td>{task.supplierName || '-'}</td>
@@ -251,7 +248,6 @@ export default function ExternalDashboard({ settings }) {
               <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
                 <div className="task-card-header">
                   <div>
-                    <span className="task-card-number">{task.jobNumber}</span>
                     <h4 className="task-card-title">{task.title}</h4>
                   </div>
                   <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>

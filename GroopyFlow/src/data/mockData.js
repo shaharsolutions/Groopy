@@ -20,7 +20,7 @@ export const INITIAL_TASKS = [
     status: "ממתין לספק בסין",
     priority: "גבוהה",
     deadline: "2026-06-25",
-    driveLink: "https://drive.google.com/drive/folders/groopy-thermal-cups",
+    driveLink: "https://drive.google.com/drive/folders/tiktak-thermal-cups",
     internalNotes: "שימו לב: הספק בסין ביקש קבצי וקטור מפורקים בפורמט PDF/X-1a. יש לוודא שכל הגופנים מומרים לנתיבים (Curves / Outlines).",
     createdAt: "2026-06-10T09:00:00.000Z",
     updatedAt: "2026-06-11T08:30:00.000Z"
@@ -38,7 +38,7 @@ export const INITIAL_TASKS = [
     status: "בטיפול",
     priority: "רגילה",
     deadline: "2026-06-18",
-    driveLink: "https://drive.google.com/drive/folders/groopy-oil-labels",
+    driveLink: "https://drive.google.com/drive/folders/tiktak-oil-labels",
     internalNotes: "מיכל לוי ביקשה לוודא שלחץ ההדפסה של צבע הזהב (Gold Foil) מוגדר כשכבה נפרדת (Spot Color) בשם Gold-Foil.",
     createdAt: "2026-06-09T11:00:00.000Z",
     updatedAt: "2026-06-11T10:15:00.000Z"

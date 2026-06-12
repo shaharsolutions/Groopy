@@ -341,7 +341,9 @@ export default function SystemTour({ userRole, currentView, setView }) {
         <div className="tour-overlay-modal" onClick={() => setShowStartConfirm(false)}>
           <div className="tour-modal-card" onClick={(e) => e.stopPropagation()}>
             <span className="tour-modal-icon">🗺️</span>
-            <h3 className="tour-modal-title">סיור מודרך במערכת</h3>
+            <h3 className="tour-modal-title">
+              {!!document.querySelector('.details-grid') ? 'סיור מודרך בחלון הפרטים' : 'סיור מודרך במערכת'}
+            </h3>
             <p className="tour-modal-text">
               {!!document.querySelector('.details-grid') 
                 ? 'האם ברצונך להתחיל בסיור קצר בחלון פרטי המשימה הנוכחי?'

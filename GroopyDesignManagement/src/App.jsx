@@ -5,7 +5,7 @@ import Header from './components/Header';
 import AdminDashboard from './pages/AdminDashboard';
 import ExternalDashboard from './pages/ExternalDashboard';
 import SettingsPage from './pages/SettingsPage';
-import UserGuideModal from './components/UserGuideModal';
+import Login from './pages/Login';
 import { getGlobalSettings, saveGlobalSettings } from './utils/storage';
 import './App.css';
 
@@ -23,7 +23,6 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState(null);
   const [currentView, setCurrentView] = useState('dashboard');
-  const [isGuideOpen, setIsGuideOpen] = useState(false);
   
   // Dynamic application settings
   const [settings, setSettings] = useState({
@@ -59,6 +58,24 @@ export default function App() {
 
   const isSharedLink = new URLSearchParams(window.location.search).get('mode') === 'viewer';
 
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    if (isSharedLink) return true;
+    
+    const isAdminAuthenticated = localStorage.getItem('groopy_admin_authenticated') === 'true';
+    const savedRole = localStorage.getItem('groopy_test_role') || 'admin';
+    
+    if (savedRole === 'admin') {
+      return isAdminAuthenticated;
+    }
+    return savedRole === 'external';
+  });
+  
+  // Password modal states
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   useEffect(() => {
     // Automatically sign in anonymously and load settings
     const initializeApp = async () => {
@@ -87,11 +104,40 @@ export default function App() {
   }, []);
 
   const handleRoleChange = (newRole) => {
+    if (newRole === 'admin') {
+      const isAdminAuthenticated = localStorage.getItem('groopy_admin_authenticated') === 'true';
+      if (!isAdminAuthenticated) {
+        setModalError('');
+        setPasswordInput('');
+        setShowPassword(false);
+        setShowPasswordModal(true);
+        return;
+      }
+    }
+    
     setUserRole(newRole);
     setCurrentView('dashboard'); // reset view when changing roles
     if (!isSharedLink) {
       localStorage.setItem('groopy_test_role', newRole);
     }
+  };
+
+  const handlePasswordModalSubmit = (e) => {
+    e.preventDefault();
+    if (passwordInput === 'Kefy0507') {
+      localStorage.setItem('groopy_admin_authenticated', 'true');
+      localStorage.setItem('groopy_test_role', 'admin');
+      setUserRole('admin');
+      setCurrentView('dashboard');
+      setShowPasswordModal(false);
+    } else {
+      setModalError('סיסמה שגויה. אנא נסי שנית.');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('groopy_admin_authenticated');
+    setIsLoggedIn(false);
   };
 
   const handleSaveSettings = async (newSettings) => {
@@ -132,6 +178,15 @@ export default function App() {
     );
   }
 
+  if (!isLoggedIn) {
+    return (
+      <Login onLogin={(role) => {
+        setUserRole(role);
+        setIsLoggedIn(true);
+      }} />
+    );
+  }
+
   return (
     <div className="app-container">
       <Header 
@@ -140,7 +195,7 @@ export default function App() {
         showSwitcher={!isSharedLink} 
         currentView={currentView}
         onViewChange={setCurrentView}
-        onOpenGuide={() => setIsGuideOpen(true)}
+        onLogout={handleLogout}
       />
       {userRole === 'admin' ? (
         currentView === 'settings' ? (
@@ -155,9 +210,67 @@ export default function App() {
       ) : (
         <ExternalDashboard settings={settings} />
       )}
-      
-      {isGuideOpen && (
-        <UserGuideModal onClose={() => setIsGuideOpen(false)} />
+
+      {/* Password Verification Modal for Role Switcher */}
+      {showPasswordModal && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">אימות סיסמת מנהלת</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => setShowPasswordModal(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handlePasswordModalSubmit}>
+              <div className="modal-body">
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" htmlFor="modal-password">הזינו סיסמת מנהלת כדי להמשיך:</label>
+                  <div className="password-wrapper">
+                    <input
+                      id="modal-password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="form-control"
+                      placeholder="סיסמה..."
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      autoFocus
+                      required
+                      style={{ textAlign: 'right', direction: 'rtl' }}
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-text"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? 'הסתר' : 'הצג'}
+                    </button>
+                  </div>
+                  {modalError && (
+                    <div className="form-error" style={{ marginTop: '12px', textAlign: 'center' }}>
+                      ⚠️ {modalError}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer" style={{ backgroundColor: 'var(--background)' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowPasswordModal(false)}
+                >
+                  ביטול
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  אישור מעבר
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

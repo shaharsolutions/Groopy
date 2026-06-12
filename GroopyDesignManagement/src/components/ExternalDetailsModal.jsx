@@ -20,11 +20,20 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
     const file = e.target.files[0];
     if (!file) return;
     
+    const MAX_SIZE = 3 * 1024 * 1024; // 3MB limit
+    if (file.size > MAX_SIZE) {
+      setUploadError('גודל הקובץ עולה על המותר (מקסימום 3MB)');
+      setAttachedFile(null);
+      e.target.value = '';
+      return;
+    }
+
     setUploadingFile(true);
     setUploadError('');
     try {
       const result = await uploadFileToStorage(file, 'comments');
       setAttachedFile(result);
+      e.target.value = '';
     } catch (err) {
       console.error(err);
       setUploadError('שגיאה בהעלאת הקובץ. אנא ודא ש-Storage פעיל.');
@@ -157,6 +166,55 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                   <div className="description-box">{task.description}</div>
                 ) : (
                   <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>אין תיאור מפורט לעבודה זו.</p>
+                )}
+              </div>
+
+              {/* Sub-tasks Section (Read-only for External viewers) */}
+              <div className="subtasks-container">
+                <div className="subtasks-header">
+                  <h4>📋 תתי-משימות לעבודה</h4>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                    {task.subtasks && task.subtasks.length > 0 
+                      ? `${task.subtasks.filter(s => s.completed).length} מתוך ${task.subtasks.length} הושלמו`
+                      : 'אין תתי-משימות'
+                    }
+                  </span>
+                </div>
+
+                {task.subtasks && task.subtasks.length > 0 && (
+                  <div className="subtask-progress-bar-container">
+                    <div 
+                      className="subtask-progress-bar" 
+                      style={{ 
+                        width: `${(task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100}%` 
+                      }}
+                    />
+                  </div>
+                )}
+
+                {task.subtasks && task.subtasks.length > 0 ? (
+                  <div className="subtask-list">
+                    {task.subtasks.map((sub) => (
+                      <div key={sub.id} className="subtask-item" style={{ cursor: 'default' }}>
+                        <div className="subtask-main">
+                          <input 
+                            type="checkbox" 
+                            className="subtask-checkbox" 
+                            checked={sub.completed}
+                            disabled
+                            style={{ cursor: 'default' }}
+                          />
+                          <span className={`subtask-text ${sub.completed ? 'completed' : ''}`} title={sub.title}>
+                            {sub.title}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="subtasks-empty-state">
+                    אין תתי-משימות מוגדרות לעבודה זו.
+                  </div>
                 )}
               </div>
 

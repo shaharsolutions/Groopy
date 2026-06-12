@@ -5,7 +5,7 @@ import { useState } from 'react';
  * 
  * Top bar with logo, share link generator for admin, and role toggling.
  */
-export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onOpenGuide }) {
+export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -31,6 +31,25 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
       </div>
       
       <div className="header-actions">
+        {userRole === 'admin' && currentView === 'dashboard' && (
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleCopyLink}
+            style={{ 
+              backgroundColor: '#e6f7ed', 
+              color: '#1e4620', 
+              borderColor: '#1e4620',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px'
+            }}
+            title="העתק קישור שיתוף עבור ספקים או לקוחות שצריכים רק לצפות במערכת"
+          >
+            {copied ? '✔️ הועתק בהצלחה!' : '🔗 העתקת קישור לשיתוף'}
+          </button>
+        )}
 
         {userRole === 'admin' && onViewChange && (
           currentView === 'settings' ? (
@@ -53,22 +72,24 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
           )
         )}
 
-        <button 
-          type="button"
-          onClick={onOpenGuide}
+        <a 
+          href="/guide.html" 
+          target="_blank" 
+          rel="noopener noreferrer" 
           className="btn btn-secondary"
           style={{ 
             fontWeight: '600', 
             display: 'flex', 
             alignItems: 'center', 
             gap: '6px',
+            textDecoration: 'none',
             fontSize: '0.9rem',
             padding: '8px 14px'
           }}
           title="מדריך לשימוש במערכת"
         >
           📖 מדריך למערכת
-        </button>
+        </a>
 
         <div className="user-badge">
           <span>👤</span>
@@ -94,6 +115,22 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
               ✏️ מעבר למצב מנהלת
             </button>
           )
+        )}
+
+        {onLogout && (
+          <button 
+            className="btn btn-secondary" 
+            onClick={onLogout}
+            style={{ 
+              backgroundColor: 'var(--priority-urgent-bg)', 
+              color: 'var(--priority-urgent-text)', 
+              borderColor: 'rgba(239, 68, 68, 0.2)',
+              fontWeight: '600'
+            }}
+            title="התנתקות ונעילת המערכת"
+          >
+            🔒 התנתקות
+          </button>
         )}
       </div>
     </header>

@@ -17,13 +17,12 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
   const allAvailableStatuses = statuses.includes(currentStatus) ? statuses : [...statuses, currentStatus];
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
+    <div style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 1010 : 'auto' }}>
       <button
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={`badge ${currentColorClass}`}
         style={{
-          border: '1px solid var(--border)',
           cursor: disabled ? 'not-allowed' : 'pointer',
           padding: '6px 12px',
           fontSize: '0.8rem',
@@ -33,7 +32,6 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
           gap: '6px',
           transition: 'all 0.2s ease',
           outline: 'none',
-          background: 'none',
           boxShadow: 'var(--shadow-sm)'
         }}
         disabled={disabled}
@@ -76,9 +74,9 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
                     textAlign: 'center',
                     cursor: 'pointer',
                     border: isSelected ? '2px solid var(--primary)' : '1px solid transparent',
-                    opacity: isSelected ? 1 : 0.85,
+                    opacity: 1,
                     transform: isSelected ? 'scale(1.02)' : 'none',
-                    fontWeight: isSelected ? '700' : '500',
+                    fontWeight: isSelected ? '700' : '600',
                     transition: 'all 0.15s ease',
                     boxShadow: isSelected ? 'var(--shadow-sm)' : 'none'
                   }}

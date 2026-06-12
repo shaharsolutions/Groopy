@@ -330,48 +330,11 @@ export default function SystemTour({ userRole, currentView, setView }) {
       <button 
         type="button" 
         className="tour-floating-btn" 
-        onClick={() => setShowStartConfirm(true)}
+        onClick={handleStartTour}
         title="סיור מודרך במערכת"
       >
         ❓
       </button>
-
-      {/* Confirmation Modal to Start Tour */}
-      {showStartConfirm && (
-        <div className="tour-overlay-modal" onClick={() => setShowStartConfirm(false)}>
-          <div className="tour-modal-card" onClick={(e) => e.stopPropagation()}>
-            <span className="tour-modal-icon">🗺️</span>
-            <h3 className="tour-modal-title">
-              {!!document.querySelector('.details-grid') ? 'סיור מודרך בחלון הפרטים' : 'סיור מודרך במערכת'}
-            </h3>
-            <p className="tour-modal-text">
-              {!!document.querySelector('.details-grid') 
-                ? 'האם ברצונך להתחיל בסיור קצר בחלון פרטי המשימה הנוכחי?'
-                : currentView === 'settings' 
-                ? 'שימו לב: הסיור המודרך יחזיר אתכם ללוח המשימות הראשי כדי להציג את פונקציות המערכת. האם ברצונכם להתחיל בסיור?'
-                : 'האם ברצונך להתחיל בסיור מודרך קצר במערכת "תיקתק" כדי להכיר את כל אזורי העבודה ותפקודיהם?'}
-            </p>
-            <div className="tour-modal-footer">
-              <button 
-                type="button" 
-                className="btn btn-primary" 
-                onClick={handleStartTour}
-                style={{ padding: '10px 24px' }}
-              >
-                כן, בואו נתחיל! 🚀
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                onClick={() => setShowStartConfirm(false)}
-                style={{ padding: '10px 24px' }}
-              >
-                לא כרגע
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Spotlight Overlay & Tooltip Step Cards */}
       {isTourActive && (
@@ -383,11 +346,36 @@ export default function SystemTour({ userRole, currentView, setView }) {
 
           {/* Interactive Step Tooltip */}
           <div className="tour-tooltip-card" style={tooltipStyle}>
-            <div className="tour-tooltip-header">
-              <h4 className="tour-tooltip-title">{currentSteps[activeStep].title}</h4>
-              <span className="tour-tooltip-step-count">
-                {activeStep + 1} מתוך {currentSteps.length}
-              </span>
+            <div className="tour-tooltip-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h4 className="tour-tooltip-title">{currentSteps[activeStep].title}</h4>
+                <span className="tour-tooltip-step-count">
+                  {activeStep + 1} מתוך {currentSteps.length}
+                </span>
+              </div>
+              <button 
+                type="button" 
+                onClick={handleEndTour}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.6rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0 4px',
+                  lineHeight: '1',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'color 0.2s',
+                  marginRight: 'auto',
+                  marginLeft: '0'
+                }}
+                title="סגירת הסיור"
+              >
+                &times;
+              </button>
             </div>
 
             <p className="tour-tooltip-body">{currentSteps[activeStep].body}</p>

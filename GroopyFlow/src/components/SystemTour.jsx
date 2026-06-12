@@ -134,8 +134,25 @@ export default function SystemTour({ userRole, currentView, setView }) {
     if (!isTourActive) return;
     const step = currentSteps[activeStep];
     
-    if (!step || !step.selector) {
+    if (isModalOpen) {
       setSpotlightStyle(null);
+      return;
+    }
+
+    if (!step || !step.selector) {
+      // Fullscreen dark backdrop for steps without selector (like welcome step)
+      setSpotlightStyle({
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        width: 0,
+        height: 0,
+        zIndex: 1005,
+        boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.75)',
+        borderRadius: '50%',
+        pointerEvents: 'none',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      });
       return;
     }
 
@@ -143,25 +160,32 @@ export default function SystemTour({ userRole, currentView, setView }) {
     if (element) {
       const rect = element.getBoundingClientRect();
       
-      // Spotlight settings (adds padding around targeted element)
-      if (isModalOpen) {
-        setSpotlightStyle(null);
-      } else {
-        setSpotlightStyle({
-          position: 'fixed',
-          top: rect.top - 8,
-          left: rect.left - 8,
-          width: rect.width + 16,
-          height: rect.height + 16,
-          zIndex: 1005,
-          boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.75)',
-          borderRadius: '12px',
-          pointerEvents: 'none',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-        });
-      }
+      setSpotlightStyle({
+        position: 'fixed',
+        top: rect.top - 8,
+        left: rect.left - 8,
+        width: rect.width + 16,
+        height: rect.height + 16,
+        zIndex: 1005,
+        boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.75)',
+        borderRadius: '12px',
+        pointerEvents: 'none',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      });
     } else {
-      setSpotlightStyle(null);
+      // Fallback fullscreen dark backdrop if target not found
+      setSpotlightStyle({
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        width: 0,
+        height: 0,
+        zIndex: 1005,
+        boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.75)',
+        borderRadius: '50%',
+        pointerEvents: 'none',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      });
     }
   };
 

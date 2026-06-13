@@ -67,10 +67,10 @@ export default function AdminDetailsModal({
       fields: [
         { label: 'שם הספק', value: supObj.name },
         { label: 'איש קשר אצל הספק', value: supObj.contactPerson },
-        { label: 'טלפון', value: supObj.phone, isLtr: true },
-        { label: 'אימייל', value: supObj.email, isLtr: true },
+        { label: 'טלפון', value: supObj.phone, isLtr: true, type: 'phone' },
+        { label: 'אימייל', value: supObj.email, isLtr: true, type: 'email' },
         { label: 'כתובת', value: supObj.address },
-        { label: 'WeChat / WhatsApp', value: supObj.wechat, isLtr: true },
+        { label: 'WeChat / WhatsApp', value: supObj.wechat, isLtr: true, type: 'whatsapp' },
         { label: 'הערות ומידע נוסף', value: supObj.notes, isMultiline: true }
       ]
     });
@@ -86,10 +86,10 @@ export default function AdminDetailsModal({
       fields: [
         { label: 'שם מלא', value: contactObj.name },
         { label: 'תפקיד', value: contactObj.role },
-        { label: 'טלפון', value: contactObj.phone, isLtr: true },
-        { label: 'אימייל', value: contactObj.email, isLtr: true },
+        { label: 'טלפון', value: contactObj.phone, isLtr: true, type: 'phone' },
+        { label: 'אימייל', value: contactObj.email, isLtr: true, type: 'email' },
         { label: 'כתובת', value: contactObj.address },
-        { label: 'WeChat / WhatsApp', value: contactObj.wechat, isLtr: true },
+        { label: 'WeChat / WhatsApp', value: contactObj.wechat, isLtr: true, type: 'whatsapp' },
         { label: 'הערות ומידע נוסף', value: contactObj.notes, isMultiline: true }
       ]
     });
@@ -1891,7 +1891,31 @@ export default function AdminDetailsModal({
                         className={field.isLtr ? 'direction-ltr text-left' : ''} 
                         style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: field.isMultiline ? 'pre-wrap' : 'normal' }}
                       >
-                        {field.value}
+                        {field.type === 'phone' ? (
+                          <a href={`tel:${field.value.replace(/\s+/g, '')}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
+                            {field.value}
+                          </a>
+                        ) : field.type === 'email' ? (
+                          <a href={`mailto:${field.value}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
+                            {field.value}
+                          </a>
+                        ) : field.type === 'whatsapp' ? (() => {
+                          const digitsOnly = field.value.replace(/\D/g, '');
+                          if (digitsOnly.length >= 9) {
+                            let cleanVal = digitsOnly;
+                            if (cleanVal.startsWith('05') && cleanVal.length === 10) {
+                              cleanVal = '972' + cleanVal.substring(1);
+                            }
+                            return (
+                              <a href={`https://wa.me/${cleanVal}`} target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                💬 {field.value}
+                              </a>
+                            );
+                          }
+                          return field.value;
+                        })() : (
+                          field.value
+                        )}
                       </div>
                     </div>
                   );

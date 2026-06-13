@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>תיקתק - מדריך למשתמש</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
   <!-- Google Fonts for Rubik (matching the main app) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -541,6 +541,131 @@
       color: var(--text-muted);
       display: none;
     }
+
+    /* Scenarios & Practical Tips Styling */
+    .scenarios-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 16px;
+    }
+    
+    @media (max-width: 768px) {
+      .scenarios-container {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .scenario-card {
+      background-color: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      border-top: 4px solid var(--primary);
+    }
+    
+    .scenario-card h4 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .scenario-steps {
+      margin-right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .scenario-steps li {
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    
+    .scenario-steps li strong {
+      color: var(--primary);
+    }
+
+    .tips-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    
+    @media (max-width: 768px) {
+      .tips-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .tip-box {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      border-right: 4px solid var(--secondary);
+    }
+    
+    .tip-box h5 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    
+    .tip-box p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 0 !important;
+    }
+
+    .shortcuts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .shortcut-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 16px;
+      background-color: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    
+    .shortcut-keys {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      direction: ltr;
+    }
+    
+    kbd {
+      background-color: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+      color: #334155;
+      display: inline-block;
+      font-family: monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 4px 8px;
+      white-space: nowrap;
+    }
+    
+    .shortcut-desc {
+      font-size: 0.9rem;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -582,6 +707,7 @@
           <li><a href="#daily-use">🛠️ איך משתמשים בלוח?</a></li>
           <li><a href="#task-details">💬 שיחה, תמונות וקבצים</a></li>
           <li><a href="#faq">❓ שאלות ותשובות נפוצות</a></li>
+          <li><a href="#scenarios">🚀 תרחישי עבודה פרקטיים</a></li>
           <li><a href="#tips">💡 טיפים לעבודה קלה</a></li>
         </ul>
       </nav>
@@ -765,16 +891,74 @@
           </div>
         </section>
 
+        <!-- Scenarios Section -->
+        <section id="scenarios" class="section-card">
+          <h2><span>🚀</span> תרחישי עבודה נפוצים (שלב אחרי שלב)</h2>
+          <p>הנה שתי דרכים מומלצות לניצול מקסימלי של המערכת ביום-יום:</p>
+          
+          <div class="scenarios-container">
+            <!-- Scenario 1 -->
+            <div class="scenario-card">
+              <h4>📦 א': הזמנת עיצוב אריזה חדש מספק בסין</h4>
+              <ol class="scenario-steps">
+                <li><strong>פתיחת משימה:</strong> יוצרים עבודה חדשה, מגדירים סוג עבודה "אריזה", ובוחרים את הספק הרלוונטי בסין.</li>
+                <li><strong>הוספת פרטים:</strong> בתוך המשימה, מדביקים קישור לתיקיית Google Drive המכילה את קובצי המקור.</li>
+                <li><strong>שיתוף מהיר:</strong> מעתיקים את קישור השיתוף של המשימה ושולחים אותו לספק (או למעצב בסין) בוואטסאפ או במייל.</li>
+                <li><strong>תיקונים ואישור:</strong> הספק מעלה סקיצה לאזור התגובות. מעבירים אליו הערות ישירות שם, ובסיום מעדכנים את הסטטוס ל-"מאושר" או "נשלח לייצור".</li>
+              </ol>
+            </div>
+            
+            <!-- Scenario 2 -->
+            <div class="scenario-card">
+              <h4>🏷️ ב': עדכון מהיר של מדבקות לסניפי הרשת</h4>
+              <ol class="scenario-steps">
+                <li><strong>יצירת משימה:</strong> יוצרים משימה חדשה תחת סוג עבודה "מדבקה", ובוחרים בחנות הרלוונטית (למשל "כלל הרשת").</li>
+                <li><strong>עבודה מקבילה:</strong> מעלים את קובץ המדבקה החדש לכרטיס המשימה.</li>
+                <li><strong>משוב מהסניפים:</strong> מנהלי החנויות נכנסים דרך קישור השיתוף, רואים את הקובץ המצורף, רושמים הערות באזור השיחה במידת הצורך ומעדכנים לסטטוס "מאושר" כשהקובץ נבדק.</li>
+              </ol>
+            </div>
+          </div>
+        </section>
+
         <!-- Tips Section -->
         <section id="tips" class="section-card">
           <h2><span>💡</span> טיפים קטנים לעבודה קלה ויעילה</h2>
-          <p>להלן מספר הרגלים שימושיים לייעול העבודה היומיומית:</p>
-          <ul class="styled-list">
-            <li><strong>שמירה במועדפים:</strong> מומלץ להוסיף את המערכת לסימניות בדפדפן (סימון הכוכב ⭐ בשורת הכתובת), לגישה מהירה בלחיצה אחת בכל יום.</li>
-            <li><strong>שמות משימות ברורים:</strong> כדאי להעניק למשימות שמות ברורים ומזהים (למשל: 'עיצוב מדבקה כוס תרמית - ירוק') המקלים על החיפוש והאיתור המהיר.</li>
-            <li><strong>איפוס מסננים:</strong> אם משימה מסוימת אינה מופיעה בלוח, בדקו אם מופעל סינון לפי סטטוס מסוים או אם נותר טקסט בשדה החיפוש. לחיצה על <strong>"❌ נקה מסננים"</strong> תציג שוב את רשימת המשימות המלאה.</li>
-            <li><strong>קישורים חיצוניים:</strong> מומלץ לצרף קישורים רלוונטיים (לגוגל דרייב, Canva וכד') ישירות לשדה הקישור בכרטיס המשימה כדי לרכז את כל המידע והקבצים הנדרשים לפרויקט במקום אחד.</li>
-          </ul>
+          <p>להלן מספר הרגלים וקיצורי דרך לייעול העבודה היומיומית במערכת:</p>
+          
+          <div class="tips-grid">
+            <div class="tip-box">
+              <h5>⭐ שמירה במועדפים</h5>
+              <p>שמרו את הכתובת של תיקתק בדפדפן (לחיצה על הכוכב ⭐ בשורת הכתובת) כדי שתוכלו להיכנס ללוח בלחיצת כפתור אחת בכל בוקר.</p>
+            </div>
+            <div class="tip-box">
+              <h5>📝 שמות משימות מזהים</h5>
+              <p>הקפידו על שמות משימות ברורים כמו: <code>"קובץ להדפסה - שקית קרטון קטנה - סניף אילת"</code>. זה מקל מאוד על איתורן באמצעות שורת החיפוש.</p>
+            </div>
+            <div class="tip-box">
+              <h5>🧹 איפוס מסננים מהיר</h5>
+              <p>אם נראה שמשימה כלשהי "נעלמה", לחצו על <strong>"❌ נקה מסננים"</strong> כדי לאפס את החיפוש והסינונים ולהציג שוב את כל המשימות.</p>
+            </div>
+            <div class="tip-box">
+              <h5>🔗 שימוש בקישורים חיצוניים</h5>
+              <p>השתמשו בשדה "קישור חיצוני" בכרטיס המשימה כדי לקשר לתיקיות Google Drive, Canva או Figma. כך כל חומרי העבודה מרוכזים במקום אחד זמין.</p>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 24px; margin-bottom: 16px; border-bottom: 2px solid var(--background); padding-bottom: 8px; font-weight: 700; color: var(--text);">⌨️ קיצורי מקלדת מהירים במערכת</h3>
+          <div class="shortcuts-container">
+            <div class="shortcut-item">
+              <div class="shortcut-keys"><kbd>Esc</kbd></div>
+              <div class="shortcut-desc">סגירה מהירה של כל מודאל, חלון משימה, או את מדריך המערכת עצמו.</div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
+              <div class="shortcut-desc">שמירת תגובה חדשה באזור השיחה, או אישור טופס יצירת עבודה חדשה ללא צורך בלחיצה על כפתור השליחה.</div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-keys"><kbd>Cmd</kbd> + <kbd>Enter</kbd></div>
+              <div class="shortcut-desc">למשתמשי מקבוק (Mac): שליחת תגובה או שמירה מהירה של משימה חדשה.</div>
+            </div>
+          </div>
         </section>
 
       </main>
@@ -975,6 +1159,19 @@
         behavior: 'smooth'
       });
     });
+
+    // If running inside an iframe (e.g. in a modal), modify the "Back to App" button behavior
+    if (window.self !== window.top) {
+      const backBtn = document.querySelector('.btn-back-app');
+      if (backBtn) {
+        backBtn.textContent = '❌ סגור מדריך';
+        backBtn.href = '#';
+        backBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.parent.postMessage({ type: 'CLOSE_GUIDE' }, '*');
+        });
+      }
+    }
   </script>
 </body>
 </html>

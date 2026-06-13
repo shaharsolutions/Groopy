@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 
 /**
- * StatusPicker - Custom Popover Status Selector
+ * PriorityPicker - Custom Popover Priority Selector
  * 
  * Replaces native HTML dropdowns with a premium, colored popover menu.
  */
-export default function StatusPicker({ currentStatus, statuses, statusColors, onChange, disabled }) {
+export default function PriorityPicker({ currentPriority, priorities, priorityColors, onChange, disabled }) {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -22,20 +22,20 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
     };
   }, [isOpen]);
 
-  const handleSelect = (status) => {
-    onChange(status);
+  const handleSelect = (priority) => {
+    onChange(priority);
     setIsOpen(false);
   };
 
-  const currentColorClass = statusColors[currentStatus] || 'badge-frozen';
-  const allAvailableStatuses = statuses.includes(currentStatus) ? statuses : [...statuses, currentStatus];
+  const currentColorClass = priorityColors[currentPriority] || 'priority-normal';
+  const allAvailablePriorities = priorities.includes(currentPriority) ? priorities : [...priorities, currentPriority];
 
   return (
     <div style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 1010 : 'auto' }}>
       <button
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`badge ${currentColorClass}`}
+        className={`priority-badge ${currentColorClass}`}
         style={{
           cursor: disabled ? 'not-allowed' : 'pointer',
           padding: '6px 12px',
@@ -46,11 +46,14 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
           gap: '6px',
           transition: 'all 0.2s ease',
           outline: 'none',
-          boxShadow: 'var(--shadow-sm)'
+          boxShadow: 'var(--shadow-sm)',
+          border: '1px solid var(--border)',
+          appearance: 'none',
+          WebkitAppearance: 'none'
         }}
         disabled={disabled}
       >
-        <span>{currentStatus}</span>
+        <span>{currentPriority}</span>
         {!disabled && <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>▼</span>}
       </button>
 
@@ -71,16 +74,16 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
           />
           
           {/* Custom Popover Options Grid */}
-          <div className="status-picker-popover">
-            {allAvailableStatuses.map(st => {
-              const colorClass = statusColors[st] || 'badge-frozen';
-              const isSelected = st === currentStatus;
+          <div className="priority-picker-popover">
+            {allAvailablePriorities.map(pr => {
+              const colorClass = priorityColors[pr] || 'priority-normal';
+              const isSelected = pr === currentPriority;
               return (
                 <button
-                  key={st}
+                  key={pr}
                   type="button"
-                  onClick={() => handleSelect(st)}
-                  className={`badge ${colorClass}`}
+                  onClick={() => handleSelect(pr)}
+                  className={`priority-badge ${colorClass}`}
                   style={{
                     width: '100%',
                     padding: '8px 10px',
@@ -92,10 +95,11 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
                     transform: isSelected ? 'scale(1.02)' : 'none',
                     fontWeight: isSelected ? '700' : '600',
                     transition: 'all 0.15s ease',
-                    boxShadow: isSelected ? 'var(--shadow-sm)' : 'none'
+                    boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
+                    justifyContent: 'center'
                   }}
                 >
-                  {st}
+                  {pr}
                 </button>
               );
             })}

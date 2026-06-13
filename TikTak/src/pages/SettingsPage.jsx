@@ -50,6 +50,9 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     email: ''
   });
 
+  const [activeSupplierCard, setActiveSupplierCard] = useState(null); // { index, data }
+  const [activeContactCard, setActiveContactCard] = useState(null); // { index, data }
+
   const showMsg = (text, type = 'success') => {
     setMessage({ text, type });
     setTimeout(() => setMessage({ text: '', type: '' }), 4000);
@@ -369,13 +372,22 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     e.preventDefault();
     if (!newSupplier.trim()) return;
     const suppliers = localSettings.suppliers || [];
-    if (suppliers.includes(newSupplier.trim())) {
+    if (suppliers.some(s => (typeof s === 'string' ? s : s.name).trim() === newSupplier.trim())) {
       showMsg('ספק זה כבר קיים ברשימה', 'danger');
       return;
     }
+    const newSupplierObj = {
+      name: newSupplier.trim(),
+      email: '',
+      phone: '',
+      address: '',
+      wechat: '',
+      notes: '',
+      contactPerson: ''
+    };
     setLocalSettings({
       ...localSettings,
-      suppliers: [...suppliers, newSupplier.trim()]
+      suppliers: [...suppliers, newSupplierObj]
     });
     setNewSupplier('');
     showMsg(`הספק "${newSupplier.trim()}" נוסף בהצלחה`);
@@ -385,27 +397,32 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     const suppliers = localSettings.suppliers || [];
     setLocalSettings({
       ...localSettings,
-      suppliers: suppliers.filter(s => s !== supplierName)
+      suppliers: suppliers.filter(s => (typeof s === 'string' ? s : s.name) !== supplierName)
     });
     showMsg(`הספק "${supplierName}" הוסר`);
   };
 
   const saveEditedSupplier = (index) => {
     const suppliers = localSettings.suppliers || [];
-    const oldValue = suppliers[index];
+    const oldValueObj = suppliers[index];
+    const oldValueName = typeof oldValueObj === 'string' ? oldValueObj : oldValueObj.name;
     const newValue = editingSupplier.value.trim();
     if (!newValue) return;
-    if (oldValue === newValue) {
+    if (oldValueName === newValue) {
       setEditingSupplier({ index: null, value: '' });
       return;
     }
-    if (suppliers.includes(newValue)) {
+    if (suppliers.some((s, idx) => idx !== index && (typeof s === 'string' ? s : s.name).trim() === newValue)) {
       showMsg('ספק זה כבר קיים ברשימה', 'danger');
       return;
     }
 
     const updated = [...suppliers];
-    updated[index] = newValue;
+    if (typeof oldValueObj === 'string') {
+      updated[index] = { name: newValue, email: '', phone: '', address: '', wechat: '', notes: '', contactPerson: '' };
+    } else {
+      updated[index] = { ...oldValueObj, name: newValue };
+    }
     setLocalSettings({
       ...localSettings,
       suppliers: updated
@@ -431,7 +448,10 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       name: newContactName.trim(),
       role: newContactRole.trim(),
       phone: newContactPhone.trim(),
-      email: newContactEmail.trim()
+      email: newContactEmail.trim(),
+      address: '',
+      wechat: '',
+      notes: ''
     };
 
     setLocalSettings({
@@ -467,6 +487,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
 
     const updated = [...contacts];
     updated[index] = {
+      ...contacts[index],
       name: newName,
       role: editingContact.role.trim(),
       phone: editingContact.phone.trim(),
@@ -479,6 +500,37 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     });
     setEditingContact({ index: null, name: '', role: '', phone: '', email: '' });
     showMsg(`פרטי איש הקשר "${newName}" עודכנו בהצלחה`);
+  };
+
+  const saveSupplierCard = (index, updatedFields) => {
+    const suppliers = localSettings.suppliers || [];
+    const updated = [...suppliers];
+    const normalizedOld = typeof suppliers[index] === 'string' ? { name: suppliers[index] } : suppliers[index];
+    updated[index] = {
+      ...normalizedOld,
+      ...updatedFields,
+      name: updatedFields.name.trim()
+    };
+    setLocalSettings({
+      ...localSettings,
+      suppliers: updated
+    });
+    showMsg(`כרטיס הספק "${updated[index].name}" עודכן בהצלחה`);
+  };
+
+  const saveContactCard = (index, updatedFields) => {
+    const contacts = localSettings.contacts || [];
+    const updated = [...contacts];
+    updated[index] = {
+      ...contacts[index],
+      ...updatedFields,
+      name: updatedFields.name.trim()
+    };
+    setLocalSettings({
+      ...localSettings,
+      contacts: updated
+    });
+    showMsg(`כרטיס איש הקשר "${updated[index].name}" עודכן בהצלחה`);
   };
 
   return (
@@ -1096,6 +1148,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                 ) : (
                   (localSettings.suppliers || []).map((sup, index) => {
                     const isEditing = editingSupplier.index === index;
+                    const name = typeof sup === 'string' ? sup : sup.name;
                     return (
                       <div key={index} className="flex-between" style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                         {isEditing ? (
@@ -1112,7 +1165,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                             autoFocus
                           />
                         ) : (
-                          <span style={{ fontWeight: '500' }}>{sup}</span>
+                          <span style={{ fontWeight: '500' }}>{name}</span>
                         )}
                         <div style={{ display: 'flex', gap: '6px' }}>
                           {isEditing ? (
@@ -1137,14 +1190,36 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                               <button 
                                 className="btn btn-secondary btn-icon" 
                                 style={{ padding: '4px' }} 
-                                onClick={() => setEditingSupplier({ index, value: sup })}
+                                title="עריכת כרטיס ספק"
+                                onClick={() => {
+                                  const supObj = typeof sup === 'string' ? { name: sup } : sup;
+                                  setActiveSupplierCard({
+                                    index,
+                                    data: {
+                                      name: supObj.name || '',
+                                      email: supObj.email || '',
+                                      phone: supObj.phone || '',
+                                      address: supObj.address || '',
+                                      wechat: supObj.wechat || '',
+                                      notes: supObj.notes || '',
+                                      contactPerson: supObj.contactPerson || ''
+                                    }
+                                  });
+                                }}
+                              >
+                                📇
+                              </button>
+                              <button 
+                                className="btn btn-secondary btn-icon" 
+                                style={{ padding: '4px' }} 
+                                onClick={() => setEditingSupplier({ index, value: name })}
                               >
                                 ✏️
                               </button>
                               <button 
                                 className="btn btn-danger btn-icon" 
                                 style={{ padding: '4px' }} 
-                                onClick={() => removeSupplier(sup)}
+                                onClick={() => removeSupplier(name)}
                               >
                                 🗑️
                               </button>
@@ -1186,7 +1261,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                       <th style={{ padding: '8px' }}>תפקיד</th>
                       <th style={{ padding: '8px' }}>טלפון</th>
                       <th style={{ padding: '8px' }}>אימייל</th>
-                      <th style={{ padding: '8px', width: '90px' }}>פעולות</th>
+                      <th style={{ padding: '8px', width: '110px' }}>פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1274,6 +1349,27 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                                   </>
                                 ) : (
                                   <>
+                                    <button 
+                                      className="btn btn-secondary btn-icon" 
+                                      style={{ padding: '4px' }} 
+                                      title="עריכת כרטיס איש קשר"
+                                      onClick={() => {
+                                        setActiveContactCard({
+                                          index,
+                                          data: {
+                                            name: c.name || '',
+                                            role: c.role || '',
+                                            phone: c.phone || '',
+                                            email: c.email || '',
+                                            address: c.address || '',
+                                            wechat: c.wechat || '',
+                                            notes: c.notes || ''
+                                          }
+                                        });
+                                      }}
+                                    >
+                                      📇
+                                    </button>
                                     <button 
                                       className="btn btn-secondary btn-icon" 
                                       style={{ padding: '4px' }} 
@@ -1373,6 +1469,245 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
           </button>
         </div>
       </div>
+
+      {/* Supplier Card Modal */}
+      {activeSupplierCard && (
+        <div className="modal-overlay" onClick={() => setActiveSupplierCard(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">📇 כרטיס ספק: {activeSupplierCard.data.name}</h3>
+              <button className="modal-close" onClick={() => setActiveSupplierCard(null)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'right', direction: 'rtl' }}>
+              <div className="form-group">
+                <label className="form-label">שם הספק *</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={activeSupplierCard.data.name}
+                  onChange={(e) => setActiveSupplierCard({
+                    ...activeSupplierCard,
+                    data: { ...activeSupplierCard.data, name: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">איש קשר אצל הספק</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="לדוגמה: Mr. Li"
+                  value={activeSupplierCard.data.contactPerson}
+                  onChange={(e) => setActiveSupplierCard({
+                    ...activeSupplierCard,
+                    data: { ...activeSupplierCard.data, contactPerson: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="form-grid-2col">
+                <div className="form-group">
+                  <label className="form-label">טלפון</label>
+                  <input 
+                    type="text" 
+                    className="form-control text-left direction-ltr"
+                    value={activeSupplierCard.data.phone}
+                    onChange={(e) => setActiveSupplierCard({
+                      ...activeSupplierCard,
+                      data: { ...activeSupplierCard.data, phone: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">אימייל</label>
+                  <input 
+                    type="email" 
+                    className="form-control text-left direction-ltr"
+                    value={activeSupplierCard.data.email}
+                    onChange={(e) => setActiveSupplierCard({
+                      ...activeSupplierCard,
+                      data: { ...activeSupplierCard.data, email: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="form-grid-2col">
+                <div className="form-group">
+                  <label className="form-label">כתובת</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    value={activeSupplierCard.data.address}
+                    onChange={(e) => setActiveSupplierCard({
+                      ...activeSupplierCard,
+                      data: { ...activeSupplierCard.data, address: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">WeChat / WhatsApp</label>
+                  <input 
+                    type="text" 
+                    className="form-control text-left direction-ltr"
+                    value={activeSupplierCard.data.wechat}
+                    onChange={(e) => setActiveSupplierCard({
+                      ...activeSupplierCard,
+                      data: { ...activeSupplierCard.data, wechat: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">הערות ופרטים נוספים</label>
+                <textarea 
+                  className="form-control" 
+                  rows="3" 
+                  style={{ resize: 'vertical' }}
+                  value={activeSupplierCard.data.notes}
+                  onChange={(e) => setActiveSupplierCard({
+                    ...activeSupplierCard,
+                    data: { ...activeSupplierCard.data, notes: e.target.value }
+                  })}
+                ></textarea>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', direction: 'rtl' }}>
+              <button className="btn btn-secondary" onClick={() => setActiveSupplierCard(null)}>ביטול</button>
+              <button 
+                className="btn btn-primary"
+                onClick={() => {
+                  if (!activeSupplierCard.data.name.trim()) {
+                    showMsg('שם ספק הוא שדה חובה', 'danger');
+                    return;
+                  }
+                  saveSupplierCard(activeSupplierCard.index, activeSupplierCard.data);
+                  setActiveSupplierCard(null);
+                }}
+              >
+                שמור שינויים
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Card Modal */}
+      {activeContactCard && (
+        <div className="modal-overlay" onClick={() => setActiveContactCard(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">📇 כרטיס איש קשר: {activeContactCard.data.name}</h3>
+              <button className="modal-close" onClick={() => setActiveContactCard(null)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'right', direction: 'rtl' }}>
+              <div className="form-group">
+                <label className="form-label">שם מלא *</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={activeContactCard.data.name}
+                  onChange={(e) => setActiveContactCard({
+                    ...activeContactCard,
+                    data: { ...activeContactCard.data, name: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">תפקיד</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={activeContactCard.data.role}
+                  onChange={(e) => setActiveContactCard({
+                    ...activeContactCard,
+                    data: { ...activeContactCard.data, role: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="form-grid-2col">
+                <div className="form-group">
+                  <label className="form-label">טלפון</label>
+                  <input 
+                    type="text" 
+                    className="form-control text-left direction-ltr"
+                    value={activeContactCard.data.phone}
+                    onChange={(e) => setActiveContactCard({
+                      ...activeContactCard,
+                      data: { ...activeContactCard.data, phone: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">אימייל</label>
+                  <input 
+                    type="email" 
+                    className="form-control text-left direction-ltr"
+                    value={activeContactCard.data.email}
+                    onChange={(e) => setActiveContactCard({
+                      ...activeContactCard,
+                      data: { ...activeContactCard.data, email: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="form-grid-2col">
+                <div className="form-group">
+                  <label className="form-label">כתובת</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    value={activeContactCard.data.address}
+                    onChange={(e) => setActiveContactCard({
+                      ...activeContactCard,
+                      data: { ...activeContactCard.data, address: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">WeChat / WhatsApp</label>
+                  <input 
+                    type="text" 
+                    className="form-control text-left direction-ltr"
+                    value={activeContactCard.data.wechat}
+                    onChange={(e) => setActiveContactCard({
+                      ...activeContactCard,
+                      data: { ...activeContactCard.data, wechat: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">הערות ופרטים נוספים</label>
+                <textarea 
+                  className="form-control" 
+                  rows="3" 
+                  style={{ resize: 'vertical' }}
+                  value={activeContactCard.data.notes}
+                  onChange={(e) => setActiveContactCard({
+                    ...activeContactCard,
+                    data: { ...activeContactCard.data, notes: e.target.value }
+                  })}
+                ></textarea>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', direction: 'rtl' }}>
+              <button className="btn btn-secondary" onClick={() => setActiveContactCard(null)}>ביטול</button>
+              <button 
+                className="btn btn-primary"
+                onClick={() => {
+                  if (!activeContactCard.data.name.trim()) {
+                    showMsg('שם מלא הוא שדה חובה', 'danger');
+                    return;
+                  }
+                  saveContactCard(activeContactCard.index, activeContactCard.data);
+                  setActiveContactCard(null);
+                }}
+              >
+                שמור שינויים
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </main>
   );

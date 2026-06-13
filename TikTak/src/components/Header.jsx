@@ -5,7 +5,7 @@ import { useState } from 'react';
  * 
  * Top bar with logo, share link generator for admin, and role toggling.
  */
-export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout }) {
+export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, onOpenGuide }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -72,24 +72,22 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
           )
         )}
 
-        <a 
-          href="/guide.html" 
-          target="_blank" 
-          rel="noopener noreferrer" 
+        <button 
+          onClick={onOpenGuide}
           className="btn btn-secondary"
           style={{ 
             fontWeight: '600', 
             display: 'flex', 
             alignItems: 'center', 
             gap: '6px',
-            textDecoration: 'none',
             fontSize: '0.9rem',
             padding: '8px 14px'
           }}
           title="מדריך לשימוש במערכת"
+          type="button"
         >
           📖 מדריך למערכת
-        </a>
+        </button>
 
         <div className="user-badge">
           <span>👤</span>

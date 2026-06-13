@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getTasks, createTask, updateTask, deleteTask } from '../utils/storage';
 import AdminDetailsModal from '../components/AdminDetailsModal';
 import StatusPicker from '../components/StatusPicker';
+import PriorityPicker from '../components/PriorityPicker';
 
 export default function AdminDashboard({ settings }) {
   const {
@@ -23,6 +24,24 @@ export default function AdminDashboard({ settings }) {
   const [startInEditMode, setStartInEditMode] = useState(false);
   const [viewingTask, setViewingTask] = useState(null); // holds task being viewed, or null
   const [deletingTaskId, setDeletingTaskId] = useState(null); // holds task id to delete, or null
+
+  // Close delete confirmation modal on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        // Only close if no detail modal is active (detail modal has its own escape listener)
+        if (!viewingTask && !isCreateOpen) {
+          setDeletingTaskId(null);
+        }
+      }
+    };
+    if (deletingTaskId) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [deletingTaskId, viewingTask, isCreateOpen]);
 
   const loadTasks = async () => {
     const fetchedTasks = await getTasks();
@@ -364,23 +383,12 @@ export default function AdminDashboard({ settings }) {
                       />
                     </td>
                     <td>
-                      <select 
-                        className={`priority-badge ${PRIORITY_CLASSES[task.priority] || ''}`}
-                        value={task.priority}
-                        onChange={(e) => handlePriorityChange(task.id, e.target.value)}
-                        title="שינוי עדיפות מהיר"
-                      >
-                        {PRIORITIES.includes(task.priority) ? null : (
-                          <option value={task.priority} style={{ backgroundColor: '#fff', color: '#000' }}>
-                            {task.priority}
-                          </option>
-                        )}
-                        {PRIORITIES.map(pr => (
-                          <option key={pr} value={pr} style={{ backgroundColor: '#fff', color: '#000' }}>
-                            {pr}
-                          </option>
-                        ))}
-                      </select>
+                      <PriorityPicker
+                        currentPriority={task.priority}
+                        priorities={PRIORITIES}
+                        priorityColors={PRIORITY_CLASSES}
+                        onChange={(newPriority) => handlePriorityChange(task.id, newPriority)}
+                      />
                     </td>
                     <td>{renderDeadline(task.deadline)}</td>
                     <td>{formatDate(task.updatedAt)}</td>
@@ -427,24 +435,14 @@ export default function AdminDashboard({ settings }) {
                 <div className="task-card-meta">
                   <div className="meta-item">
                     <span className="meta-label">עדיפות</span>
-                    <select 
-                      className={`priority-badge ${PRIORITY_CLASSES[task.priority] || ''}`}
-                      value={task.priority}
-                      onChange={(e) => handlePriorityChange(task.id, e.target.value)}
-                      style={{ width: '100%', marginTop: '4px' }}
-                      title="שינוי עדיפות מהיר"
-                    >
-                      {PRIORITIES.includes(task.priority) ? null : (
-                        <option value={task.priority} style={{ backgroundColor: '#fff', color: '#000' }}>
-                          {task.priority}
-                        </option>
-                      )}
-                      {PRIORITIES.map(pr => (
-                        <option key={pr} value={pr} style={{ backgroundColor: '#fff', color: '#000' }}>
-                          {pr}
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ marginTop: '4px' }}>
+                      <PriorityPicker
+                        currentPriority={task.priority}
+                        priorities={PRIORITIES}
+                        priorityColors={PRIORITY_CLASSES}
+                        onChange={(newPriority) => handlePriorityChange(task.id, newPriority)}
+                      />
+                    </div>
                   </div>
                   <div className="meta-item">
                     <span className="meta-label">תאריך יעד</span>

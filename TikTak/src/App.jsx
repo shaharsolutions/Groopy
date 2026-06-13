@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { signInAnonymously } from 'firebase/auth';
 import { auth } from './firebase';
 import Header from './components/Header';
+import GuideModal from './components/GuideModal';
 import AdminDashboard from './pages/AdminDashboard';
 import ExternalDashboard from './pages/ExternalDashboard';
 import SettingsPage from './pages/SettingsPage';
@@ -32,10 +33,14 @@ export default function App() {
     priorities: ['רגילה', 'גבוהה', 'דחופה'],
     importManagers: ['אלון ישראלי', 'שירה כהן', 'דוד לוי'],
     stores: ['סניף אילת', 'סניף תל אביב', 'סניף חיפה', 'כלל הרשת'],
-    suppliers: ['Shenzhen Printing Ltd', 'אריזות ישראל', 'מפעלי קרטון בע"מ'],
+    suppliers: [
+      { name: 'Shenzhen Printing Ltd', email: 'li@shenzhenprint.com', phone: '+86 138 0000 0000', address: 'Shenzhen, China', wechat: 'wxid_szprint', notes: 'ספק דפוס ראשי בסין', contactPerson: 'Mr. Li' },
+      { name: 'אריזות ישראל', email: 'sales@israelpack.co.il', phone: '03-5551234', address: 'אזור התעשייה חולון', wechat: '', notes: 'ספק אריזות קרטון בארץ', contactPerson: 'משה כהן' },
+      { name: 'מפעלי קרטון בע"מ', email: 'info@cartonfact.co.il', phone: '04-8884321', address: 'אזור התעשייה מפרץ חיפה', wechat: '', notes: 'ייצור קופסאות קרטון מותאמות אישית', contactPerson: '' }
+    ],
     contacts: [
-      { name: 'Mr. Li', role: 'איש קשר מכירות סין', phone: '+86 138 0000 0000', email: 'li@shenzhenprint.com' },
-      { name: 'משה כהן', role: 'מנהל ייצור ישראל', phone: '052-1234567', email: 'moshe@israelpack.co.il' }
+      { name: 'Mr. Li', role: 'איש קשר מכירות סין', phone: '+86 138 0000 0000', email: 'li@shenzhenprint.com', address: 'Shenzhen, China', wechat: 'wxid_szprint', notes: 'עובד מול Shenzhen Printing' },
+      { name: 'משה כהן', role: 'מנהל ייצור ישראל', phone: '052-1234567', email: 'moshe@israelpack.co.il', address: 'חולון', wechat: '', notes: 'מנהל ייצור באריזות ישראל' }
     ],
     defaultStatus: 'חדש',
     statusColors: {
@@ -76,6 +81,42 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [modalError, setModalError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
+  // Helper functions for normalization
+  const normalizeSuppliers = (sups) => {
+    return (sups || []).map(s => {
+      if (typeof s === 'string') {
+        return { name: s, email: '', phone: '', address: '', wechat: '', notes: '', contactPerson: '' };
+      }
+      return {
+        name: s.name || '',
+        email: s.email || '',
+        phone: s.phone || '',
+        address: s.address || '',
+        wechat: s.wechat || '',
+        notes: s.notes || '',
+        contactPerson: s.contactPerson || ''
+      };
+    });
+  };
+
+  const normalizeContacts = (conts) => {
+    return (conts || []).map(c => {
+      if (typeof c === 'string') {
+        return { name: c, role: '', phone: '', email: '', address: '', wechat: '', notes: '' };
+      }
+      return {
+        name: c.name || '',
+        role: c.role || '',
+        phone: c.phone || '',
+        email: c.email || '',
+        address: c.address || '',
+        wechat: c.wechat || '',
+        notes: c.notes || ''
+      };
+    });
+  };
 
   useEffect(() => {
     // Automatically sign in anonymously and load settings
@@ -89,8 +130,8 @@ export default function App() {
           setSettings(prev => ({
             ...prev,
             ...dbSettings,
-            suppliers: dbSettings.suppliers || prev.suppliers || [],
-            contacts: dbSettings.contacts || prev.contacts || []
+            suppliers: normalizeSuppliers(dbSettings.suppliers || prev.suppliers),
+            contacts: normalizeContacts(dbSettings.contacts || prev.contacts)
           }));
         }
         
@@ -203,6 +244,7 @@ export default function App() {
         currentView={currentView}
         onViewChange={setCurrentView}
         onLogout={handleLogout}
+        onOpenGuide={() => setIsGuideOpen(true)}
       />
       {userRole === 'admin' ? (
         currentView === 'settings' ? (
@@ -281,6 +323,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Guide Modal */}
+      <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 }

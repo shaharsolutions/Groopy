@@ -8,7 +8,14 @@ import { useState } from 'react';
  */
 export default function Login({ onLogin }) {
   const [activeTab, setActiveTab] = useState('admin'); // 'admin' or 'external'
-  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('tiktak_remember_me') === 'true';
+  });
+  const [password, setPassword] = useState(() => {
+    const savedPassword = localStorage.getItem('tiktak_remembered_password');
+    const remember = localStorage.getItem('tiktak_remember_me') === 'true';
+    return (remember && savedPassword) ? savedPassword : '';
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,6 +40,16 @@ export default function Login({ onLogin }) {
         }
         // Correct password
         localStorage.setItem('tiktak_admin_authenticated', 'true');
+        
+        // Save or remove password in localStorage based on rememberMe option
+        if (rememberMe) {
+          localStorage.setItem('tiktak_remember_me', 'true');
+          localStorage.setItem('tiktak_remembered_password', password);
+        } else {
+          localStorage.setItem('tiktak_remember_me', 'false');
+          localStorage.removeItem('tiktak_remembered_password');
+        }
+        
         onLogin('admin');
       } else {
         // External viewer mode - no password required
@@ -58,7 +75,9 @@ export default function Login({ onLogin }) {
             onClick={() => {
               setActiveTab('admin');
               setError('');
-              setPassword('');
+              const savedPassword = localStorage.getItem('tiktak_remembered_password');
+              const remember = localStorage.getItem('tiktak_remember_me') === 'true';
+              setPassword((remember && savedPassword) ? savedPassword : '');
             }}
             disabled={loading}
           >
@@ -101,6 +120,20 @@ export default function Login({ onLogin }) {
                 >
                   {showPassword ? 'הסתר' : 'הצג'}
                 </button>
+              </div>
+
+              <div className="remember-me-container">
+                <input
+                  id="rememberMe"
+                  type="checkbox"
+                  className="remember-me-checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={loading}
+                />
+                <label htmlFor="rememberMe" className="remember-me-label">
+                  זכור אותי במכשיר זה
+                </label>
               </div>
             </div>
           ) : (

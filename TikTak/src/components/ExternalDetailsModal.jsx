@@ -3,11 +3,69 @@ import { getCommentsForTask, addComment, deleteComment, uploadFileToStorage } fr
 
 export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false }) {
   const {
-    statusColors: STATUS_CLASSES = {}
+    statusColors: STATUS_CLASSES = {},
+    suppliers: SUPPLIERS = [],
+    contacts: CONTACTS = []
   } = settings || {};
   const [comments, setComments] = useState([]);
   const [copiedLink, setCopiedLink] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState(null);
+  const [activeInfoCard, setActiveInfoCard] = useState(null);
+
+  const handleOpenSupplierCard = (supplierName) => {
+    if (!supplierName) return;
+    const sup = SUPPLIERS.find(s => (typeof s === 'string' ? s : s.name) === supplierName);
+    const supObj = typeof sup === 'string' ? { name: sup } : (sup || { name: supplierName });
+    setActiveInfoCard({
+      type: 'supplier',
+      title: `📇 כרטיס ספק: ${supObj.name}`,
+      fields: [
+        { label: 'שם הספק', value: supObj.name },
+        { label: 'איש קשר אצל הספק', value: supObj.contactPerson },
+        { label: 'טלפון', value: supObj.phone, isLtr: true },
+        { label: 'אימייל', value: supObj.email, isLtr: true },
+        { label: 'כתובת', value: supObj.address },
+        { label: 'WeChat / WhatsApp', value: supObj.wechat, isLtr: true },
+        { label: 'הערות ומידע נוסף', value: supObj.notes, isMultiline: true }
+      ]
+    });
+  };
+
+  const handleOpenContactCard = (contactName) => {
+    if (!contactName) return;
+    const contact = CONTACTS.find(c => c.name === contactName);
+    const contactObj = contact || { name: contactName };
+    setActiveInfoCard({
+      type: 'contact',
+      title: `📇 כרטיס איש קשר: ${contactObj.name}`,
+      fields: [
+        { label: 'שם מלא', value: contactObj.name },
+        { label: 'תפקיד', value: contactObj.role },
+        { label: 'טלפון', value: contactObj.phone, isLtr: true },
+        { label: 'אימייל', value: contactObj.email, isLtr: true },
+        { label: 'כתובת', value: contactObj.address },
+        { label: 'WeChat / WhatsApp', value: contactObj.wechat, isLtr: true },
+        { label: 'הערות ומידע נוסף', value: contactObj.notes, isMultiline: true }
+      ]
+    });
+  };
+
+  // Close modal or cancel actions on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (commentToDelete) {
+          setCommentToDelete(null);
+        } else if (!isSingleProjectView) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [commentToDelete, isSingleProjectView, onClose]);
 
   const handleCopyTaskLink = () => {
     if (!task) return;
@@ -333,7 +391,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   {/* File Attachment Input */}
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">
-                      צירוף קובץ או תמונה (אופציונלי) <span style={{ fontWeight: 'normal', fontSize: '0.85em', color: 'var(--text-muted, #718096)' }}>(עד 3MB)</span>
+                      צירוף קובץ או תמונה (אופציונלי)
                     </label>
                     {attachedFile ? (
                       <div className="comment-attachment-preview-chip">
@@ -421,12 +479,38 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
               <div className="sidebar-row">
                 <span className="sidebar-label">ספק</span>
-                <span className="sidebar-value">{task.supplierName || '-'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="sidebar-value">{task.supplierName || '-'}</span>
+                  {task.supplierName && (
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-icon" 
+                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="פרטי כרטיס ספק"
+                      onClick={() => handleOpenSupplierCard(task.supplierName)}
+                    >
+                      ℹ️
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="sidebar-row">
                 <span className="sidebar-label">איש קשר ספק</span>
-                <span className="sidebar-value">{task.contactPerson || '-'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="sidebar-value">{task.contactPerson || '-'}</span>
+                  {task.contactPerson && (
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-icon" 
+                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="פרטי כרטיס איש קשר"
+                      onClick={() => handleOpenContactCard(task.contactPerson)}
+                    >
+                      ℹ️
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="sidebar-row">
@@ -512,6 +596,42 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
               >
                 מחיקה
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Read-only Info Card Popup */}
+      {activeInfoCard && (
+        <div className="modal-overlay" style={{ zIndex: 1250 }} onClick={() => setActiveInfoCard(null)}>
+          <div className="modal-content" style={{ maxWidth: '450px', textAlign: 'right', direction: 'rtl', padding: '20px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ marginBottom: '16px' }}>
+              <h3 className="modal-title" style={{ fontSize: '1.25rem', fontWeight: '700' }}>{activeInfoCard.title}</h3>
+              <button className="modal-close" onClick={() => setActiveInfoCard(null)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: 0 }}>
+              {activeInfoCard.fields.some(f => f.value && f.value.trim()) ? (
+                activeInfoCard.fields.map((field, idx) => {
+                  if (!field.value || !field.value.trim()) return null;
+                  return (
+                    <div key={idx} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '2px' }}>{field.label}</div>
+                      <div 
+                        className={field.isLtr ? 'direction-ltr text-left' : ''} 
+                        style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: field.isMultiline ? 'pre-wrap' : 'normal' }}
+                      >
+                        {field.value}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  אין פרטים נוספים שמורים עבור גורם זה במערכת.
+                </div>
+              )}
+            </div>
+            <div className="modal-footer" style={{ marginTop: '20px', padding: 0, borderTop: 'none', display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)} style={{ minWidth: '80px' }}>סגירה</button>
             </div>
           </div>
         </div>

@@ -55,6 +55,45 @@ export default function AdminDetailsModal({
 
   // Inline Editing Mode States
   const [activeEditField, setActiveEditField] = useState(null);
+  const [activeInfoCard, setActiveInfoCard] = useState(null);
+
+  const handleOpenSupplierCard = (supplierName) => {
+    if (!supplierName) return;
+    const sup = SUPPLIERS.find(s => (typeof s === 'string' ? s : s.name) === supplierName);
+    const supObj = typeof sup === 'string' ? { name: sup } : (sup || { name: supplierName });
+    setActiveInfoCard({
+      type: 'supplier',
+      title: `📇 כרטיס ספק: ${supObj.name}`,
+      fields: [
+        { label: 'שם הספק', value: supObj.name },
+        { label: 'איש קשר אצל הספק', value: supObj.contactPerson },
+        { label: 'טלפון', value: supObj.phone, isLtr: true },
+        { label: 'אימייל', value: supObj.email, isLtr: true },
+        { label: 'כתובת', value: supObj.address },
+        { label: 'WeChat / WhatsApp', value: supObj.wechat, isLtr: true },
+        { label: 'הערות ומידע נוסף', value: supObj.notes, isMultiline: true }
+      ]
+    });
+  };
+
+  const handleOpenContactCard = (contactName) => {
+    if (!contactName) return;
+    const contact = CONTACTS.find(c => c.name === contactName);
+    const contactObj = contact || { name: contactName };
+    setActiveInfoCard({
+      type: 'contact',
+      title: `📇 כרטיס איש קשר: ${contactObj.name}`,
+      fields: [
+        { label: 'שם מלא', value: contactObj.name },
+        { label: 'תפקיד', value: contactObj.role },
+        { label: 'טלפון', value: contactObj.phone, isLtr: true },
+        { label: 'אימייל', value: contactObj.email, isLtr: true },
+        { label: 'כתובת', value: contactObj.address },
+        { label: 'WeChat / WhatsApp', value: contactObj.wechat, isLtr: true },
+        { label: 'הערות ומידע נוסף', value: contactObj.notes, isMultiline: true }
+      ]
+    });
+  };
 
   // States for temporary field values while editing inline
   const [editTitle, setEditTitle] = useState('');
@@ -144,9 +183,31 @@ export default function AdminDetailsModal({
       setNewSubtaskTitle('');
       setNewSubtaskViewTitle('');
       setCreateInternalNotes('');
-      setComments([]);
     }
   }, [task, startInEditMode, settings, DEFAULT_STATUS, PRIORITIES, WORK_TYPES]);
+
+  // Close modal or cancel actions on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        // If a popover/picker is open, let it handle the Escape key instead of closing the modal or canceling edits
+        if (document.querySelector('.status-picker-popover, .priority-picker-popover, .custom-datepicker-popup')) {
+          return;
+        }
+        if (commentToDelete) {
+          setCommentToDelete(null);
+        } else if (activeEditField) {
+          setActiveEditField(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [commentToDelete, activeEditField, onClose]);
 
   if (!task && !isCreateMode) return null;
 
@@ -723,10 +784,7 @@ export default function AdminDetailsModal({
                 <label className="form-label">עדיפות</label>
                 <div className="segmented-control">
                   {PRIORITIES.map(pr => {
-                    let priorityClass = '';
-                    if (pr === 'רגילה') priorityClass = 'priority-normal';
-                    if (pr === 'גבוהה') priorityClass = 'priority-high';
-                    if (pr === 'דחופה') priorityClass = 'priority-urgent';
+                    const priorityClass = PRIORITY_CLASSES[pr] || '';
                     return (
                       <button
                         key={pr}
@@ -759,16 +817,33 @@ export default function AdminDetailsModal({
                 
                 <div className="form-group">
                   <label className="form-label">שם הספק בסין / בארץ</label>
-                  <input 
-                    type="text"
-                    className="form-control"
-                    placeholder="לדוגמה: Shenzhen Printing Ltd"
-                    value={createSupplierName}
-                    onChange={(e) => setCreateSupplierName(e.target.value)}
-                    list="suppliers-list-modal"
-                  />
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="text"
+                      className="form-control"
+                      placeholder="לדוגמה: Shenzhen Printing Ltd"
+                      value={createSupplierName}
+                      onChange={(e) => setCreateSupplierName(e.target.value)}
+                      list="suppliers-list-modal"
+                      style={{ flex: 1 }}
+                    />
+                    {createSupplierName && (
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-icon" 
+                        style={{ padding: '6px 8px', fontSize: '0.85rem', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="פרטי כרטיס ספק"
+                        onClick={() => handleOpenSupplierCard(createSupplierName)}
+                      >
+                        ℹ️
+                      </button>
+                    )}
+                  </div>
                   <datalist id="suppliers-list-modal">
-                    {SUPPLIERS.map(s => <option key={s} value={s} />)}
+                    {SUPPLIERS.map(s => {
+                      const name = typeof s === 'string' ? s : s.name;
+                      return <option key={name} value={name} />;
+                    })}
                   </datalist>
                 </div>
               </div>
@@ -776,20 +851,39 @@ export default function AdminDetailsModal({
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">איש קשר אצל הספק</label>
-                  <input 
-                    type="text"
-                    className="form-control"
-                    placeholder="לדוגמה: Mr. Li"
-                    value={createContactPerson}
-                    onChange={(e) => setCreateContactPerson(e.target.value)}
-                    list="contacts-list-modal"
-                  />
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="text"
+                      className="form-control"
+                      placeholder="לדוגמה: Mr. Li"
+                      value={createContactPerson}
+                      onChange={(e) => setCreateContactPerson(e.target.value)}
+                      list="contacts-list-modal"
+                      style={{ flex: 1 }}
+                    />
+                    {createContactPerson && (
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-icon" 
+                        style={{ padding: '6px 8px', fontSize: '0.85rem', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="פרטי כרטיס איש קשר"
+                        onClick={() => handleOpenContactCard(createContactPerson)}
+                      >
+                        ℹ️
+                      </button>
+                    )}
+                  </div>
                   <datalist id="contacts-list-modal">
-                    {CONTACTS.map(c => (
-                      <option key={c.name} value={c.name}>
-                        {c.role ? `${c.role} ${c.phone ? `(${c.phone})` : ''}` : ''}
-                      </option>
-                    ))}
+                    {CONTACTS.map(c => {
+                      const name = typeof c === 'string' ? c : c.name;
+                      const role = typeof c === 'string' ? '' : c.role;
+                      const phone = typeof c === 'string' ? '' : c.phone;
+                      return (
+                        <option key={name} value={name}>
+                          {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
+                        </option>
+                      );
+                    })}
                   </datalist>
                 </div>
                 
@@ -822,7 +916,7 @@ export default function AdminDetailsModal({
 
               <div className="form-group">
                 <label className="form-label">
-                  קבצים מצורפים (תמונות, קובצי PDF או מסמכי עבודה) <span style={{ fontWeight: 'normal', fontSize: '0.85em', color: 'var(--text-muted, #718096)' }}>(עד 70MB לקובץ)</span>
+                  קבצים מצורפים (תמונות, קובצי PDF או מסמכי עבודה)
                 </label>
                 
                 <div 
@@ -1247,7 +1341,7 @@ export default function AdminDetailsModal({
                       {/* Comment File Attachment */}
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">
-                          צירוף קובץ או תמונה (אופציונלי) <span style={{ fontWeight: 'normal', fontSize: '0.85em', color: 'var(--text-muted, #718096)' }}>(עד 70MB)</span>
+                          צירוף קובץ או תמונה (אופציונלי)
                         </label>
                         {attachedFile ? (
                           <div className="comment-attachment-preview-chip">
@@ -1383,10 +1477,7 @@ export default function AdminDetailsModal({
                     <span className="sidebar-label">עדיפות</span>
                     <div className="segmented-control" style={{ marginTop: '4px' }}>
                       {PRIORITIES.map(pr => {
-                        let priorityClass = '';
-                        if (pr === 'רגילה') priorityClass = 'priority-normal';
-                        if (pr === 'גבוהה') priorityClass = 'priority-high';
-                        if (pr === 'דחופה') priorityClass = 'priority-urgent';
+                        const priorityClass = PRIORITY_CLASSES[pr] || '';
                         return (
                           <button
                             key={pr}
@@ -1493,19 +1584,35 @@ export default function AdminDetailsModal({
                           autoFocus
                         />
                         <datalist id="suppliers-list-inline">
-                          {SUPPLIERS.map(s => <option key={s} value={s} />)}
+                          {SUPPLIERS.map(s => {
+                            const name = typeof s === 'string' ? s : s.name;
+                            return <option key={name} value={name} />;
+                          })}
                         </datalist>
                         <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierName', editSupplierName)}>✔️</button>
                         <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
                       </div>
                     ) : (
-                      <span 
-                        className="sidebar-value hover-editable-inline" 
-                        onClick={() => startEditingField('supplierName', task.supplierName)}
-                        title="לחצי לעריכת ספק"
-                      >
-                        {task.supplierName || 'לחצי להוספה...'} ✏️
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span 
+                          className="sidebar-value hover-editable-inline" 
+                          onClick={() => startEditingField('supplierName', task.supplierName)}
+                          title="לחצי לעריכת ספק"
+                        >
+                          {task.supplierName || 'לחצי להוספה...'} ✏️
+                        </span>
+                        {task.supplierName && (
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary btn-icon" 
+                            style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            title="פרטי כרטיס ספק"
+                            onClick={() => handleOpenSupplierCard(task.supplierName)}
+                          >
+                            ℹ️
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -1524,23 +1631,41 @@ export default function AdminDetailsModal({
                           autoFocus
                         />
                         <datalist id="contacts-list-inline">
-                          {CONTACTS.map(c => (
-                            <option key={c.name} value={c.name}>
-                              {c.role ? `${c.role} ${c.phone ? `(${c.phone})` : ''}` : ''}
-                            </option>
-                          ))}
+                          {CONTACTS.map(c => {
+                            const name = typeof c === 'string' ? c : c.name;
+                            const role = typeof c === 'string' ? '' : c.role;
+                            const phone = typeof c === 'string' ? '' : c.phone;
+                            return (
+                              <option key={name} value={name}>
+                                {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
+                              </option>
+                            );
+                          })}
                         </datalist>
                         <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
                         <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
                       </div>
                     ) : (
-                      <span 
-                        className="sidebar-value hover-editable-inline" 
-                        onClick={() => startEditingField('contactPerson', task.contactPerson)}
-                        title="לחצי לעריכת איש קשר"
-                      >
-                        {task.contactPerson || 'לחצי להוספה...'} ✏️
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span 
+                          className="sidebar-value hover-editable-inline" 
+                          onClick={() => startEditingField('contactPerson', task.contactPerson)}
+                          title="לחצי לעריכת איש קשר"
+                        >
+                          {task.contactPerson || 'לחצי להוספה...'} ✏️
+                        </span>
+                        {task.contactPerson && (
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary btn-icon" 
+                            style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            title="פרטי כרטיס איש קשר"
+                            onClick={() => handleOpenContactCard(task.contactPerson)}
+                          >
+                            ℹ️
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -1742,6 +1867,45 @@ export default function AdminDetailsModal({
               >
                 מחיקה
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Read-only Info Card Popup */}
+      {activeInfoCard && (
+        <div className="modal-overlay" style={{ zIndex: 1250 }} onClick={() => setActiveInfoCard(null)}>
+          <div className="modal-content" style={{ maxWidth: '450px', textAlign: 'right', direction: 'rtl', padding: '20px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ marginBottom: '16px' }}>
+              <h3 className="modal-title" style={{ fontSize: '1.25rem', fontWeight: '700' }}>{activeInfoCard.title}</h3>
+              <button className="modal-close" onClick={() => setActiveInfoCard(null)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: 0 }}>
+              {activeInfoCard.fields.some(f => f.value && f.value.trim()) ? (
+                activeInfoCard.fields.map((field, idx) => {
+                  if (!field.value || !field.value.trim()) return null;
+                  return (
+                    <div key={idx} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '2px' }}>{field.label}</div>
+                      <div 
+                        className={field.isLtr ? 'direction-ltr text-left' : ''} 
+                        style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: field.isMultiline ? 'pre-wrap' : 'normal' }}
+                      >
+                        {field.value}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  אין פרטים נוספים שמורים עבור גורם זה במערכת.
+                  <br />
+                  <span style={{ fontSize: '0.8rem', marginTop: '6px', display: 'inline-block' }}>ניתן להזין פרטים נוספים דרך מסך ההגדרות.</span>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer" style={{ marginTop: '20px', padding: 0, borderTop: 'none', display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)} style={{ minWidth: '80px' }}>סגירה</button>
             </div>
           </div>
         </div>

@@ -75,11 +75,13 @@ service cloud.firestore {
       let allowedFields = [
         'title', 'description', 'workType', 'storeName', 'supplierName',
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
-        'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks'
+        'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks',
+        'supplierContactEmail', 'diecutsStatus', 'imagesStatus', 'standardsInstituteRequired',
+        'planogramFile', 'workOrderFiles'
       ];
       
       let requiredFields = [
-        'title', 'workType', 'status', 'priority', 'jobNumber', 'createdAt', 'updatedAt'
+        'title', 'status', 'jobNumber', 'createdAt', 'updatedAt'
       ];
       
       return hasRequiredFields(data, requiredFields) &&
@@ -87,19 +89,25 @@ service cloud.firestore {
              data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
              data.jobNumber is string && data.jobNumber.matches("^GP-\\d+$") &&
              data.status is string && data.status.size() >= 1 && data.status.size() <= 100 &&
-             data.priority is string && data.priority.size() >= 1 && data.priority.size() <= 100 &&
-             data.workType is string && data.workType.size() >= 1 && data.workType.size() <= 100 &&
              data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
              data.updatedAt is string && data.updatedAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
-             (data.description is string && data.description.size() <= 2000) &&
-             (data.storeName is string && data.storeName.size() <= 100) &&
-             (data.supplierName is string && data.supplierName.size() <= 100) &&
-             (data.contactPerson is string && data.contactPerson.size() <= 100) &&
-             (data.importManager is string && data.importManager.size() <= 100) &&
-             isValidDateString(data.deadline) &&
-             isValidUrl(data.driveLink) &&
+             (!('workType' in data) || (data.workType is string && data.workType.size() >= 1 && data.workType.size() <= 100)) &&
+             (!('priority' in data) || (data.priority is string && data.priority.size() >= 1 && data.priority.size() <= 100)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+             (!('storeName' in data) || (data.storeName is string && data.storeName.size() <= 100)) &&
+             (!('supplierName' in data) || (data.supplierName is string && data.supplierName.size() <= 100)) &&
+             (!('contactPerson' in data) || (data.contactPerson is string && data.contactPerson.size() <= 100)) &&
+             (!('importManager' in data) || (data.importManager is string && data.importManager.size() <= 100)) &&
+             (!('deadline' in data) || isValidDateString(data.deadline)) &&
+             (!('driveLink' in data) || isValidUrl(data.driveLink)) &&
              (!('attachments' in data) || data.attachments is list) &&
-             (!('subtasks' in data) || data.subtasks is list);
+             (!('subtasks' in data) || data.subtasks is list) &&
+             (!('supplierContactEmail' in data) || data.supplierContactEmail is string) &&
+             (!('diecutsStatus' in data) || data.diecutsStatus is string) &&
+             (!('imagesStatus' in data) || data.imagesStatus is string) &&
+             (!('standardsInstituteRequired' in data) || data.standardsInstituteRequired is string) &&
+             (!('planogramFile' in data) || data.planogramFile == null || data.planogramFile is map) &&
+             (!('workOrderFiles' in data) || data.workOrderFiles is list);
     }
     
     function isValidComment(data) {

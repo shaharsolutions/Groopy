@@ -15,7 +15,7 @@ const PRESET_COLORS = [
 ];
 
 export default function SettingsPage({ settings, onSaveSettings, onBack }) {
-  const [activeTab, setActiveTab] = useState('workflow'); // 'workflow', 'classification', 'lists'
+  const [activeTab, setActiveTab] = useState('suppliers_contacts');
   const [localSettings, setLocalSettings] = useState(JSON.parse(JSON.stringify(settings)));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -23,8 +23,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
   // Inputs for adding items
   const [newStatus, setNewStatus] = useState('');
   const [newStatusColor, setNewStatusColor] = useState('badge-new');
-  const [newWorkType, setNewWorkType] = useState('');
-  const [newPriority, setNewPriority] = useState('');
   const [newStore, setNewStore] = useState('');
   const [newManager, setNewManager] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
@@ -37,8 +35,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
 
   // Inline editing states
   const [editingStatus, setEditingStatus] = useState({ index: null, value: '' });
-  const [editingWorkType, setEditingWorkType] = useState({ index: null, value: '' });
-  const [editingPriority, setEditingPriority] = useState({ index: null, value: '' });
   const [editingStore, setEditingStore] = useState({ index: null, value: '' });
   const [editingManager, setEditingManager] = useState({ index: null, value: '' });
   const [editingSupplier, setEditingSupplier] = useState({ index: null, value: '' });
@@ -108,59 +104,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     showMsg(`הסטטוס "${oldValue}" שונה ל-"${newValue}"`);
   };
 
-  const saveEditedWorkType = (index) => {
-    const oldValue = localSettings.workTypes[index];
-    const newValue = editingWorkType.value.trim();
-    if (!newValue) return;
-    if (oldValue === newValue) {
-      setEditingWorkType({ index: null, value: '' });
-      return;
-    }
-    if (localSettings.workTypes.includes(newValue)) {
-      showMsg('סוג עבודה זה כבר קיים ברשימה', 'danger');
-      return;
-    }
-
-    const updatedTypes = [...localSettings.workTypes];
-    updatedTypes[index] = newValue;
-
-    setLocalSettings({
-      ...localSettings,
-      workTypes: updatedTypes
-    });
-    setEditingWorkType({ index: null, value: '' });
-    showMsg(`סוג העבודה שונה ל-"${newValue}"`);
-  };
-
-  const saveEditedPriority = (index) => {
-    const oldValue = localSettings.priorities[index];
-    const newValue = editingPriority.value.trim();
-    if (!newValue) return;
-    if (oldValue === newValue) {
-      setEditingPriority({ index: null, value: '' });
-      return;
-    }
-    if (localSettings.priorities.includes(newValue)) {
-      showMsg('עדיפות זו כבר קיימת ברשימה', 'danger');
-      return;
-    }
-
-    const updatedPriorities = [...localSettings.priorities];
-    updatedPriorities[index] = newValue;
-
-    const updatedColors = { ...localSettings.priorityColors };
-    const color = updatedColors[oldValue] || 'priority-normal';
-    delete updatedColors[oldValue];
-    updatedColors[newValue] = color;
-
-    setLocalSettings({
-      ...localSettings,
-      priorities: updatedPriorities,
-      priorityColors: updatedColors
-    });
-    setEditingPriority({ index: null, value: '' });
-    showMsg(`העדיפות שונתה ל-"${newValue}"`);
-  };
 
   const saveEditedStore = (index) => {
     const oldValue = localSettings.stores[index];
@@ -254,66 +197,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     showMsg(`הסטטוס "${statusName}" הוסר`);
   };
 
-  const addWorkType = (e) => {
-    e.preventDefault();
-    if (!newWorkType.trim()) return;
-    if (localSettings.workTypes.includes(newWorkType.trim())) {
-      showMsg('סוג עבודה זה כבר קיים במערכת', 'danger');
-      return;
-    }
-    setLocalSettings({
-      ...localSettings,
-      workTypes: [...localSettings.workTypes, newWorkType.trim()]
-    });
-    setNewWorkType('');
-    showMsg(`סוג העבודה "${newWorkType}" נוסף בהצלחה`);
-  };
 
-  const removeWorkType = (type) => {
-    if (localSettings.workTypes.length <= 1) {
-      showMsg('חייב להישאר לפחות סוג עבודה אחד במערכת', 'danger');
-      return;
-    }
-    setLocalSettings({
-      ...localSettings,
-      workTypes: localSettings.workTypes.filter(t => t !== type)
-    });
-    showMsg(`סוג העבודה "${type}" הוסר`);
-  };
-
-  const addPriority = (e) => {
-    e.preventDefault();
-    if (!newPriority.trim()) return;
-    if (localSettings.priorities.includes(newPriority.trim())) {
-      showMsg('רמת עדיפות זו כבר קיימת', 'danger');
-      return;
-    }
-    const priorityColors = { ...localSettings.priorityColors };
-    // Assign generic priority class if not mapped
-    if (!priorityColors[newPriority.trim()]) {
-      priorityColors[newPriority.trim()] = 'priority-normal';
-    }
-
-    setLocalSettings({
-      ...localSettings,
-      priorities: [...localSettings.priorities, newPriority.trim()],
-      priorityColors
-    });
-    setNewPriority('');
-    showMsg(`עדיפות "${newPriority}" נוספה`);
-  };
-
-  const removePriority = (priorityName) => {
-    if (localSettings.priorities.length <= 1) {
-      showMsg('חייב להישאר לפחות סדר עדיפות אחד במערכת', 'danger');
-      return;
-    }
-    setLocalSettings({
-      ...localSettings,
-      priorities: localSettings.priorities.filter(p => p !== priorityName)
-    });
-    showMsg(`העדיפות "${priorityName}" הוסרה`);
-  };
 
   const addStore = (e) => {
     e.preventDefault();
@@ -368,7 +252,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
   };
 
   // Supplier Handlers
-  const addSupplier = (e) => {
+  const addSupplier = async (e) => {
     e.preventDefault();
     if (!newSupplier.trim()) return;
     const suppliers = localSettings.suppliers || [];
@@ -385,24 +269,38 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       notes: '',
       contactPerson: ''
     };
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       suppliers: [...suppliers, newSupplierObj]
-    });
+    };
+    setLocalSettings(updatedSettings);
     setNewSupplier('');
-    showMsg(`הספק "${newSupplier.trim()}" נוסף בהצלחה`);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`הספק "${newSupplierObj.name}" נוסף ונשמר בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
-  const removeSupplier = (supplierName) => {
+  const removeSupplier = async (supplierName) => {
     const suppliers = localSettings.suppliers || [];
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       suppliers: suppliers.filter(s => (typeof s === 'string' ? s : s.name) !== supplierName)
-    });
-    showMsg(`הספק "${supplierName}" הוסר`);
+    };
+    setLocalSettings(updatedSettings);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`הספק "${supplierName}" הוסר ונשמר בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
-  const saveEditedSupplier = (index) => {
+  const saveEditedSupplier = async (index) => {
     const suppliers = localSettings.suppliers || [];
     const oldValueObj = suppliers[index];
     const oldValueName = typeof oldValueObj === 'string' ? oldValueObj : oldValueObj.name;
@@ -423,16 +321,23 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     } else {
       updated[index] = { ...oldValueObj, name: newValue };
     }
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       suppliers: updated
-    });
+    };
+    setLocalSettings(updatedSettings);
     setEditingSupplier({ index: null, value: '' });
-    showMsg(`שם הספק שונה ל-"${newValue}"`);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`שם הספק שונה ל-"${newValue}" ונשמר בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
   // Contact Handlers
-  const addContact = (e) => {
+  const addContact = async (e) => {
     e.preventDefault();
     if (!newContactName.trim()) {
       showMsg('שם איש קשר הוא שדה חובה', 'danger');
@@ -454,28 +359,41 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       notes: ''
     };
 
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       contacts: [...contacts, newContactObj]
-    });
-
+    };
+    setLocalSettings(updatedSettings);
     setNewContactName('');
     setNewContactRole('');
     setNewContactPhone('');
     setNewContactEmail('');
-    showMsg(`איש הקשר "${newContactObj.name}" נוסף בהצלחה`);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`איש הקשר "${newContactObj.name}" נוסף ונשמר בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
-  const removeContact = (contactName) => {
+  const removeContact = async (contactName) => {
     const contacts = localSettings.contacts || [];
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       contacts: contacts.filter(c => c.name !== contactName)
-    });
-    showMsg(`איש הקשר "${contactName}" הוסר`);
+    };
+    setLocalSettings(updatedSettings);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`איש הקשר "${contactName}" הוסר ונשמר בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
-  const saveEditedContact = (index) => {
+  const saveEditedContact = async (index) => {
     const contacts = localSettings.contacts || [];
     const newName = editingContact.name.trim();
     if (!newName) return;
@@ -494,15 +412,22 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       email: editingContact.email.trim()
     };
 
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       contacts: updated
-    });
+    };
+    setLocalSettings(updatedSettings);
     setEditingContact({ index: null, name: '', role: '', phone: '', email: '' });
-    showMsg(`פרטי איש הקשר "${newName}" עודכנו בהצלחה`);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`פרטי איש הקשר "${newName}" עודכנו ונשמרו בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
-  const saveSupplierCard = (index, updatedFields) => {
+  const saveSupplierCard = async (index, updatedFields) => {
     const suppliers = localSettings.suppliers || [];
     const updated = [...suppliers];
     const normalizedOld = typeof suppliers[index] === 'string' ? { name: suppliers[index] } : suppliers[index];
@@ -511,14 +436,21 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       ...updatedFields,
       name: updatedFields.name.trim()
     };
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       suppliers: updated
-    });
-    showMsg(`כרטיס הספק "${updated[index].name}" עודכן בהצלחה`);
+    };
+    setLocalSettings(updatedSettings);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`כרטיס הספק "${updated[index].name}" עודכן ונשמר בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
-  const saveContactCard = (index, updatedFields) => {
+  const saveContactCard = async (index, updatedFields) => {
     const contacts = localSettings.contacts || [];
     const updated = [...contacts];
     updated[index] = {
@@ -526,15 +458,22 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       ...updatedFields,
       name: updatedFields.name.trim()
     };
-    setLocalSettings({
+    const updatedSettings = {
       ...localSettings,
       contacts: updated
-    });
-    showMsg(`כרטיס איש הקשר "${updated[index].name}" עודכן בהצלחה`);
+    };
+    setLocalSettings(updatedSettings);
+    try {
+      await onSaveSettings(updatedSettings);
+      showMsg(`כרטיס איש הקשר "${updated[index].name}" עודכן ונשמר בהצלחה`);
+    } catch (e) {
+      console.error(e);
+      showMsg('שגיאה בשמירת השינויים בשרת', 'danger');
+    }
   };
 
   return (
-    <main className="dashboard-container" style={{ maxWidth: '900px' }}>
+    <main className="dashboard-container" style={{ maxWidth: '1200px' }}>
       
       {/* Top Header Row */}
       <div className="flex-between" style={{ marginBottom: '24px' }}>
@@ -572,40 +511,27 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       {/* Settings Navigation Tabs */}
       <div className="login-tabs" style={{ marginBottom: '24px' }}>
         <button 
-          className={`login-tab-btn ${activeTab === 'workflow' ? 'active' : ''}`}
-          onClick={() => setActiveTab('workflow')}
-        >
-          🔄 סטטוסים ותהליך עבודה
-        </button>
-        <button 
-          className={`login-tab-btn ${activeTab === 'classification' ? 'active' : ''}`}
-          onClick={() => setActiveTab('classification')}
-        >
-          🏷️ סיווג המשימות <br /> (סוגי עבודה ועדיפויות)
-        </button>
-        <button 
-          className={`login-tab-btn ${activeTab === 'lists' ? 'active' : ''}`}
-          onClick={() => setActiveTab('lists')}
-        >
-          👥 רשימות מוזנות מראש <br /> (סניפים ואנשי קשר)
-        </button>
-        <button 
           className={`login-tab-btn ${activeTab === 'suppliers_contacts' ? 'active' : ''}`}
           onClick={() => setActiveTab('suppliers_contacts')}
         >
-          🏭 ספקים ואנשי קשר <br /> (ספקים ואנשי קשר)
+          🏭 ספקים ואנשי קשר
+        </button>
+        <button 
+          className={`login-tab-btn ${activeTab === 'workflow' ? 'active' : ''}`}
+          onClick={() => setActiveTab('workflow')}
+        >
+          🔄 הגדרות זרימת עבודה
         </button>
       </div>
 
       {/* TAB 1: WORKFLOW & STATUSES */}
       {activeTab === 'workflow' && (
         <div className="filter-panel" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
           {/* Default Status Selection */}
           <div>
-            <h4 className="detail-section-title">סטטוס ברירת מחדל</h4>
+            <h4 className="detail-section-title">סטטוס ברירת מחדל לפרויקטים חדשים</h4>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '12px' }}>
-              הסטטוס שיוקצה אוטומטית לכל משימה חדשה שנוצרת במערכת.
+              הסטטוס שיוקצה אוטומטית לכל משימה/פרויקט חדש שנוצר במערכת.
             </p>
             <select 
               className="form-control" 
@@ -618,514 +544,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
               ))}
             </select>
           </div>
-
-          {/* Statuses Grid Management */}
-          <div>
-            <h4 className="detail-section-title">ניהול סטטוסים וצבעי תצוגה</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-              כאן ניתן לראות את כל הסטטוסים במערכת, לעדכן את הצבעים שלהם (בשינוי מהיר) או להסירם.
-            </p>
-
-            <div className="table-container" style={{ marginBottom: '20px' }}>
-              <table className="task-table" style={{ fontSize: '0.9rem' }}>
-                <thead>
-                  <tr>
-                    <th>שם הסטטוס</th>
-                    <th>תצוגה מקדימה</th>
-                    <th>בחירת צבע</th>
-                    <th style={{ width: '80px' }}>פעולות</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {localSettings.statuses.map((st, index) => {
-                    const colorClass = localSettings.statusColors[st] || 'badge-frozen';
-                    const isEditing = editingStatus.index === index;
-                    return (
-                      <tr key={index}>
-                        <td>
-                          {isEditing ? (
-                            <input 
-                              type="text" 
-                              className="form-control"
-                              value={editingStatus.value}
-                              onChange={(e) => setEditingStatus({ ...editingStatus, value: e.target.value })}
-                              style={{ padding: '6px 10px', fontSize: '0.9rem' }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveEditedStatus(index);
-                                if (e.key === 'Escape') setEditingStatus({ index: null, value: '' });
-                              }}
-                              autoFocus
-                            />
-                          ) : (
-                            <span style={{ fontWeight: '600' }}>{st}</span>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`badge ${colorClass}`}>
-                            {isEditing ? editingStatus.value || st : st}
-                          </span>
-                        </td>
-                        <td>
-                          <select 
-                            className="form-control" 
-                            style={{ padding: '6px 10px', fontSize: '0.85rem' }}
-                            value={colorClass}
-                            onChange={(e) => handleStatusColorChange(st, e.target.value)}
-                            disabled={isEditing}
-                          >
-                            {PRESET_COLORS.map(color => (
-                              <option key={color.value} value={color.value}>
-                                {color.label}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            {isEditing ? (
-                              <>
-                                <button 
-                                  className="btn btn-secondary btn-icon"
-                                  title="אישור"
-                                  onClick={() => saveEditedStatus(index)}
-                                  style={{ color: '#10b981', borderColor: '#10b981', padding: '6px' }}
-                                >
-                                  ✔️
-                                </button>
-                                <button 
-                                  className="btn btn-secondary btn-icon"
-                                  title="ביטול"
-                                  onClick={() => setEditingStatus({ index: null, value: '' })}
-                                  style={{ color: '#ef4444', borderColor: '#ef4444', padding: '6px' }}
-                                >
-                                  ❌
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button 
-                                  className="btn btn-secondary btn-icon"
-                                  title="עריכת שם"
-                                  onClick={() => setEditingStatus({ index, value: st })}
-                                  style={{ padding: '6px' }}
-                                >
-                                  ✏️
-                                </button>
-                                <button 
-                                  className="btn btn-danger btn-icon" 
-                                  title="מחיקת סטטוס"
-                                  onClick={() => removeStatus(st)}
-                                  style={{ padding: '6px' }}
-                                >
-                                  🗑️
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Add new status form */}
-            <form onSubmit={addStatus} className="filter-panel" style={{ margin: 0, backgroundColor: '#f8fafc', borderStyle: 'dashed' }}>
-              <h5 style={{ fontWeight: '600', marginBottom: '12px' }}>➕ הוספת סטטוס חדש לתהליך</h5>
-              <div className="form-grid-3col">
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">שם הסטטוס</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="לדוגמה: ממתין למנהל מוצר"
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
-                  />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">צבע הבאדג'</label>
-                  <select 
-                    className="form-control"
-                    value={newStatusColor}
-                    onChange={(e) => setNewStatusColor(e.target.value)}
-                  >
-                    {PRESET_COLORS.map(color => (
-                      <option key={color.value} value={color.value}>
-                        {color.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button type="submit" className="btn btn-primary" style={{ height: '44px' }}>
-                  הוסף סטטוס
-                </button>
-              </div>
-            </form>
-
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: CLASSIFICATION */}
-      {activeTab === 'classification' && (
-        <div className="settings-grid-2col">
-          
-          {/* Work Types panel */}
-          <div className="filter-panel">
-            <h4 className="detail-section-title">סוגי עבודה</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-              סיווגי המשימה עבור המעצבת הגרפית (יופיעו ככפתורי בחירה מהירים בטופס).
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {localSettings.workTypes.map((type, index) => {
-                const isEditing = editingWorkType.index === index;
-                return (
-                  <div key={index} className="flex-between" style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    {isEditing ? (
-                      <input 
-                        type="text" 
-                        className="form-control"
-                        value={editingWorkType.value}
-                        onChange={(e) => setEditingWorkType({ ...editingWorkType, value: e.target.value })}
-                        style={{ padding: '4px 8px', fontSize: '0.9rem', height: '32px' }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveEditedWorkType(index);
-                          if (e.key === 'Escape') setEditingWorkType({ index: null, value: '' });
-                        }}
-                        autoFocus
-                      />
-                    ) : (
-                      <span style={{ fontWeight: '500' }}>{type}</span>
-                    )}
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {isEditing ? (
-                        <>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '4px', color: '#10b981', borderColor: '#10b981' }} 
-                            onClick={() => saveEditedWorkType(index)}
-                          >
-                            ✔️
-                          </button>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '4px', color: '#ef4444', borderColor: '#ef4444' }} 
-                            onClick={() => setEditingWorkType({ index: null, value: '' })}
-                          >
-                            ❌
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '4px' }} 
-                            onClick={() => setEditingWorkType({ index, value: type })}
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            className="btn btn-danger btn-icon" 
-                            style={{ padding: '4px' }} 
-                            onClick={() => removeWorkType(type)}
-                          >
-                            🗑️
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <form onSubmit={addWorkType} style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="למשל: סרטון מוצר" 
-                value={newWorkType}
-                onChange={(e) => setNewWorkType(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
-                ➕ הוספה
-              </button>
-            </form>
-          </div>
-
-          {/* Priorities panel */}
-          <div className="filter-panel">
-            <h4 className="detail-section-title">רמות עדיפות</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-              רמות הדחיפות להשלמת העיצוב. כדאי להגדיר 2-4 רמות.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {localSettings.priorities.map((prio, index) => {
-                let badgeClass = 'priority-normal';
-                if (prio === 'גבוהה') badgeClass = 'priority-high';
-                if (prio === 'דחופה' || prio === 'דחוף') badgeClass = 'priority-urgent';
-                const isEditing = editingPriority.index === index;
-                return (
-                  <div key={index} className="flex-between" style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    {isEditing ? (
-                      <input 
-                        type="text" 
-                        className="form-control"
-                        value={editingPriority.value}
-                        onChange={(e) => setEditingPriority({ ...editingPriority, value: e.target.value })}
-                        style={{ padding: '4px 8px', fontSize: '0.9rem', height: '32px' }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveEditedPriority(index);
-                          if (e.key === 'Escape') setEditingPriority({ index: null, value: '' });
-                        }}
-                        autoFocus
-                      />
-                    ) : (
-                      <span className={`priority-badge ${badgeClass}`}>{prio}</span>
-                    )}
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {isEditing ? (
-                        <>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '4px', color: '#10b981', borderColor: '#10b981' }} 
-                            onClick={() => saveEditedPriority(index)}
-                          >
-                            ✔️
-                          </button>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '4px', color: '#ef4444', borderColor: '#ef4444' }} 
-                            onClick={() => setEditingPriority({ index: null, value: '' })}
-                          >
-                            ❌
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '4px' }} 
-                            onClick={() => setEditingPriority({ index, value: prio })}
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            className="btn btn-danger btn-icon" 
-                            style={{ padding: '4px' }} 
-                            onClick={() => removePriority(prio)}
-                          >
-                            🗑️
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <form onSubmit={addPriority} style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="למשל: עדיפות על" 
-                value={newPriority}
-                onChange={(e) => setNewPriority(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
-                ➕ הוספה
-              </button>
-            </form>
-          </div>
-
-        </div>
-      )}
-
-      {/* TAB 3: LISTS (STORES & MANAGERS) */}
-      {activeTab === 'lists' && (
-        <div className="settings-grid-2col">
-          
-          {/* Prepopulated Stores List */}
-          <div className="filter-panel">
-            <h4 className="detail-section-title">חנויות וסניפים (השלמה אוטומטית)</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-              רשימת סניפי החנות שיוצעו כהשלמה אוטומטית בטופס. המשתמש עדיין יוכל להקליד שם סניף חופשי שאינו ברשימה.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {localSettings.stores.length === 0 ? (
-                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>הרשימה ריקה. הזן סניפים למטה.</span>
-              ) : (
-                localSettings.stores.map((st, index) => {
-                  const isEditing = editingStore.index === index;
-                  return (
-                    <div key={index} className="flex-between" style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                      {isEditing ? (
-                        <input 
-                          type="text" 
-                          className="form-control"
-                          value={editingStore.value}
-                          onChange={(e) => setEditingStore({ ...editingStore, value: e.target.value })}
-                          style={{ padding: '4px 8px', fontSize: '0.9rem', height: '32px' }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveEditedStore(index);
-                            if (e.key === 'Escape') setEditingStore({ index: null, value: '' });
-                          }}
-                          autoFocus
-                        />
-                      ) : (
-                        <span style={{ fontWeight: '500' }}>{st}</span>
-                      )}
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {isEditing ? (
-                          <>
-                            <button 
-                              className="btn btn-secondary btn-icon" 
-                              style={{ padding: '4px', color: '#10b981', borderColor: '#10b981' }} 
-                              onClick={() => saveEditedStore(index)}
-                            >
-                              ✔️
-                            </button>
-                            <button 
-                              className="btn btn-secondary btn-icon" 
-                              style={{ padding: '4px', color: '#ef4444', borderColor: '#ef4444' }} 
-                              onClick={() => setEditingStore({ index: null, value: '' })}
-                            >
-                              ❌
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button 
-                              className="btn btn-secondary btn-icon" 
-                              style={{ padding: '4px' }} 
-                              onClick={() => setEditingStore({ index, value: st })}
-                            >
-                              ✏️
-                            </button>
-                            <button 
-                              className="btn btn-danger btn-icon" 
-                              style={{ padding: '4px' }} 
-                              onClick={() => removeStore(st)}
-                            >
-                              🗑️
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <form onSubmit={addStore} style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="שם חנות / סניף חדש" 
-                value={newStore}
-                onChange={(e) => setNewStore(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
-                ➕ הוספה
-              </button>
-            </form>
-          </div>
-
-          {/* Prepopulated Import Managers List */}
-          <div className="filter-panel">
-            <h4 className="detail-section-title">אנשי קשר</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-              רשימת אנשי הקשר שיופיעו כהצעה להשלמה מהירה בשדה "איש קשר".
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {localSettings.importManagers.length === 0 ? (
-                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>הרשימה ריקה. הזן שמות אנשי קשר למטה.</span>
-              ) : (
-                localSettings.importManagers.map((mgr, index) => {
-                  const isEditing = editingManager.index === index;
-                  return (
-                    <div key={index} className="flex-between" style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                      {isEditing ? (
-                        <input 
-                          type="text" 
-                          className="form-control"
-                          value={editingManager.value}
-                          onChange={(e) => setEditingManager({ ...editingManager, value: e.target.value })}
-                          style={{ padding: '4px 8px', fontSize: '0.9rem', height: '32px' }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveEditedManager(index);
-                            if (e.key === 'Escape') setEditingManager({ index: null, value: '' });
-                          }}
-                          autoFocus
-                        />
-                      ) : (
-                        <span style={{ fontWeight: '500' }}>{mgr}</span>
-                      )}
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {isEditing ? (
-                          <>
-                            <button 
-                              className="btn btn-secondary btn-icon" 
-                              style={{ padding: '4px', color: '#10b981', borderColor: '#10b981' }} 
-                              onClick={() => saveEditedManager(index)}
-                            >
-                              ✔️
-                            </button>
-                            <button 
-                              className="btn btn-secondary btn-icon" 
-                              style={{ padding: '4px', color: '#ef4444', borderColor: '#ef4444' }} 
-                              onClick={() => setEditingManager({ index: null, value: '' })}
-                            >
-                              ❌
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button 
-                              className="btn btn-secondary btn-icon" 
-                              style={{ padding: '4px' }} 
-                              onClick={() => setEditingManager({ index, value: mgr })}
-                            >
-                              ✏️
-                            </button>
-                            <button 
-                              className="btn btn-danger btn-icon" 
-                              style={{ padding: '4px' }} 
-                              onClick={() => removeManager(mgr)}
-                            >
-                              🗑️
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <form onSubmit={addManager} style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="שם איש/ת קשר" 
-                value={newManager}
-                onChange={(e) => setNewManager(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
-                ➕ הוספה
-              </button>
-            </form>
-          </div>
-
         </div>
       )}
 
@@ -1137,9 +555,9 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
             
             {/* Suppliers List Panel */}
             <div className="filter-panel">
-              <h4 className="detail-section-title">🏭 ספקים מוגדרים מראש</h4>
+              <h4 className="detail-section-title">🏭 ספקים</h4>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                רשימת הספקים שיוצעו כהשלמה אוטומטית בשדה "שם הספק בסין / בארץ" בטופס המשימה.
+                ניהול רשימת הספקים במערכת.
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
@@ -1257,11 +675,11 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                 <table className="task-table" style={{ fontSize: '0.85rem' }}>
                   <thead>
                     <tr>
-                      <th style={{ padding: '8px' }}>שם איש קשר</th>
-                      <th style={{ padding: '8px' }}>תפקיד</th>
-                      <th style={{ padding: '8px' }}>טלפון</th>
-                      <th style={{ padding: '8px' }}>אימייל</th>
-                      <th style={{ padding: '8px', width: '110px' }}>פעולות</th>
+                      <th style={{ padding: '8px', whiteSpace: 'nowrap' }}>שם איש קשר</th>
+                      <th style={{ padding: '8px', whiteSpace: 'nowrap' }}>תפקיד</th>
+                      <th style={{ padding: '8px', whiteSpace: 'nowrap' }}>טלפון</th>
+                      <th style={{ padding: '8px', whiteSpace: 'nowrap' }}>אימייל</th>
+                      <th style={{ padding: '8px', width: '110px', whiteSpace: 'nowrap' }}>פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1276,7 +694,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                         const isEditing = editingContact.index === index;
                         return (
                           <tr key={index}>
-                            <td style={{ padding: '8px' }}>
+                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>
                               {isEditing ? (
                                 <input 
                                   type="text"
@@ -1289,7 +707,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                                 <strong>{c.name}</strong>
                               )}
                             </td>
-                            <td style={{ padding: '8px' }}>
+                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>
                               {isEditing ? (
                                 <input 
                                   type="text"
@@ -1302,7 +720,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                                 c.role || '-'
                               )}
                             </td>
-                            <td style={{ padding: '8px' }}>
+                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>
                               {isEditing ? (
                                 <input 
                                   type="text"
@@ -1315,7 +733,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                                 <span className="direction-ltr">{c.phone || '-'}</span>
                               )}
                             </td>
-                            <td style={{ padding: '8px' }}>
+                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>
                               {isEditing ? (
                                 <input 
                                   type="text"

@@ -104,12 +104,33 @@ const generateNextJobNumber = (tasks) => {
   return `GP-${maxNum + 1}`;
 };
 
+export const normalizeTaskStatus = (status) => {
+  const mapping = {
+    'חדש': 'חדש',
+    'בטיפול': 'בטיפול',
+    'ממתין למידע': 'בטיפול',
+    'ממתין לספק בסין': 'נשלח לספק',
+    'ממתין לאישור': 'בטיפול',
+    'נדרש תיקון': 'בטיפול',
+    'מאושר': 'אושר לספק',
+    'נשלח לייצור': 'אושר לספק',
+    'הושלם': 'אושר לספק',
+    'מוקפא': 'חדש'
+  };
+  return mapping[status] || 'חדש';
+};
+
 export const getTasks = async () => {
   try {
     const querySnapshot = await getDocs(collection(db, TASKS_COLLECTION));
     const tasks = [];
     querySnapshot.forEach((doc) => {
-      tasks.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      tasks.push({ 
+        id: doc.id, 
+        ...data,
+        status: normalizeTaskStatus(data.status)
+      });
     });
     return tasks;
   } catch (e) {
@@ -210,6 +231,9 @@ export const createTask = async (taskData) => {
     if (internalNotes) {
       await setDoc(doc(db, 'taskPrivateNotes', docRef.id), { notes: internalNotes });
     }
+
+    // Auto-add supplier & contact to settings if new
+    await autoAddSupplierAndContactFromTask(taskData);
     
     return { id: docRef.id, ...newTask, internalNotes };
   } catch (e) {
@@ -239,6 +263,13 @@ export const updateTask = async (taskId, updatedData) => {
     
     if (internalNotes !== undefined) {
       await setDoc(doc(db, 'taskPrivateNotes', taskId), { notes: internalNotes });
+    }
+
+    // Auto-add supplier & contact to settings if new
+    // Fetch updated document snapshot to get all merged fields.
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      await autoAddSupplierAndContactFromTask(docSnap.data());
     }
     
     return true;
@@ -298,3 +329,134 @@ export const saveGlobalSettings = async (settingsData) => {
     throw e;
   }
 };
+
+/**
+ * Automatically checks the supplierName and contactPerson in task data.
+ * If they are not present in global settings, adds them automatically.
+ */
+export const autoAddSupplierAndContactFromTask = async (taskData) => {
+  try {
+    const supplierName = taskData.supplierName ? taskData.supplierName.trim() : '';
+    const contactPerson = taskData.contactPerson ? taskData.contactPerson.trim() : '';
+    const supplierContactEmail = taskData.supplierContactEmail ? taskData.supplierContactEmail.trim() : '';
+
+    if (!supplierName && !contactPerson) return;
+
+    // Fetch current settings
+    const settings = await getGlobalSettings() || {};
+    let settingsChanged = false;
+
+    // Ensure suppliers array exists and contains objects
+    let suppliers = settings.suppliers || [];
+    suppliers = suppliers.map(s => {
+      if (typeof s === 'string') {
+        return { name: s, email: '', phone: '', address: '', wechat: '', notes: '', contactPerson: '' };
+      }
+      return {
+        name: s.name || '',
+        email: s.email || '',
+        phone: s.phone || '',
+        address: s.address || '',
+        wechat: s.wechat || '',
+        notes: s.notes || '',
+        contactPerson: s.contactPerson || ''
+      };
+    });
+
+    // Ensure contacts array exists and contains objects
+    let contacts = settings.contacts || [];
+    contacts = contacts.map(c => {
+      if (typeof c === 'string') {
+        return { name: c, role: '', phone: '', email: '', address: '', wechat: '', notes: '' };
+      }
+      return {
+        name: c.name || '',
+        role: c.role || '',
+        phone: c.phone || '',
+        email: c.email || '',
+        address: c.address || '',
+        wechat: c.wechat || '',
+        notes: c.notes || ''
+      };
+    });
+
+    // 1. Check Supplier
+    if (supplierName) {
+      const exists = suppliers.some(s => s.name.trim().toLowerCase() === supplierName.toLowerCase());
+
+      if (!exists) {
+        const newSupplierObj = {
+          name: supplierName,
+          email: supplierContactEmail,
+          phone: '',
+          address: '',
+          wechat: '',
+          notes: '',
+          contactPerson: contactPerson
+        };
+        suppliers.push(newSupplierObj);
+        settings.suppliers = suppliers;
+        settingsChanged = true;
+      } else {
+        // If supplier exists, but contactPerson or email is empty, we update it
+        const index = suppliers.findIndex(s => s.name.trim().toLowerCase() === supplierName.toLowerCase());
+        if (index !== -1) {
+          const s = suppliers[index];
+          let updated = false;
+          const updatedSup = { ...s };
+          if (!updatedSup.email && supplierContactEmail) {
+            updatedSup.email = supplierContactEmail;
+            updated = true;
+          }
+          if (!updatedSup.contactPerson && contactPerson) {
+            updatedSup.contactPerson = contactPerson;
+            updated = true;
+          }
+          if (updated) {
+            suppliers[index] = updatedSup;
+            settings.suppliers = suppliers;
+            settingsChanged = true;
+          }
+        }
+      }
+    }
+
+    // 2. Check Contact Person
+    if (contactPerson) {
+      const exists = contacts.some(c => c.name.trim().toLowerCase() === contactPerson.toLowerCase());
+
+      if (!exists) {
+        const newContactObj = {
+          name: contactPerson,
+          role: '',
+          phone: '',
+          email: supplierContactEmail,
+          address: '',
+          wechat: '',
+          notes: ''
+        };
+        contacts.push(newContactObj);
+        settings.contacts = contacts;
+        settingsChanged = true;
+      } else {
+        // If contact exists, but email is empty and task has email, update it
+        const index = contacts.findIndex(c => c.name.trim().toLowerCase() === contactPerson.toLowerCase());
+        if (index !== -1) {
+          const c = contacts[index];
+          if (!c.email && supplierContactEmail) {
+            contacts[index] = { ...c, email: supplierContactEmail };
+            settings.contacts = contacts;
+            settingsChanged = true;
+          }
+        }
+      }
+    }
+
+    if (settingsChanged) {
+      await saveGlobalSettings(settings);
+    }
+  } catch (e) {
+    console.error("Error auto-adding supplier and contact from task data", e);
+  }
+};
+

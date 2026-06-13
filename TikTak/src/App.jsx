@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { signInAnonymously } from 'firebase/auth';
-import { auth } from './firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import Header from './components/Header';
-import GuideModal from './components/GuideModal';
 import AdminDashboard from './pages/AdminDashboard';
 import ExternalDashboard from './pages/ExternalDashboard';
 import SettingsPage from './pages/SettingsPage';
@@ -29,10 +29,7 @@ export default function App() {
   // Dynamic application settings
   const [settings, setSettings] = useState({
     workTypes: ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
-    statuses: ['חדש', 'בטיפול', 'ממתין למידע', 'ממתין לספק בסין', 'ממתין לאישור', 'נדרש תיקון', 'מאושר', 'נשלח לייצור', 'הושלם', 'מוקפא'],
-    priorities: ['רגילה', 'גבוהה', 'דחופה'],
-    importManagers: ['אלון ישראלי', 'שירה כהן', 'דוד לוי'],
-    stores: ['סניף אילת', 'סניף תל אביב', 'סניף חיפה', 'כלל הרשת'],
+    statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק'],
     suppliers: [
       { name: 'Shenzhen Printing Ltd', email: 'li@shenzhenprint.com', phone: '+86 138 0000 0000', address: 'Shenzhen, China', wechat: 'wxid_szprint', notes: 'ספק דפוס ראשי בסין', contactPerson: 'Mr. Li' },
       { name: 'אריזות ישראל', email: 'sales@israelpack.co.il', phone: '03-5551234', address: 'אזור התעשייה חולון', wechat: '', notes: 'ספק אריזות קרטון בארץ', contactPerson: 'משה כהן' },
@@ -46,19 +43,8 @@ export default function App() {
     statusColors: {
       'חדש': 'badge-new',
       'בטיפול': 'badge-in-progress',
-      'ממתין למידע': 'badge-waiting-info',
-      'ממתין לספק בסין': 'badge-waiting-china',
-      'ממתין לאישור': 'badge-waiting-approval',
-      'נדרש תיקון': 'badge-needs-revision',
-      'מאושר': 'badge-approved',
-      'נשלח לייצור': 'badge-sent-production',
-      'הושלם': 'badge-completed',
-      'מוקפא': 'badge-frozen'
-    },
-    priorityColors: {
-      'רגילה': 'priority-normal',
-      'גבוהה': 'priority-high',
-      'דחופה': 'priority-urgent'
+      'נשלח לספק': 'badge-waiting-approval',
+      'אושר לספק': 'badge-approved'
     }
   });
 
@@ -81,7 +67,6 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [modalError, setModalError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // Helper functions for normalization
   const normalizeSuppliers = (sups) => {
@@ -119,23 +104,47 @@ export default function App() {
   };
 
   useEffect(() => {
+    let unsubscribeSettings = () => {};
     // Automatically sign in anonymously and load settings
     const initializeApp = async () => {
       try {
         await signInAnonymously(auth);
         
-        // Fetch settings from Firestore
-        const dbSettings = await getGlobalSettings();
-        if (dbSettings) {
-          setSettings(prev => ({
-            ...prev,
-            ...dbSettings,
-            suppliers: normalizeSuppliers(dbSettings.suppliers || prev.suppliers),
-            contacts: normalizeContacts(dbSettings.contacts || prev.contacts)
-          }));
-        }
+        // Listen to settings in real time from Firestore
+        const settingsDocRef = doc(db, 'settings', 'global');
+        unsubscribeSettings = onSnapshot(settingsDocRef, (docSnap) => {
+          const forcedStatuses = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק'];
+          const forcedStatusColors = {
+            'חדש': 'badge-new',
+            'בטיפול': 'badge-in-progress',
+            'נשלח לספק': 'badge-waiting-approval',
+            'אושר לספק': 'badge-approved'
+          };
+          if (docSnap.exists()) {
+            const dbSettings = docSnap.data();
+            setSettings(prev => ({
+              ...prev,
+              ...dbSettings,
+              statuses: forcedStatuses,
+              statusColors: forcedStatusColors,
+              defaultStatus: 'חדש',
+              suppliers: dbSettings.suppliers !== undefined ? normalizeSuppliers(dbSettings.suppliers) : prev.suppliers,
+              contacts: dbSettings.contacts !== undefined ? normalizeContacts(dbSettings.contacts) : prev.contacts
+            }));
+          } else {
+            setSettings(prev => ({
+              ...prev,
+              statuses: forcedStatuses,
+              statusColors: forcedStatusColors,
+              defaultStatus: 'חדש'
+            }));
+          }
+          setInitializing(false);
+        }, (err) => {
+          console.error("Settings real-time listener error:", err);
+          setInitializing(false);
+        });
         
-        setInitializing(false);
       } catch (e) {
         console.error("Initialization failed", e);
         setError("שגיאה בחיבור ל-Firebase: ודאו שספק ההתחברות Anonymous מופעל ב-Firebase Console.");
@@ -143,6 +152,9 @@ export default function App() {
       }
     };
     initializeApp();
+    return () => {
+      unsubscribeSettings();
+    };
   }, []);
 
   const handleRoleChange = (newRole) => {
@@ -189,8 +201,21 @@ export default function App() {
   };
 
   const handleSaveSettings = async (newSettings) => {
-    await saveGlobalSettings(newSettings);
-    setSettings(newSettings);
+    const forcedStatuses = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק'];
+    const forcedStatusColors = {
+      'חדש': 'badge-new',
+      'בטיפול': 'badge-in-progress',
+      'נשלח לספק': 'badge-waiting-approval',
+      'אושר לספק': 'badge-approved'
+    };
+    const settingsToSave = {
+      ...newSettings,
+      statuses: forcedStatuses,
+      statusColors: forcedStatusColors,
+      defaultStatus: 'חדש'
+    };
+    await saveGlobalSettings(settingsToSave);
+    setSettings(settingsToSave);
   };
 
   if (initializing) {
@@ -244,7 +269,6 @@ export default function App() {
         currentView={currentView}
         onViewChange={setCurrentView}
         onLogout={handleLogout}
-        onOpenGuide={() => setIsGuideOpen(true)}
       />
       {userRole === 'admin' ? (
         currentView === 'settings' ? (
@@ -324,8 +348,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Guide Modal */}
-      <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 }

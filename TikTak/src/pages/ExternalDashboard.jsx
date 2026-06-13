@@ -43,13 +43,12 @@ export default function ExternalDashboard({ settings }) {
   useEffect(() => {
     let result = [...tasks];
 
-    // Search query filter (title, storeName, supplierName)
+    // Search query filter (title, supplierContact)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(t => 
         (t.title && t.title.toLowerCase().includes(q)) ||
-        (t.storeName && t.storeName.toLowerCase().includes(q)) ||
-        (t.supplierName && t.supplierName.toLowerCase().includes(q))
+        ((t.contactPerson || t.supplierContactName) && (t.contactPerson || t.supplierContactName).toLowerCase().includes(q))
       );
     }
 
@@ -69,59 +68,6 @@ export default function ExternalDashboard({ settings }) {
       return;
     }
     setViewingTask(task);
-  };
-
-  const formatDate = (isoString) => {
-    if (!isoString) return '-';
-    try {
-      const date = new Date(isoString);
-      return date.toLocaleDateString('he-IL', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-    } catch {
-      return isoString;
-    }
-  };
-
-  const renderDeadline = (deadlineStr) => {
-    if (!deadlineStr) return '-';
-    try {
-      const deadlineDate = new Date(deadlineStr);
-      const today = new Date();
-      // Strip times to compare calendar days
-      today.setHours(0,0,0,0);
-      deadlineDate.setHours(0,0,0,0);
-      
-      const diffTime = deadlineDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      const formattedDate = formatDate(deadlineStr);
-      
-      if (diffDays < 0) {
-        return (
-          <span className="deadline-danger" title="הדדליין עבר!">
-            ⚠️ עבר ({formattedDate})
-          </span>
-        );
-      } else if (diffDays === 0) {
-        return (
-          <span className="deadline-danger" title="היום!">
-            ⏰ היום! ({formattedDate})
-          </span>
-        );
-      } else if (diffDays <= 3) {
-        return (
-          <span className="deadline-warning" title={`נותרו עוד ${diffDays} ימים`}>
-            ⏳ עוד {diffDays} ימים ({formattedDate})
-          </span>
-        );
-      }
-      return formattedDate;
-    } catch {
-      return deadlineStr;
-    }
   };
 
   const params = new URLSearchParams(window.location.search);
@@ -199,7 +145,7 @@ export default function ExternalDashboard({ settings }) {
           <input 
             type="text" 
             className="form-control" 
-            placeholder="חיפוש לפי כותרת עיצוב, חנות או שם ספק..."
+            placeholder="חיפוש לפי שם עבודה או ספק..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -253,11 +199,9 @@ export default function ExternalDashboard({ settings }) {
             <table className="task-table">
               <thead>
                 <tr>
-                  <th>כותרת העבודה</th>
-                  <th>חנות</th>
-                  <th>ספק</th>
+                  <th>שם העבודה</th>
+                  <th>איש קשר ספק</th>
                   <th>סטטוס</th>
-                  <th>תאריך יעד</th>
                   <th>פעולות</th>
                 </tr>
               </thead>
@@ -265,14 +209,12 @@ export default function ExternalDashboard({ settings }) {
                 {filteredTasks.map(task => (
                   <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
                     <td style={{ fontWeight: '600' }}>{task.title}</td>
-                    <td>{task.storeName || '-'}</td>
-                    <td>{task.supplierName || '-'}</td>
+                    <td>{(task.contactPerson || task.supplierContactName) || '-'}</td>
                     <td>
                       <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
                         {task.status}
                       </span>
                     </td>
-                    <td>{renderDeadline(task.deadline)}</td>
                     <td>
                       <button 
                         className="btn btn-secondary btn-icon"
@@ -303,16 +245,8 @@ export default function ExternalDashboard({ settings }) {
                 
                 <div className="task-card-meta">
                   <div className="meta-item">
-                    <span className="meta-label">תאריך יעד</span>
-                    <span className="meta-value" style={{ marginTop: '4px' }}>{renderDeadline(task.deadline)}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">חנות</span>
-                    <span className="meta-value">{task.storeName || '-'}</span>
-                  </div>
-                  <div className="meta-item" style={{ gridColumn: 'span 2' }}>
-                    <span className="meta-label">ספק</span>
-                    <span className="meta-value">{task.supplierName || '-'}</span>
+                    <span className="meta-label">איש קשר ספק</span>
+                    <span className="meta-value">{(task.contactPerson || task.supplierContactName) || '-'}</span>
                   </div>
                 </div>
 

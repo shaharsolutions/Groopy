@@ -518,28 +518,6 @@ select.badge:focus, select.priority-badge:focus {
   box-shadow: 0 0 0 2px var(--border-focus);
 }
 
-/* Deadline alert systems */
-.deadline-danger {
-  color: #ef4444;
-  font-weight: 700;
-  background-color: #fef2f2;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.deadline-warning {
-  color: #d97706;
-  font-weight: 600;
-  background-color: #fffbeb;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
 
 /* Filter Summary UI */
 .filter-summary {
@@ -1855,202 +1833,6 @@ select.badge:focus, select.priority-badge:focus {
   padding: 12px 0;
 }
 
-/* Custom Date Picker Styles */
-.custom-datepicker-container {
-  position: relative;
-  width: 100%;
-}
-
-.custom-datepicker-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-
-.custom-datepicker-input {
-  width: 100%;
-  padding-left: 12px;
-  padding-right: 36px !important; /* Extra padding on the right for the calendar icon in RTL */
-  cursor: pointer;
-  text-align: right;
-  direction: rtl;
-}
-
-.custom-datepicker-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.custom-datepicker-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9999;
-  background-color: transparent;
-}
-
-.custom-datepicker-popup {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 6px;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: 16px;
-  z-index: 10000;
-  width: 280px;
-  animation: picker-slide-up 0.15s ease-out;
-  direction: rtl;
-}
-
-@keyframes picker-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.custom-datepicker-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.custom-datepicker-month-year {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--text);
-  display: flex;
-  gap: 6px;
-}
-
-.custom-datepicker-nav-btn {
-  background: none;
-  border: 1px solid var(--border);
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--text-muted);
-  transition: all 0.2s ease;
-}
-
-.custom-datepicker-nav-btn:hover {
-  background-color: var(--background);
-  color: var(--text);
-  border-color: var(--border-focus);
-}
-
-.custom-datepicker-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-.custom-datepicker-days {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-
-.custom-datepicker-day {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.8rem;
-  color: var(--text);
-  transition: all 0.15s ease;
-  background: none;
-  border: none;
-  font-weight: 500;
-}
-
-.custom-datepicker-day:hover {
-  background-color: var(--primary-light);
-  color: var(--primary);
-}
-
-.custom-datepicker-day.prev,
-.custom-datepicker-day.next {
-  color: var(--text-muted);
-  opacity: 0.35;
-}
-
-.custom-datepicker-day.selected {
-  background-color: var(--primary) !important;
-  color: white !important;
-  font-weight: 700;
-}
-
-.custom-datepicker-day.today {
-  border: 1.5px solid var(--primary);
-  color: var(--primary);
-  font-weight: 700;
-}
-
-.custom-datepicker-day.today.selected {
-  color: white;
-}
-
-.custom-datepicker-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.custom-datepicker-footer-btn {
-  background: none;
-  border: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--primary);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  transition: background-color 0.2s;
-}
-
-.custom-datepicker-footer-btn:hover {
-  background-color: var(--primary-light);
-}
-
-.custom-datepicker-footer-btn.secondary {
-  color: var(--text-muted);
-}
-
-.custom-datepicker-footer-btn.secondary:hover {
-  background-color: var(--background);
-}
-
 /* --- System Guided Tour Styles --- */
 
 /* Floating Button */
@@ -2344,4 +2126,220 @@ select.badge:focus, select.priority-badge:focus {
   z-index: 1010 !important;
   position: relative !important;
 }
+
+/* Excel Viewer Styles */
+.excel-viewer-container {
+  overflow: auto;
+  max-height: 65vh;
+  max-width: 100%;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  background-color: #ffffff;
+  position: relative;
+}
+
+.excel-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  text-align: left;
+  direction: ltr;
+}
+
+.excel-table th {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  padding: 6px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: center;
+  user-select: none;
+}
+
+.excel-table th.excel-corner-header {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background-color: #e5e7eb;
+  border-right: 2px solid #d1d5db;
+}
+
+.excel-table td.excel-row-num {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  text-align: center;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  user-select: none;
+}
+
+.excel-cell {
+  border: 1px solid #e5e7eb;
+  padding: 6px 12px;
+  white-space: nowrap;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-color: #ffffff;
+  color: #1f2937;
+}
+
+.excel-cell:hover {
+  background-color: #f9fafb;
+}
+
+/* Tab bar for sheets */
+.excel-sheets-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--border, #e2e8f0);
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+
+.excel-sheet-tab {
+  padding: 6px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  color: #4b5563;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.excel-sheet-tab.active {
+  background-color: var(--primary, #3b82f6);
+  color: #ffffff;
+  border-color: var(--primary, #3b82f6);
+}
+
+.excel-sheet-tab:hover:not(.active) {
+  background-color: #e5e7eb;
+  color: #1f2937;
+}
+
+/* Restructured Details Layout Card */
+.details-section-card {
+  background-color: var(--surface, #ffffff);
+  border-radius: var(--radius-md, 10px);
+  padding: 18px 20px;
+  border: 1px solid var(--border, #f1f5f9);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
+}
+
+.details-section-card .detail-section-title {
+  border-bottom: 2px solid var(--border, #f1f5f9);
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Planogram Preview Container */
+.planogram-preview-container {
+  margin-top: 12px;
+  position: relative;
+  border-radius: var(--radius-md, 10px);
+  border: 1px dashed var(--border, #f1f5f9);
+  overflow: hidden;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: #f8fafc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.planogram-preview-container:hover {
+  border-color: var(--primary);
+}
+
+.planogram-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.planogram-preview-container:hover .planogram-preview-img {
+  transform: scale(1.02);
+}
+
+.planogram-actions-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.planogram-preview-container:hover .planogram-actions-overlay {
+  opacity: 1;
+}
+
+.planogram-action-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s ease;
+}
+
+.planogram-action-btn:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.planogram-empty-text {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Status selection grids */
+.material-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .material-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 

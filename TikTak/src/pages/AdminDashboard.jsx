@@ -2,14 +2,11 @@ import { useState, useEffect } from 'react';
 import { getTasks, createTask, updateTask, deleteTask } from '../utils/storage';
 import AdminDetailsModal from '../components/AdminDetailsModal';
 import StatusPicker from '../components/StatusPicker';
-import PriorityPicker from '../components/PriorityPicker';
 
 export default function AdminDashboard({ settings }) {
   const {
     statuses: STATUSES = [],
-    priorities: PRIORITIES = [],
-    statusColors: STATUS_CLASSES = {},
-    priorityColors: PRIORITY_CLASSES = {}
+    statusColors: STATUS_CLASSES = {}
   } = settings || {};
   const [tasks, setTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
@@ -17,7 +14,6 @@ export default function AdminDashboard({ settings }) {
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
 
   // Modals State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -75,13 +71,12 @@ export default function AdminDashboard({ settings }) {
   useEffect(() => {
     let result = [...tasks];
 
-    // Search query filter ( title, storeName, supplierName )
+    // Search query filter ( title, contactPerson )
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(t => 
         (t.title && t.title.toLowerCase().includes(q)) ||
-        (t.storeName && t.storeName.toLowerCase().includes(q)) ||
-        (t.supplierName && t.supplierName.toLowerCase().includes(q))
+        (t.contactPerson && t.contactPerson.toLowerCase().includes(q))
       );
     }
 
@@ -90,16 +85,11 @@ export default function AdminDashboard({ settings }) {
       result = result.filter(t => t.status === statusFilter);
     }
 
-    // Priority filter
-    if (priorityFilter) {
-      result = result.filter(t => t.priority === priorityFilter);
-    }
-
     // Sort by updatedAt descending
     result.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
     setFilteredTasks(result);
-  }, [tasks, searchQuery, statusFilter, priorityFilter]);
+  }, [tasks, searchQuery, statusFilter]);
 
   const handleStatusChange = async (taskId, newStatus) => {
     await updateTask(taskId, { status: newStatus });
@@ -107,15 +97,6 @@ export default function AdminDashboard({ settings }) {
     // If viewing this task in the details modal, refresh it
     if (viewingTask && viewingTask.id === taskId) {
       setViewingTask(prev => ({ ...prev, status: newStatus, updatedAt: new Date().toISOString() }));
-    }
-  };
-
-  const handlePriorityChange = async (taskId, newPriority) => {
-    await updateTask(taskId, { priority: newPriority });
-    await loadTasks();
-    // If viewing this task in the details modal, refresh it
-    if (viewingTask && viewingTask.id === taskId) {
-      setViewingTask(prev => ({ ...prev, priority: newPriority, updatedAt: new Date().toISOString() }));
     }
   };
 
@@ -170,52 +151,13 @@ export default function AdminDashboard({ settings }) {
     }
   };
 
-  const renderDeadline = (deadlineStr) => {
-    if (!deadlineStr) return '-';
-    try {
-      const deadlineDate = new Date(deadlineStr);
-      const today = new Date();
-      // Strip times to compare calendar days
-      today.setHours(0,0,0,0);
-      deadlineDate.setHours(0,0,0,0);
-      
-      const diffTime = deadlineDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      const formattedDate = formatDate(deadlineStr);
-      
-      if (diffDays < 0) {
-        return (
-          <span className="deadline-danger" title="הדדליין עבר!">
-            ⚠️ עבר ({formattedDate})
-          </span>
-        );
-      } else if (diffDays === 0) {
-        return (
-          <span className="deadline-danger" title="היום!">
-            ⏰ היום! ({formattedDate})
-          </span>
-        );
-      } else if (diffDays <= 3) {
-        return (
-          <span className="deadline-warning" title={`נותרו עוד ${diffDays} ימים`}>
-            ⏳ עוד {diffDays} ימים ({formattedDate})
-          </span>
-        );
-      }
-      return formattedDate;
-    } catch {
-      return deadlineStr;
-    }
-  };
-
   return (
     <main className="dashboard-container">
       
       {/* Upper Actions Panel */}
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>לוח עבודות עיצוב</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>לוח עבודות</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>מעקב, עריכה ויצירת משימות גרפיקה במערכת</p>
         </div>
         <button 
@@ -256,57 +198,32 @@ export default function AdminDashboard({ settings }) {
 
       {/* Filter and Search Panel */}
       <div className="filter-panel">
-        <div className="admin-filter-grid">
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {/* Search input */}
-          <div className="form-group" style={{ marginBottom: 0 }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '280px' }}>
             <label className="form-label" style={{ fontSize: '0.8rem' }}>חיפוש חופשי</label>
             <input 
               type="text" 
               className="form-control" 
-              placeholder="חיפוש לפי כותרת, חנות או ספק..."
+              placeholder="חיפוש לפי שם עבודה או ספק..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-
-          {/* Priority Filter */}
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={{ fontSize: '0.8rem' }}>סינון לפי עדיפות</label>
-            <div className="segmented-control">
-              <button 
-                type="button" 
-                className={`segmented-control-btn ${priorityFilter === '' ? 'active' : ''}`}
-                onClick={() => setPriorityFilter('')}
-              >
-                כל העדיפויות
-              </button>
-              {PRIORITIES.map(pr => (
-                <button 
-                  key={pr}
-                  type="button" 
-                  className={`segmented-control-btn ${priorityFilter === pr ? `active ${PRIORITY_CLASSES[pr] || ''}` : ''}`}
-                  onClick={() => setPriorityFilter(pr)}
-                >
-                  {pr}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Filter Summary and Clear Trigger */}
-        <div className="filter-summary">
+        <div className="filter-summary" style={{ marginTop: '16px' }}>
           <div>
             מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> עבודות בסך הכל
           </div>
-          {(searchQuery || statusFilter || priorityFilter) && (
+          {(searchQuery || statusFilter) && (
             <button 
               type="button"
               className="btn btn-secondary" 
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('');
-                setPriorityFilter('');
               }}
               style={{ fontSize: '0.8rem', padding: '4px 10px', height: 'auto' }}
             >
@@ -345,7 +262,6 @@ export default function AdminDashboard({ settings }) {
             onClick={() => {
               setSearchQuery('');
               setStatusFilter('');
-              setPriorityFilter('');
             }}
           >
             איפוס כל המסננים
@@ -358,12 +274,9 @@ export default function AdminDashboard({ settings }) {
             <table className="task-table">
               <thead>
                 <tr>
-                  <th>כותרת העבודה</th>
-                  <th>חנות</th>
-                  <th>ספק בסין/ארץ</th>
+                  <th>שם העבודה</th>
+                  <th>איש קשר אצל הספק</th>
                   <th>סטטוס (שינוי מהיר)</th>
-                  <th>עדיפות (שינוי מהיר)</th>
-                  <th>תאריך יעד</th>
                   <th>עודכן ב</th>
                   <th>פעולות</th>
                 </tr>
@@ -372,8 +285,7 @@ export default function AdminDashboard({ settings }) {
                 {filteredTasks.map(task => (
                   <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
                     <td style={{ fontWeight: '600' }}>{task.title}</td>
-                    <td>{task.storeName || '-'}</td>
-                    <td>{task.supplierName || '-'}</td>
+                    <td>{task.contactPerson || '-'}</td>
                     <td>
                       <StatusPicker
                         currentStatus={task.status}
@@ -382,15 +294,6 @@ export default function AdminDashboard({ settings }) {
                         onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
                       />
                     </td>
-                    <td>
-                      <PriorityPicker
-                        currentPriority={task.priority}
-                        priorities={PRIORITIES}
-                        priorityColors={PRIORITY_CLASSES}
-                        onChange={(newPriority) => handlePriorityChange(task.id, newPriority)}
-                      />
-                    </td>
-                    <td>{renderDeadline(task.deadline)}</td>
                     <td>{formatDate(task.updatedAt)}</td>
                     <td>
                       <div className="actions-cell">
@@ -434,27 +337,12 @@ export default function AdminDashboard({ settings }) {
                 
                 <div className="task-card-meta">
                   <div className="meta-item">
-                    <span className="meta-label">עדיפות</span>
-                    <div style={{ marginTop: '4px' }}>
-                      <PriorityPicker
-                        currentPriority={task.priority}
-                        priorities={PRIORITIES}
-                        priorityColors={PRIORITY_CLASSES}
-                        onChange={(newPriority) => handlePriorityChange(task.id, newPriority)}
-                      />
-                    </div>
+                    <span className="meta-label">איש קשר</span>
+                    <span className="meta-value">{task.contactPerson || '-'}</span>
                   </div>
                   <div className="meta-item">
-                    <span className="meta-label">תאריך יעד</span>
-                    <span className="meta-value" style={{ marginTop: '6px' }}>{renderDeadline(task.deadline)}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">חנות</span>
-                    <span className="meta-value">{task.storeName || '-'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">ספק</span>
-                    <span className="meta-value">{task.supplierName || '-'}</span>
+                    <span className="meta-label">עודכן ב</span>
+                    <span className="meta-value">{formatDate(task.updatedAt)}</span>
                   </div>
                 </div>
 

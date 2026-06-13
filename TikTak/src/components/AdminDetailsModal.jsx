@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage } from '../utils/storage';
-import CustomDatePicker from './CustomDatePicker';
+import ExcelPreviewModal from './ExcelPreviewModal';
+import PdfPreviewModal from './PdfPreviewModal';
 
 export default function AdminDetailsModal({ 
   task, 
@@ -12,14 +13,15 @@ export default function AdminDetailsModal({
   startInEditMode = false 
 }) {
   const {
-    statuses: STATUSES = [],
-    priorities: PRIORITIES = [],
-    workTypes: WORK_TYPES = [],
-    stores: STORES = [],
-    importManagers: IMPORT_MANAGERS = [],
+    statuses: STATUSES = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק'],
+    workTypes: WORK_TYPES = ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
     defaultStatus: DEFAULT_STATUS = 'חדש',
-    statusColors: STATUS_CLASSES = {},
-    priorityColors: PRIORITY_CLASSES = {},
+    statusColors: STATUS_CLASSES = {
+      'חדש': 'badge-new',
+      'בטיפול': 'badge-in-progress',
+      'נשלח לספק': 'badge-waiting-approval',
+      'אושר לספק': 'badge-approved'
+    },
     suppliers: SUPPLIERS = [],
     contacts: CONTACTS = []
   } = settings || {};
@@ -27,6 +29,9 @@ export default function AdminDetailsModal({
   const isCreateMode = !task;
 
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [excelPreviewFile, setExcelPreviewFile] = useState(null);
+  const [pdfPreviewFile, setPdfPreviewFile] = useState(null);
 
   const handleCopyTaskLink = () => {
     if (!task) return;
@@ -41,17 +46,32 @@ export default function AdminDetailsModal({
       });
   };
 
+  const handleCopyEmail = (emailStr) => {
+    if (!emailStr) return;
+    navigator.clipboard.writeText(emailStr)
+      .then(() => {
+        setCopiedEmail(true);
+        setTimeout(() => setCopiedEmail(false), 2000);
+      })
+      .catch(err => {
+        console.error("Failed to copy email", err);
+      });
+  };
+
   // View state: comments
   const [comments, setComments] = useState([]);
   const [commentToDelete, setCommentToDelete] = useState(null);
-  const [authorName, setAuthorName] = useState('מנהל/ת תיקתק');
+  const [showPlanogramDeleteConfirm, setShowPlanogramDeleteConfirm] = useState(false);
+  const [authorName, setAuthorName] = useState(() => {
+    return localStorage.getItem('tiktak_comment_author_admin') || 'מנהל/ת תיקתק';
+  });
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
-  const [subtaskError, setSubtaskError] = useState('');
   
   const [attachedFile, setAttachedFile] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadErrorFile, setUploadErrorFile] = useState('');
+  const [uploadProgressFile, setUploadProgressFile] = useState(0);
 
   // Inline Editing Mode States
   const [activeEditField, setActiveEditField] = useState(null);
@@ -99,11 +119,11 @@ export default function AdminDetailsModal({
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editWorkType, setEditWorkType] = useState('');
-  const [editStoreName, setEditStoreName] = useState('');
-  const [editSupplierName, setEditSupplierName] = useState('');
   const [editContactPerson, setEditContactPerson] = useState('');
-  const [editImportManager, setEditImportManager] = useState('');
-  const [editDeadline, setEditDeadline] = useState('');
+  const [editSupplierContactEmail, setEditSupplierContactEmail] = useState('');
+  const [editDiecutsStatus, setEditDiecutsStatus] = useState('אין');
+  const [editImagesStatus, setEditImagesStatus] = useState('אין');
+  const [editStandardsInstituteRequired, setEditStandardsInstituteRequired] = useState('לא');
   const [editDriveLink, setEditDriveLink] = useState('');
   const [editInternalNotes, setEditInternalNotes] = useState('');
 
@@ -111,44 +131,39 @@ export default function AdminDetailsModal({
   const [createTitle, setCreateTitle] = useState('');
   const [createDescription, setCreateDescription] = useState('');
   const [createWorkType, setCreateWorkType] = useState(WORK_TYPES[0] || 'אריזה');
-  const [createStoreName, setCreateStoreName] = useState('');
-  const [createSupplierName, setCreateSupplierName] = useState('');
   const [createContactPerson, setCreateContactPerson] = useState('');
-  const [createImportManager, setCreateImportManager] = useState('');
+  const [createSupplierContactEmail, setCreateSupplierContactEmail] = useState('');
+  const [createDiecutsStatus, setCreateDiecutsStatus] = useState('אין');
+  const [createImagesStatus, setCreateImagesStatus] = useState('אין');
+  const [createStandardsInstituteRequired, setCreateStandardsInstituteRequired] = useState('לא');
   const [createStatus, setCreateStatus] = useState(DEFAULT_STATUS || 'חדש');
-  const [createPriority, setCreatePriority] = useState(PRIORITIES[0] || 'רגילה');
-  const [createDeadline, setCreateDeadline] = useState('');
   const [createDriveLink, setCreateDriveLink] = useState('');
   const [createInternalNotes, setCreateInternalNotes] = useState('');
   const [createAttachments, setCreateAttachments] = useState([]);
-
-  // Sub-tasks state for Create Mode
-  const [createSubtasks, setCreateSubtasks] = useState([]);
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
-
-  // Sub-tasks state for View/Edit Mode
-  const [newSubtaskViewTitle, setNewSubtaskViewTitle] = useState('');
+  const [createPlanogramFile, setCreatePlanogramFile] = useState(null);
 
   // Common upload/error states for files
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [uploadProgressFile, setUploadProgressFile] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentUploadIndex, setCurrentUploadIndex] = useState(0);
   const [totalUploadCount, setTotalUploadCount] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Quick-edit states for View Mode (Status/Priority)
+  // Quick-edit states for View Mode (Status)
   const [quickStatus, setQuickStatus] = useState('');
-  const [quickPriority, setQuickPriority] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
+
+  // Planogram creation upload states
+  const [uploadingPlanogram, setUploadingPlanogram] = useState(false);
+  const [uploadErrorPlanogram, setUploadErrorPlanogram] = useState('');
+  const [uploadProgressPlanogram, setUploadProgressPlanogram] = useState(0);
 
   // Sync with task updates
   useEffect(() => {
     if (task) {
       setQuickStatus(task.status || '');
-      setQuickPriority(task.priority || '');
       
       const loadComments = async () => {
         const fetchedComments = await getCommentsForTask(task.id);
@@ -170,32 +185,31 @@ export default function AdminDetailsModal({
       setCreateTitle('');
       setCreateDescription('');
       setCreateWorkType(WORK_TYPES[0] || 'אריזה');
-      setCreateStoreName('');
-      setCreateSupplierName('');
       setCreateContactPerson('');
-      setCreateImportManager('');
+      setCreateSupplierContactEmail('');
+      setCreateDiecutsStatus('אין');
+      setCreateImagesStatus('אין');
+      setCreateStandardsInstituteRequired('לא');
       setCreateStatus(DEFAULT_STATUS || 'חדש');
-      setCreatePriority(PRIORITIES[0] || 'רגילה');
-      setCreateDeadline('');
       setCreateDriveLink('');
       setCreateAttachments([]);
-      setCreateSubtasks([]);
-      setNewSubtaskTitle('');
-      setNewSubtaskViewTitle('');
+      setCreatePlanogramFile(null);
       setCreateInternalNotes('');
+      setErrors({});
     }
-  }, [task, startInEditMode, settings, DEFAULT_STATUS, PRIORITIES, WORK_TYPES]);
+  }, [task, startInEditMode, settings, DEFAULT_STATUS, WORK_TYPES]);
 
   // Close modal or cancel actions on Escape key press
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        // If a popover/picker is open, let it handle the Escape key instead of closing the modal or canceling edits
-        if (document.querySelector('.status-picker-popover, .priority-picker-popover, .custom-datepicker-popup')) {
+        if (document.querySelector('.status-picker-popover')) {
           return;
         }
         if (commentToDelete) {
           setCommentToDelete(null);
+        } else if (showPlanogramDeleteConfirm) {
+          setShowPlanogramDeleteConfirm(false);
         } else if (activeEditField) {
           setActiveEditField(null);
         } else {
@@ -207,7 +221,7 @@ export default function AdminDetailsModal({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [commentToDelete, activeEditField, onClose]);
+  }, [commentToDelete, showPlanogramDeleteConfirm, activeEditField, onClose]);
 
   if (!task && !isCreateMode) return null;
 
@@ -218,11 +232,11 @@ export default function AdminDetailsModal({
     if (fieldKey === 'title') setEditTitle(value || '');
     if (fieldKey === 'description') setEditDescription(value || '');
     if (fieldKey === 'workType') setEditWorkType(value || '');
-    if (fieldKey === 'storeName') setEditStoreName(value || '');
-    if (fieldKey === 'supplierName') setEditSupplierName(value || '');
     if (fieldKey === 'contactPerson') setEditContactPerson(value || '');
-    if (fieldKey === 'importManager') setEditImportManager(value || '');
-    if (fieldKey === 'deadline') setEditDeadline(value || '');
+    if (fieldKey === 'supplierContactEmail') setEditSupplierContactEmail(value || '');
+    if (fieldKey === 'diecutsStatus') setEditDiecutsStatus(value || 'אין');
+    if (fieldKey === 'imagesStatus') setEditImagesStatus(value || 'אין');
+    if (fieldKey === 'standardsInstituteRequired') setEditStandardsInstituteRequired(value || 'לא');
     if (fieldKey === 'driveLink') setEditDriveLink(value || '');
     if (fieldKey === 'internalNotes') setEditInternalNotes(value || '');
   };
@@ -234,8 +248,15 @@ export default function AdminDetailsModal({
   const handleSaveField = async (fieldKey, value) => {
     const trimmedVal = typeof value === 'string' ? value.trim() : value;
     if (fieldKey === 'title' && !trimmedVal) {
-      alert('כותרת העבודה היא שדה חובה');
+      alert('שם העבודה הוא שדה חובה');
       return;
+    }
+
+    if (fieldKey === 'supplierContactEmail' && trimmedVal) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedVal)) {
+        alert('כתובת אימייל לא תקינה');
+        return;
+      }
     }
 
     let updateData = {};
@@ -251,17 +272,11 @@ export default function AdminDetailsModal({
     onRefresh(); // Refresh parent dashboard
   };
 
-  // --- Handlers for Quick Updates (Status / Priority) ---
+  // --- Handlers for Quick Updates (Status) ---
 
   const handleStatusChange = async (newStatus) => {
     setQuickStatus(newStatus);
     await updateTask(task.id, { status: newStatus });
-    onRefresh();
-  };
-
-  const handlePriorityChange = async (newPriority) => {
-    setQuickPriority(newPriority);
-    await updateTask(task.id, { priority: newPriority });
     onRefresh();
   };
 
@@ -285,8 +300,6 @@ export default function AdminDetailsModal({
     }
   };
 
-
-
   const handleAddComment = async (e) => {
     e.preventDefault();
     setCommentError('');
@@ -307,6 +320,11 @@ export default function AdminDetailsModal({
       attachedFile ? attachedFile.url : null, 
       attachedFile ? attachedFile.name : null
     );
+    if (authorName.trim()) {
+      localStorage.setItem('tiktak_comment_author_admin', authorName.trim());
+    } else {
+      localStorage.removeItem('tiktak_comment_author_admin');
+    }
     setCommentText('');
     setAttachedFile(null);
     const fetchedComments = await getCommentsForTask(task.id);
@@ -345,8 +363,9 @@ export default function AdminDetailsModal({
   // --- Handlers for Direct Attachments (View Mode) ---
 
   const handleDeleteAttachmentDirectly = async (indexToDelete) => {
-    const newAttachments = task.attachments.filter((_, idx) => idx !== indexToDelete);
-    await updateTask(task.id, { attachments: newAttachments });
+    const currentFiles = task.workOrderFiles || task.attachments || [];
+    const newAttachments = currentFiles.filter((_, idx) => idx !== indexToDelete);
+    await updateTask(task.id, { workOrderFiles: newAttachments });
     onRefresh();
   };
 
@@ -367,7 +386,8 @@ export default function AdminDetailsModal({
     setUploadError('');
     setTotalUploadCount(files.length);
     try {
-      const uploadedList = [...(task.attachments || [])];
+      const currentFiles = task.workOrderFiles || task.attachments || [];
+      const uploadedList = [...currentFiles];
       for (let i = 0; i < files.length; i++) {
         setCurrentUploadIndex(i + 1);
         setUploadProgress(0);
@@ -376,7 +396,7 @@ export default function AdminDetailsModal({
         });
         uploadedList.push(result);
       }
-      await updateTask(task.id, { attachments: uploadedList });
+      await updateTask(task.id, { workOrderFiles: uploadedList });
       e.target.value = '';
       onRefresh();
     } catch (err) {
@@ -387,6 +407,53 @@ export default function AdminDetailsModal({
       setUploadProgress(0);
       setTotalUploadCount(0);
       setCurrentUploadIndex(0);
+    }
+  };
+
+  // --- Handlers for Planogram View Mode ---
+  const handlePlanogramUploadView = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
+    if (file.size > MAX_SIZE) {
+      alert('גודל הקובץ עולה על המותר (מקסימום 15MB)');
+      e.target.value = '';
+      return;
+    }
+
+    if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.name)) {
+      alert('אנא בחרי קובץ תמונה בלבד (jpg, png, webp)');
+      e.target.value = '';
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const result = await uploadFileToStorage(file, 'planograms', () => {});
+      await updateTask(task.id, { planogramFile: result });
+      e.target.value = '';
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      alert('שגיאה בהעלאת הפלנוגרמה');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePlanogramDeleteView = () => {
+    setShowPlanogramDeleteConfirm(true);
+  };
+
+  const confirmDeletePlanogram = async () => {
+    try {
+      await updateTask(task.id, { planogramFile: null });
+      setShowPlanogramDeleteConfirm(false);
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to delete planogram", err);
+      alert('שגיאה במחיקת הפלנוגרמה');
     }
   };
 
@@ -457,61 +524,42 @@ export default function AdminDetailsModal({
     setCreateAttachments(createAttachments.filter((_, idx) => idx !== indexToDelete));
   };
 
-  // --- Handlers for Sub-tasks in Create Mode ---
-  const handleAddSubtaskCreate = (e) => {
-    if (e) e.preventDefault();
-    setSubtaskError('');
-    if (!newSubtaskTitle.trim()) {
-      setSubtaskError('אנא הזינו כותרת לתת-המשימה');
+  const handlePlanogramUploadCreate = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
+    if (file.size > MAX_SIZE) {
+      setUploadErrorPlanogram('גודל הקובץ עולה על המותר (מקסימום 15MB)');
+      e.target.value = '';
       return;
     }
-    const newSub = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-      title: newSubtaskTitle.trim(),
-      completed: false
-    };
-    setCreateSubtasks([...createSubtasks, newSub]);
-    setNewSubtaskTitle('');
-  };
 
-  const handleDeleteSubtaskCreate = (id) => {
-    setCreateSubtasks(createSubtasks.filter(sub => sub.id !== id));
-  };
-
-  // --- Handlers for Sub-tasks in View/Edit Mode ---
-  const handleToggleSubtask = async (subtaskId) => {
-    const currentSubtasks = task.subtasks || [];
-    const updatedSubtasks = currentSubtasks.map(sub => 
-      sub.id === subtaskId ? { ...sub, completed: !sub.completed } : sub
-    );
-    await updateTask(task.id, { subtasks: updatedSubtasks });
-    onRefresh();
-  };
-
-  const handleAddSubtaskView = async (e) => {
-    if (e) e.preventDefault();
-    setSubtaskError('');
-    if (!newSubtaskViewTitle.trim()) {
-      setSubtaskError('אנא הזינו כותרת לתת-המשימה');
+    if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.name)) {
+      setUploadErrorPlanogram('אנא בחרי קובץ תמונה בלבד (jpg, png, webp)');
+      e.target.value = '';
       return;
     }
-    const newSub = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-      title: newSubtaskViewTitle.trim(),
-      completed: false
-    };
-    const currentSubtasks = task.subtasks || [];
-    const updatedSubtasks = [...currentSubtasks, newSub];
-    await updateTask(task.id, { subtasks: updatedSubtasks });
-    setNewSubtaskViewTitle('');
-    onRefresh();
+
+    setUploadingPlanogram(true);
+    setUploadProgressPlanogram(0);
+    setUploadErrorPlanogram('');
+    try {
+      const result = await uploadFileToStorage(file, 'planograms', (progress) => {
+        setUploadProgressPlanogram(progress);
+      });
+      setCreatePlanogramFile(result);
+      e.target.value = '';
+    } catch (err) {
+      console.error(err);
+      setUploadErrorPlanogram('שגיאה בהעלאת הפלנוגרמה');
+    } finally {
+      setUploadingPlanogram(false);
+    }
   };
 
-  const handleDeleteSubtaskView = async (subtaskId) => {
-    const currentSubtasks = task.subtasks || [];
-    const updatedSubtasks = currentSubtasks.filter(sub => sub.id !== subtaskId);
-    await updateTask(task.id, { subtasks: updatedSubtasks });
-    onRefresh();
+  const handlePlanogramDeleteCreate = () => {
+    setCreatePlanogramFile(null);
   };
 
   const handleSubmitCreate = (e) => {
@@ -519,7 +567,13 @@ export default function AdminDetailsModal({
     
     const formErrors = {};
     if (!createTitle.trim()) {
-      formErrors.title = 'שדה כותרת העבודה הוא חובה';
+      formErrors.title = 'שדה שם העבודה הוא חובה';
+    }
+
+    if (createSupplierContactEmail.trim()) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createSupplierContactEmail.trim())) {
+        formErrors.supplierContactEmail = 'כתובת אימייל לא תקינה';
+      }
     }
     
     if (Object.keys(formErrors).length > 0) {
@@ -531,16 +585,16 @@ export default function AdminDetailsModal({
       title: createTitle.trim(),
       description: createDescription.trim(),
       workType: createWorkType,
-      storeName: createStoreName.trim(),
-      supplierName: createSupplierName.trim(),
+      supplierName: '',
       contactPerson: createContactPerson.trim(),
-      importManager: createImportManager.trim(),
+      supplierContactEmail: createSupplierContactEmail.trim(),
+      diecutsStatus: createDiecutsStatus,
+      imagesStatus: createImagesStatus,
+      standardsInstituteRequired: createStandardsInstituteRequired,
       status: createStatus,
-      priority: createPriority,
-      deadline: createDeadline,
       driveLink: createDriveLink.trim(),
-      attachments: createAttachments,
-      subtasks: createSubtasks,
+      workOrderFiles: createAttachments,
+      planogramFile: createPlanogramFile,
       internalNotes: createInternalNotes.trim()
     };
 
@@ -562,48 +616,6 @@ export default function AdminDetailsModal({
       });
     } catch (e) {
       return isoString;
-    }
-  };
-
-  const renderDeadline = (deadlineStr) => {
-    if (!deadlineStr) return 'לא נקבע';
-    try {
-      const deadlineDate = new Date(deadlineStr);
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      deadlineDate.setHours(0,0,0,0);
-      
-      const diffTime = deadlineDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      const formattedDate = new Date(deadlineStr).toLocaleDateString('he-IL', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-      
-      if (diffDays < 0) {
-        return (
-          <span className="deadline-danger" title="הדדליין עבר!">
-            ⚠️ עבר ({formattedDate})
-          </span>
-        );
-      } else if (diffDays === 0) {
-        return (
-          <span className="deadline-danger" title="היום!">
-            ⏰ היום! ({formattedDate})
-          </span>
-        );
-      } else if (diffDays <= 3) {
-        return (
-          <span className="deadline-warning" title={`נותרו עוד ${diffDays} ימים`}>
-            ⏳ עוד {diffDays} ימים ({formattedDate})
-          </span>
-        );
-      }
-      return formattedDate;
-    } catch (e) {
-      return deadlineStr;
     }
   };
 
@@ -643,7 +655,7 @@ export default function AdminDetailsModal({
                 <span 
                   className="hover-editable-inline" 
                   onClick={() => startEditingField('title', task.title)}
-                  title="לחצי לעריכת כותרת"
+                  title="לחצי לעריכת שם העבודה"
                 >
                   {task.title} ✏️
                 </span>
@@ -685,10 +697,10 @@ export default function AdminDetailsModal({
               handleSubmitCreate(e);
             }
           }}>
-            <div className="modal-body">
+            <div className="modal-body" style={{ maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
               
               <div className="form-group">
-                <label className="form-label">כותרת העבודה *</label>
+                <label className="form-label">שם העבודה *</label>
                 <input 
                   type="text"
                   className="form-control"
@@ -714,21 +726,7 @@ export default function AdminDetailsModal({
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">סוג עבודה</label>
-                <div className="work-type-group">
-                  {WORK_TYPES.map(type => (
-                    <button
-                      key={type}
-                      type="button"
-                      className={`work-type-btn ${createWorkType === type ? 'active' : ''}`}
-                      onClick={() => setCreateWorkType(type)}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
 
               <div className="form-row">
                 <div className="form-group">
@@ -770,82 +768,6 @@ export default function AdminDetailsModal({
                     })}
                   </div>
                 </div>
-                
-                <div className="form-group">
-                  <label className="form-label">תאריך יעד (דדליין)</label>
-                  <CustomDatePicker
-                    value={createDeadline}
-                    onChange={(val) => setCreateDeadline(val)}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">עדיפות</label>
-                <div className="segmented-control">
-                  {PRIORITIES.map(pr => {
-                    const priorityClass = PRIORITY_CLASSES[pr] || '';
-                    return (
-                      <button
-                        key={pr}
-                        type="button"
-                        className={`segmented-control-btn ${createPriority === pr ? `active ${priorityClass}` : ''}`}
-                        onClick={() => setCreatePriority(pr)}
-                      >
-                        {pr}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">שם החנות / רשת</label>
-                  <input 
-                    type="text"
-                    className="form-control"
-                    placeholder="לדוגמה: סניף אילת / כלל הרשת"
-                    value={createStoreName}
-                    onChange={(e) => setCreateStoreName(e.target.value)}
-                    list="stores-list-modal"
-                  />
-                  <datalist id="stores-list-modal">
-                    {STORES.map(s => <option key={s} value={s} />)}
-                  </datalist>
-                </div>
-                
-                <div className="form-group">
-                  <label className="form-label">שם הספק בסין / בארץ</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="text"
-                      className="form-control"
-                      placeholder="לדוגמה: Shenzhen Printing Ltd"
-                      value={createSupplierName}
-                      onChange={(e) => setCreateSupplierName(e.target.value)}
-                      list="suppliers-list-modal"
-                      style={{ flex: 1 }}
-                    />
-                    {createSupplierName && (
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary btn-icon" 
-                        style={{ padding: '6px 8px', fontSize: '0.85rem', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title="פרטי כרטיס ספק"
-                        onClick={() => handleOpenSupplierCard(createSupplierName)}
-                      >
-                        ℹ️
-                      </button>
-                    )}
-                  </div>
-                  <datalist id="suppliers-list-modal">
-                    {SUPPLIERS.map(s => {
-                      const name = typeof s === 'string' ? s : s.name;
-                      return <option key={name} value={name} />;
-                    })}
-                  </datalist>
-                </div>
               </div>
 
               <div className="form-row">
@@ -886,20 +808,62 @@ export default function AdminDetailsModal({
                     })}
                   </datalist>
                 </div>
-                
+              </div>
+
+              <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">איש קשר</label>
+                  <label className="form-label">מייל איש קשר ספק</label>
                   <input 
                     type="text"
-                    className="form-control"
-                    placeholder="לדוגמה: אלון ישראלי"
-                    value={createImportManager}
-                    onChange={(e) => setCreateImportManager(e.target.value)}
-                    list="managers-list-modal"
+                    className="form-control text-left direction-ltr"
+                    placeholder="example@supplier.com"
+                    value={createSupplierContactEmail}
+                    onChange={(e) => {
+                      setCreateSupplierContactEmail(e.target.value);
+                      if (errors.supplierContactEmail) setErrors({...errors, supplierContactEmail: null});
+                    }}
                   />
-                  <datalist id="managers-list-modal">
-                    {IMPORT_MANAGERS.map(m => <option key={m} value={m} />)}
-                  </datalist>
+                  {errors.supplierContactEmail && <span className="form-error">{errors.supplierContactEmail}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">דרישות מכון תקנים</label>
+                  <select 
+                    className="form-control"
+                    value={createStandardsInstituteRequired}
+                    onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
+                  >
+                    <option value="לא">לא</option>
+                    <option value="כן">כן</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">דייקאטים</label>
+                  <select 
+                    className="form-control"
+                    value={createDiecutsStatus}
+                    onChange={(e) => setCreateDiecutsStatus(e.target.value)}
+                  >
+                    <option value="אין">אין</option>
+                    <option value="יש">יש</option>
+                    <option value="חלקי">חלקי</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">תמונות</label>
+                  <select 
+                    className="form-control"
+                    value={createImagesStatus}
+                    onChange={(e) => setCreateImagesStatus(e.target.value)}
+                  >
+                    <option value="אין">אין</option>
+                    <option value="יש">יש</option>
+                    <option value="חלקי">חלקי</option>
+                  </select>
                 </div>
               </div>
 
@@ -914,9 +878,10 @@ export default function AdminDetailsModal({
                 />
               </div>
 
+              {/* הזמנת עבודה (קבצים מצורפים) */}
               <div className="form-group">
                 <label className="form-label">
-                  קבצים מצורפים (תמונות, קובצי PDF או מסמכי עבודה)
+                  הזמנת עבודה (קבצים מצורפים כגון תעודות, הוראות עבודה, PDF)
                 </label>
                 
                 <div 
@@ -1003,60 +968,58 @@ export default function AdminDetailsModal({
                 )}
               </div>
 
+              {/* פלנוגרמה Upload */}
               <div className="form-group">
-                <label className="form-label">תתי-משימות לעבודה (Checklist)</label>
-                <div className="subtask-add-form" style={{ marginBottom: '12px' }}>
-                  <input 
-                    type="text"
-                    className="subtask-add-input"
-                    placeholder="הוספת תת-משימה... (לדוגמה: הגדרת צבעי פנטון)"
-                    value={newSubtaskTitle}
-                    onChange={(e) => {
-                      setNewSubtaskTitle(e.target.value);
-                      if (subtaskError) setSubtaskError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddSubtaskCreate();
-                      }
-                    }}
-                  />
-                  <button 
-                    type="button" 
-                    className="btn btn-primary subtask-add-btn"
-                    style={{ padding: '8px 14px' }}
-                    onClick={handleAddSubtaskCreate}
-                  >
-                    ➕ הוספה
-                  </button>
-                </div>
-                {subtaskError && (
-                  <div className="form-error" style={{ marginTop: '-6px', marginBottom: '12px', fontSize: '0.8rem' }}>
-                    ⚠️ {subtaskError}
-                  </div>
-                )}
-
-                {createSubtasks.length > 0 ? (
-                  <div className="subtask-list" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px', backgroundColor: '#f8fafc' }}>
-                    {createSubtasks.map((sub) => (
-                      <div key={sub.id} className="subtask-item">
-                        <span className="subtask-text">{sub.title}</span>
-                        <button 
-                          type="button" 
-                          className="subtask-delete-btn"
-                          onClick={() => handleDeleteSubtaskCreate(sub.id)}
-                          title="מחק תת-משימה"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    ))}
+                <label className="form-label">העלאת פלנוגרמה</label>
+                {createPlanogramFile ? (
+                  <div className="planogram-preview-container" style={{ maxWidth: '240px', height: '140px', margin: '8px 0' }}>
+                    <img src={createPlanogramFile.url} alt="תצוגה מקדימה פלנוגרמה" className="planogram-preview-img" />
+                    <div className="planogram-actions-overlay">
+                      <span style={{ color: 'white', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                        {createPlanogramFile.name}
+                      </span>
+                      <button 
+                        type="button" 
+                        className="btn btn-danger" 
+                        style={{ 
+                          padding: '4px 8px', 
+                          fontSize: '0.75rem', 
+                          height: '24px', 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          whiteSpace: 'nowrap', 
+                          flexShrink: 0 
+                        }} 
+                        onClick={handlePlanogramDeleteCreate}
+                      >
+                        🗑️ הסרה
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="subtasks-empty-state" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px', textAlign: 'center' }}>
-                    לא הוגדרו תתי-משימות לעבודה זו עדיין.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      onClick={() => document.getElementById('planogram-upload-create-input').click()}
+                      disabled={uploadingPlanogram}
+                    >
+                      {uploadingPlanogram ? `🔄 מעלה...` : '🖼️ בחירת תמונת פלנוגרמה'}
+                    </button>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(קובץ תמונה בלבד, עד 15MB)</span>
+                    <input 
+                      type="file" 
+                      id="planogram-upload-create-input" 
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handlePlanogramUploadCreate}
+                    />
                   </div>
+                )}
+                {uploadErrorPlanogram && (
+                  <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '6px' }}>{uploadErrorPlanogram}</div>
                 )}
               </div>
 
@@ -1077,7 +1040,7 @@ export default function AdminDetailsModal({
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 ביטול
               </button>
-              <button type="submit" className="btn btn-primary" disabled={uploading}>
+              <button type="submit" className="btn btn-primary" disabled={uploading || uploadingPlanogram}>
                 יצירת עבודה
               </button>
             </div>
@@ -1085,169 +1048,305 @@ export default function AdminDetailsModal({
         ) : (
           /* VIEW / INLINE EDIT MODE */
           <>
-            <div className="modal-body">
+            <div className="modal-body" style={{ maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
               <div className="details-grid">
                 
-                {/* Main View Area */}
+                {/* Main View Area (Left Column) */}
                 <div className="details-main">
                   
-                  {/* Field: Description */}
-                  <div>
-                    <h4 className="detail-section-title">תיאור העבודה</h4>
-                    {activeEditField === 'description' ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                        <textarea 
-                          className="form-control" 
-                          rows="4" 
-                          value={editDescription} 
-                          onChange={(e) => setEditDescription(e.target.value)} 
-                          autoFocus
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button type="button" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('description', editDescription)}>שמירה ✔️</button>
-                          <button type="button" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div 
-                        className="description-box hover-editable" 
-                        onClick={() => startEditingField('description', task.description)}
-                        title="לחצי לעריכת תיאור"
-                      >
-                        {task.description ? (
-                          task.description
-                        ) : (
-                          <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט לעבודה זו. לחצי להוספת תיאור.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {/* AREA 1: פרטי עבודה */}
+                  <div className="details-section-card">
+                    <h4 className="detail-section-title">📁 פרטי עבודה</h4>
+                    
 
-                  {/* Field: Internal Notes */}
-                  <div>
-                    <h4 className="detail-section-title" style={{ color: 'var(--secondary)', borderColor: 'var(--secondary)' }}>
-                      🔒 הערות פנימיות (מנהלת בלבד)
-                    </h4>
-                    {activeEditField === 'internalNotes' ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                        <textarea 
-                          className="form-control" 
-                          rows="3" 
-                          value={editInternalNotes} 
-                          onChange={(e) => setEditInternalNotes(e.target.value)} 
-                          autoFocus
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button type="button" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('internalNotes', editInternalNotes)}>שמירה ✔️</button>
-                          <button type="button" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div 
-                        className="description-box hover-editable" 
-                        style={{ backgroundColor: 'var(--secondary-light)', borderColor: 'var(--border)' }}
-                        onClick={() => startEditingField('internalNotes', internalNotes)}
-                        title="לחצי לעריכת הערות פנימיות"
-                      >
-                        {internalNotes ? (
-                          internalNotes
-                        ) : (
-                          <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין הערות פנימיות. לחצי להוספת הערות.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Sub-tasks Section */}
-                  <div className="subtasks-container">
-                    <div className="subtasks-header">
-                      <h4>📋 תתי-משימות לעבודה</h4>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
-                        {task.subtasks && task.subtasks.length > 0 
-                          ? `${task.subtasks.filter(s => s.completed).length} מתוך ${task.subtasks.length} הושלמו`
-                          : 'אין תתי-משימות'
-                        }
-                      </span>
+                    {/* Field: Description */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '4px', display: 'block', fontSize: '0.85rem' }}>תיאור העבודה</label>
+                      {activeEditField === 'description' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                          <textarea 
+                            className="form-control" 
+                            rows="4" 
+                            value={editDescription} 
+                            onChange={(e) => setEditDescription(e.target.value)} 
+                            autoFocus
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button type="button" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('description', editDescription)}>שמירה ✔️</button>
+                            <button type="button" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div 
+                          className="description-box hover-editable" 
+                          onClick={() => startEditingField('description', task.description)}
+                          title="לחצי לעריכת תיאור"
+                        >
+                          {task.description ? (
+                            task.description
+                          ) : (
+                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט לעבודה זו. לחצי להוספת תיאור.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {task.subtasks && task.subtasks.length > 0 && (
-                      <div className="subtask-progress-bar-container">
-                        <div 
-                          className="subtask-progress-bar" 
-                          style={{ 
-                            width: `${(task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100}%` 
-                          }}
-                        />
-                      </div>
-                    )}
+                    {/* Field: Drive Link */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '4px', display: 'block', fontSize: '0.85rem' }}>קישור לתיקיית דרייב</label>
+                      {activeEditField === 'driveLink' ? (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                          <input 
+                            type="url" 
+                            className="form-control text-left direction-ltr" 
+                            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                            placeholder="https://drive.google.com/..."
+                            value={editDriveLink} 
+                            onChange={(e) => setEditDriveLink(e.target.value)} 
+                            autoFocus
+                          />
+                          <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('driveLink', editDriveLink)}>✔️</button>
+                          <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                        </div>
+                      ) : task.driveLink ? (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <a href={task.driveLink} target="_blank" rel="noopener noreferrer" className="drive-link" style={{ fontSize: '0.9rem', fontWeight: '600' }}>
+                            🔗 מעבר לדרייב
+                          </a>
+                          <button type="button" className="edit-inline-trigger-btn" onClick={() => startEditingField('driveLink', task.driveLink)} title="עריכת קישור">✏️</button>
+                        </div>
+                      ) : (
+                        <span 
+                          className="sidebar-value hover-editable-inline" 
+                          onClick={() => startEditingField('driveLink', '')}
+                          title="לחצי להוספת קישור דרייב"
+                        >
+                          לא צורף קישור ✏️
+                        </span>
+                      )}
+                    </div>
 
-                    {task.subtasks && task.subtasks.length > 0 ? (
-                      <div className="subtask-list">
-                        {task.subtasks.map((sub) => (
-                          <div key={sub.id} className="subtask-item">
-                            <div className="subtask-main">
-                              <input 
-                                type="checkbox" 
-                                className="subtask-checkbox" 
-                                checked={sub.completed}
-                                onChange={() => handleToggleSubtask(sub.id)}
-                              />
-                              <span className={`subtask-text ${sub.completed ? 'completed' : ''}`} title={sub.title}>
-                                {sub.title}
-                              </span>
-                            </div>
-                            <button 
-                              type="button" 
-                              className="subtask-delete-btn"
-                              onClick={() => handleDeleteSubtaskView(sub.id)}
-                              title="מחיקת תת-משימה"
-                            >
-                              🗑️
-                            </button>
+                    {/* Field: Internal Notes */}
+                    <div>
+                      <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות למעצבת (לא יוצגו לצופים חיצוניים)</label>
+                      {activeEditField === 'internalNotes' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                          <textarea 
+                            className="form-control" 
+                            rows="3" 
+                            value={editInternalNotes} 
+                            onChange={(e) => setEditInternalNotes(e.target.value)} 
+                            autoFocus
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button type="button" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('internalNotes', editInternalNotes)}>שמירה ✔️</button>
+                            <button type="button" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="subtasks-empty-state">
-                        אין תתי-משימות לעבודה זו. הוסיפי תת-משימה למטה כדי להתחיל!
-                      </div>
-                    )}
-
-                    <form onSubmit={handleAddSubtaskView} className="subtask-add-form">
-                      <input 
-                        type="text" 
-                        className="subtask-add-input"
-                        placeholder="הוספת תת-משימה חדשה..."
-                        value={newSubtaskViewTitle}
-                        onChange={(e) => {
-                          setNewSubtaskViewTitle(e.target.value);
-                          if (subtaskError) setSubtaskError('');
-                        }}
-                      />
-                      <button type="submit" className="btn btn-primary subtask-add-btn">
-                        ➕ הוספה
-                      </button>
-                    </form>
-                    {subtaskError && (
-                      <div className="form-error" style={{ marginTop: '6px', fontSize: '0.8rem' }}>
-                        ⚠️ {subtaskError}
-                      </div>
-                    )}
+                        </div>
+                      ) : (
+                        <div 
+                          className="description-box hover-editable" 
+                          style={{ backgroundColor: 'var(--secondary-light)', borderColor: 'var(--border)' }}
+                          onClick={() => startEditingField('internalNotes', internalNotes)}
+                          title="לחצי לעריכת הערות פנימיות"
+                        >
+                          {internalNotes ? (
+                            internalNotes
+                          ) : (
+                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין הערות פנימיות. לחצי להוספת הערות.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Comments Section */}
+                  {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
+                  <div className="details-section-card">
+                    <h4 className="detail-section-title">📋 הזמנת עבודה ופלנוגרמה</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                      
+                      {/* הזמנת עבודה */}
+                      <div>
+                        <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
+                          הזמנת עבודה (קבצים מצורפים)
+                        </label>
+                        
+                        {(() => {
+                          const filesList = task.workOrderFiles || task.attachments || [];
+                          return filesList.length > 0 ? (
+                            <div className="attachments-list" style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '12px' }}>
+                              {filesList.map((file, idx) => {
+                                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                                const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+                                const isPdf = /\.pdf$/i.test(file.name);
+                                return (
+                                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                                    <a 
+                                      href={file.url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer" 
+                                      className="attachment-info"
+                                      style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}
+                                      title={file.name}
+                                      onClick={(e) => {
+                                        if (isExcel) {
+                                          e.preventDefault();
+                                          setExcelPreviewFile({ url: file.url, name: file.name });
+                                        } else if (isPdf) {
+                                          e.preventDefault();
+                                          setPdfPreviewFile({ url: file.url, name: file.name });
+                                        }
+                                      }}
+                                    >
+                                      <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block' }}>
+                                        {file.name}
+                                      </span>
+                                    </a>
+                                    <button 
+                                      type="button" 
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px' }}
+                                      onClick={() => handleDeleteAttachmentDirectly(idx)}
+                                      title="מחיקת קובץ"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', marginBottom: '12px' }}>
+                              אין קבצים מצורפים
+                            </div>
+                          );
+                        })()}
+
+                        {/* Add file inline */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                            <button 
+                              type="button" 
+                              className="comment-attachment-btn"
+                              style={{ padding: '6px 10px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
+                              disabled={uploading}
+                            >
+                              {uploading 
+                                ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%` 
+                                : '📎 הוספת קובץ'}
+                            </button>
+                            {!uploading && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 70MB)</span>
+                            )}
+                          </div>
+                          <input 
+                            type="file" 
+                            id="view-attachment-file-input-inline" 
+                            multiple
+                            style={{ display: 'none' }}
+                            onChange={handleUploadFilesDirectly}
+                          />
+                          {uploadError && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{uploadError}</div>}
+                        </div>
+                      </div>
+
+                      {/* פלנוגרמה */}
+                      <div>
+                        <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
+                          פלנוגרמה
+                        </label>
+                        
+                        {task.planogramFile ? (
+                          <div className="planogram-preview-container" style={{ height: '140px', margin: 0 }}>
+                            <img src={task.planogramFile.url} alt="פלנוגרמה" className="planogram-preview-img" />
+                            <div className="planogram-actions-overlay">
+                              <span style={{ color: 'white', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                                {task.planogramFile.name}
+                              </span>
+                              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                <a 
+                                  href={task.planogramFile.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="planogram-action-btn" 
+                                  style={{ 
+                                    padding: '2px 8px', 
+                                    fontSize: '0.75rem', 
+                                    whiteSpace: 'nowrap', 
+                                    flexShrink: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  👁️ צפייה
+                                </a>
+                                <button 
+                                  type="button" 
+                                  className="btn btn-danger" 
+                                  style={{ 
+                                    padding: '2px 8px', 
+                                    fontSize: '0.75rem', 
+                                    height: '24px', 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '4px', 
+                                    whiteSpace: 'nowrap', 
+                                    flexShrink: 0 
+                                  }} 
+                                  onClick={handlePlanogramDeleteView}
+                                >
+                                  🗑️ מחיקה
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div 
+                            className="planogram-preview-container" 
+                            style={{ height: '140px', margin: 0, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center', alignItems: 'center' }}
+                          >
+                            <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא הועלתה פלנוגרמה</span>
+                            <button 
+                              type="button" 
+                              className="btn btn-secondary" 
+                              style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                              onClick={() => document.getElementById('planogram-upload-view-input').click()}
+                              disabled={uploading}
+                            >
+                              🖼️ העלאת פלנוגרמה
+                            </button>
+                            <input 
+                              type="file" 
+                              id="planogram-upload-view-input" 
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={handlePlanogramUploadView}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* AREA 5: הערות ועדכוני עבודה */}
                   <div className="comments-section">
-                    <h4 className="detail-section-title">💬 הערות ועדכונים חיצוניים ({comments.length})</h4>
+                    <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
                     
                     {comments.length === 0 ? (
                       <div className="empty-state" style={{ padding: '24px' }}>
                         <div className="empty-state-title">אין הערות עדיין</div>
-                        <div className="empty-state-text">ספקים ומנהלים יכולים להוסיף הערות בדף הצפייה החיצוני.</div>
+                        <div className="empty-state-text font-size-sm">היה הראשון להוסיף הערה או לעדכן לגבי התקדמות העבודה.</div>
                       </div>
                     ) : (
-                      <div className="comments-list">
+                      <div className="comments-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                         {comments.map(c => {
                           const isImage = c.attachmentName && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.attachmentName);
+                          const isExcel = c.attachmentName && /\.(xlsx|xls)$/i.test(c.attachmentName);
+                          const isPdf = c.attachmentName && /\.pdf$/i.test(c.attachmentName);
                           return (
                             <div key={c.id} className="comment-item">
                               <div className="comment-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1279,7 +1378,7 @@ export default function AdminDetailsModal({
                               <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>
                               {c.attachmentUrl && (
                                 <div style={{ marginTop: '8px' }}>
-                                  {isImage && (
+                                  {isImage ? (
                                     <a href={c.attachmentUrl} target="_blank" rel="noopener noreferrer">
                                       <img 
                                         src={c.attachmentUrl} 
@@ -1287,17 +1386,30 @@ export default function AdminDetailsModal({
                                         className="comment-image-preview" 
                                       />
                                     </a>
-                                  )}
-                                  <div>
+                                  ) : (
                                     <a 
                                       href={c.attachmentUrl} 
                                       target="_blank" 
                                       rel="noopener noreferrer" 
-                                      className="comment-attachment-link"
+                                      className="attachment-info"
+                                      style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                      title={c.attachmentName}
+                                      onClick={(e) => {
+                                        if (isExcel) {
+                                          e.preventDefault();
+                                          setExcelPreviewFile({ url: c.attachmentUrl, name: c.attachmentName });
+                                        } else if (isPdf) {
+                                          e.preventDefault();
+                                          setPdfPreviewFile({ url: c.attachmentUrl, name: c.attachmentName });
+                                        }
+                                      }}
                                     >
-                                      📎 {c.attachmentName || 'קובץ מצורף'}
+                                      <span className="attachment-icon">{isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right' }}>
+                                        {c.attachmentName}
+                                      </span>
                                     </a>
-                                  </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1306,517 +1418,329 @@ export default function AdminDetailsModal({
                       </div>
                     )}
 
-                    {/* Add Comment Form */}
-                    <form onSubmit={handleAddComment} className="comment-form">
-                      <h5 style={{ fontWeight: '600' }}>הוספת הערה במערכת</h5>
-                      <div className="form-row">
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label">שם כותב ההערה</label>
+                    {/* Form to add a comment */}
+                    <form onSubmit={handleAddComment} className="comment-form" style={{ marginTop: '16px' }}>
+                      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div className="form-group" style={{ marginBottom: '8px' }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>שם כותב/ת ההערה</label>
                           <input 
-                            type="text"
-                            className="form-control"
-                            value={authorName}
-                            onChange={(e) => {
-                              setAuthorName(e.target.value);
-                              if (commentError) setCommentError('');
-                            }}
-                            placeholder="שם המעצבת או תפקיד"
+                            type="text" 
+                            className="form-control" 
+                            value={authorName} 
+                            onChange={(e) => setAuthorName(e.target.value)} 
                           />
                         </div>
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">תוכן ההערה</label>
-                        <textarea 
-                          className="form-control"
-                          rows="2"
-                          value={commentText}
-                          onChange={(e) => {
-                            setCommentText(e.target.value);
-                            if (commentError) setCommentError('');
-                          }}
-                          placeholder="הוסף עדכון..."
-                        />
-                      </div>
-                      
-                      {/* Comment File Attachment */}
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">
-                          צירוף קובץ או תמונה (אופציונלי)
-                        </label>
-                        {attachedFile ? (
-                          <div className="comment-attachment-preview-chip">
-                            <span>📎 {attachedFile.name}</span>
-                            <button type="button" onClick={() => setAttachedFile(null)} title="הסר קובץ">&times;</button>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                        <div className="form-group" style={{ marginBottom: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button 
                               type="button" 
                               className="comment-attachment-btn"
-                              onClick={() => document.getElementById('comment-file-input-modal').click()}
+                              style={{ padding: '8px 12px', fontSize: '0.8rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => document.getElementById('comment-file-input').click()}
                               disabled={uploadingFile}
                             >
-                              {uploadingFile ? `🔄 מעלה (${uploadProgressFile}%)` : '📎 בחירת קובץ'}
+                              {uploadingFile ? `🔄 מעלה (${uploadProgressFile}%)` : '📎 צרוף קובץ'}
                             </button>
-                            {!uploadingFile && (
-                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>(עד 70MB)</span>
+                            {attachedFile && (
+                              <span style={{ fontSize: '0.8rem', color: '#10b981', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }} title={attachedFile.name}>
+                                ✔️ {attachedFile.name}
+                              </span>
                             )}
-                            {uploadingFile && (
-                              <div style={{ 
-                                flexGrow: 1, 
-                                height: '6px', 
-                                backgroundColor: 'var(--border-color, #e2e8f0)', 
-                                borderRadius: '3px', 
-                                overflow: 'hidden',
-                                maxWidth: '120px'
-                              }}>
-                                <div style={{ 
-                                  width: `${uploadProgressFile}%`, 
-                                  height: '100%', 
-                                  backgroundColor: 'var(--primary)', 
-                                  transition: 'width 0.2s ease-in-out' 
-                                }} />
-                              </div>
-                            )}
-                            <input 
-                              type="file" 
-                              id="comment-file-input-modal"
-                              style={{ display: 'none' }}
-                              onChange={handleCommentFileChange}
-                            />
-                            {uploadErrorFile && <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>{uploadErrorFile}</span>}
                           </div>
-                        )}
+                          <input 
+                            type="file" 
+                            id="comment-file-input" 
+                            style={{ display: 'none' }}
+                            onChange={handleCommentFileChange}
+                          />
+                          {uploadErrorFile && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{uploadErrorFile}</div>}
+                        </div>
                       </div>
-
-                      {commentError && <span className="form-error">{commentError}</span>}
-                      <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }} disabled={uploadingFile}>
-                        שליחת הערה
+                      <div className="form-group" style={{ marginBottom: '8px' }}>
+                        <textarea 
+                          className="form-control" 
+                          rows="2" 
+                          placeholder="כתבי הערה כאן... (ההערה תוצג גם לצופה החיצוני)"
+                          value={commentText} 
+                          onChange={(e) => setCommentText(e.target.value)} 
+                        />
+                      </div>
+                      {commentError && <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '8px' }}>{commentError}</div>}
+                      <button type="submit" className="btn btn-primary" style={{ padding: '8px 20px' }} disabled={uploadingFile}>
+                        💬 הוספת הערה
                       </button>
                     </form>
                   </div>
 
                 </div>
 
-                {/* Sidebar View Area */}
+                {/* Sidebar View Area (Right Column) */}
                 <div className="details-sidebar">
                   
-                  {/* Field: Work Type */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">סוג עבודה</span>
-                    {activeEditField === 'workType' ? (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <select 
-                          className="form-control" 
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                          value={editWorkType} 
-                          onChange={(e) => setEditWorkType(e.target.value)}
-                          autoFocus
-                        >
-                          {WORK_TYPES.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
-                        <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('workType', editWorkType)}>✔️</button>
-                        <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                      </div>
-                    ) : (
-                      <span 
-                        className="sidebar-value hover-editable-inline" 
-                        onClick={() => startEditingField('workType', task.workType)}
-                        title="לחצי לעריכת סוג עבודה"
-                      >
-                        {task.workType} ✏️
-                      </span>
-                    )}
-                  </div>
+                  {/* AREA 2: ספק ואיש קשר */}
+                  <div className="details-section-card">
+                    <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>📇 ספק ואיש קשר</h4>
+                    
+                    {/* Supplier Contact Person */}
+                    <div className="sidebar-row">
+                      <span className="sidebar-label">איש קשר אצל הספק</span>
+                      {activeEditField === 'contactPerson' ? (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                            value={editContactPerson} 
+                            onChange={(e) => setEditContactPerson(e.target.value)} 
+                            list="contacts-list-inline"
+                            autoFocus
+                          />
+                          <datalist id="contacts-list-inline">
+                            {CONTACTS.map(c => {
+                              const name = typeof c === 'string' ? c : c.name;
+                              const role = typeof c === 'string' ? '' : c.role;
+                              const phone = typeof c === 'string' ? '' : c.phone;
+                              return (
+                                <option key={name} value={name}>
+                                  {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
+                                </option>
+                              );
+                            })}
+                          </datalist>
+                          <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
+                          <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span 
+                            className="sidebar-value hover-editable-inline" 
+                            onClick={() => startEditingField('contactPerson', task.contactPerson)}
+                            title="לחצי לעריכת איש קשר ספק"
+                          >
+                            {task.contactPerson || 'לחצי להוספה...'} ✏️
+                          </span>
+                          {task.contactPerson && (
+                            <button 
+                              type="button" 
+                              className="btn btn-secondary btn-icon" 
+                              style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              title="פרטי כרטיס איש קשר"
+                              onClick={() => handleOpenContactCard(task.contactPerson)}
+                            >
+                              ℹ️
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Field: Status picker (Instant Update) */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">סטטוס משימה</span>
-                    <div 
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: '8px',
-                        marginTop: '6px'
-                      }}
-                    >
-                      {(STATUSES.includes(quickStatus) ? STATUSES : [...STATUSES, quickStatus]).map(st => {
-                        const colorClass = STATUS_CLASSES[st] || 'badge-frozen';
-                        const isActive = st === quickStatus;
-                        return (
-                          <button
-                            key={st}
-                            type="button"
-                            className={`badge ${colorClass}`}
-                            style={{
-                              padding: '6px 8px',
-                              fontSize: '0.75rem',
-                              textAlign: 'center',
-                              cursor: 'pointer',
-                              width: '100%',
-                              border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
-                              opacity: isActive ? 1 : 0.45,
-                              transform: isActive ? 'scale(1.03)' : 'none',
-                              boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
-                              fontWeight: isActive ? '700' : '500',
-                              transition: 'all 0.15s ease'
+                    {/* Supplier Contact Email */}
+                    <div className="sidebar-row">
+                      <span className="sidebar-label">מייל איש קשר ספק</span>
+                      {activeEditField === 'supplierContactEmail' ? (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                          <input 
+                            type="text" 
+                            className="form-control text-left direction-ltr" 
+                            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                            value={editSupplierContactEmail} 
+                            onChange={(e) => setEditSupplierContactEmail(e.target.value)} 
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveField('supplierContactEmail', editSupplierContactEmail);
                             }}
-                            onClick={() => handleStatusChange(st)}
+                          />
+                          <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactEmail', editSupplierContactEmail)}>✔️</button>
+                          <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
+                          <span 
+                            className="sidebar-value hover-editable-inline" 
+                            onClick={() => startEditingField('supplierContactEmail', task.supplierContactEmail)}
+                            title="לחצי לעריכת מייל איש קשר ספק"
+                            style={{ 
+                              color: task.supplierContactEmail ? 'var(--primary)' : 'var(--text-muted)',
+                              whiteSpace: 'nowrap',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
                           >
-                            {st}
-                          </button>
-                        );
-                      })}
+                            <span style={{ 
+                              textDecoration: task.supplierContactEmail ? 'underline' : 'none',
+                              direction: task.supplierContactEmail ? 'ltr' : 'rtl'
+                            }}>
+                              {task.supplierContactEmail || 'לחצי להוספה...'}
+                            </span>
+                            ✏️
+                          </span>
+                          {task.supplierContactEmail && (
+                            <button 
+                              type="button" 
+                              className="btn btn-secondary btn-icon" 
+                              style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                              title={copiedEmail ? "הועתק!" : "העתק אימייל"}
+                              onClick={() => handleCopyEmail(task.supplierContactEmail)}
+                            >
+                              {copiedEmail ? '✔️' : '📋'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Field: Priority (Instant Update) */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">עדיפות</span>
-                    <div className="segmented-control" style={{ marginTop: '4px' }}>
-                      {PRIORITIES.map(pr => {
-                        const priorityClass = PRIORITY_CLASSES[pr] || '';
-                        return (
-                          <button
-                            key={pr}
-                            type="button"
-                            className={`segmented-control-btn ${quickPriority === pr ? `active ${priorityClass}` : ''}`}
-                            onClick={() => handlePriorityChange(pr)}
-                            style={{ padding: '6px 8px', fontSize: '0.8rem' }}
-                          >
-                            {pr}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Field: Deadline */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">תאריך יעד</span>
-                    {activeEditField === 'deadline' ? (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <CustomDatePicker
-                          value={editDeadline}
-                          onChange={(val) => setEditDeadline(val)}
-                          inputStyle={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                        />
-                        <button 
-                          type="button" 
-                          className="btn btn-primary btn-icon" 
-                          style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
-                          onClick={() => handleSaveField('deadline', editDeadline)}
-                          title="שמירה"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                          </svg>
-                        </button>
-                        <button 
-                          type="button" 
-                          className="btn btn-secondary btn-icon" 
-                          style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
-                          onClick={handleCancelField}
-                          title="ביטול"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                          </svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <span 
-                        className="sidebar-value hover-editable-inline" 
-                        onClick={() => startEditingField('deadline', task.deadline)}
-                        title="לחצי לעריכת תאריך יעד"
+                  {/* AREA 3: חומרים ואישורים */}
+                  <div className="details-section-card">
+                    <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 חומרים ואישורים</h4>
+                    
+                    {/* Status Picker (Grid) */}
+                    <div className="sidebar-row" style={{ display: 'block', marginBottom: '16px' }}>
+                      <span className="sidebar-label" style={{ display: 'block', marginBottom: '6px' }}>סטטוס עבודה</span>
+                      <div 
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '6px'
+                        }}
                       >
-                        {renderDeadline(task.deadline)} ✏️
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Field: Store Name */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">חנות / רשת</span>
-                    {activeEditField === 'storeName' ? (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                          value={editStoreName} 
-                          onChange={(e) => setEditStoreName(e.target.value)} 
-                          list="stores-list-inline"
-                          autoFocus
-                        />
-                        <datalist id="stores-list-inline">
-                          {STORES.map(s => <option key={s} value={s} />)}
-                        </datalist>
-                        <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('storeName', editStoreName)}>✔️</button>
-                        <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                      </div>
-                    ) : (
-                      <span 
-                        className="sidebar-value hover-editable-inline" 
-                        onClick={() => startEditingField('storeName', task.storeName)}
-                        title="לחצי לעריכת חנות"
-                      >
-                        {task.storeName || 'לחצי להוספה...'} ✏️
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Field: Supplier Name */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">ספק</span>
-                    {activeEditField === 'supplierName' ? (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                          value={editSupplierName} 
-                          onChange={(e) => setEditSupplierName(e.target.value)} 
-                          list="suppliers-list-inline"
-                          autoFocus
-                        />
-                        <datalist id="suppliers-list-inline">
-                          {SUPPLIERS.map(s => {
-                            const name = typeof s === 'string' ? s : s.name;
-                            return <option key={name} value={name} />;
-                          })}
-                        </datalist>
-                        <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierName', editSupplierName)}>✔️</button>
-                        <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span 
-                          className="sidebar-value hover-editable-inline" 
-                          onClick={() => startEditingField('supplierName', task.supplierName)}
-                          title="לחצי לעריכת ספק"
-                        >
-                          {task.supplierName || 'לחצי להוספה...'} ✏️
-                        </span>
-                        {task.supplierName && (
-                          <button 
-                            type="button" 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            title="פרטי כרטיס ספק"
-                            onClick={() => handleOpenSupplierCard(task.supplierName)}
-                          >
-                            ℹ️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Field: Contact Person */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">איש קשר</span>
-                    {activeEditField === 'contactPerson' ? (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                          value={editContactPerson} 
-                          onChange={(e) => setEditContactPerson(e.target.value)} 
-                          list="contacts-list-inline"
-                          autoFocus
-                        />
-                        <datalist id="contacts-list-inline">
-                          {CONTACTS.map(c => {
-                            const name = typeof c === 'string' ? c : c.name;
-                            const role = typeof c === 'string' ? '' : c.role;
-                            const phone = typeof c === 'string' ? '' : c.phone;
-                            return (
-                              <option key={name} value={name}>
-                                {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
-                              </option>
-                            );
-                          })}
-                        </datalist>
-                        <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
-                        <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span 
-                          className="sidebar-value hover-editable-inline" 
-                          onClick={() => startEditingField('contactPerson', task.contactPerson)}
-                          title="לחצי לעריכת איש קשר"
-                        >
-                          {task.contactPerson || 'לחצי להוספה...'} ✏️
-                        </span>
-                        {task.contactPerson && (
-                          <button 
-                            type="button" 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            title="פרטי כרטיס איש קשר"
-                            onClick={() => handleOpenContactCard(task.contactPerson)}
-                          >
-                            ℹ️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Field: Import Manager */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">איש קשר</span>
-                    {activeEditField === 'importManager' ? (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                          value={editImportManager} 
-                          onChange={(e) => setEditImportManager(e.target.value)} 
-                          list="managers-list-inline"
-                          autoFocus
-                        />
-                        <datalist id="managers-list-inline">
-                          {IMPORT_MANAGERS.map(m => <option key={m} value={m} />)}
-                        </datalist>
-                        <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('importManager', editImportManager)}>✔️</button>
-                        <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                      </div>
-                    ) : (
-                      <span 
-                        className="sidebar-value hover-editable-inline" 
-                        onClick={() => startEditingField('importManager', task.importManager)}
-                        title="לחצי לעריכת איש קשר"
-                      >
-                        {task.importManager || 'לחצי להוספה...'} ✏️
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Field: Drive Link */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">תיקיית דרייב</span>
-                    {activeEditField === 'driveLink' ? (
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                        <input 
-                          type="url" 
-                          className="form-control text-left direction-ltr" 
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                          placeholder="https://drive.google.com/..."
-                          value={editDriveLink} 
-                          onChange={(e) => setEditDriveLink(e.target.value)} 
-                          autoFocus
-                        />
-                        <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('driveLink', editDriveLink)}>✔️</button>
-                        <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                      </div>
-                    ) : task.driveLink ? (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <a href={task.driveLink} target="_blank" rel="noopener noreferrer" className="drive-link">
-                          🔗 מעבר לדרייב
-                        </a>
-                        <button type="button" className="edit-inline-trigger-btn" onClick={() => startEditingField('driveLink', task.driveLink)} title="עריכת קישור">✏️</button>
-                      </div>
-                    ) : (
-                      <span 
-                        className="sidebar-value hover-editable-inline" 
-                        onClick={() => startEditingField('driveLink', '')}
-                        title="לחצי להוספת קישור דרייב"
-                      >
-                        לא צורף קישור ✏️
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Field: Attachments (Direct upload and deletion) */}
-                  <div className="sidebar-row">
-                    <span className="sidebar-label">קבצים שהועלו</span>
-                    {task.attachments && task.attachments.length > 0 ? (
-                      <div className="attachments-list" style={{ marginTop: '4px' }}>
-                        {task.attachments.map((file, idx) => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                        {(STATUSES.includes(quickStatus) ? STATUSES : [...STATUSES, quickStatus]).map(st => {
+                          const colorClass = STATUS_CLASSES[st] || 'badge-frozen';
+                          const isActive = st === quickStatus;
                           return (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%' }}>
-                              <a 
-                                href={file.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="attachment-info"
-                                style={{ fontSize: '0.8rem', padding: '4px 0', flex: 1, minWidth: 0 }}
-                                title={file.name}
-                              >
-                                <span className="attachment-icon">{isImage ? '🖼️' : '📄'}</span>
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block' }}>
-                                  {file.name}
-                                </span>
-                              </a>
-                              <button 
-                                type="button" 
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px' }}
-                                onClick={() => handleDeleteAttachmentDirectly(idx)}
-                                title="מחיקת קובץ"
-                              >
-                                🗑️
-                              </button>
-                            </div>
+                            <button
+                              key={st}
+                              type="button"
+                              className={`badge ${colorClass}`}
+                              style={{
+                                padding: '6px 8px',
+                                fontSize: '0.75rem',
+                                textAlign: 'center',
+                                cursor: 'pointer',
+                                width: '100%',
+                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                opacity: isActive ? 1 : 0.45,
+                                transform: isActive ? 'scale(1.02)' : 'none',
+                                fontWeight: isActive ? '700' : '500',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onClick={() => handleStatusChange(st)}
+                            >
+                              {st}
+                            </button>
                           );
                         })}
                       </div>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>אין קבצים מצורפים</span>
-                    )}
-                    
-                    {/* Add attachment directly */}
-                    <div style={{ marginTop: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                        <button 
-                          type="button" 
-                          className="comment-attachment-btn"
-                          style={{ padding: '4px 8px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
-                          disabled={uploading}
-                        >
-                          {uploading 
-                            ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%` 
-                            : '📎 הוספת קובץ'}
-                        </button>
-                        {!uploading && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>(עד 70MB)</span>
-                        )}
-                        {uploading && (
-                          <div style={{ 
-                            flexGrow: 1, 
-                            height: '6px', 
-                            backgroundColor: 'var(--border-color, #e2e8f0)', 
-                            borderRadius: '3px', 
-                            overflow: 'hidden',
-                            maxWidth: '120px'
-                          }}>
-                            <div style={{ 
-                              width: `${uploadProgress}%`, 
-                              height: '100%', 
-                              backgroundColor: 'var(--primary)', 
-                              transition: 'width 0.2s ease-in-out' 
-                            }} />
-                          </div>
-                        )}
-                      </div>
-                      <input 
-                        type="file" 
-                        id="view-attachment-file-input-inline" 
-                        multiple
-                        style={{ display: 'none' }}
-                        onChange={handleUploadFilesDirectly}
-                      />
-                      {uploadError && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{uploadError}</div>}
                     </div>
+
+                    {/* Diecuts Status */}
+                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                      <span className="sidebar-label">דייקאטים</span>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                        {[
+                          { val: 'אין', label: 'אין', class: 'badge-needs-revision' },
+                          { val: 'חלקי', label: 'חלקי', class: 'badge-in-progress' },
+                          { val: 'יש', label: 'יש', class: 'badge-approved' }
+                        ].map(item => {
+                          const isActive = (task.diecutsStatus || 'אין') === item.val;
+                          return (
+                            <button
+                              key={item.val}
+                              type="button"
+                              className={`badge ${item.class}`}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                opacity: isActive ? 1 : 0.4,
+                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                fontWeight: isActive ? '700' : '500',
+                                transition: 'all 0.15s ease',
+                                borderRadius: '12px'
+                              }}
+                              onClick={() => handleSaveField('diecutsStatus', item.val)}
+                              title={`שינוי דייקאטים ל-${item.label}`}
+                            >
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Images Status */}
+                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                      <span className="sidebar-label">תמונות</span>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                        {[
+                          { val: 'אין', label: 'אין', class: 'badge-needs-revision' },
+                          { val: 'חלקי', label: 'חלקי', class: 'badge-in-progress' },
+                          { val: 'יש', label: 'יש', class: 'badge-approved' }
+                        ].map(item => {
+                          const isActive = (task.imagesStatus || 'אין') === item.val;
+                          return (
+                            <button
+                              key={item.val}
+                              type="button"
+                              className={`badge ${item.class}`}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                opacity: isActive ? 1 : 0.4,
+                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                fontWeight: isActive ? '700' : '500',
+                                transition: 'all 0.15s ease',
+                                borderRadius: '12px'
+                              }}
+                              onClick={() => handleSaveField('imagesStatus', item.val)}
+                              title={`שינוי תמונות ל-${item.label}`}
+                            >
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Standards Institute Required */}
+                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                      <span className="sidebar-label">דרישות מכון תקנים</span>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                        {[
+                          { val: 'לא', label: 'לא', class: 'badge-frozen' },
+                          { val: 'כן', label: 'כן', class: 'badge-waiting-approval' }
+                        ].map(item => {
+                          const isActive = (task.standardsInstituteRequired || 'לא') === item.val;
+                          return (
+                            <button
+                              key={item.val}
+                              type="button"
+                              className={`badge ${item.class}`}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                opacity: isActive ? 1 : 0.4,
+                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                fontWeight: isActive ? '700' : '500',
+                                transition: 'all 0.15s ease',
+                                borderRadius: '12px'
+                              }}
+                              onClick={() => handleSaveField('standardsInstituteRequired', item.val)}
+                              title={`שינוי מכון תקנים ל-${item.label}`}
+                            >
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                   </div>
 
                   <div className="sidebar-row" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
@@ -1845,6 +1769,60 @@ export default function AdminDetailsModal({
           </>
         )}
       </div>
+
+      {activeInfoCard && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }} onClick={() => setActiveInfoCard(null)}>
+          <div className="modal-content" style={{ maxWidth: '450px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className="modal-title" style={{ fontSize: '1.15rem' }}>{activeInfoCard.title}</h3>
+              <button className="modal-close" onClick={() => setActiveInfoCard(null)} style={{ marginRight: 0 }}>&times;</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {activeInfoCard.fields.map((f, idx) => (
+                <div key={idx} style={{ borderBottom: idx === activeInfoCard.fields.length - 1 ? 'none' : '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>
+                    {f.label}
+                  </span>
+                  {f.isMultiline ? (
+                    <p style={{ margin: 0, fontSize: '0.9rem', whiteSpace: 'pre-wrap', color: 'var(--text-dark)' }}>
+                      {f.value || '-'}
+                    </p>
+                  ) : f.type === 'phone' && f.value ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <a href={`tel:${f.value}`} className="direction-ltr text-left" style={{ fontSize: '0.9rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'underline' }}>
+                        {f.value}
+                      </a>
+                      <a 
+                        href={`https://wa.me/${f.value.replace(/[^0-9]/g, '')}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        title="שליחת הודעת WhatsApp" 
+                        style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366' }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
+                        </svg>
+                      </a>
+                    </div>
+                  ) : f.type === 'email' && f.value ? (
+                    <a href={`mailto:${f.value}`} className="direction-ltr text-left" style={{ fontSize: '0.9rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'underline' }}>
+                      {f.value}
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-dark)', fontWeight: '500' }}>
+                      {f.value || '-'}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: '20px', textAlign: 'left' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)}>סגור</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {commentToDelete && (
         <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { e.stopPropagation(); setCommentToDelete(null); }}>
           <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
@@ -1861,116 +1839,59 @@ export default function AdminDetailsModal({
               </button>
               <button 
                 type="button" 
-                className="btn btn-primary" 
-                style={{ flex: 1, backgroundColor: 'var(--priority-urgent-bg)', color: 'var(--priority-urgent-text)', borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                className="btn btn-danger" 
                 onClick={confirmDeleteComment}
+                style={{ flex: 1 }}
               >
-                מחיקה
+                מחק
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Read-only Info Card Popup */}
-      {activeInfoCard && (
-        <div className="modal-overlay" style={{ zIndex: 1250 }} onClick={() => setActiveInfoCard(null)}>
-          <div className="modal-content" style={{ maxWidth: '450px', textAlign: 'right', direction: 'rtl', padding: '20px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header" style={{ marginBottom: '16px' }}>
-              <h3 className="modal-title" style={{ fontSize: '1.25rem', fontWeight: '700' }}>{activeInfoCard.title}</h3>
-              <button className="modal-close" onClick={() => setActiveInfoCard(null)}>&times;</button>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: 0 }}>
-              {activeInfoCard.fields.some(f => f.value && f.value.trim()) ? (
-                activeInfoCard.fields.map((field, idx) => {
-                  if (!field.value || !field.value.trim()) return null;
-                  return (
-                    <div key={idx} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '2px' }}>{field.label}</div>
-                      <div 
-                        className={field.isLtr ? 'direction-ltr text-left' : ''} 
-                        style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: field.isMultiline ? 'pre-wrap' : 'normal' }}
-                      >
-                        {field.type === 'phone' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <a href={`tel:${field.value.replace(/\s+/g, '')}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
-                              {field.value}
-                            </a>
-                            {(() => {
-                              const digitsOnly = field.value.replace(/\D/g, '');
-                              if (digitsOnly.length >= 9) {
-                                let cleanVal = digitsOnly;
-                                if (cleanVal.startsWith('05') && cleanVal.length === 10) {
-                                  cleanVal = '972' + cleanVal.substring(1);
-                                }
-                                return (
-                                  <a 
-                                    href={`https://wa.me/${cleanVal}`} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    title="פתיחת צ'אט בוואטסאפ"
-                                    style={{ display: 'inline-flex', alignItems: 'center', transition: 'transform 0.2s' }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#10b981" viewBox="0 0 16 16">
-                                      <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93a7.9 7.9 0 0 0-2.327-5.615zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
-                                    </svg>
-                                  </a>
-                                );
-                              }
-                              return null;
-                            })()}
-                          </div>
-                        ) : field.type === 'email' ? (
-                          <a href={`mailto:${field.value}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
-                            {field.value}
-                          </a>
-                        ) : field.type === 'whatsapp' ? (() => {
-                          const digitsOnly = field.value.replace(/\D/g, '');
-                          if (digitsOnly.length >= 9) {
-                            let cleanVal = digitsOnly;
-                            if (cleanVal.startsWith('05') && cleanVal.length === 10) {
-                              cleanVal = '972' + cleanVal.substring(1);
-                            }
-                            return (
-                              <a 
-                                href={`https://wa.me/${cleanVal}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                style={{ color: '#10b981', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '6px', transition: 'transform 0.2s' }}
-                                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#10b981" viewBox="0 0 16 16" style={{ marginLeft: '4px' }}>
-                                  <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
-                                </svg>
-                                {field.value}
-                              </a>
-                            );
-                          }
-                          return field.value;
-                        })() : (
-                          field.value
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  אין פרטים נוספים שמורים עבור גורם זה במערכת.
-                  <br />
-                  <span style={{ fontSize: '0.8rem', marginTop: '6px', display: 'inline-block' }}>ניתן להזין פרטים נוספים דרך מסך ההגדרות.</span>
-                </div>
-              )}
-            </div>
-            <div className="modal-footer" style={{ marginTop: '20px', padding: 0, borderTop: 'none', display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)} style={{ minWidth: '80px' }}>סגירה</button>
+      {showPlanogramDeleteConfirm && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { e.stopPropagation(); setShowPlanogramDeleteConfirm(false); }}>
+          <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת פלנוגרמה</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק את הפלנוגרמה? לא ניתן לבטל פעולה זו.</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowPlanogramDeleteConfirm(false)}
+                style={{ flex: 1 }}
+              >
+                ביטול
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                onClick={confirmDeletePlanogram}
+                style={{ flex: 1 }}
+              >
+                מחק
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Excel Preview Modal */}
+      <ExcelPreviewModal 
+        isOpen={!!excelPreviewFile} 
+        onClose={() => setExcelPreviewFile(null)} 
+        fileUrl={excelPreviewFile?.url} 
+        fileName={excelPreviewFile?.name} 
+      />
+
+      {/* PDF Preview Modal */}
+      <PdfPreviewModal 
+        isOpen={!!pdfPreviewFile} 
+        onClose={() => setPdfPreviewFile(null)} 
+        fileUrl={pdfPreviewFile?.url} 
+        fileName={pdfPreviewFile?.name} 
+      />
     </div>
   );
 }

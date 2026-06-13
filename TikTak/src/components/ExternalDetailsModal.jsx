@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCommentsForTask, addComment, deleteComment, uploadFileToStorage } from '../utils/storage';
+import ExcelPreviewModal from './ExcelPreviewModal';
+import PdfPreviewModal from './PdfPreviewModal';
 
 export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false }) {
   const {
@@ -90,6 +92,8 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadProgressFile, setUploadProgressFile] = useState(0);
   const [uploadError, setUploadError] = useState('');
+  const [excelPreviewFile, setExcelPreviewFile] = useState(null);
+  const [pdfPreviewFile, setPdfPreviewFile] = useState(null);
 
   const handleCommentFileChange = async (e) => {
     const file = e.target.files[0];
@@ -195,49 +199,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
     }
   };
 
-  const renderDeadline = (deadlineStr) => {
-    if (!deadlineStr) return 'לא נקבע';
-    try {
-      const deadlineDate = new Date(deadlineStr);
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      deadlineDate.setHours(0,0,0,0);
-      
-      const diffTime = deadlineDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      // Date part only (no hours)
-      const formattedDate = new Date(deadlineStr).toLocaleDateString('he-IL', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-      
-      if (diffDays < 0) {
-        return (
-          <span className="deadline-danger" title="הדדליין עבר!">
-            ⚠️ עבר ({formattedDate})
-          </span>
-        );
-      } else if (diffDays === 0) {
-        return (
-          <span className="deadline-danger" title="היום!">
-            ⏰ היום! ({formattedDate})
-          </span>
-        );
-      } else if (diffDays <= 3) {
-        return (
-          <span className="deadline-warning" title={`נותרו עוד ${diffDays} ימים`}>
-            ⏳ עוד {diffDays} ימים ({formattedDate})
-          </span>
-        );
-      }
-      return formattedDate;
-    } catch (e) {
-      return deadlineStr;
-    }
-  };
-
   return (
     <div className="modal-overlay" onClick={isSingleProjectView ? null : onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -270,25 +231,128 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
           </div>
         </div>
 
-        <div className="modal-body">
+        <div className="modal-body" style={{ maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
           <div className="details-grid">
             
-            {/* Main Content Area */}
+            {/* Main Content Area (Left Column) */}
             <div className="details-main">
               
-              {/* Description */}
-              <div>
-                <h4 className="detail-section-title">תיאור ופרטי העבודה</h4>
-                {task.description ? (
-                  <div className="description-box">{task.description}</div>
-                ) : (
-                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>אין תיאור מפורט לעבודה זו.</p>
-                )}
+              {/* AREA 1: פרטי עבודה */}
+              <div className="details-section-card">
+                <h4 className="detail-section-title">📁 פרטי עבודה</h4>
+                
+                {/* Description */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px', display: 'block', fontSize: '0.85rem' }}>תיאור העבודה</label>
+                  {task.description ? (
+                    <div className="description-box" style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', minHeight: '60px', backgroundColor: '#fdfdfd' }}>
+                      {task.description}
+                    </div>
+                  ) : (
+                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט לעבודה זו.</p>
+                  )}
+                </div>
+
+                {/* Drive Link */}
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px', display: 'block', fontSize: '0.85rem' }}>קישור לתיקיית דרייב</label>
+                  {task.driveLink ? (
+                    <a href={task.driveLink} target="_blank" rel="noopener noreferrer" className="drive-link" style={{ fontSize: '0.9rem', fontWeight: '600' }}>
+                      🔗 מעבר לדרייב
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא צורף קישור</span>
+                  )}
+                </div>
               </div>
 
+              {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
+              <div className="details-section-card">
+                <h4 className="detail-section-title">📋 הזמנת עבודה ופלנוגרמה</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  
+                  {/* הזמנת עבודה */}
+                  <div>
+                    <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
+                      הזמנת עבודה (קבצים מצורפים)
+                    </label>
+                    
+                    {(() => {
+                      const filesList = task.workOrderFiles || task.attachments || [];
+                      return filesList.length > 0 ? (
+                        <div className="attachments-list" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                          {filesList.map((file, idx) => {
+                            const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                            const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+                            const isPdf = /\.pdf$/i.test(file.name);
+                            return (
+                              <div key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                                <a 
+                                  href={file.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="attachment-info"
+                                  style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                  title={file.name}
+                                  onClick={(e) => {
+                                    if (isExcel) {
+                                      e.preventDefault();
+                                      setExcelPreviewFile({ url: file.url, name: file.name });
+                                    } else if (isPdf) {
+                                      e.preventDefault();
+                                      setPdfPreviewFile({ url: file.url, name: file.name });
+                                    }
+                                  }}
+                                >
+                                  <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right' }}>
+                                    {file.name}
+                                  </span>
+                                </a>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                          אין קבצים מצורפים
+                        </div>
+                      );
+                    })()}
+                  </div>
 
+                  {/* פלנוגרמה */}
+                  <div>
+                    <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
+                      פלנוגרמה
+                    </label>
+                    
+                    {task.planogramFile ? (
+                      <div className="planogram-preview-container" style={{ height: '140px', margin: 0 }}>
+                        <img src={task.planogramFile.url} alt="פלנוגרמה" className="planogram-preview-img" />
+                        <div className="planogram-actions-overlay">
+                          <span style={{ color: 'white', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                            {task.planogramFile.name}
+                          </span>
+                          <a href={task.planogramFile.url} target="_blank" rel="noopener noreferrer" className="planogram-action-btn">
+                            👁️ צפייה
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        className="planogram-preview-container" 
+                        style={{ height: '140px', margin: 0, borderStyle: 'dashed' }}
+                      >
+                        <span className="planogram-empty-text">לא הועלתה פלנוגרמה</span>
+                      </div>
+                    )}
+                  </div>
 
-              {/* Comments Section */}
+                </div>
+              </div>
+
+              {/* AREA 5: הערות ועדכוני עבודה */}
               <div className="comments-section">
                 <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
                 
@@ -298,9 +362,11 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                     <div className="empty-state-text font-size-sm">היה הראשון להוסיף הערה או לעדכן לגבי התקדמות העבודה.</div>
                   </div>
                 ) : (
-                  <div className="comments-list">
+                  <div className="comments-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                     {comments.map(c => {
                       const isImage = c.attachmentName && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.attachmentName);
+                      const isExcel = c.attachmentName && /\.(xlsx|xls)$/i.test(c.attachmentName);
+                      const isPdf = c.attachmentName && /\.pdf$/i.test(c.attachmentName);
                       return (
                         <div key={c.id} className="comment-item">
                           <div className="comment-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -320,10 +386,10 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                                 fontSize: '1rem',
                                 color: 'var(--priority-urgent-text)',
                                 display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  borderRadius: '4px',
-                                  transition: 'background-color 0.2s'
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                transition: 'background-color 0.2s'
                               }}
                             >
                               🗑️
@@ -347,8 +413,17 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                                   target="_blank" 
                                   rel="noopener noreferrer" 
                                   className="comment-attachment-link"
+                                  onClick={(e) => {
+                                    if (isExcel) {
+                                      e.preventDefault();
+                                      setExcelPreviewFile({ url: c.attachmentUrl, name: c.attachmentName });
+                                    } else if (isPdf) {
+                                      e.preventDefault();
+                                      setPdfPreviewFile({ url: c.attachmentUrl, name: c.attachmentName });
+                                    }
+                                  }}
                                 >
-                                  📎 {c.attachmentName || 'קובץ מצורף'}
+                                  {isExcel ? '📊' : isPdf ? '📄' : '📎'} {c.attachmentName || 'קובץ מצורף'}
                                 </a>
                               </div>
                             </div>
@@ -391,14 +466,14 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   {/* File Attachment Input */}
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">
-                      צירוף קובץ או תמונה (אופציונלי)
+                      צירוף קובץ (Excel, תמונה וכו')
                     </label>
                     {attachedFile ? (
                       <div className="comment-attachment-preview-chip">
                         <span>📎 {attachedFile.name}</span>
                         <button type="button" onClick={() => setAttachedFile(null)} title="הסר קובץ">&times;</button>
                       </div>
-                     ) : (
+                    ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                         <button 
                           type="button" 
@@ -449,116 +524,79 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
             </div>
 
-            {/* Sidebar with Meta */}
+            {/* Sidebar View Area (Right Column) */}
             <div className="details-sidebar">
-              <div className="sidebar-row">
-                <span className="sidebar-label">סוג עבודה</span>
-                <span className="sidebar-value">{task.workType}</span>
-              </div>
 
-              <div className="sidebar-row">
-                <span className="sidebar-label">סטטוס נוכחי</span>
-                <div style={{ marginTop: '4px' }}>
-                  <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
-                    {task.status}
-                  </span>
-                </div>
-              </div>
+              {/* AREA 2: ספק ואיש קשר */}
+              <div className="details-section-card" style={{ marginBottom: '16px' }}>
+                <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🏭 ספק ואיש קשר</h4>
 
-              <div className="sidebar-row">
-                <span className="sidebar-label">תאריך יעד</span>
-                <span className="sidebar-value">
-                  {renderDeadline(task.deadline)}
-                </span>
-              </div>
-
-              <div className="sidebar-row">
-                <span className="sidebar-label">חנות / רשת משוייכת</span>
-                <span className="sidebar-value">{task.storeName || '-'}</span>
-              </div>
-
-              <div className="sidebar-row">
-                <span className="sidebar-label">ספק</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="sidebar-value">{task.supplierName || '-'}</span>
-                  {task.supplierName && (
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary btn-icon" 
-                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      title="פרטי כרטיס ספק"
-                      onClick={() => handleOpenSupplierCard(task.supplierName)}
-                    >
-                      ℹ️
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="sidebar-row">
-                <span className="sidebar-label">איש קשר ספק</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="sidebar-value">{task.contactPerson || '-'}</span>
-                  {task.contactPerson && (
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary btn-icon" 
-                      style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      title="פרטי כרטיס איש קשר"
-                      onClick={() => handleOpenContactCard(task.contactPerson)}
-                    >
-                      ℹ️
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="sidebar-row">
-                <span className="sidebar-label">איש קשר</span>
-                <span className="sidebar-value">{task.importManager || '-'}</span>
-              </div>
-
-              <div className="sidebar-row">
-                <span className="sidebar-label">קישור לתיקיית קבצים (Drive)</span>
-                {task.driveLink ? (
-                  <a href={task.driveLink} target="_blank" rel="noopener noreferrer" className="drive-link">
-                    🔗 מעבר לקישור
-                  </a>
-                ) : (
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>לא צורף קישור</span>
-                )}
-              </div>
-
-              <div className="sidebar-row">
-                <span className="sidebar-label">קבצים שהועלו</span>
-                {task.attachments && task.attachments.length > 0 ? (
-                  <div className="attachments-list" style={{ marginTop: '4px' }}>
-                    {task.attachments.map((file, idx) => {
-                      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-                      return (
-                        <a 
-                          key={idx} 
-                          href={file.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="attachment-info"
-                          style={{ fontSize: '0.8rem', padding: '4px 0' }}
-                          title={file.name}
-                        >
-                          <span className="attachment-icon">{isImage ? '🖼️' : '📄'}</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right' }}>
-                            {file.name}
-                          </span>
-                        </a>
-                      );
-                    })}
+                {/* Supplier Contact Name */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">איש קשר ספק</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="sidebar-value">{(task.supplierContactName || task.contactPerson) || '-'}</span>
+                    {(task.supplierContactName || task.contactPerson) && (
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-icon" 
+                        style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="פרטי כרטיס איש קשר"
+                        onClick={() => handleOpenContactCard(task.supplierContactName || task.contactPerson)}
+                      >
+                        ℹ️
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>אין קבצים מצורפים</span>
-                )}
+                </div>
+
+                {/* Supplier Contact Email */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">מייל איש קשר ספק</span>
+                  {task.supplierContactEmail ? (
+                    <a href={`mailto:${task.supplierContactEmail}`} className="sidebar-value direction-ltr text-left" style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
+                      {task.supplierContactEmail}
+                    </a>
+                  ) : (
+                    <span className="sidebar-value">-</span>
+                  )}
+                </div>
               </div>
 
-              <div className="sidebar-row" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+              {/* AREA 3: חומרים ואישורים */}
+              <div className="details-section-card">
+                <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 חומרים ואישורים</h4>
+                
+                {/* Status */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">סטטוס עבודה</span>
+                  <div style={{ marginTop: '4px' }}>
+                    <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
+                      {task.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Diecuts Status */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">דייקאטים</span>
+                  <span className="sidebar-value">{task.diecutsStatus || 'אין'}</span>
+                </div>
+
+                {/* Images Status */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">תמונות</span>
+                  <span className="sidebar-value">{task.imagesStatus || 'אין'}</span>
+                </div>
+
+                {/* Standards Institute Required */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">מכון תקנים</span>
+                  <span className="sidebar-value">{task.standardsInstituteRequired || 'לא'}</span>
+                </div>
+              </div>
+
+              <div className="sidebar-row" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '16px' }}>
                 <span>עודכן לאחרונה: {formatDate(task.updatedAt)}</span>
               </div>
             </div>
@@ -697,6 +735,22 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
           </div>
         </div>
       )}
+
+      {/* Excel Preview Modal */}
+      <ExcelPreviewModal 
+        isOpen={!!excelPreviewFile} 
+        onClose={() => setExcelPreviewFile(null)} 
+        fileUrl={excelPreviewFile?.url} 
+        fileName={excelPreviewFile?.name} 
+      />
+
+      {/* PDF Preview Modal */}
+      <PdfPreviewModal 
+        isOpen={!!pdfPreviewFile} 
+        onClose={() => setPdfPreviewFile(null)} 
+        fileUrl={pdfPreviewFile?.url} 
+        fileName={pdfPreviewFile?.name} 
+      />
     </div>
   );
 }

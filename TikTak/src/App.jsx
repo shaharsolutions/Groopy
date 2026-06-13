@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { signInAnonymously } from 'firebase/auth';
 import { auth } from './firebase';
 import Header from './components/Header';
@@ -7,7 +7,7 @@ import ExternalDashboard from './pages/ExternalDashboard';
 import SettingsPage from './pages/SettingsPage';
 import Login from './pages/Login';
 import { getGlobalSettings, saveGlobalSettings } from './utils/storage';
-import SystemTour from './components/SystemTour';
+
 import './App.css';
 
 /**
@@ -125,7 +125,13 @@ export default function App() {
 
   const handlePasswordModalSubmit = (e) => {
     e.preventDefault();
-    if (passwordInput === 'Kefy0507') {
+    setModalError('');
+    if (!passwordInput.trim()) {
+      setModalError('אנא הזינו סיסמת מנהל/ת.');
+      return;
+    }
+    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'Kefy0507';
+    if (passwordInput === adminPassword) {
       localStorage.setItem('tiktak_admin_authenticated', 'true');
       localStorage.setItem('tiktak_test_role', 'admin');
       setUserRole('admin');
@@ -237,9 +243,11 @@ export default function App() {
                       className="form-control"
                       placeholder="סיסמה..."
                       value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
+                      onChange={(e) => {
+                        setPasswordInput(e.target.value);
+                        if (modalError) setModalError('');
+                      }}
                       autoFocus
-                      required
                       style={{ textAlign: 'right', direction: 'rtl' }}
                     />
                     <button
@@ -273,11 +281,6 @@ export default function App() {
           </div>
         </div>
       )}
-      <SystemTour 
-        userRole={userRole} 
-        currentView={currentView} 
-        setView={setCurrentView} 
-      />
     </div>
   );
 }

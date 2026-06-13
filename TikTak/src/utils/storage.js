@@ -19,21 +19,42 @@ import {
   query, 
   where 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { INITIAL_TASKS, INITIAL_COMMENTS } from '../data/mockData';
 
-// Helper to upload files to Firebase Storage
-export const uploadFileToStorage = async (file, folderPath = 'uploads') => {
-  const filename = `${Date.now()}_${file.name}`;
-  const fileRef = ref(storage, `${folderPath}/${filename}`);
-  await uploadBytes(fileRef, file);
-  const downloadUrl = await getDownloadURL(fileRef);
-  return {
-    url: downloadUrl,
-    name: file.name,
-    size: file.size,
-    uploadedAt: new Date().toISOString()
-  };
+// Helper to upload files directly to Firebase Storage
+export const uploadFileToStorage = (file, folderPath = 'uploads', onProgress = null) => {
+  return new Promise((resolve, reject) => {
+    // Generate a unique file name to avoid collisions
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
+    const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${fileExtension}`;
+    const storageRef = ref(storage, `${folderPath}/${uniqueFileName}`);
+    
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        if (onProgress) {
+          onProgress(progress);
+        }
+      }, 
+      (error) => {
+        console.error("Firebase Storage Upload Error:", error);
+        reject(error);
+      }, 
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          resolve({
+            url: downloadURL,
+            name: file.name,
+            size: file.size,
+            uploadedAt: new Date().toISOString()
+          });
+        }).catch(reject);
+      }
+    );
+  });
 };
 
 const TASKS_COLLECTION = 'tasks';
@@ -141,6 +162,19 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
     throw e;
   }
 };
+
+export const deleteComment = async (commentId, jobId = null) => {
+  try {
+    await deleteDoc(doc(db, COMMENTS_COLLECTION, commentId));
+    if (jobId) {
+      await updateTask(jobId, {});
+    }
+  } catch (e) {
+    console.error("Error deleting comment in Cloud Firestore", e);
+    throw e;
+  }
+};
+
 
 export const getPrivateNotes = async (taskId) => {
   try {

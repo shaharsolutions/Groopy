@@ -23,7 +23,20 @@ export default function ExternalDashboard({ settings }) {
   };
 
   useEffect(() => {
-    loadTasks();
+    const initTasks = async () => {
+      const fetchedTasks = await getTasks();
+      setTasks(fetchedTasks);
+      
+      const params = new URLSearchParams(window.location.search);
+      const urlTaskId = params.get('taskId');
+      if (urlTaskId) {
+        const taskToOpen = fetchedTasks.find(t => t.id === urlTaskId);
+        if (taskToOpen) {
+          setViewingTask(taskToOpen);
+        }
+      }
+    };
+    initTasks();
   }, []);
 
   // Reload tasks on window focus/active modal refresh to get updated comments or status updates
@@ -110,6 +123,39 @@ export default function ExternalDashboard({ settings }) {
       return deadlineStr;
     }
   };
+
+  const params = new URLSearchParams(window.location.search);
+  const urlTaskId = params.get('taskId');
+
+  if (urlTaskId) {
+    const taskExists = tasks.some(t => t.id === urlTaskId);
+    if (tasks.length > 0 && !taskExists) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '80vh', gap: '16px' }}>
+          <span style={{ fontSize: '3rem' }}>⚠️</span>
+          <h3>הפרויקט לא נמצא</h3>
+          <p style={{ color: 'var(--text-muted)' }}>ייתכן שהפרויקט נמחק או שהקישור אינו תקין.</p>
+        </div>
+      );
+    }
+    if (!viewingTask) {
+      return (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', color: 'var(--text-muted)' }}>
+          טוען פרויקט...
+        </div>
+      );
+    }
+    return (
+      <main className="dashboard-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', padding: '24px 0' }}>
+        <ExternalDetailsModal 
+          task={viewingTask}
+          settings={settings}
+          onClose={null}
+          isSingleProjectView={true}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="dashboard-container">

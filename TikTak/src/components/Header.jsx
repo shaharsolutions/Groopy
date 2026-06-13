@@ -23,7 +23,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
   return (
     <header className="app-header">
       <div className="header-brand" onClick={() => onViewChange && onViewChange('dashboard')} style={{ cursor: 'pointer' }}>
-        <div className="header-logo">ת</div>
+        <img src="/logo.png" className="header-logo" alt="לוגו תיקתק" style={{ objectFit: 'cover', background: 'white', padding: '2px' }} />
         <div>
           <h1 className="header-title">תיקתק</h1>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>מערכת מעקב וניהול משימות</p>
@@ -45,7 +45,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
               gap: '6px',
               padding: '6px 12px'
             }}
-            title="העתק קישור שיתוף עבור ספקים או לקוחות שצריכים רק לצפות במערכת"
+            title="העתק קישור שיתוף עבור שותפים לפרויקט שצריכים רק לצפות במערכת"
           >
             {copied ? '✔️ הועתק בהצלחה!' : '🔗 העתקת קישור לשיתוף'}
           </button>
@@ -94,27 +94,18 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
         <div className="user-badge">
           <span>👤</span>
           <span>
-            {userRole === 'admin' ? 'סביבת מנהל/ת מערכת' : 'מצב צפייה ושיתוף'}
+            {userRole === 'admin' ? 'סביבת מנהל/ת מערכת' : 'מצב צפייה ושיתוף (עבור שותפים לפרויקט)'}
           </span>
         </div>
         
-        {showSwitcher && (
-          userRole === 'admin' ? (
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => onChangeRole('external')}
-              style={{ backgroundColor: 'var(--secondary)', color: 'white', borderColor: 'var(--secondary)' }}
-            >
-              👀 מעבר למצב צפייה
-            </button>
-          ) : (
-            <button 
-              className="btn btn-primary" 
-              onClick={() => onChangeRole('admin')}
-            >
-              ✏️ מעבר למצב מנהל/ת
-            </button>
-          )
+        {showSwitcher && userRole === 'admin' && (
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => onChangeRole('external')}
+            style={{ backgroundColor: 'var(--secondary)', color: 'white', borderColor: 'var(--secondary)' }}
+          >
+            👀 מעבר למצב צפייה
+          </button>
         )}
 
         {onLogout && (

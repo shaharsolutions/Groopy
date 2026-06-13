@@ -192,7 +192,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       return;
     }
     if (localSettings.importManagers.includes(newValue)) {
-      showMsg('מנהל יבוא זה כבר קיים ברשימה', 'danger');
+      showMsg('איש קשר זה כבר קיים ברשימה', 'danger');
       return;
     }
 
@@ -204,7 +204,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       importManagers: updatedManagers
     });
     setEditingManager({ index: null, value: '' });
-    showMsg(`שם מנהל היבוא שונה ל-"${newValue}"`);
+    showMsg(`שם איש הקשר שונה ל-"${newValue}"`);
   };
 
   // Add handlers
@@ -337,7 +337,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     e.preventDefault();
     if (!newManager.trim()) return;
     if (localSettings.importManagers.includes(newManager.trim())) {
-      showMsg('מנהל יבוא זה כבר קיים ברשימה', 'danger');
+      showMsg('איש קשר זה כבר קיים ברשימה', 'danger');
       return;
     }
     setLocalSettings({
@@ -535,7 +535,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
           className={`login-tab-btn ${activeTab === 'lists' ? 'active' : ''}`}
           onClick={() => setActiveTab('lists')}
         >
-          👥 רשימות מוזנות מראש <br /> (סניפים ומנהלים)
+          👥 רשימות מוזנות מראש <br /> (סניפים ואנשי קשר)
         </button>
         <button 
           className={`login-tab-btn ${activeTab === 'suppliers_contacts' ? 'active' : ''}`}
@@ -988,14 +988,14 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
 
           {/* Prepopulated Import Managers List */}
           <div className="filter-panel">
-            <h4 className="detail-section-title">מנהלי יבוא ורכש אחראיים</h4>
+            <h4 className="detail-section-title">אנשי קשר</h4>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-              רשימת מנהלי היבוא שיופיעו כהצעה להשלמה מהירה בשדה "מנהל יבוא אחראי".
+              רשימת אנשי הקשר שיופיעו כהצעה להשלמה מהירה בשדה "איש קשר".
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               {localSettings.importManagers.length === 0 ? (
-                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>הרשימה ריקה. הזן שמות מנהלים למטה.</span>
+                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>הרשימה ריקה. הזן שמות אנשי קשר למטה.</span>
               ) : (
                 localSettings.importManagers.map((mgr, index) => {
                   const isEditing = editingManager.index === index;
@@ -1064,7 +1064,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
               <input 
                 type="text" 
                 className="form-control" 
-                placeholder="שם מנהל/ת יבוא" 
+                placeholder="שם איש/ת קשר" 
                 value={newManager}
                 onChange={(e) => setNewManager(e.target.value)}
               />

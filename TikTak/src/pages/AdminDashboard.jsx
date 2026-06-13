@@ -36,7 +36,20 @@ export default function AdminDashboard({ settings }) {
 
   // Fetch tasks on mount
   useEffect(() => {
-    loadTasks();
+    const initTasks = async () => {
+      const fetchedTasks = await getTasks();
+      setTasks(fetchedTasks);
+      
+      const params = new URLSearchParams(window.location.search);
+      const urlTaskId = params.get('taskId');
+      if (urlTaskId) {
+        const taskToOpen = fetchedTasks.find(t => t.id === urlTaskId);
+        if (taskToOpen) {
+          setViewingTask(taskToOpen);
+        }
+      }
+    };
+    initTasks();
   }, []);
 
   // Filter tasks whenever data or filters change
@@ -187,7 +200,7 @@ export default function AdminDashboard({ settings }) {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>מעקב, עריכה ויצירת משימות גרפיקה במערכת</p>
         </div>
         <button 
-          className="btn btn-primary tour-step-create-btn"
+          className="btn btn-primary"
           onClick={() => {
             setViewingTask(null);
             setStartInEditMode(false);
@@ -240,16 +253,25 @@ export default function AdminDashboard({ settings }) {
           {/* Priority Filter */}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ fontSize: '0.8rem' }}>סינון לפי עדיפות</label>
-            <select 
-              className="form-control"
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-            >
-              <option value="">כל העדיפויות</option>
+            <div className="segmented-control">
+              <button 
+                type="button" 
+                className={`segmented-control-btn ${priorityFilter === '' ? 'active' : ''}`}
+                onClick={() => setPriorityFilter('')}
+              >
+                כל העדיפויות
+              </button>
               {PRIORITIES.map(pr => (
-                <option key={pr} value={pr}>{pr}</option>
+                <button 
+                  key={pr}
+                  type="button" 
+                  className={`segmented-control-btn ${priorityFilter === pr ? `active ${PRIORITY_CLASSES[pr] || ''}` : ''}`}
+                  onClick={() => setPriorityFilter(pr)}
+                >
+                  {pr}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
         </div>
 

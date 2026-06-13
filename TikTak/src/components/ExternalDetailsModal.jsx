@@ -1,11 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { getCommentsForTask, addComment, uploadFileToStorage } from '../utils/storage';
+import { getCommentsForTask, addComment, deleteComment, uploadFileToStorage } from '../utils/storage';
 
-export default function ExternalDetailsModal({ task, settings, onClose }) {
+export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false }) {
   const {
     statusColors: STATUS_CLASSES = {}
   } = settings || {};
   const [comments, setComments] = useState([]);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState(null);
+
+  const handleCopyTaskLink = () => {
+    if (!task) return;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&taskId=${task.id}`;
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      })
+      .catch(err => {
+        console.error("Failed to copy link", err);
+      });
+  };
+
   const [authorName, setAuthorName] = useState(() => {
     return localStorage.getItem('tiktak_comment_author') || '';
   });
@@ -14,6 +30,7 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
 
   const [attachedFile, setAttachedFile] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadProgressFile, setUploadProgressFile] = useState(0);
   const [uploadError, setUploadError] = useState('');
 
   const handleCommentFileChange = async (e) => {
@@ -29,9 +46,12 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
     }
 
     setUploadingFile(true);
+    setUploadProgressFile(0);
     setUploadError('');
     try {
-      const result = await uploadFileToStorage(file, 'comments');
+      const result = await uploadFileToStorage(file, 'comments', (progress) => {
+        setUploadProgressFile(progress);
+      });
       setAttachedFile(result);
       e.target.value = '';
     } catch (err) {
@@ -55,6 +75,23 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
   }, [task]);
 
   if (!task) return null;
+
+  const handleDeleteComment = (commentId) => {
+    setCommentToDelete(commentId);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    try {
+      await deleteComment(commentToDelete, task.id);
+      const fetchedComments = await getCommentsForTask(task.id);
+      setComments(fetchedComments);
+      setCommentToDelete(null);
+    } catch (err) {
+      console.error("Failed to delete comment", err);
+      alert('שגיאה במחיקת ההערה');
+    }
+  };
 
   const handleAddComment = async (e) => {
     e.preventDefault();
@@ -144,13 +181,35 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={isSingleProjectView ? null : onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
             <h3 className="modal-title">{task.title}</h3>
           </div>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
+            <button 
+              type="button" 
+              className="btn btn-secondary"
+              onClick={handleCopyTaskLink}
+              style={{ 
+                fontSize: '0.85rem', 
+                padding: '6px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                whiteSpace: 'nowrap',
+                backgroundColor: '#e6f7ed', 
+                color: '#1e4620', 
+                borderColor: '#1e4620',
+                fontWeight: '600'
+              }}
+              title="העתק קישור שיתוף ישיר לפרויקט זה"
+            >
+              {copiedLink ? '✔️ הועתק!' : '🔗 העתקת קישור לשיתוף'}
+            </button>
+            {!isSingleProjectView && <button className="modal-close" onClick={onClose} style={{ marginRight: 0 }}>&times;</button>}
+          </div>
         </div>
 
         <div className="modal-body">
@@ -169,54 +228,7 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                 )}
               </div>
 
-              {/* Sub-tasks Section (Read-only for External viewers) */}
-              <div className="subtasks-container">
-                <div className="subtasks-header">
-                  <h4>📋 תתי-משימות לעבודה</h4>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
-                    {task.subtasks && task.subtasks.length > 0 
-                      ? `${task.subtasks.filter(s => s.completed).length} מתוך ${task.subtasks.length} הושלמו`
-                      : 'אין תתי-משימות'
-                    }
-                  </span>
-                </div>
 
-                {task.subtasks && task.subtasks.length > 0 && (
-                  <div className="subtask-progress-bar-container">
-                    <div 
-                      className="subtask-progress-bar" 
-                      style={{ 
-                        width: `${(task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100}%` 
-                      }}
-                    />
-                  </div>
-                )}
-
-                {task.subtasks && task.subtasks.length > 0 ? (
-                  <div className="subtask-list">
-                    {task.subtasks.map((sub) => (
-                      <div key={sub.id} className="subtask-item" style={{ cursor: 'default' }}>
-                        <div className="subtask-main">
-                          <input 
-                            type="checkbox" 
-                            className="subtask-checkbox" 
-                            checked={sub.completed}
-                            disabled
-                            style={{ cursor: 'default' }}
-                          />
-                          <span className={`subtask-text ${sub.completed ? 'completed' : ''}`} title={sub.title}>
-                            {sub.title}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="subtasks-empty-state">
-                    אין תתי-משימות מוגדרות לעבודה זו.
-                  </div>
-                )}
-              </div>
 
               {/* Comments Section */}
               <div className="comments-section">
@@ -233,11 +245,33 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                       const isImage = c.attachmentName && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.attachmentName);
                       return (
                         <div key={c.id} className="comment-item">
-                          <div className="comment-header">
-                            <span className="comment-author">{c.authorName}</span>
-                            <span>{formatDate(c.createdAt)}</span>
+                          <div className="comment-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span className="comment-author">{c.authorName}</span>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(c.createdAt)}</span>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => handleDeleteComment(c.id)}
+                              title="מחיקת הערה"
+                              style={{ 
+                                background: 'none', 
+                                border: 'none', 
+                                cursor: 'pointer', 
+                                padding: '2px 6px',
+                                fontSize: '1rem',
+                                color: 'var(--priority-urgent-text)',
+                                display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  borderRadius: '4px',
+                                  transition: 'background-color 0.2s'
+                              }}
+                            >
+                              🗑️
+                            </button>
                           </div>
-                          <div className="comment-text">{c.text}</div>
+                          <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>
                           {c.attachmentUrl && (
                             <div style={{ marginTop: '8px' }}>
                               {isImage && (
@@ -288,30 +322,54 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
                       className="form-control"
                       rows="3"
                       value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
+                      onChange={(e) => {
+                        setCommentText(e.target.value);
+                        if (commentError) setCommentError('');
+                      }}
                       placeholder="כתבו כאן את השאלות, העדכונים או הערות לגבי העיצוב..."
-                      required
                     />
                   </div>
                   
                   {/* File Attachment Input */}
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">צירוף קובץ או תמונה (אופציונלי)</label>
+                    <label className="form-label">
+                      צירוף קובץ או תמונה (אופציונלי) <span style={{ fontWeight: 'normal', fontSize: '0.85em', color: 'var(--text-muted, #718096)' }}>(עד 3MB)</span>
+                    </label>
                     {attachedFile ? (
                       <div className="comment-attachment-preview-chip">
                         <span>📎 {attachedFile.name}</span>
                         <button type="button" onClick={() => setAttachedFile(null)} title="הסר קובץ">&times;</button>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                     ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                         <button 
                           type="button" 
                           className="comment-attachment-btn"
                           onClick={() => document.getElementById('comment-file-input-external').click()}
                           disabled={uploadingFile}
                         >
-                          {uploadingFile ? '🔄 מעלה קובץ...' : '📎 בחירת קובץ'}
+                          {uploadingFile ? `🔄 מעלה (${uploadProgressFile}%)` : '📎 בחירת קובץ'}
                         </button>
+                        {!uploadingFile && (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>(עד 3MB)</span>
+                        )}
+                        {uploadingFile && (
+                          <div style={{ 
+                            flexGrow: 1, 
+                            height: '6px', 
+                            backgroundColor: 'var(--border-color, #e2e8f0)', 
+                            borderRadius: '3px', 
+                            overflow: 'hidden',
+                            maxWidth: '120px'
+                          }}>
+                            <div style={{ 
+                              width: `${uploadProgressFile}%`, 
+                              height: '100%', 
+                              backgroundColor: 'var(--primary)', 
+                              transition: 'width 0.2s ease-in-out' 
+                            }} />
+                          </div>
+                        )}
                         <input 
                           type="file" 
                           id="comment-file-input-external"
@@ -372,7 +430,7 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
               </div>
 
               <div className="sidebar-row">
-                <span className="sidebar-label">מנהל רכש / יבוא</span>
+                <span className="sidebar-label">איש קשר</span>
                 <span className="sidebar-value">{task.importManager || '-'}</span>
               </div>
 
@@ -424,12 +482,40 @@ export default function ExternalDetailsModal({ task, settings, onClose }) {
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            סגור
-          </button>
-        </div>
+        {!isSingleProjectView && (
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              סגור
+            </button>
+          </div>
+        )}
       </div>
+      {commentToDelete && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { e.stopPropagation(); setCommentToDelete(null); }}>
+          <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת הערה</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק הערה זו לצמיתות? לא ניתן לבטל פעולה זו.</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setCommentToDelete(null)}
+                style={{ flex: 1 }}
+              >
+                ביטול
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                style={{ flex: 1, backgroundColor: 'var(--priority-urgent-bg)', color: 'var(--priority-urgent-text)', borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                onClick={confirmDeleteComment}
+              >
+                מחיקה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

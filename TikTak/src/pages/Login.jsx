@@ -4,7 +4,7 @@ import { useState } from 'react';
  * Login Component - Groopy Work Manager
  * 
  * Authenticates users using a shared password.
- * Admin password: Kefy0507
+ * Admin password is configured in the environment variables (VITE_ADMIN_PASSWORD).
  */
 export default function Login({ onLogin }) {
   const [activeTab, setActiveTab] = useState('admin'); // 'admin' or 'external'
@@ -25,7 +25,8 @@ export default function Login({ onLogin }) {
           setLoading(false);
           return;
         }
-        if (password !== 'Kefy0507') {
+        const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'Kefy0507';
+        if (password !== adminPassword) {
           setError('סיסמה שגויה. אנא נסי שנית.');
           setLoading(false);
           return;
@@ -45,7 +46,7 @@ export default function Login({ onLogin }) {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <div className="login-logo">ת</div>
+          <img src="/logo.png" className="login-logo" alt="לוגו תיקתק" style={{ objectFit: 'cover', background: 'white', padding: '4px' }} />
           <h2>תיקתק</h2>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>מערכת מעקב וניהול משימות</p>
         </div>
@@ -105,7 +106,7 @@ export default function Login({ onLogin }) {
           ) : (
             <div className="form-group" style={{ textAlign: 'center', margin: '24px 0 32px 0' }}>
               <p style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                התחברות מהירה במצב <strong>שותפים ולקוחות</strong> לצורך צפייה בלבד במצב המשימות וניהול שיח בבקרת ייצור.
+                התחברות מהירה במצב <strong>שותפים לפרויקט</strong> לצורך צפייה בלבד במצב המשימות וניהול שיח בבקרת ייצור.
               </p>
             </div>
           )}

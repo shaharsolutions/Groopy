@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getCommentsForTask, addComment, updateTask, getPrivateNotes, uploadFileToStorage } from '../utils/storage';
+import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage } from '../utils/storage';
 import CustomDatePicker from './CustomDatePicker';
 
 export default function AdminDetailsModal({ 
@@ -26,11 +26,28 @@ export default function AdminDetailsModal({
 
   const isCreateMode = !task;
 
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyTaskLink = () => {
+    if (!task) return;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&taskId=${task.id}`;
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      })
+      .catch(err => {
+        console.error("Failed to copy link", err);
+      });
+  };
+
   // View state: comments
   const [comments, setComments] = useState([]);
+  const [commentToDelete, setCommentToDelete] = useState(null);
   const [authorName, setAuthorName] = useState('מנהל/ת תיקתק');
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
+  const [subtaskError, setSubtaskError] = useState('');
   
   const [attachedFile, setAttachedFile] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -76,6 +93,10 @@ export default function AdminDetailsModal({
   // Common upload/error states for files
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [uploadProgressFile, setUploadProgressFile] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentUploadIndex, setCurrentUploadIndex] = useState(0);
+  const [totalUploadCount, setTotalUploadCount] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -185,6 +206,26 @@ export default function AdminDetailsModal({
 
   // --- Handlers for Comments ---
 
+  const handleDeleteComment = (commentId) => {
+    setCommentToDelete(commentId);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    try {
+      await deleteComment(commentToDelete, task.id);
+      const fetchedComments = await getCommentsForTask(task.id);
+      setComments(fetchedComments);
+      setCommentToDelete(null);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error("Failed to delete comment", err);
+      alert('שגיאה במחיקת ההערה');
+    }
+  };
+
+
+
   const handleAddComment = async (e) => {
     e.preventDefault();
     setCommentError('');
@@ -224,9 +265,12 @@ export default function AdminDetailsModal({
     }
 
     setUploadingFile(true);
+    setUploadProgressFile(0);
     setUploadErrorFile('');
     try {
-      const result = await uploadFileToStorage(file, 'comments');
+      const result = await uploadFileToStorage(file, 'comments', (progress) => {
+        setUploadProgressFile(progress);
+      });
       setAttachedFile(result);
       e.target.value = '';
     } catch (err) {
@@ -260,10 +304,15 @@ export default function AdminDetailsModal({
 
     setUploading(true);
     setUploadError('');
+    setTotalUploadCount(files.length);
     try {
       const uploadedList = [...(task.attachments || [])];
       for (let i = 0; i < files.length; i++) {
-        const result = await uploadFileToStorage(files[i], 'tasks');
+        setCurrentUploadIndex(i + 1);
+        setUploadProgress(0);
+        const result = await uploadFileToStorage(files[i], 'tasks', (progress) => {
+          setUploadProgress(progress);
+        });
         uploadedList.push(result);
       }
       await updateTask(task.id, { attachments: uploadedList });
@@ -274,6 +323,9 @@ export default function AdminDetailsModal({
       setUploadError('שגיאה בהעלאת הקבצים. אנא ודא ש-Storage פעיל.');
     } finally {
       setUploading(false);
+      setUploadProgress(0);
+      setTotalUploadCount(0);
+      setCurrentUploadIndex(0);
     }
   };
 
@@ -317,10 +369,15 @@ export default function AdminDetailsModal({
 
     setUploading(true);
     setUploadError('');
+    setTotalUploadCount(files.length);
     try {
       const uploadedList = [...createAttachments];
       for (let i = 0; i < files.length; i++) {
-        const result = await uploadFileToStorage(files[i], 'tasks');
+        setCurrentUploadIndex(i + 1);
+        setUploadProgress(0);
+        const result = await uploadFileToStorage(files[i], 'tasks', (progress) => {
+          setUploadProgress(progress);
+        });
         uploadedList.push(result);
       }
       setCreateAttachments(uploadedList);
@@ -329,6 +386,9 @@ export default function AdminDetailsModal({
       setUploadError('שגיאה בהעלאת הקבצים. אנא ודא ש-Storage פעיל.');
     } finally {
       setUploading(false);
+      setUploadProgress(0);
+      setTotalUploadCount(0);
+      setCurrentUploadIndex(0);
     }
   };
 
@@ -339,7 +399,11 @@ export default function AdminDetailsModal({
   // --- Handlers for Sub-tasks in Create Mode ---
   const handleAddSubtaskCreate = (e) => {
     if (e) e.preventDefault();
-    if (!newSubtaskTitle.trim()) return;
+    setSubtaskError('');
+    if (!newSubtaskTitle.trim()) {
+      setSubtaskError('אנא הזינו כותרת לתת-המשימה');
+      return;
+    }
     const newSub = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       title: newSubtaskTitle.trim(),
@@ -365,7 +429,11 @@ export default function AdminDetailsModal({
 
   const handleAddSubtaskView = async (e) => {
     if (e) e.preventDefault();
-    if (!newSubtaskViewTitle.trim()) return;
+    setSubtaskError('');
+    if (!newSubtaskViewTitle.trim()) {
+      setSubtaskError('אנא הזינו כותרת לתת-המשימה');
+      return;
+    }
     const newSub = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       title: newSubtaskViewTitle.trim(),
@@ -521,7 +589,31 @@ export default function AdminDetailsModal({
               )}
             </h3>
           </div>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
+            {!isCreateMode && (
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={handleCopyTaskLink}
+                style={{ 
+                  fontSize: '0.85rem', 
+                  padding: '6px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  whiteSpace: 'nowrap',
+                  backgroundColor: '#e6f7ed', 
+                  color: '#1e4620', 
+                  borderColor: '#1e4620',
+                  fontWeight: '600'
+                }}
+                title="העתק קישור שיתוף ישיר לפרויקט זה"
+              >
+                {copiedLink ? '✔️ הועתק!' : '🔗 העתקת קישור לשיתוף'}
+              </button>
+            )}
+            <button className="modal-close" onClick={onClose} style={{ marginRight: 0 }}>&times;</button>
+          </div>
         </div>
 
         {/* Modal Body */}
@@ -702,7 +794,7 @@ export default function AdminDetailsModal({
                 </div>
                 
                 <div className="form-group">
-                  <label className="form-label">מנהל יבוא אחראי</label>
+                  <label className="form-label">איש קשר</label>
                   <input 
                     type="text"
                     className="form-control"
@@ -729,7 +821,9 @@ export default function AdminDetailsModal({
               </div>
 
               <div className="form-group">
-                <label className="form-label">קבצים מצורפים (תמונות, קובצי PDF או מסמכי עבודה)</label>
+                <label className="form-label">
+                  קבצים מצורפים (תמונות, קובצי PDF או מסמכי עבודה) <span style={{ fontWeight: 'normal', fontSize: '0.85em', color: 'var(--text-muted, #718096)' }}>(עד 70MB לקובץ)</span>
+                </label>
                 
                 <div 
                   className={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
@@ -743,6 +837,9 @@ export default function AdminDetailsModal({
                   <div className="file-upload-text">
                     <strong>גררי לכאן קבצים</strong> או לחצי לבחירה מהמחשב
                   </div>
+                  <div className="file-upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>
+                    עד 70MB לקובץ
+                  </div>
                   <input 
                     type="file" 
                     id="modal-task-file-input-create" 
@@ -754,7 +851,22 @@ export default function AdminDetailsModal({
 
                 {uploading && (
                   <div style={{ marginTop: '10px', textAlign: 'center', color: 'var(--primary)' }}>
-                    <span>🔄 מעלה קבצים לענן...</span>
+                    <span>🔄 מעלה קובץ {currentUploadIndex} מתוך {totalUploadCount} ({uploadProgress}%)</span>
+                    <div style={{ 
+                      width: '100%', 
+                      height: '6px', 
+                      backgroundColor: 'var(--border-color, #e2e8f0)', 
+                      borderRadius: '3px', 
+                      marginTop: '6px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{ 
+                        width: `${uploadProgress}%`, 
+                        height: '100%', 
+                        backgroundColor: 'var(--primary)', 
+                        transition: 'width 0.2s ease-in-out' 
+                      }} />
+                    </div>
                   </div>
                 )}
 
@@ -805,7 +917,10 @@ export default function AdminDetailsModal({
                     className="subtask-add-input"
                     placeholder="הוספת תת-משימה... (לדוגמה: הגדרת צבעי פנטון)"
                     value={newSubtaskTitle}
-                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onChange={(e) => {
+                      setNewSubtaskTitle(e.target.value);
+                      if (subtaskError) setSubtaskError('');
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -822,6 +937,11 @@ export default function AdminDetailsModal({
                     ➕ הוספה
                   </button>
                 </div>
+                {subtaskError && (
+                  <div className="form-error" style={{ marginTop: '-6px', marginBottom: '12px', fontSize: '0.8rem' }}>
+                    ⚠️ {subtaskError}
+                  </div>
+                )}
 
                 {createSubtasks.length > 0 ? (
                   <div className="subtask-list" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px', backgroundColor: '#f8fafc' }}>
@@ -1005,13 +1125,20 @@ export default function AdminDetailsModal({
                         className="subtask-add-input"
                         placeholder="הוספת תת-משימה חדשה..."
                         value={newSubtaskViewTitle}
-                        onChange={(e) => setNewSubtaskViewTitle(e.target.value)}
-                        required
+                        onChange={(e) => {
+                          setNewSubtaskViewTitle(e.target.value);
+                          if (subtaskError) setSubtaskError('');
+                        }}
                       />
                       <button type="submit" className="btn btn-primary subtask-add-btn">
                         ➕ הוספה
                       </button>
                     </form>
+                    {subtaskError && (
+                      <div className="form-error" style={{ marginTop: '6px', fontSize: '0.8rem' }}>
+                        ⚠️ {subtaskError}
+                      </div>
+                    )}
                   </div>
 
                   {/* Comments Section */}
@@ -1029,11 +1156,33 @@ export default function AdminDetailsModal({
                           const isImage = c.attachmentName && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.attachmentName);
                           return (
                             <div key={c.id} className="comment-item">
-                              <div className="comment-header">
-                                <span className="comment-author">{c.authorName}</span>
-                                <span>{formatDate(c.createdAt)}</span>
+                              <div className="comment-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  <span className="comment-author">{c.authorName}</span>
+                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(c.createdAt)}</span>
+                                </div>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleDeleteComment(c.id)}
+                                  title="מחיקת הערה"
+                                  style={{ 
+                                    background: 'none', 
+                                    border: 'none', 
+                                    cursor: 'pointer', 
+                                    padding: '2px 6px',
+                                    fontSize: '1rem',
+                                    color: 'var(--priority-urgent-text)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: '4px',
+                                    transition: 'background-color 0.2s'
+                                  }}
+                                >
+                                  🗑️
+                                </button>
                               </div>
-                              <div className="comment-text">{c.text}</div>
+                              <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>
                               {c.attachmentUrl && (
                                 <div style={{ marginTop: '8px' }}>
                                   {isImage && (
@@ -1073,9 +1222,11 @@ export default function AdminDetailsModal({
                             type="text"
                             className="form-control"
                             value={authorName}
-                            onChange={(e) => setAuthorName(e.target.value)}
+                            onChange={(e) => {
+                              setAuthorName(e.target.value);
+                              if (commentError) setCommentError('');
+                            }}
                             placeholder="שם המעצבת או תפקיד"
-                            required
                           />
                         </div>
                       </div>
@@ -1085,30 +1236,54 @@ export default function AdminDetailsModal({
                           className="form-control"
                           rows="2"
                           value={commentText}
-                          onChange={(e) => setCommentText(e.target.value)}
+                          onChange={(e) => {
+                            setCommentText(e.target.value);
+                            if (commentError) setCommentError('');
+                          }}
                           placeholder="הוסף עדכון..."
-                          required
                         />
                       </div>
                       
                       {/* Comment File Attachment */}
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">צירוף קובץ או תמונה (אופציונלי)</label>
+                        <label className="form-label">
+                          צירוף קובץ או תמונה (אופציונלי) <span style={{ fontWeight: 'normal', fontSize: '0.85em', color: 'var(--text-muted, #718096)' }}>(עד 70MB)</span>
+                        </label>
                         {attachedFile ? (
                           <div className="comment-attachment-preview-chip">
                             <span>📎 {attachedFile.name}</span>
                             <button type="button" onClick={() => setAttachedFile(null)} title="הסר קובץ">&times;</button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                             <button 
                               type="button" 
                               className="comment-attachment-btn"
                               onClick={() => document.getElementById('comment-file-input-modal').click()}
                               disabled={uploadingFile}
                             >
-                              {uploadingFile ? '🔄 מעלה קובץ...' : '📎 בחירת קובץ'}
+                              {uploadingFile ? `🔄 מעלה (${uploadProgressFile}%)` : '📎 בחירת קובץ'}
                             </button>
+                            {!uploadingFile && (
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>(עד 70MB)</span>
+                            )}
+                            {uploadingFile && (
+                              <div style={{ 
+                                flexGrow: 1, 
+                                height: '6px', 
+                                backgroundColor: 'var(--border-color, #e2e8f0)', 
+                                borderRadius: '3px', 
+                                overflow: 'hidden',
+                                maxWidth: '120px'
+                              }}>
+                                <div style={{ 
+                                  width: `${uploadProgressFile}%`, 
+                                  height: '100%', 
+                                  backgroundColor: 'var(--primary)', 
+                                  transition: 'width 0.2s ease-in-out' 
+                                }} />
+                              </div>
+                            )}
                             <input 
                               type="file" 
                               id="comment-file-input-modal"
@@ -1371,7 +1546,7 @@ export default function AdminDetailsModal({
 
                   {/* Field: Import Manager */}
                   <div className="sidebar-row">
-                    <span className="sidebar-label">מנהל יבוא</span>
+                    <span className="sidebar-label">איש קשר</span>
                     {activeEditField === 'importManager' ? (
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
                         <input 
@@ -1393,7 +1568,7 @@ export default function AdminDetailsModal({
                       <span 
                         className="sidebar-value hover-editable-inline" 
                         onClick={() => startEditingField('importManager', task.importManager)}
-                        title="לחצי לעריכת מנהל יבוא"
+                        title="לחצי לעריכת איש קשר"
                       >
                         {task.importManager || 'לחצי להוספה...'} ✏️
                       </span>
@@ -1475,15 +1650,39 @@ export default function AdminDetailsModal({
                     
                     {/* Add attachment directly */}
                     <div style={{ marginTop: '8px' }}>
-                      <button 
-                        type="button" 
-                        className="comment-attachment-btn"
-                        style={{ padding: '4px 8px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                        onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
-                        disabled={uploading}
-                      >
-                        {uploading ? '🔄 מעלה קובץ...' : '📎 הוספת קובץ'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                        <button 
+                          type="button" 
+                          className="comment-attachment-btn"
+                          style={{ padding: '4px 8px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
+                          disabled={uploading}
+                        >
+                          {uploading 
+                            ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%` 
+                            : '📎 הוספת קובץ'}
+                        </button>
+                        {!uploading && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>(עד 70MB)</span>
+                        )}
+                        {uploading && (
+                          <div style={{ 
+                            flexGrow: 1, 
+                            height: '6px', 
+                            backgroundColor: 'var(--border-color, #e2e8f0)', 
+                            borderRadius: '3px', 
+                            overflow: 'hidden',
+                            maxWidth: '120px'
+                          }}>
+                            <div style={{ 
+                              width: `${uploadProgress}%`, 
+                              height: '100%', 
+                              backgroundColor: 'var(--primary)', 
+                              transition: 'width 0.2s ease-in-out' 
+                            }} />
+                          </div>
+                        )}
+                      </div>
                       <input 
                         type="file" 
                         id="view-attachment-file-input-inline" 
@@ -1521,6 +1720,32 @@ export default function AdminDetailsModal({
           </>
         )}
       </div>
+      {commentToDelete && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { e.stopPropagation(); setCommentToDelete(null); }}>
+          <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת הערה</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק הערה זו לצמיתות? לא ניתן לבטל פעולה זו.</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setCommentToDelete(null)}
+                style={{ flex: 1 }}
+              >
+                ביטול
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                style={{ flex: 1, backgroundColor: 'var(--priority-urgent-bg)', color: 'var(--priority-urgent-text)', borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                onClick={confirmDeleteComment}
+              >
+                מחיקה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

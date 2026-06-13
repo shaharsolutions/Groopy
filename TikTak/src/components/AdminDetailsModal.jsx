@@ -1892,9 +1892,36 @@ export default function AdminDetailsModal({
                         style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: field.isMultiline ? 'pre-wrap' : 'normal' }}
                       >
                         {field.type === 'phone' ? (
-                          <a href={`tel:${field.value.replace(/\s+/g, '')}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
-                            {field.value}
-                          </a>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <a href={`tel:${field.value.replace(/\s+/g, '')}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
+                              {field.value}
+                            </a>
+                            {(() => {
+                              const digitsOnly = field.value.replace(/\D/g, '');
+                              if (digitsOnly.length >= 9) {
+                                let cleanVal = digitsOnly;
+                                if (cleanVal.startsWith('05') && cleanVal.length === 10) {
+                                  cleanVal = '972' + cleanVal.substring(1);
+                                }
+                                return (
+                                  <a 
+                                    href={`https://wa.me/${cleanVal}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    title="פתיחת צ'אט בוואטסאפ"
+                                    style={{ display: 'inline-flex', alignItems: 'center', transition: 'transform 0.2s' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#10b981" viewBox="0 0 16 16">
+                                      <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.907h.004c4.368 0 7.926-3.558 7.93-7.93a7.9 7.9 0 0 0-2.327-5.615zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.69-3.146c-.202-.1-.1.202-.455-.382-.072-.121-.382-.072-.51-.17l-.613-.3a1.1 1.1 0 0 0-.737-.039a3 3 0 0 1-.948.595 5.3 5.3 0 0 1-1.1-.072a4.3 4.3 0 0 1-1.363-.927a3.6 3.6 0 0 1-.94-.99a.96.96 0 0 1 .184-1.258l.15-.16a1.2 1.2 0 0 0 .227-.38c.079-.19-.008-.39-.092-.559l-.368-.84c-.208-.474-.385-.467-.526-.474a3.5 3.5 0 0 0-.708-.007c-.233 0-.612.088-.933.437A3.27 3.27 0 0 0 3 6.9c0 1.43.94 2.813 1.07 2.997.132.182 1.844 2.815 4.467 3.946c.623.268 1.11.428 1.488.548c.624.198 1.192.17 1.64.103c.5-.075 1.543-.63 1.761-1.243c.218-.613.218-1.138.152-1.248c-.066-.111-.242-.211-.45-.311"/>
+                                    </svg>
+                                  </a>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
                         ) : field.type === 'email' ? (
                           <a href={`mailto:${field.value}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
                             {field.value}
@@ -1907,8 +1934,18 @@ export default function AdminDetailsModal({
                               cleanVal = '972' + cleanVal.substring(1);
                             }
                             return (
-                              <a href={`https://wa.me/${cleanVal}`} target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                💬 {field.value}
+                              <a 
+                                href={`https://wa.me/${cleanVal}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                style={{ color: '#10b981', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '6px', transition: 'transform 0.2s' }}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#10b981" viewBox="0 0 16 16" style={{ marginLeft: '4px' }}>
+                                  <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.907h.004c4.368 0 7.926-3.558 7.93-7.93a7.9 7.9 0 0 0-2.327-5.615zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.69-3.146c-.202-.1-.1.202-.455-.382-.072-.121-.382-.072-.51-.17l-.613-.3a1.1 1.1 0 0 0-.737-.039a3 3 0 0 1-.948.595 5.3 5.3 0 0 1-1.1-.072a4.3 4.3 0 0 1-1.363-.927a3.6 3.6 0 0 1-.94-.99a.96.96 0 0 1 .184-1.258l.15-.16a1.2 1.2 0 0 0 .227-.38c.079-.19-.008-.39-.092-.559l-.368-.84c-.208-.474-.385-.467-.526-.474a3.5 3.5 0 0 0-.708-.007c-.233 0-.612.088-.933.437A3.27 3.27 0 0 0 3 6.9c0 1.43.94 2.813 1.07 2.997.132.182 1.844 2.815 4.467 3.946c.623.268 1.11.428 1.488.548c.624.198 1.192.17 1.64.103c.5-.075 1.543-.63 1.761-1.243c.218-.613.218-1.138.152-1.248c-.066-.111-.242-.211-.45-.311"/>
+                                </svg>
+                                {field.value}
                               </a>
                             );
                           }

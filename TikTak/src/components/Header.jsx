@@ -23,7 +23,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
   return (
     <header className="app-header">
       <div className="header-brand" onClick={() => onViewChange && onViewChange('dashboard')} style={{ cursor: 'pointer' }}>
-        <img src="/logo.png" className="header-logo" alt="לוגו תיקתק" style={{ objectFit: 'cover', background: 'white', padding: '2px' }} />
+        <img src="/favicon.png" className="header-logo" alt="לוגו תיקתק" style={{ objectFit: 'cover', background: 'white', padding: '2px' }} />
         <div>
           <h1 className="header-title">תיקתק</h1>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>מערכת מעקב וניהול משימות</p>
@@ -108,5 +108,4 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
     </header>
   );
 }
-
 

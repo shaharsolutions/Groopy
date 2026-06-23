@@ -1,19 +1,91 @@
-import { useState, useEffect } from 'react';
-import { getTasks, createTask, updateTask, deleteTask } from '../utils/storage';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  getTasks,
+  getTrashedTasks,
+  createTask,
+  updateTask,
+  deleteTask,
+  restoreTask,
+  purgeExpiredTasks
+} from '../utils/storage';
 import AdminDetailsModal from '../components/AdminDetailsModal';
 import StatusPicker from '../components/StatusPicker';
 
-export default function AdminDashboard({ settings }) {
+const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
+const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
+const SORT_MODES = new Set(['manual', 'updatedAt', 'status', 'title', 'contactPerson']);
+
+const readSortPreference = () => {
+  try {
+    const savedPreference = JSON.parse(localStorage.getItem(SORT_PREFERENCE_KEY) || '{}');
+    return {
+      mode: SORT_MODES.has(savedPreference.mode) ? savedPreference.mode : 'manual',
+      direction: savedPreference.direction === 'desc' ? 'desc' : 'asc'
+    };
+  } catch {
+    return { mode: 'manual', direction: 'asc' };
+  }
+};
+
+const saveSortPreference = (mode, direction) => {
+  try {
+    localStorage.setItem(SORT_PREFERENCE_KEY, JSON.stringify({ mode, direction }));
+  } catch (err) {
+    console.warn('Could not store sort preference locally', err);
+  }
+};
+
+const readPendingStatuses = () => {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_STATUSES_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const rememberPendingStatus = (taskId, status) => {
+  try {
+    const pendingStatuses = readPendingStatuses();
+    pendingStatuses[taskId] = status;
+    localStorage.setItem(PENDING_STATUSES_KEY, JSON.stringify(pendingStatuses));
+  } catch (err) {
+    console.warn('Could not store pending status locally', err);
+  }
+};
+
+const clearPendingStatus = (taskId, expectedStatus) => {
+  try {
+    const pendingStatuses = readPendingStatuses();
+    if (pendingStatuses[taskId] !== expectedStatus) return;
+
+    delete pendingStatuses[taskId];
+    if (Object.keys(pendingStatuses).length === 0) {
+      localStorage.removeItem(PENDING_STATUSES_KEY);
+    } else {
+      localStorage.setItem(PENDING_STATUSES_KEY, JSON.stringify(pendingStatuses));
+    }
+  } catch (err) {
+    console.warn('Could not clear pending status locally', err);
+  }
+};
+
+export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId }) {
   const {
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {}
   } = settings || {};
   const [tasks, setTasks] = useState([]);
-  const [filteredTasks, setFilteredTasks] = useState([]);
+  const [trashedTasks, setTrashedTasks] = useState([]);
+  const [workspaceView, setWorkspaceView] = useState('active');
+  const [restoringTaskId, setRestoringTaskId] = useState(null);
   
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sortMode, setSortMode] = useState(() => readSortPreference().mode);
+  const [sortDirection, setSortDirection] = useState(() => readSortPreference().direction);
+  const [savingStatusIds, setSavingStatusIds] = useState(() => new Set());
+  const statusChangeSeq = useRef({});
 
   // Modals State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -39,9 +111,22 @@ export default function AdminDashboard({ settings }) {
     };
   }, [deletingTaskId, viewingTask, isCreateOpen]);
 
+  const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
+    if (currentTasks.length === 0) return fetchedTasks;
+
+    const fetchedById = new Map(fetchedTasks.map(task => [task.id, task]));
+    const mergedTasks = currentTasks
+      .filter(task => fetchedById.has(task.id))
+      .map(task => fetchedById.get(task.id));
+    const knownIds = new Set(mergedTasks.map(task => task.id));
+    const newTasks = fetchedTasks.filter(task => !knownIds.has(task.id));
+
+    return [...mergedTasks, ...newTasks];
+  };
+
   const loadTasks = async () => {
-    const fetchedTasks = await getTasks();
-    setTasks(fetchedTasks);
+    const fetchedTasks = await getTasks(userId);
+    setTasks(prev => mergeTasksPreservingOrder(prev, fetchedTasks));
     setViewingTask(prev => {
       if (!prev) return null;
       const updated = fetchedTasks.find(t => t.id === prev.id);
@@ -49,11 +134,41 @@ export default function AdminDashboard({ settings }) {
     });
   };
 
+  const loadTrash = async () => {
+    const fetchedTasks = await getTrashedTasks(userId);
+    const loadedAt = Date.now();
+    setTrashedTasks(fetchedTasks.map(task => ({
+      ...task,
+      daysRemaining: Math.max(0, Math.ceil((Date.parse(task.expiresAt) - loadedAt) / (24 * 60 * 60 * 1000)))
+    })));
+  };
+
+  const applyTaskPatch = (taskId, patch) => {
+    setTasks(prev => prev.map(task => (
+      task.id === taskId ? { ...task, ...patch } : task
+    )));
+    setViewingTask(prev => (
+      prev && prev.id === taskId ? { ...prev, ...patch } : prev
+    ));
+  };
+
   // Fetch tasks on mount
   useEffect(() => {
     const initTasks = async () => {
-      const fetchedTasks = await getTasks();
+      await purgeExpiredTasks(userId);
+      const pendingStatuses = readPendingStatuses();
+      await Promise.all(Object.entries(pendingStatuses).map(async ([taskId, status]) => {
+        try {
+          await updateTask(taskId, { status });
+          clearPendingStatus(taskId, status);
+        } catch (err) {
+          console.error(`Failed to restore pending status for task ${taskId}`, err);
+        }
+      }));
+
+      const fetchedTasks = await getTasks(userId);
       setTasks(fetchedTasks);
+      await loadTrash();
       
       const params = new URLSearchParams(window.location.search);
       const urlTaskId = params.get('taskId');
@@ -67,8 +182,8 @@ export default function AdminDashboard({ settings }) {
     initTasks();
   }, []);
 
-  // Filter tasks whenever data or filters change
-  useEffect(() => {
+  // Filter and sort tasks whenever data or controls change
+  const filteredTasks = useMemo(() => {
     let result = [...tasks];
 
     // Search query filter ( title, contactPerson )
@@ -85,18 +200,86 @@ export default function AdminDashboard({ settings }) {
       result = result.filter(t => t.status === statusFilter);
     }
 
-    // Sort by updatedAt descending
-    result.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    if (sortMode !== 'manual') {
+      const statusOrder = new Map(STATUSES.map((status, index) => [status, index]));
+      const direction = sortDirection === 'asc' ? 1 : -1;
 
-    setFilteredTasks(result);
-  }, [tasks, searchQuery, statusFilter]);
+      result.sort((a, b) => {
+        const comparison = sortMode === 'updatedAt'
+          ? (Date.parse(a.updatedAt) || 0) - (Date.parse(b.updatedAt) || 0)
+          : sortMode === 'status'
+            ? (statusOrder.get(a.status) ?? 999) - (statusOrder.get(b.status) ?? 999)
+            : (a[sortMode] || '').localeCompare(b[sortMode] || '', 'he', {
+            sensitivity: 'base',
+            numeric: true
+          });
+
+        if (comparison !== 0) return comparison * direction;
+        return (a.title || '').localeCompare(b.title || '', 'he', { sensitivity: 'base' });
+      });
+    }
+
+    return result;
+  }, [tasks, searchQuery, statusFilter, sortMode, sortDirection, STATUSES]);
+
+  const handleSort = (column) => {
+    const nextDirection = sortMode === column
+      ? (sortDirection === 'asc' ? 'desc' : 'asc')
+      : (column === 'updatedAt' ? 'desc' : 'asc');
+    setSortMode(column);
+    setSortDirection(nextDirection);
+    saveSortPreference(column, nextDirection);
+  };
+
+  const getAriaSort = (column) => {
+    if (sortMode !== column) return 'none';
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  };
+
+  const renderSortableHeader = (column, label) => (
+    <th aria-sort={getAriaSort(column)}>
+      <button
+        type="button"
+        className={`sortable-header ${sortMode === column ? 'active' : ''}`}
+        onClick={() => handleSort(column)}
+        title={`מיון לפי ${label}`}
+      >
+        <span>{label}</span>
+        <span className="sort-indicator" aria-hidden="true">
+          {sortMode === column ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
 
   const handleStatusChange = async (taskId, newStatus) => {
-    await updateTask(taskId, { status: newStatus });
-    await loadTasks();
-    // If viewing this task in the details modal, refresh it
-    if (viewingTask && viewingTask.id === taskId) {
-      setViewingTask(prev => ({ ...prev, status: newStatus, updatedAt: new Date().toISOString() }));
+    const changedAt = new Date().toISOString();
+    const requestId = (statusChangeSeq.current[taskId] || 0) + 1;
+    statusChangeSeq.current[taskId] = requestId;
+    rememberPendingStatus(taskId, newStatus);
+    setSavingStatusIds(prev => new Set(prev).add(taskId));
+
+    try {
+      await updateTask(taskId, { status: newStatus });
+      if (statusChangeSeq.current[taskId] !== requestId) return false;
+
+      // Show the new value only after Firestore confirms the write.
+      applyTaskPatch(taskId, { status: newStatus, updatedAt: changedAt });
+      clearPendingStatus(taskId, newStatus);
+      return true;
+    } catch (err) {
+      if (statusChangeSeq.current[taskId] !== requestId) return false;
+      console.error("Failed to update status", err);
+      alert('שגיאה בעדכון הסטטוס. נסי שוב בעוד רגע.');
+      return false;
+    } finally {
+      if (statusChangeSeq.current[taskId] === requestId) {
+        setSavingStatusIds(prev => {
+          const next = new Set(prev);
+          next.delete(taskId);
+          return next;
+        });
+      }
     }
   };
 
@@ -104,12 +287,12 @@ export default function AdminDashboard({ settings }) {
     if (viewingTask) {
       // Edit mode
       await updateTask(viewingTask.id, taskData);
-      const allTasks = await getTasks();
+      const allTasks = await getTasks(userId);
       const updated = allTasks.find(t => t.id === viewingTask.id);
       setViewingTask(updated || null);
     } else {
       // Create mode
-      await createTask(taskData);
+      await createTask(taskData, userId);
       setIsCreateOpen(false);
     }
     await loadTasks();
@@ -135,6 +318,20 @@ export default function AdminDashboard({ settings }) {
     setDeletingTaskId(null);
     setViewingTask(null);
     await loadTasks();
+    await loadTrash();
+  };
+
+  const handleRestoreTask = async (taskId) => {
+    setRestoringTaskId(taskId);
+    try {
+      await restoreTask(taskId);
+      await Promise.all([loadTasks(), loadTrash()]);
+    } catch (err) {
+      console.error('Failed to restore task', err);
+      alert('שגיאה בשחזור הפרויקט. נסי שוב בעוד רגע.');
+    } finally {
+      setRestoringTaskId(null);
+    }
   };
 
   const formatDate = (isoString) => {
@@ -157,10 +354,10 @@ export default function AdminDashboard({ settings }) {
       {/* Upper Actions Panel */}
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>לוח עבודות</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>{settings?.boardTitle || 'לוח עבודות'}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>מעקב, עריכה ויצירת משימות גרפיקה במערכת</p>
         </div>
-        <button 
+        {workspaceView === 'active' && <button
           className="btn btn-primary"
           onClick={() => {
             setViewingTask(null);
@@ -169,8 +366,77 @@ export default function AdminDashboard({ settings }) {
           }}
         >
           ➕ עבודה חדשה
+        </button>}
+      </div>
+
+      <div className="workspace-view-switcher" role="tablist" aria-label="בחירת תצוגת פרויקטים">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workspaceView === 'active'}
+          className={`workspace-view-button ${workspaceView === 'active' ? 'active' : ''}`}
+          onClick={() => setWorkspaceView('active')}
+        >
+          📋 פרויקטים פעילים <span>{tasks.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workspaceView === 'trash'}
+          className={`workspace-view-button ${workspaceView === 'trash' ? 'active' : ''}`}
+          onClick={() => setWorkspaceView('trash')}
+        >
+          🗑️ פח אשפה <span>{trashedTasks.length}</span>
         </button>
       </div>
+
+      {workspaceView === 'trash' ? (
+        <section className="trash-panel" aria-labelledby="trash-title">
+          <div className="trash-panel-header">
+            <div>
+              <h3 id="trash-title">פח אשפה</h3>
+              <p>פרויקטים שנמחקו נשמרים כאן למשך 30 יום וניתנים לשחזור.</p>
+            </div>
+          </div>
+
+          {trashedTasks.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">🗑️</div>
+              <div className="empty-state-title">פח האשפה ריק</div>
+              <div className="empty-state-text">פרויקטים שתמחקי יופיעו כאן למשך 30 יום.</div>
+            </div>
+          ) : (
+            <div className="trash-list">
+              {trashedTasks.map(task => {
+                const daysRemaining = task.daysRemaining;
+                return (
+                  <article className="trash-item" key={task.id}>
+                    <div className="trash-item-main">
+                      <h4>{task.title}</h4>
+                      <div className="trash-item-meta">
+                        <span>{task.jobNumber || 'ללא מספר עבודה'}</span>
+                        <span>נמחק ב־{formatDate(task.deletedAt)}</span>
+                        <span className={daysRemaining <= 3 ? 'trash-expiry urgent' : 'trash-expiry'}>
+                          {daysRemaining === 0 ? 'יימחק לצמיתות היום' : `יימחק לצמיתות בעוד ${daysRemaining} ימים`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={restoringTaskId === task.id}
+                      onClick={() => handleRestoreTask(task.id)}
+                    >
+                      {restoringTaskId === task.id ? 'משחזר...' : '↩ שחזור פרויקט'}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : (
+      <>
 
       {/* Status Filter Chips */}
       <div className="status-chips-container">
@@ -210,6 +476,26 @@ export default function AdminDashboard({ settings }) {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <div className="form-group" style={{ marginBottom: 0, minWidth: '190px' }}>
+            <label className="form-label" style={{ fontSize: '0.8rem' }}>מיון</label>
+            <select
+              className="form-control"
+              value={sortMode}
+              onChange={(e) => {
+                const mode = e.target.value;
+                const direction = mode === 'updatedAt' ? 'desc' : 'asc';
+                setSortMode(mode);
+                setSortDirection(direction);
+                saveSortPreference(mode, direction);
+              }}
+            >
+              <option value="manual">סדר קבוע</option>
+              <option value="updatedAt">עודכן לאחרונה</option>
+              <option value="status">לפי סטטוס</option>
+              <option value="title">שם עבודה</option>
+              <option value="contactPerson">איש קשר אצל הספק</option>
+            </select>
+          </div>
         </div>
 
         {/* Filter Summary and Clear Trigger */}
@@ -217,13 +503,16 @@ export default function AdminDashboard({ settings }) {
           <div>
             מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> עבודות בסך הכל
           </div>
-          {(searchQuery || statusFilter) && (
+          {(searchQuery || statusFilter || sortMode !== 'manual') && (
             <button 
               type="button"
               className="btn btn-secondary" 
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('');
+                setSortMode('manual');
+                setSortDirection('asc');
+                saveSortPreference('manual', 'asc');
               }}
               style={{ fontSize: '0.8rem', padding: '4px 10px', height: 'auto' }}
             >
@@ -274,10 +563,10 @@ export default function AdminDashboard({ settings }) {
             <table className="task-table">
               <thead>
                 <tr>
-                  <th>שם העבודה</th>
-                  <th>איש קשר אצל הספק</th>
-                  <th>סטטוס (שינוי מהיר)</th>
-                  <th>עודכן ב</th>
+                  {renderSortableHeader('title', 'שם העבודה')}
+                  {renderSortableHeader('contactPerson', 'איש קשר אצל הספק')}
+                  {renderSortableHeader('status', 'סטטוס (שינוי מהיר)')}
+                  {renderSortableHeader('updatedAt', 'עודכן ב')}
                   <th>פעולות</th>
                 </tr>
               </thead>
@@ -292,6 +581,7 @@ export default function AdminDashboard({ settings }) {
                         statuses={STATUSES}
                         statusColors={STATUS_CLASSES}
                         onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                        disabled={savingStatusIds.has(task.id)}
                       />
                     </td>
                     <td>{formatDate(task.updatedAt)}</td>
@@ -332,6 +622,7 @@ export default function AdminDashboard({ settings }) {
                     statuses={STATUSES}
                     statusColors={STATUS_CLASSES}
                     onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                    disabled={savingStatusIds.has(task.id)}
                   />
                 </div>
                 
@@ -383,6 +674,9 @@ export default function AdminDashboard({ settings }) {
         <AdminDetailsModal 
           task={viewingTask}
           settings={settings}
+          suppliers={suppliers}
+          contacts={contacts}
+          onSaveSettings={onSaveSettings}
           startInEditMode={startInEditMode}
           onClose={() => {
             setViewingTask(null);
@@ -392,6 +686,9 @@ export default function AdminDashboard({ settings }) {
           onSave={handleSaveTask}
           onDelete={(id) => setDeletingTaskId(id)}
           onRefresh={loadTasks}
+          onTaskUpdated={applyTaskPatch}
+          onStatusChange={handleStatusChange}
+          userId={userId}
         />
       )}
 
@@ -405,8 +702,8 @@ export default function AdminDashboard({ settings }) {
             </div>
             <div className="modal-body">
               <p>האם את בטוחה שברצונך למחוק את העבודה הזו?</p>
-              <p style={{ marginTop: '8px', color: 'var(--priority-urgent-text)', fontWeight: 'bold' }}>
-                ⚠️ פעולה זו תמחק גם את כל התגובות והקבצים המקושרים לצמיתות!
+              <p style={{ marginTop: '8px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                הפרויקט יועבר לפח האשפה למשך 30 יום. בתקופה זו יהיה אפשר לשחזר אותו יחד עם ההערות והתגובות.
               </p>
             </div>
             <div className="modal-footer">
@@ -421,11 +718,13 @@ export default function AdminDashboard({ settings }) {
                 style={{ backgroundColor: 'var(--color-needs-revision)', color: 'white' }}
                 onClick={() => handleDeleteTask(deletingTaskId)}
               >
-                כן, מחק עבודה
+                העברה לפח האשפה
               </button>
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </main>
   );

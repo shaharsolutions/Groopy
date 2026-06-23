@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getTasks } from '../utils/storage';
 import ExternalDetailsModal from '../components/ExternalDetailsModal';
 
-export default function ExternalDashboard({ settings }) {
+export default function ExternalDashboard({ settings, userId }) {
   const {
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {}
@@ -18,13 +18,13 @@ export default function ExternalDashboard({ settings }) {
   const [viewingTask, setViewingTask] = useState(null);
 
   const loadTasks = async () => {
-    const fetchedTasks = await getTasks();
+    const fetchedTasks = await getTasks(userId);
     setTasks(fetchedTasks);
   };
 
   useEffect(() => {
     const initTasks = async () => {
-      const fetchedTasks = await getTasks();
+      const fetchedTasks = await getTasks(userId);
       setTasks(fetchedTasks);
       
       const params = new URLSearchParams(window.location.search);
@@ -98,6 +98,7 @@ export default function ExternalDashboard({ settings }) {
           settings={settings}
           onClose={null}
           isSingleProjectView={true}
+          userId={userId}
         />
       </main>
     );
@@ -108,9 +109,9 @@ export default function ExternalDashboard({ settings }) {
       
       {/* Upper Actions Panel */}
       <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>מצב צפייה ועדכון שותפים</h2>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>מצב צפייה לשותפים</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          צפייה בסטטוס עבודות גרפיקה, מעבר לתיקיות קבצים והוספת הערות/תיקונים לספקים וחנויות.
+          צפייה בלבד בסטטוס עבודות גרפיקה ובקבצים המצורפים.
         </p>
       </div>
 
@@ -218,10 +219,10 @@ export default function ExternalDashboard({ settings }) {
                     <td>
                       <button 
                         className="btn btn-secondary btn-icon"
-                        title="צפייה והוספת הערה"
+                        title="צפייה בפרטי העבודה"
                         onClick={() => setViewingTask(task)}
                       >
-                        👁️ צפייה והערות
+                        👁️ צפייה בפרטים
                       </button>
                     </td>
                   </tr>
@@ -256,7 +257,7 @@ export default function ExternalDashboard({ settings }) {
                     style={{ flex: 1, padding: '10px' }}
                     onClick={() => setViewingTask(task)}
                   >
-                    👁️ צפייה והוספת הערה
+                    👁️ צפייה בפרטים
                   </button>
                 </div>
               </div>
@@ -272,8 +273,8 @@ export default function ExternalDashboard({ settings }) {
           settings={settings}
           onClose={() => {
             setViewingTask(null);
-            loadTasks(); // refresh task list updates (like comment counts or timestamp changes)
           }}
+          userId={userId}
         />
       )}
     </main>

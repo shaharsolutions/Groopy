@@ -10,7 +10,8 @@ export const STATUSES = [
   'חדש',
   'בטיפול',
   'נשלח לספק',
-  'אושר לספק'
+  'אושר לספק',
+  'ארכיון'
 ];
 
 export const WORK_TYPES = [
@@ -28,5 +29,6 @@ export const STATUS_CLASSES = {
   'חדש': 'badge-new',
   'בטיפול': 'badge-in-progress',
   'נשלח לספק': 'badge-waiting-approval', // sky blue
-  'אושר לספק': 'badge-approved' // lime green
+  'אושר לספק': 'badge-approved', // lime green
+  'ארכיון': 'badge-archive'
 };

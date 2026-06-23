@@ -1,64 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { getCommentsForTask, addComment, deleteComment, uploadFileToStorage } from '../utils/storage';
+import { useState, useEffect } from 'react';
+import { getCommentsForTask, addComment } from '../utils/storage';
 import ExcelPreviewModal from './ExcelPreviewModal';
 import PdfPreviewModal from './PdfPreviewModal';
+import PlanogramFileCard from './PlanogramFileCard';
 
-export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false }) {
+export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false, userId }) {
   const {
-    statusColors: STATUS_CLASSES = {},
-    suppliers: SUPPLIERS = [],
-    contacts: CONTACTS = []
+    statusColors: STATUS_CLASSES = {}
   } = settings || {};
   const [comments, setComments] = useState([]);
+  const [authorName, setAuthorName] = useState(() => localStorage.getItem('tiktak_comment_author') || '');
+  const [commentText, setCommentText] = useState('');
+  const [commentError, setCommentError] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [commentToDelete, setCommentToDelete] = useState(null);
+  // External viewers have no entry point that can open additional info cards.
   const [activeInfoCard, setActiveInfoCard] = useState(null);
-
-  const handleOpenSupplierCard = (supplierName) => {
-    if (!supplierName) return;
-    const sup = SUPPLIERS.find(s => (typeof s === 'string' ? s : s.name) === supplierName);
-    const supObj = typeof sup === 'string' ? { name: sup } : (sup || { name: supplierName });
-    setActiveInfoCard({
-      type: 'supplier',
-      title: `📇 כרטיס ספק: ${supObj.name}`,
-      fields: [
-        { label: 'שם הספק', value: supObj.name },
-        { label: 'איש קשר אצל הספק', value: supObj.contactPerson },
-        { label: 'טלפון', value: supObj.phone, isLtr: true, type: 'phone' },
-        { label: 'אימייל', value: supObj.email, isLtr: true, type: 'email' },
-        { label: 'כתובת', value: supObj.address },
-        { label: 'WeChat / WhatsApp', value: supObj.wechat, isLtr: true, type: 'whatsapp' },
-        { label: 'הערות ומידע נוסף', value: supObj.notes, isMultiline: true }
-      ]
-    });
-  };
-
-  const handleOpenContactCard = (contactName) => {
-    if (!contactName) return;
-    const contact = CONTACTS.find(c => c.name === contactName);
-    const contactObj = contact || { name: contactName };
-    setActiveInfoCard({
-      type: 'contact',
-      title: `📇 כרטיס איש קשר: ${contactObj.name}`,
-      fields: [
-        { label: 'שם מלא', value: contactObj.name },
-        { label: 'תפקיד', value: contactObj.role },
-        { label: 'טלפון', value: contactObj.phone, isLtr: true, type: 'phone' },
-        { label: 'אימייל', value: contactObj.email, isLtr: true, type: 'email' },
-        { label: 'כתובת', value: contactObj.address },
-        { label: 'WeChat / WhatsApp', value: contactObj.wechat, isLtr: true, type: 'whatsapp' },
-        { label: 'הערות ומידע נוסף', value: contactObj.notes, isMultiline: true }
-      ]
-    });
-  };
 
   // Close modal or cancel actions on Escape key press
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (commentToDelete) {
-          setCommentToDelete(null);
-        } else if (!isSingleProjectView) {
+        if (!isSingleProjectView) {
           onClose();
         }
       }
@@ -67,11 +30,11 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [commentToDelete, isSingleProjectView, onClose]);
+  }, [isSingleProjectView, onClose]);
 
   const handleCopyTaskLink = () => {
     if (!task) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&taskId=${task.id}`;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&userId=${userId}&taskId=${task.id}`;
     navigator.clipboard.writeText(shareUrl)
       .then(() => {
         setCopiedLink(true);
@@ -82,105 +45,48 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
       });
   };
 
-  const [authorName, setAuthorName] = useState(() => {
-    return localStorage.getItem('tiktak_comment_author') || '';
-  });
-  const [commentText, setCommentText] = useState('');
-  const [commentError, setCommentError] = useState('');
-
-  const [attachedFile, setAttachedFile] = useState(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [uploadProgressFile, setUploadProgressFile] = useState(0);
-  const [uploadError, setUploadError] = useState('');
   const [excelPreviewFile, setExcelPreviewFile] = useState(null);
   const [pdfPreviewFile, setPdfPreviewFile] = useState(null);
-
-  const handleCommentFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const MAX_SIZE = 3 * 1024 * 1024; // 3MB limit
-    if (file.size > MAX_SIZE) {
-      setUploadError('גודל הקובץ עולה על המותר (מקסימום 3MB)');
-      setAttachedFile(null);
-      e.target.value = '';
-      return;
-    }
-
-    setUploadingFile(true);
-    setUploadProgressFile(0);
-    setUploadError('');
-    try {
-      const result = await uploadFileToStorage(file, 'comments', (progress) => {
-        setUploadProgressFile(progress);
-      });
-      setAttachedFile(result);
-      e.target.value = '';
-    } catch (err) {
-      console.error(err);
-      setUploadError('שגיאה בהעלאת הקובץ. אנא ודא ש-Storage פעיל.');
-    } finally {
-      setUploadingFile(false);
-    }
-  };
 
   useEffect(() => {
     if (task) {
       const loadComments = async () => {
-        const fetchedComments = await getCommentsForTask(task.id);
+        const fetchedComments = await getCommentsForTask(task.id, userId);
         setComments(fetchedComments);
       };
       loadComments();
-      setCommentText('');
-      setCommentError('');
     }
   }, [task]);
 
   if (!task) return null;
 
-  const handleDeleteComment = (commentId) => {
-    setCommentToDelete(commentId);
-  };
-
-  const confirmDeleteComment = async () => {
-    if (!commentToDelete) return;
-    try {
-      await deleteComment(commentToDelete, task.id);
-      const fetchedComments = await getCommentsForTask(task.id);
-      setComments(fetchedComments);
-      setCommentToDelete(null);
-    } catch (err) {
-      console.error("Failed to delete comment", err);
-      alert('שגיאה במחיקת ההערה');
-    }
-  };
-
   const handleAddComment = async (e) => {
     e.preventDefault();
-    setCommentError('');
+    const trimmedAuthorName = authorName.trim();
+    const trimmedCommentText = commentText.trim();
 
-    const finalAuthorName = authorName.trim() || 'משתמש חיצוני';
-    if (!commentText.trim()) {
+    if (!trimmedAuthorName) {
+      setCommentError('נא להזין את שם כותב/ת ההערה');
+      return;
+    }
+    if (!trimmedCommentText) {
       setCommentError('נא לכתוב את תוכן ההערה');
       return;
     }
 
-    await addComment(
-      task.id, 
-      finalAuthorName, 
-      commentText, 
-      attachedFile ? attachedFile.url : null, 
-      attachedFile ? attachedFile.name : null
-    );
-    if (authorName.trim()) {
-      localStorage.setItem('tiktak_comment_author', authorName.trim());
-    } else {
-      localStorage.removeItem('tiktak_comment_author');
+    setIsSubmittingComment(true);
+    setCommentError('');
+    try {
+      const newComment = await addComment(task.id, trimmedAuthorName, trimmedCommentText, null, null, userId);
+      localStorage.setItem('tiktak_comment_author', trimmedAuthorName);
+      setComments(currentComments => [...currentComments, newComment]);
+      setCommentText('');
+    } catch (err) {
+      console.error('Failed to add external comment', err);
+      setCommentError('שגיאה בהוספת ההערה. נסו שוב בעוד רגע.');
+    } finally {
+      setIsSubmittingComment(false);
     }
-    setCommentText('');
-    setAttachedFile(null);
-    const fetchedComments = await getCommentsForTask(task.id);
-    setComments(fetchedComments); // Reload comments
   };
 
   const formatDate = (isoString) => {
@@ -194,7 +100,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return isoString;
     }
   };
@@ -253,17 +159,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   )}
                 </div>
 
-                {/* Drive Link */}
-                <div>
-                  <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px', display: 'block', fontSize: '0.85rem' }}>קישור לתיקיית דרייב</label>
-                  {task.driveLink ? (
-                    <a href={task.driveLink} target="_blank" rel="noopener noreferrer" className="drive-link" style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-                      🔗 מעבר לדרייב
-                    </a>
-                  ) : (
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא צורף קישור</span>
-                  )}
-                </div>
               </div>
 
               {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
@@ -328,17 +223,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                     </label>
                     
                     {task.planogramFile ? (
-                      <div className="planogram-preview-container" style={{ height: '140px', margin: 0 }}>
-                        <img src={task.planogramFile.url} alt="פלנוגרמה" className="planogram-preview-img" />
-                        <div className="planogram-actions-overlay">
-                          <span style={{ color: 'white', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                            {task.planogramFile.name}
-                          </span>
-                          <a href={task.planogramFile.url} target="_blank" rel="noopener noreferrer" className="planogram-action-btn">
-                            👁️ צפייה
-                          </a>
-                        </div>
-                      </div>
+                      <PlanogramFileCard file={task.planogramFile} />
                     ) : (
                       <div 
                         className="planogram-preview-container" 
@@ -359,7 +244,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 {comments.length === 0 ? (
                   <div className="empty-state" style={{ padding: '24px' }}>
                     <div className="empty-state-title">אין הערות עדיין</div>
-                    <div className="empty-state-text font-size-sm">היה הראשון להוסיף הערה או לעדכן לגבי התקדמות העבודה.</div>
                   </div>
                 ) : (
                   <div className="comments-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
@@ -374,26 +258,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                               <span className="comment-author">{c.authorName}</span>
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(c.createdAt)}</span>
                             </div>
-                            <button 
-                              type="button"
-                              onClick={() => handleDeleteComment(c.id)}
-                              title="מחיקת הערה"
-                              style={{ 
-                                background: 'none', 
-                                border: 'none', 
-                                cursor: 'pointer', 
-                                padding: '2px 6px',
-                                fontSize: '1rem',
-                                color: 'var(--priority-urgent-text)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: '4px',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              🗑️
-                            </button>
                           </div>
                           <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>
                           {c.attachmentUrl && (
@@ -434,24 +298,30 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   </div>
                 )}
 
-                {/* Add Comment Form */}
                 <form onSubmit={handleAddComment} className="comment-form">
-                  <h5 style={{ fontWeight: '600' }}>הוספת הערה / עדכון חדש</h5>
-                  
+                  <h5 style={{ fontWeight: '600' }}>הוספת הערה</h5>
+
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">השם שלך (אופציונלי)</label>
-                    <input 
+                    <label className="form-label" htmlFor={`external-comment-author-${task.id}`}>שם כותב/ת *</label>
+                    <input
+                      id={`external-comment-author-${task.id}`}
                       type="text"
                       className="form-control"
                       value={authorName}
-                      onChange={(e) => setAuthorName(e.target.value)}
-                      placeholder="לדוגמה: יוסי (דפוס בארץ) / Mr. Wong (ספק סין)"
+                      onChange={(e) => {
+                        setAuthorName(e.target.value);
+                        if (commentError) setCommentError('');
+                      }}
+                      maxLength={100}
+                      placeholder="הקלידו את שמכם"
+                      disabled={isSubmittingComment}
                     />
                   </div>
-                  
+
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">תוכן ההערה *</label>
-                    <textarea 
+                    <label className="form-label" htmlFor={`external-comment-text-${task.id}`}>תוכן ההערה *</label>
+                    <textarea
+                      id={`external-comment-text-${task.id}`}
                       className="form-control"
                       rows="3"
                       value={commentText}
@@ -459,67 +329,19 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                         setCommentText(e.target.value);
                         if (commentError) setCommentError('');
                       }}
-                      placeholder="כתבו כאן את השאלות, העדכונים או הערות לגבי העיצוב..."
+                      maxLength={5000}
+                      placeholder="כתבו כאן הערה או עדכון לגבי העבודה..."
+                      disabled={isSubmittingComment}
                     />
                   </div>
-                  
-                  {/* File Attachment Input */}
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      צירוף קובץ (Excel, תמונה וכו')
-                    </label>
-                    {attachedFile ? (
-                      <div className="comment-attachment-preview-chip">
-                        <span>📎 {attachedFile.name}</span>
-                        <button type="button" onClick={() => setAttachedFile(null)} title="הסר קובץ">&times;</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                        <button 
-                          type="button" 
-                          className="comment-attachment-btn"
-                          onClick={() => document.getElementById('comment-file-input-external').click()}
-                          disabled={uploadingFile}
-                        >
-                          {uploadingFile ? `🔄 מעלה (${uploadProgressFile}%)` : '📎 בחירת קובץ'}
-                        </button>
-                        {!uploadingFile && (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>(עד 3MB)</span>
-                        )}
-                        {uploadingFile && (
-                          <div style={{ 
-                            flexGrow: 1, 
-                            height: '6px', 
-                            backgroundColor: 'var(--border-color, #e2e8f0)', 
-                            borderRadius: '3px', 
-                            overflow: 'hidden',
-                            maxWidth: '120px'
-                          }}>
-                            <div style={{ 
-                              width: `${uploadProgressFile}%`, 
-                              height: '100%', 
-                              backgroundColor: 'var(--primary)', 
-                              transition: 'width 0.2s ease-in-out' 
-                            }} />
-                          </div>
-                        )}
-                        <input 
-                          type="file" 
-                          id="comment-file-input-external"
-                          style={{ display: 'none' }}
-                          onChange={handleCommentFileChange}
-                        />
-                        {uploadError && <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>{uploadError}</span>}
-                      </div>
-                    )}
-                  </div>
-                  
+
                   {commentError && <span className="form-error">{commentError}</span>}
-                  
-                  <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }} disabled={uploadingFile}>
-                    הוסף הערה 
+
+                  <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }} disabled={isSubmittingComment}>
+                    {isSubmittingComment ? 'שומר...' : 'הוספת הערה'}
                   </button>
                 </form>
+
               </div>
 
             </div>
@@ -536,17 +358,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   <span className="sidebar-label">איש קשר ספק</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="sidebar-value">{(task.supplierContactName || task.contactPerson) || '-'}</span>
-                    {(task.supplierContactName || task.contactPerson) && (
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary btn-icon" 
-                        style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title="פרטי כרטיס איש קשר"
-                        onClick={() => handleOpenContactCard(task.supplierContactName || task.contactPerson)}
-                      >
-                        ℹ️
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -612,32 +423,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
           </div>
         )}
       </div>
-      {commentToDelete && (
-        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { e.stopPropagation(); setCommentToDelete(null); }}>
-          <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת הערה</h3>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק הערה זו לצמיתות? לא ניתן לבטל פעולה זו.</p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                onClick={() => setCommentToDelete(null)}
-                style={{ flex: 1 }}
-              >
-                ביטול
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-primary" 
-                style={{ flex: 1, backgroundColor: 'var(--priority-urgent-bg)', color: 'var(--priority-urgent-text)', borderColor: 'rgba(239, 68, 68, 0.2)' }}
-                onClick={confirmDeleteComment}
-              >
-                מחיקה
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Read-only Info Card Popup */}
       {activeInfoCard && (
         <div className="modal-overlay" style={{ zIndex: 1250 }} onClick={() => setActiveInfoCard(null)}>
@@ -647,7 +432,70 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
               <button className="modal-close" onClick={() => setActiveInfoCard(null)}>&times;</button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: 0 }}>
-              {activeInfoCard.fields.some(f => f.value && f.value.trim()) ? (
+              {activeInfoCard.type === 'contact' ? (
+                activeInfoCard.fields.map((field, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      borderBottom: '1px solid var(--border)',
+                      paddingBottom: '8px',
+                      borderRadius: '4px',
+                      padding: '4px 6px'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '2px' }}>{field.label}</div>
+                    {field.isMultiline ? (
+                      <div style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: 'pre-wrap' }}>
+                        {field.value || '-'}
+                      </div>
+                    ) : field.type === 'phone' && field.value ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600' }} className="direction-ltr text-left">
+                        <a href={`tel:${field.value.replace(/\s+/g, '')}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
+                          {field.value}
+                        </a>
+                        {(() => {
+                          const digitsOnly = field.value.replace(/\D/g, '');
+                          if (digitsOnly.length >= 9) {
+                            let cleanVal = digitsOnly;
+                            if (cleanVal.startsWith('05') && cleanVal.length === 10) {
+                              cleanVal = '972' + cleanVal.substring(1);
+                            }
+                            return (
+                              <a
+                                href={`https://wa.me/${cleanVal}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="פתיחת צ'אט בוואטסאפ"
+                                style={{ display: 'inline-flex', alignItems: 'center', transition: 'transform 0.2s' }}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#10b981" viewBox="0 0 16 16">
+                                  <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93a7.9 7.9 0 0 0-2.327-5.615zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
+                                </svg>
+                              </a>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    ) : field.type === 'email' && field.value ? (
+                      <div style={{ fontSize: '0.95rem', fontWeight: '600' }} className="direction-ltr text-left">
+                        <a href={`mailto:${field.value}`} style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
+                          {field.value}
+                        </a>
+                      </div>
+                    ) : (
+                      <div
+                        className={field.isLtr ? 'direction-ltr text-left' : ''}
+                        style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600' }}
+                      >
+                        {field.value || '-'}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : activeInfoCard.fields.some(f => f.value && f.value.trim()) ? (
                 activeInfoCard.fields.map((field, idx) => {
                   if (!field.value || !field.value.trim()) return null;
                   return (
@@ -729,8 +577,10 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 </div>
               )}
             </div>
-            <div className="modal-footer" style={{ marginTop: '20px', padding: 0, borderTop: 'none', display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)} style={{ minWidth: '80px' }}>סגירה</button>
+            <div className="modal-footer" style={{ marginTop: '20px', padding: 0, borderTop: 'none', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)} style={{ minWidth: '80px' }}>
+                סגירה
+              </button>
             </div>
           </div>
         </div>

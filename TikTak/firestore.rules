@@ -42,15 +42,15 @@ service cloud.firestore {
     // ===============================================================
     // Helper Functions
     // ===============================================================
-    
+
     function hasRequiredFields(data, fields) {
       return data.keys().hasAll(fields);
     }
-    
+
     function hasOnlyAllowedFields(data, allowed) {
       return data.keys().hasOnly(allowed);
     }
-    
+
     function isValidUrl(url) {
       return url == "" || url.matches("^https://.*") || url.matches("^http://.*");
     }
@@ -62,33 +62,38 @@ service cloud.firestore {
     // ===============================================================
     // Authentication Helpers
     // ===============================================================
-    
+
     function isAuthenticated() {
       return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'shaharsolutions@gmail.com';
     }
 
     // ===============================================================
     // Domain Validators
     // ===============================================================
-    
+
     function isValidTask(data) {
       let allowedFields = [
         'title', 'description', 'workType', 'storeName', 'supplierName',
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
         'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks',
         'supplierContactEmail', 'diecutsStatus', 'imagesStatus', 'standardsInstituteRequired',
-        'planogramFile', 'workOrderFiles'
+        'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId'
       ];
-      
+
       let requiredFields = [
-        'title', 'status', 'jobNumber', 'createdAt', 'updatedAt'
+        'title', 'status', 'jobNumber', 'createdAt', 'updatedAt', 'userId'
       ];
-      
+
       return hasRequiredFields(data, requiredFields) &&
              hasOnlyAllowedFields(data, allowedFields) &&
              data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
              data.jobNumber is string && data.jobNumber.matches("^GP-\\d+$") &&
              data.status is string && data.status.size() >= 1 && data.status.size() <= 100 &&
+             data.userId is string &&
              data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
              data.updatedAt is string && data.updatedAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
              (!('workType' in data) || (data.workType is string && data.workType.size() >= 1 && data.workType.size() <= 100)) &&
@@ -109,13 +114,14 @@ service cloud.firestore {
              (!('planogramFile' in data) || data.planogramFile == null || data.planogramFile is map) &&
              (!('workOrderFiles' in data) || data.workOrderFiles is list);
     }
-    
+
     function isValidComment(data) {
-      let allowedFields = ['jobId', 'authorName', 'text', 'createdAt', 'attachmentUrl', 'attachmentName'];
-      
-      return hasRequiredFields(data, ['jobId', 'authorName', 'text', 'createdAt']) &&
+      let allowedFields = ['jobId', 'authorName', 'text', 'createdAt', 'attachmentUrl', 'attachmentName', 'userId'];
+
+      return hasRequiredFields(data, ['jobId', 'authorName', 'text', 'createdAt', 'userId']) &&
              hasOnlyAllowedFields(data, allowedFields) &&
              data.jobId is string && data.jobId.size() > 0 &&
+             data.userId is string &&
              data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
              data.text is string && data.text.size() >= 1 && data.text.size() <= 5000 &&
              data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
@@ -124,43 +130,121 @@ service cloud.firestore {
     }
 
     function isValidPrivateNote(data) {
-      let allowedFields = ['notes'];
+      let allowedFields = ['notes', 'userId'];
       return hasOnlyAllowedFields(data, allowedFields) &&
              hasRequiredFields(data, allowedFields) &&
-             data.notes is string && data.notes.size() <= 5000;
+             data.notes is string && data.notes.size() <= 5000 &&
+             data.userId is string;
+    }
+
+    function isValidActivityLog(data) {
+      let allowedFields = [
+        'actorUid', 'actorEmail', 'actorName', 'isSystemAdmin',
+        'action', 'actionLabel', 'targetType', 'targetId', 'targetLabel',
+        'targetUserId', 'details', 'metadata', 'createdAt'
+      ];
+
+      return hasRequiredFields(data, [
+               'actorUid', 'actorEmail', 'actorName', 'isSystemAdmin',
+               'action', 'actionLabel', 'targetType', 'targetId',
+               'targetLabel', 'targetUserId', 'details', 'createdAt'
+             ]) &&
+             hasOnlyAllowedFields(data, allowedFields) &&
+             data.actorUid is string &&
+             data.actorUid == request.auth.uid &&
+             data.actorEmail is string &&
+             data.actorName is string &&
+             data.isSystemAdmin is bool &&
+             data.action is string && data.action.size() >= 1 && data.action.size() <= 80 &&
+             data.actionLabel is string && data.actionLabel.size() >= 1 && data.actionLabel.size() <= 100 &&
+             data.targetType is string && data.targetType.size() >= 1 && data.targetType.size() <= 80 &&
+             data.targetId is string && data.targetId.size() <= 200 &&
+             data.targetLabel is string && data.targetLabel.size() <= 200 &&
+             data.targetUserId is string && data.targetUserId.size() <= 200 &&
+             data.details is string && data.details.size() <= 1000 &&
+             (!('metadata' in data) || data.metadata is map) &&
+             data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*");
     }
 
     // ===============================================================
     // Rules Enforcement
     // ===============================================================
-    
+
     // Tasks Collection Rules
     match /tasks/{taskId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidTask(request.resource.data);
-      allow update: if isAuthenticated() && isValidTask(request.resource.data) && request.resource.data.jobNumber == resource.data.jobNumber;
-      allow delete: if isAuthenticated(); 
+      allow create: if isAuthenticated() &&
+                    (
+                      (isValidTask(request.resource.data) && request.resource.data.userId == request.auth.uid) ||
+                      (isValidTask(request.resource.data) && isAdmin())
+                    );
+      allow update: if isAuthenticated() &&
+                    (
+                      // Case 1: Legacy task migration (assign to current authenticated user)
+                      (
+                        (!('userId' in resource.data) || resource.data.userId == null || resource.data.userId == "") &&
+                        request.resource.data.userId == request.auth.uid
+                      ) ||
+                      // Case 2: Standard task update (must pass validation and preserve ownership)
+                      (
+                        isValidTask(request.resource.data) &&
+                        (resource.data.userId == request.auth.uid || isAdmin()) &&
+                        request.resource.data.userId == resource.data.userId
+                      )
+                    );
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
     }
-    
+
     // Comments Collection Rules
     match /comments/{commentId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidComment(request.resource.data);
-      allow update: if false; // Comments are immutable once added in this app
-      allow delete: if isAuthenticated(); // Allows cascading deletes when a task is deleted
+      allow create: if isAuthenticated() && (isValidComment(request.resource.data) || isAdmin());
+      allow update: if isAuthenticated() &&
+                    (
+                      (!('userId' in resource.data) || resource.data.userId == null || resource.data.userId == "") ||
+                      (resource.data.userId == request.auth.uid || isAdmin())
+                    );
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
     }
 
     // Private Notes Rules
     match /taskPrivateNotes/{taskId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && isValidPrivateNote(request.resource.data);
-      allow delete: if isAuthenticated();
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
+      allow create, update: if isAuthenticated() && isValidPrivateNote(request.resource.data) && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
     }
 
     // Settings Collection Rules
     match /settings/{documentId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && (documentId == request.auth.uid || isAdmin());
+      allow write: if isAuthenticated() && (documentId == request.auth.uid || isAdmin());
+    }
+
+    // Contacts Collection Rules
+    match /contacts/{contactId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Suppliers Collection Rules
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Users Collection Rules
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Activity Log Rules
+    match /activityLogs/{activityLogId} {
+      allow read: if isAuthenticated() && (resource.data.actorUid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidActivityLog(request.resource.data);
+      allow update, delete: if false;
     }
   }
 }
-

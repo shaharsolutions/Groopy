@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage } from '../utils/storage';
+import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage, addContact, updateContact, addSupplier, updateSupplier } from '../utils/storage';
 import ExcelPreviewModal from './ExcelPreviewModal';
 import PdfPreviewModal from './PdfPreviewModal';
+import PlanogramFileCard from './PlanogramFileCard';
 
 export default function AdminDetailsModal({ 
   task, 
   settings, 
+  suppliers: SUPPLIERS = [],
+  contacts: CONTACTS = [],
+  onSaveSettings,
   onClose, 
   onSave, 
-  onDelete, 
-  onRefresh, 
-  startInEditMode = false 
+  onDelete,
+  onRefresh,
+  onTaskUpdated,
+  onStatusChange,
+  startInEditMode = false,
+  userId
 }) {
   const {
     statuses: STATUSES = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק'],
@@ -21,9 +28,7 @@ export default function AdminDetailsModal({
       'בטיפול': 'badge-in-progress',
       'נשלח לספק': 'badge-waiting-approval',
       'אושר לספק': 'badge-approved'
-    },
-    suppliers: SUPPLIERS = [],
-    contacts: CONTACTS = []
+    }
   } = settings || {};
 
   const isCreateMode = !task;
@@ -35,7 +40,7 @@ export default function AdminDetailsModal({
 
   const handleCopyTaskLink = () => {
     if (!task) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&taskId=${task.id}`;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&userId=${userId}&taskId=${task.id}`;
     navigator.clipboard.writeText(shareUrl)
       .then(() => {
         setCopiedLink(true);
@@ -76,43 +81,88 @@ export default function AdminDetailsModal({
   // Inline Editing Mode States
   const [activeEditField, setActiveEditField] = useState(null);
   const [activeInfoCard, setActiveInfoCard] = useState(null);
+  const [activeCardEditField, setActiveCardEditField] = useState(null);
+  const [isSavingInfoCard, setIsSavingInfoCard] = useState(false);
 
   const handleOpenSupplierCard = (supplierName) => {
     if (!supplierName) return;
+    setActiveCardEditField(null);
     const sup = SUPPLIERS.find(s => (typeof s === 'string' ? s : s.name) === supplierName);
     const supObj = typeof sup === 'string' ? { name: sup } : (sup || { name: supplierName });
     setActiveInfoCard({
       type: 'supplier',
       title: `📇 כרטיס ספק: ${supObj.name}`,
+      supplierId: supObj.id,
       fields: [
-        { label: 'שם הספק', value: supObj.name },
-        { label: 'איש קשר אצל הספק', value: supObj.contactPerson },
-        { label: 'טלפון', value: supObj.phone, isLtr: true, type: 'phone' },
-        { label: 'אימייל', value: supObj.email, isLtr: true, type: 'email' },
-        { label: 'כתובת', value: supObj.address },
-        { label: 'WeChat / WhatsApp', value: supObj.wechat, isLtr: true, type: 'whatsapp' },
-        { label: 'הערות ומידע נוסף', value: supObj.notes, isMultiline: true }
+        { key: 'name', label: 'שם הספק', value: supObj.name },
+        { key: 'contactPerson', label: 'איש קשר אצל הספק', value: supObj.contactPerson || '' },
+        { key: 'phone', label: 'טלפון', value: supObj.phone || '', isLtr: true, type: 'phone' },
+        { key: 'email', label: 'אימייל', value: supObj.email || '', isLtr: true, type: 'email' },
+        { key: 'address', label: 'כתובת', value: supObj.address || '' },
+        { key: 'wechat', label: 'WeChat / WhatsApp', value: supObj.wechat || '', isLtr: true, type: 'whatsapp' },
+        { key: 'notes', label: 'הערות ומידע נוסף', value: supObj.notes || '', isMultiline: true }
       ]
     });
   };
 
   const handleOpenContactCard = (contactName) => {
     if (!contactName) return;
+    setActiveCardEditField(null);
     const contact = CONTACTS.find(c => c.name === contactName);
     const contactObj = contact || { name: contactName };
     setActiveInfoCard({
       type: 'contact',
       title: `📇 כרטיס איש קשר: ${contactObj.name}`,
+      contactId: contactObj.id,
       fields: [
-        { label: 'שם מלא', value: contactObj.name },
-        { label: 'תפקיד', value: contactObj.role },
-        { label: 'טלפון', value: contactObj.phone, isLtr: true, type: 'phone' },
-        { label: 'אימייל', value: contactObj.email, isLtr: true, type: 'email' },
-        { label: 'כתובת', value: contactObj.address },
-        { label: 'WeChat / WhatsApp', value: contactObj.wechat, isLtr: true, type: 'whatsapp' },
-        { label: 'הערות ומידע נוסף', value: contactObj.notes, isMultiline: true }
+        { key: 'name', label: 'שם מלא', value: contactObj.name },
+        { key: 'role', label: 'תפקיד', value: contactObj.role || '' },
+        { key: 'phone', label: 'טלפון', value: contactObj.phone || '', isLtr: true, type: 'phone' },
+        { key: 'email', label: 'אימייל', value: contactObj.email || '', isLtr: true, type: 'email' },
+        { key: 'address', label: 'כתובת', value: contactObj.address || '' },
+        { key: 'wechat', label: 'WeChat / WhatsApp', value: contactObj.wechat || '', isLtr: true, type: 'whatsapp' },
+        { key: 'notes', label: 'הערות ומידע נוסף', value: contactObj.notes || '', isMultiline: true }
       ]
     });
+  };
+
+  const updateInfoCardField = (index, value) => {
+    setActiveInfoCard((current) => ({
+      ...current,
+      title: current.fields[index].key === 'name' ? (current.type === 'supplier' ? `📇 כרטיס ספק: ${value}` : `📇 כרטיס איש קשר: ${value}`) : current.title,
+      fields: current.fields.map((field, fieldIndex) => fieldIndex === index ? { ...field, value } : field)
+    }));
+  };
+
+  const saveInfoCard = async () => {
+    if (!activeInfoCard) return;
+    const fieldsData = Object.fromEntries(activeInfoCard.fields.map(({ key, value }) => [key, (value || '').trim()]));
+    if (!fieldsData.name) return;
+
+    setIsSavingInfoCard(true);
+    try {
+      if (activeInfoCard.type === 'contact') {
+        const contactId = activeInfoCard.contactId;
+        if (contactId) {
+          await updateContact(contactId, fieldsData);
+        } else {
+          await addContact(fieldsData, userId);
+        }
+      } else if (activeInfoCard.type === 'supplier') {
+        const supplierId = activeInfoCard.supplierId;
+        if (supplierId) {
+          await updateSupplier(supplierId, fieldsData);
+        } else {
+          await addSupplier(fieldsData, userId);
+        }
+      }
+      setActiveInfoCard(null);
+      setActiveCardEditField(null);
+    } catch (error) {
+      console.error('Failed to save card', error);
+    } finally {
+      setIsSavingInfoCard(false);
+    }
   };
 
   // States for temporary field values while editing inline
@@ -124,7 +174,6 @@ export default function AdminDetailsModal({
   const [editDiecutsStatus, setEditDiecutsStatus] = useState('אין');
   const [editImagesStatus, setEditImagesStatus] = useState('אין');
   const [editStandardsInstituteRequired, setEditStandardsInstituteRequired] = useState('לא');
-  const [editDriveLink, setEditDriveLink] = useState('');
   const [editInternalNotes, setEditInternalNotes] = useState('');
 
   // States for CREATE mode (full form)
@@ -137,7 +186,6 @@ export default function AdminDetailsModal({
   const [createImagesStatus, setCreateImagesStatus] = useState('אין');
   const [createStandardsInstituteRequired, setCreateStandardsInstituteRequired] = useState('לא');
   const [createStatus, setCreateStatus] = useState(DEFAULT_STATUS || 'חדש');
-  const [createDriveLink, setCreateDriveLink] = useState('');
   const [createInternalNotes, setCreateInternalNotes] = useState('');
   const [createAttachments, setCreateAttachments] = useState([]);
   const [createPlanogramFile, setCreatePlanogramFile] = useState(null);
@@ -153,6 +201,7 @@ export default function AdminDetailsModal({
 
   // Quick-edit states for View Mode (Status)
   const [quickStatus, setQuickStatus] = useState('');
+  const [savingStatus, setSavingStatus] = useState(false);
   const [internalNotes, setInternalNotes] = useState('');
 
   // Planogram creation upload states
@@ -166,11 +215,11 @@ export default function AdminDetailsModal({
       setQuickStatus(task.status || '');
       
       const loadComments = async () => {
-        const fetchedComments = await getCommentsForTask(task.id);
+        const fetchedComments = await getCommentsForTask(task.id, userId);
         setComments(fetchedComments);
       };
       const loadPrivateNotes = async () => {
-        const notes = await getPrivateNotes(task.id);
+        const notes = await getPrivateNotes(task.id, userId);
         setInternalNotes(notes);
       };
       loadComments();
@@ -191,7 +240,6 @@ export default function AdminDetailsModal({
       setCreateImagesStatus('אין');
       setCreateStandardsInstituteRequired('לא');
       setCreateStatus(DEFAULT_STATUS || 'חדש');
-      setCreateDriveLink('');
       setCreateAttachments([]);
       setCreatePlanogramFile(null);
       setCreateInternalNotes('');
@@ -237,7 +285,6 @@ export default function AdminDetailsModal({
     if (fieldKey === 'diecutsStatus') setEditDiecutsStatus(value || 'אין');
     if (fieldKey === 'imagesStatus') setEditImagesStatus(value || 'אין');
     if (fieldKey === 'standardsInstituteRequired') setEditStandardsInstituteRequired(value || 'לא');
-    if (fieldKey === 'driveLink') setEditDriveLink(value || '');
     if (fieldKey === 'internalNotes') setEditInternalNotes(value || '');
   };
 
@@ -249,35 +296,73 @@ export default function AdminDetailsModal({
     const trimmedVal = typeof value === 'string' ? value.trim() : value;
     if (fieldKey === 'title' && !trimmedVal) {
       alert('שם העבודה הוא שדה חובה');
-      return;
+      return false;
     }
 
     if (fieldKey === 'supplierContactEmail' && trimmedVal) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedVal)) {
         alert('כתובת אימייל לא תקינה');
-        return;
+        return false;
       }
     }
 
-    let updateData = {};
-    if (fieldKey === 'internalNotes') {
-      updateData = { internalNotes: trimmedVal };
-      setInternalNotes(trimmedVal);
-    } else {
-      updateData = { [fieldKey]: trimmedVal };
-    }
+    const updateData = fieldKey === 'internalNotes'
+      ? { internalNotes: trimmedVal }
+      : { [fieldKey]: trimmedVal };
 
-    await updateTask(task.id, updateData);
-    setActiveEditField(null);
-    onRefresh(); // Refresh parent dashboard
+    try {
+      await updateTask(task.id, updateData);
+      if (fieldKey === 'internalNotes') {
+        setInternalNotes(trimmedVal);
+      } else if (onTaskUpdated) {
+        onTaskUpdated(task.id, {
+          [fieldKey]: trimmedVal,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      setActiveEditField(currentField => currentField === fieldKey ? null : currentField);
+      return true;
+    } catch (err) {
+      console.error(`Failed to save ${fieldKey}`, err);
+      alert('השינוי לא נשמר. בדקי את החיבור ונסי שוב.');
+      return false;
+    }
+  };
+
+  const handleAutoSaveBlur = (event, fieldKey, value) => {
+    if (event.relatedTarget?.closest?.('[data-inline-edit-action="true"]')) return;
+    void handleSaveField(fieldKey, value);
   };
 
   // --- Handlers for Quick Updates (Status) ---
 
   const handleStatusChange = async (newStatus) => {
-    setQuickStatus(newStatus);
-    await updateTask(task.id, { status: newStatus });
-    onRefresh();
+    if (savingStatus || newStatus === quickStatus) return;
+
+    const changedAt = new Date().toISOString();
+    setSavingStatus(true);
+    try {
+      if (onStatusChange) {
+        const saved = await onStatusChange(task.id, newStatus);
+        if (!saved) return;
+      } else {
+        await updateTask(task.id, { status: newStatus });
+      }
+      setQuickStatus(newStatus);
+      if (!onStatusChange && onRefresh) {
+        await onRefresh();
+      }
+      if (onTaskUpdated) {
+        onTaskUpdated(task.id, { status: newStatus, updatedAt: changedAt });
+      }
+    } catch (err) {
+      console.error("Failed to update status", err);
+      if (!onStatusChange) {
+        alert('שגיאה בעדכון הסטטוס. נסי שוב בעוד רגע.');
+      }
+    } finally {
+      setSavingStatus(false);
+    }
   };
 
   // --- Handlers for Comments ---
@@ -313,31 +398,38 @@ export default function AdminDetailsModal({
       return;
     }
 
-    await addComment(
-      task.id, 
-      authorName, 
-      commentText, 
-      attachedFile ? attachedFile.url : null, 
-      attachedFile ? attachedFile.name : null
-    );
-    if (authorName.trim()) {
-      localStorage.setItem('tiktak_comment_author_admin', authorName.trim());
-    } else {
-      localStorage.removeItem('tiktak_comment_author_admin');
+    try {
+      await addComment(
+        task.id,
+        authorName,
+        commentText,
+        attachedFile ? attachedFile.url : null,
+        attachedFile ? attachedFile.name : null,
+        userId
+      );
+      if (authorName.trim()) {
+        localStorage.setItem('tiktak_comment_author_admin', authorName.trim());
+      } else {
+        localStorage.removeItem('tiktak_comment_author_admin');
+      }
+      setCommentText('');
+      setAttachedFile(null);
+      const fetchedComments = await getCommentsForTask(task.id);
+      setComments(fetchedComments);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error("Failed to add comment", err);
+      setCommentError('שגיאה בהוספת ההערה. נסי שוב בעוד רגע.');
     }
-    setCommentText('');
-    setAttachedFile(null);
-    const fetchedComments = await getCommentsForTask(task.id);
-    setComments(fetchedComments);
   };
 
   const handleCommentFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
-    const MAX_SIZE = 70 * 1024 * 1024; // 70MB limit
+    const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
     if (file.size > MAX_SIZE) {
-      setUploadErrorFile('גודל הקובץ עולה על המותר (מקסימום 70MB)');
+      setUploadErrorFile('גודל הקובץ עולה על המותר (מקסימום 15MB)');
       setAttachedFile(null);
       e.target.value = '';
       return;
@@ -373,10 +465,10 @@ export default function AdminDetailsModal({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const MAX_SIZE = 70 * 1024 * 1024; // 70MB limit
+    const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
     for (let i = 0; i < files.length; i++) {
       if (files[i].size > MAX_SIZE) {
-        setUploadError(`גודל הקובץ "${files[i].name}" עולה על המותר (מקסימום 70MB)`);
+        setUploadError(`גודל הקובץ "${files[i].name}" עולה על המותר (מקסימום 15MB)`);
         e.target.value = '';
         return;
       }
@@ -422,8 +514,8 @@ export default function AdminDetailsModal({
       return;
     }
 
-    if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.name)) {
-      alert('אנא בחרי קובץ תמונה בלבד (jpg, png, webp)');
+    if (!/\.(jpg|jpeg|png|webp|gif|pdf)$/i.test(file.name)) {
+      alert('אנא בחרי קובץ תמונה או PDF');
       e.target.value = '';
       return;
     }
@@ -487,10 +579,10 @@ export default function AdminDetailsModal({
   };
 
   const handleUploadFilesCreateMode = async (files) => {
-    const MAX_SIZE = 70 * 1024 * 1024; // 70MB limit
+    const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
     for (let i = 0; i < files.length; i++) {
       if (files[i].size > MAX_SIZE) {
-        setUploadError(`גודל הקובץ "${files[i].name}" עולה על המותר (מקסימום 70MB)`);
+        setUploadError(`גודל הקובץ "${files[i].name}" עולה על המותר (מקסימום 15MB)`);
         return;
       }
     }
@@ -535,8 +627,8 @@ export default function AdminDetailsModal({
       return;
     }
 
-    if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.name)) {
-      setUploadErrorPlanogram('אנא בחרי קובץ תמונה בלבד (jpg, png, webp)');
+    if (!/\.(jpg|jpeg|png|webp|gif|pdf)$/i.test(file.name)) {
+      setUploadErrorPlanogram('אנא בחרי קובץ תמונה או PDF');
       e.target.value = '';
       return;
     }
@@ -592,7 +684,6 @@ export default function AdminDetailsModal({
       imagesStatus: createImagesStatus,
       standardsInstituteRequired: createStandardsInstituteRequired,
       status: createStatus,
-      driveLink: createDriveLink.trim(),
       workOrderFiles: createAttachments,
       planogramFile: createPlanogramFile,
       internalNotes: createInternalNotes.trim()
@@ -642,14 +733,15 @@ export default function AdminDetailsModal({
                     className="form-control" 
                     value={editTitle} 
                     onChange={(e) => setEditTitle(e.target.value)} 
+                    onBlur={(e) => handleAutoSaveBlur(e, 'title', editTitle)}
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleSaveField('title', editTitle);
                       if (e.key === 'Escape') handleCancelField();
                     }}
                   />
-                  <button type="button" className="btn btn-primary btn-icon" style={{ padding: '8px 12px' }} onClick={() => handleSaveField('title', editTitle)}>✔️</button>
-                  <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '8px 12px' }} onClick={handleCancelField}>❌</button>
+                  <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '8px 12px' }} onClick={() => handleSaveField('title', editTitle)}>✔️</button>
+                  <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '8px 12px' }} onClick={handleCancelField}>❌</button>
                 </div>
               ) : (
                 <span 
@@ -867,17 +959,6 @@ export default function AdminDetailsModal({
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">קישור לתיקיית דרייב</label>
-                <input 
-                  type="url"
-                  className="form-control text-left direction-ltr"
-                  placeholder="https://drive.google.com/..."
-                  value={createDriveLink}
-                  onChange={(e) => setCreateDriveLink(e.target.value)}
-                />
-              </div>
-
               {/* הזמנת עבודה (קבצים מצורפים) */}
               <div className="form-group">
                 <label className="form-label">
@@ -897,7 +978,7 @@ export default function AdminDetailsModal({
                     <strong>גררי לכאן קבצים</strong> או לחצי לבחירה מהמחשב
                   </div>
                   <div className="file-upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>
-                    עד 70MB לקובץ
+                    עד 15MB לקובץ
                   </div>
                   <input 
                     type="file" 
@@ -972,31 +1053,7 @@ export default function AdminDetailsModal({
               <div className="form-group">
                 <label className="form-label">העלאת פלנוגרמה</label>
                 {createPlanogramFile ? (
-                  <div className="planogram-preview-container" style={{ maxWidth: '240px', height: '140px', margin: '8px 0' }}>
-                    <img src={createPlanogramFile.url} alt="תצוגה מקדימה פלנוגרמה" className="planogram-preview-img" />
-                    <div className="planogram-actions-overlay">
-                      <span style={{ color: 'white', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                        {createPlanogramFile.name}
-                      </span>
-                      <button 
-                        type="button" 
-                        className="btn btn-danger" 
-                        style={{ 
-                          padding: '4px 8px', 
-                          fontSize: '0.75rem', 
-                          height: '24px', 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '4px', 
-                          whiteSpace: 'nowrap', 
-                          flexShrink: 0 
-                        }} 
-                        onClick={handlePlanogramDeleteCreate}
-                      >
-                        🗑️ הסרה
-                      </button>
-                    </div>
-                  </div>
+                  <PlanogramFileCard file={createPlanogramFile} onDelete={handlePlanogramDeleteCreate} deleteLabel="הסרה" />
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <button 
@@ -1006,13 +1063,13 @@ export default function AdminDetailsModal({
                       onClick={() => document.getElementById('planogram-upload-create-input').click()}
                       disabled={uploadingPlanogram}
                     >
-                      {uploadingPlanogram ? `🔄 מעלה...` : '🖼️ בחירת תמונת פלנוגרמה'}
+                      {uploadingPlanogram ? `🔄 מעלה...` : 'בחירת פלנוגרמה'}
                     </button>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(קובץ תמונה בלבד, עד 15MB)</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(תמונה או PDF, עד 15MB)</span>
                     <input 
                       type="file" 
                       id="planogram-upload-create-input" 
-                      accept="image/*"
+                      accept="image/*,.pdf,application/pdf"
                       style={{ display: 'none' }}
                       onChange={handlePlanogramUploadCreate}
                     />
@@ -1070,11 +1127,12 @@ export default function AdminDetailsModal({
                             rows="4" 
                             value={editDescription} 
                             onChange={(e) => setEditDescription(e.target.value)} 
+                            onBlur={(e) => handleAutoSaveBlur(e, 'description', editDescription)}
                             autoFocus
                           />
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button type="button" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('description', editDescription)}>שמירה ✔️</button>
-                            <button type="button" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
+                            <button type="button" data-inline-edit-action="true" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('description', editDescription)}>שמירה ✔️</button>
+                            <button type="button" data-inline-edit-action="true" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
                           </div>
                         </div>
                       ) : (
@@ -1092,41 +1150,6 @@ export default function AdminDetailsModal({
                       )}
                     </div>
 
-                    {/* Field: Drive Link */}
-                    <div style={{ marginBottom: '16px' }}>
-                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '4px', display: 'block', fontSize: '0.85rem' }}>קישור לתיקיית דרייב</label>
-                      {activeEditField === 'driveLink' ? (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                          <input 
-                            type="url" 
-                            className="form-control text-left direction-ltr" 
-                            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                            placeholder="https://drive.google.com/..."
-                            value={editDriveLink} 
-                            onChange={(e) => setEditDriveLink(e.target.value)} 
-                            autoFocus
-                          />
-                          <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('driveLink', editDriveLink)}>✔️</button>
-                          <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                        </div>
-                      ) : task.driveLink ? (
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <a href={task.driveLink} target="_blank" rel="noopener noreferrer" className="drive-link" style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-                            🔗 מעבר לדרייב
-                          </a>
-                          <button type="button" className="edit-inline-trigger-btn" onClick={() => startEditingField('driveLink', task.driveLink)} title="עריכת קישור">✏️</button>
-                        </div>
-                      ) : (
-                        <span 
-                          className="sidebar-value hover-editable-inline" 
-                          onClick={() => startEditingField('driveLink', '')}
-                          title="לחצי להוספת קישור דרייב"
-                        >
-                          לא צורף קישור ✏️
-                        </span>
-                      )}
-                    </div>
-
                     {/* Field: Internal Notes */}
                     <div>
                       <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות למעצבת (לא יוצגו לצופים חיצוניים)</label>
@@ -1137,11 +1160,12 @@ export default function AdminDetailsModal({
                             rows="3" 
                             value={editInternalNotes} 
                             onChange={(e) => setEditInternalNotes(e.target.value)} 
+                            onBlur={(e) => handleAutoSaveBlur(e, 'internalNotes', editInternalNotes)}
                             autoFocus
                           />
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button type="button" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('internalNotes', editInternalNotes)}>שמירה ✔️</button>
-                            <button type="button" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
+                            <button type="button" data-inline-edit-action="true" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('internalNotes', editInternalNotes)}>שמירה ✔️</button>
+                            <button type="button" data-inline-edit-action="true" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
                           </div>
                         </div>
                       ) : (
@@ -1238,7 +1262,7 @@ export default function AdminDetailsModal({
                                 : '📎 הוספת קובץ'}
                             </button>
                             {!uploading && (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 70MB)</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 15MB)</span>
                             )}
                           </div>
                           <input 
@@ -1259,50 +1283,7 @@ export default function AdminDetailsModal({
                         </label>
                         
                         {task.planogramFile ? (
-                          <div className="planogram-preview-container" style={{ height: '140px', margin: 0 }}>
-                            <img src={task.planogramFile.url} alt="פלנוגרמה" className="planogram-preview-img" />
-                            <div className="planogram-actions-overlay">
-                              <span style={{ color: 'white', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                                {task.planogramFile.name}
-                              </span>
-                              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                <a 
-                                  href={task.planogramFile.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="planogram-action-btn" 
-                                  style={{ 
-                                    padding: '2px 8px', 
-                                    fontSize: '0.75rem', 
-                                    whiteSpace: 'nowrap', 
-                                    flexShrink: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
-                                  }}
-                                >
-                                  👁️ צפייה
-                                </a>
-                                <button 
-                                  type="button" 
-                                  className="btn btn-danger" 
-                                  style={{ 
-                                    padding: '2px 8px', 
-                                    fontSize: '0.75rem', 
-                                    height: '24px', 
-                                    display: 'inline-flex', 
-                                    alignItems: 'center', 
-                                    gap: '4px', 
-                                    whiteSpace: 'nowrap', 
-                                    flexShrink: 0 
-                                  }} 
-                                  onClick={handlePlanogramDeleteView}
-                                >
-                                  🗑️ מחיקה
-                                </button>
-                              </div>
-                            </div>
-                          </div>
+                          <PlanogramFileCard file={task.planogramFile} onDelete={handlePlanogramDeleteView} />
                         ) : (
                           <div 
                             className="planogram-preview-container" 
@@ -1316,12 +1297,12 @@ export default function AdminDetailsModal({
                               onClick={() => document.getElementById('planogram-upload-view-input').click()}
                               disabled={uploading}
                             >
-                              🖼️ העלאת פלנוגרמה
+                              העלאת פלנוגרמה
                             </button>
                             <input 
                               type="file" 
                               id="planogram-upload-view-input" 
-                              accept="image/*"
+                              accept="image/*,.pdf,application/pdf"
                               style={{ display: 'none' }}
                               onChange={handlePlanogramUploadView}
                             />
@@ -1492,6 +1473,7 @@ export default function AdminDetailsModal({
                             style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
                             value={editContactPerson} 
                             onChange={(e) => setEditContactPerson(e.target.value)} 
+                            onBlur={(e) => handleAutoSaveBlur(e, 'contactPerson', editContactPerson)}
                             list="contacts-list-inline"
                             autoFocus
                           />
@@ -1507,8 +1489,8 @@ export default function AdminDetailsModal({
                               );
                             })}
                           </datalist>
-                          <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
-                          <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                          <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
+                          <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1545,13 +1527,14 @@ export default function AdminDetailsModal({
                             style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
                             value={editSupplierContactEmail} 
                             onChange={(e) => setEditSupplierContactEmail(e.target.value)} 
+                            onBlur={(e) => handleAutoSaveBlur(e, 'supplierContactEmail', editSupplierContactEmail)}
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') handleSaveField('supplierContactEmail', editSupplierContactEmail);
                             }}
                           />
-                          <button type="button" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactEmail', editSupplierContactEmail)}>✔️</button>
-                          <button type="button" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                          <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactEmail', editSupplierContactEmail)}>✔️</button>
+                          <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
@@ -1612,12 +1595,13 @@ export default function AdminDetailsModal({
                             <button
                               key={st}
                               type="button"
+                              disabled={savingStatus}
                               className={`badge ${colorClass}`}
                               style={{
                                 padding: '6px 8px',
                                 fontSize: '0.75rem',
                                 textAlign: 'center',
-                                cursor: 'pointer',
+                                cursor: savingStatus ? 'wait' : 'pointer',
                                 width: '100%',
                                 border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
                                 opacity: isActive ? 1 : 0.45,
@@ -1779,11 +1763,45 @@ export default function AdminDetailsModal({
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {activeInfoCard.fields.map((f, idx) => (
-                <div key={idx} style={{ borderBottom: idx === activeInfoCard.fields.length - 1 ? 'none' : '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                <div
+                  key={idx}
+                  className={(activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') && activeCardEditField !== idx ? 'hover-editable' : ''}
+                  onClick={() => (activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') && setActiveCardEditField(idx)}
+                  title={(activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') ? 'לחצו לעריכה' : undefined}
+                  style={{
+                    borderBottom: idx === activeInfoCard.fields.length - 1 ? 'none' : '1px solid #f1f5f9',
+                    padding: (activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') ? '6px 8px 10px' : '0 0 8px',
+                    borderRadius: '6px',
+                    cursor: (activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') && activeCardEditField !== idx ? 'pointer' : 'default'
+                  }}
+                >
                   <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>
                     {f.label}
                   </span>
-                  {f.isMultiline ? (
+                  {(activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') && activeCardEditField === idx ? (
+                    f.isMultiline ? (
+                      <textarea
+                        className="form-control"
+                        rows="3"
+                        autoFocus
+                        value={f.value || ''}
+                        onChange={(e) => updateInfoCardField(idx, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <input
+                        className={`form-control ${f.isLtr ? 'direction-ltr text-left' : ''}`}
+                        type={f.type === 'email' ? 'email' : f.type === 'phone' ? 'tel' : 'text'}
+                        autoFocus
+                        value={f.value || ''}
+                        onChange={(e) => updateInfoCardField(idx, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setActiveCardEditField(null);
+                        }}
+                      />
+                    )
+                  ) : f.isMultiline ? (
                     <p style={{ margin: 0, fontSize: '0.9rem', whiteSpace: 'pre-wrap', color: 'var(--text-dark)' }}>
                       {f.value || '-'}
                     </p>
@@ -1816,8 +1834,20 @@ export default function AdminDetailsModal({
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: '20px', textAlign: 'left' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)}>סגור</button>
+            <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setActiveInfoCard(null)}>
+                {(activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') ? 'ביטול' : 'סגור'}
+              </button>
+              {(activeInfoCard.type === 'contact' || activeInfoCard.type === 'supplier') && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={isSavingInfoCard || !activeInfoCard.fields[0].value?.trim()}
+                  onClick={saveInfoCard}
+                >
+                  {isSavingInfoCard ? 'שומר...' : 'שמור שינויים'}
+                </button>
+              )}
             </div>
           </div>
         </div>

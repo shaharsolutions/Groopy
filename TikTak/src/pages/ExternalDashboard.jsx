@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getTasks } from '../utils/storage';
 import ExternalDetailsModal from '../components/ExternalDetailsModal';
+import PlanogramIndicator from '../components/PlanogramIndicator';
 
 export default function ExternalDashboard({ settings, userId }) {
   const {
@@ -146,7 +147,6 @@ export default function ExternalDashboard({ settings, userId }) {
           <input 
             type="text" 
             className="form-control" 
-            placeholder="חיפוש לפי שם עבודה או ספק..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -209,7 +209,12 @@ export default function ExternalDashboard({ settings, userId }) {
               <tbody>
                 {filteredTasks.map(task => (
                   <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                    <td style={{ fontWeight: '600' }}>{task.title}</td>
+                    <td style={{ fontWeight: '600' }}>
+                      <span className="task-title-with-indicator">
+                        <span>{task.title}</span>
+                        {task.planogramFile && <PlanogramIndicator />}
+                      </span>
+                    </td>
                     <td>{(task.contactPerson || task.supplierContactName) || '-'}</td>
                     <td>
                       <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
@@ -237,7 +242,12 @@ export default function ExternalDashboard({ settings, userId }) {
               <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
                 <div className="task-card-header">
                   <div>
-                    <h4 className="task-card-title">{task.title}</h4>
+                    <h4 className="task-card-title">
+                      <span className="task-title-with-indicator">
+                        <span>{task.title}</span>
+                        {task.planogramFile && <PlanogramIndicator compact />}
+                      </span>
+                    </h4>
                   </div>
                   <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
                     {task.status}

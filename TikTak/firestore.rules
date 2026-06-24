@@ -81,7 +81,7 @@ service cloud.firestore {
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
         'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks',
         'supplierContactEmail', 'diecutsStatus', 'imagesStatus', 'standardsInstituteRequired',
-        'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId'
+        'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId', 'weeklyHours'
       ];
 
       let requiredFields = [
@@ -112,7 +112,8 @@ service cloud.firestore {
              (!('imagesStatus' in data) || data.imagesStatus is string) &&
              (!('standardsInstituteRequired' in data) || data.standardsInstituteRequired is string) &&
              (!('planogramFile' in data) || data.planogramFile == null || data.planogramFile is map) &&
-             (!('workOrderFiles' in data) || data.workOrderFiles is list);
+             (!('workOrderFiles' in data) || data.workOrderFiles is list) &&
+             (!('weeklyHours' in data) || data.weeklyHours is map);
     }
 
     function isValidComment(data) {
@@ -216,20 +217,20 @@ service cloud.firestore {
 
     // Settings Collection Rules
     match /settings/{documentId} {
-      allow read: if isAuthenticated() && (documentId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && (documentId == request.auth.uid || isAdmin());
     }
 
     // Contacts Collection Rules
     match /contacts/{contactId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated();
       allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Suppliers Collection Rules
     match /suppliers/{supplierId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated();
       allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }

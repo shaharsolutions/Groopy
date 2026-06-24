@@ -1,8 +1,56 @@
 import { useState, useEffect } from 'react';
-import { getCommentsForTask, addComment } from '../utils/storage';
+import { getCommentsForTask, addComment, getContacts } from '../utils/storage';
 import ExcelPreviewModal from './ExcelPreviewModal';
 import PdfPreviewModal from './PdfPreviewModal';
 import PlanogramFileCard from './PlanogramFileCard';
+import PlanogramIndicator from './PlanogramIndicator';
+
+function getSundayOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const diff = d.getDate() - day; // Adjust to Sunday
+  const sunday = new Date(d.setDate(diff));
+  const yyyy = sunday.getFullYear();
+  const mm = String(sunday.getMonth() + 1).padStart(2, '0');
+  const dd = String(sunday.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getDayDate(sundayStr, offset) {
+  const [yyyy, mm, dd] = sundayStr.split('-').map(Number);
+  const sunday = new Date(yyyy, mm - 1, dd);
+  const targetDate = new Date(sunday);
+  targetDate.setDate(sunday.getDate() + offset);
+  const tDd = String(targetDate.getDate()).padStart(2, '0');
+  const tMm = String(targetDate.getMonth() + 1).padStart(2, '0');
+  return `${tDd}/${tMm}`;
+}
+
+function getWeeklyHoursForSunday(weeklyHoursObj, sundayStr) {
+  if (!weeklyHoursObj) return { sunday: 0, monday: 0, tuesday: 0, wednesday: 0, thursday: 0 };
+  if (weeklyHoursObj.sunday !== undefined || weeklyHoursObj.monday !== undefined) {
+    const currentWeekSunday = getSundayOfWeek(new Date());
+    if (sundayStr === currentWeekSunday) {
+      return {
+        sunday: weeklyHoursObj.sunday || 0,
+        monday: weeklyHoursObj.monday || 0,
+        tuesday: weeklyHoursObj.tuesday || 0,
+        wednesday: weeklyHoursObj.wednesday || 0,
+        thursday: weeklyHoursObj.thursday || 0
+      };
+    } else {
+      return { sunday: 0, monday: 0, tuesday: 0, wednesday: 0, thursday: 0 };
+    }
+  }
+  const weekData = weeklyHoursObj[sundayStr] || {};
+  return {
+    sunday: weekData.sunday || 0,
+    monday: weekData.monday || 0,
+    tuesday: weekData.tuesday || 0,
+    wednesday: weekData.wednesday || 0,
+    thursday: weekData.thursday || 0
+  };
+}
 
 export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false, userId }) {
   const {
@@ -47,6 +95,38 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
   const [excelPreviewFile, setExcelPreviewFile] = useState(null);
   const [pdfPreviewFile, setPdfPreviewFile] = useState(null);
+  const [contacts, setContacts] = useState([]);
+  const [activeSunday, setActiveSunday] = useState(() => getSundayOfWeek(new Date()));
+
+  const handlePrevWeek = () => {
+    const [yyyy, mm, dd] = activeSunday.split('-').map(Number);
+    const activeDate = new Date(yyyy, mm - 1, dd);
+    activeDate.setDate(activeDate.getDate() - 7);
+    const yyyyNew = activeDate.getFullYear();
+    const mmNew = String(activeDate.getMonth() + 1).padStart(2, '0');
+    const ddNew = String(activeDate.getDate()).padStart(2, '0');
+    setActiveSunday(`${yyyyNew}-${mmNew}-${ddNew}`);
+  };
+
+  const handleNextWeek = () => {
+    const [yyyy, mm, dd] = activeSunday.split('-').map(Number);
+    const activeDate = new Date(yyyy, mm - 1, dd);
+    activeDate.setDate(activeDate.getDate() + 7);
+    const yyyyNew = activeDate.getFullYear();
+    const mmNew = String(activeDate.getMonth() + 1).padStart(2, '0');
+    const ddNew = String(activeDate.getDate()).padStart(2, '0');
+    setActiveSunday(`${yyyyNew}-${mmNew}-${ddNew}`);
+  };
+
+  useEffect(() => {
+    if (userId) {
+      const loadContacts = async () => {
+        const conts = await getContacts(userId);
+        setContacts(conts);
+      };
+      loadContacts();
+    }
+  }, [userId]);
 
   useEffect(() => {
     if (task) {
@@ -55,8 +135,12 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
         setComments(fetchedComments);
       };
       loadComments();
+      const timer = setTimeout(() => {
+        setActiveSunday(getSundayOfWeek(new Date()));
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [task]);
+  }, [task, userId]);
 
   if (!task) return null;
 
@@ -110,7 +194,12 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3 className="modal-title">{task.title}</h3>
+            <h3 className="modal-title">
+              <span className="task-title-with-indicator modal-title-with-indicator">
+                <span>{task.title}</span>
+                {task.planogramFile && <PlanogramIndicator />}
+              </span>
+            </h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
             <button 
@@ -237,6 +326,83 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 </div>
               </div>
 
+              {/* שעות עבודה בפרויקט */}
+              <div className="details-section-card">
+                <h4 className="detail-section-title">🕒 שעות עבודה בפרויקט</h4>
+                
+                {/* week navigation panel */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
+                    onClick={handlePrevWeek}
+                  >
+                    ▶ שבוע קודם
+                  </button>
+                  
+                  <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b' }}>
+                    שבוע: {getDayDate(activeSunday, 0)} - {getDayDate(activeSunday, 4)}
+                  </div>
+                  
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
+                    onClick={handleNextWeek}
+                  >
+                    שבוע הבא ◀
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                  {[
+                    { key: 'sunday', label: 'ראשון', offset: 0 },
+                    { key: 'monday', label: 'שני', offset: 1 },
+                    { key: 'tuesday', label: 'שלישי', offset: 2 },
+                    { key: 'wednesday', label: 'רביעי', offset: 3 },
+                    { key: 'thursday', label: 'חמישי', offset: 4 }
+                  ].map(day => {
+                    const wh = getWeeklyHoursForSunday(task.weeklyHours, activeSunday);
+                    const hoursVal = wh[day.key] !== undefined ? wh[day.key] : 0;
+                    return (
+                      <div key={day.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <span>{day.label}</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal', marginTop: '2px' }}>{getDayDate(activeSunday, day.offset)}</span>
+                        </span>
+                        <span style={{ 
+                          fontSize: '1rem', 
+                          fontWeight: '600', 
+                          backgroundColor: '#f8fafc', 
+                          padding: '6px 12px', 
+                          borderRadius: '6px', 
+                          minWidth: '40px', 
+                          textAlign: 'center', 
+                          border: '1px solid var(--border)' 
+                        }}>
+                          {hoursVal}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                  <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
+                  <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>
+                    {(() => {
+                      const wh = getWeeklyHoursForSunday(task.weeklyHours, activeSunday);
+                      const sun = parseFloat(wh.sunday) || 0;
+                      const mon = parseFloat(wh.monday) || 0;
+                      const tue = parseFloat(wh.tuesday) || 0;
+                      const wed = parseFloat(wh.wednesday) || 0;
+                      const thu = parseFloat(wh.thursday) || 0;
+                      return Number((sun + mon + tue + wed + thu).toFixed(2));
+                    })()}
+                  </span>
+                </div>
+              </div>
+
               {/* AREA 5: הערות ועדכוני עבודה */}
               <div className="comments-section">
                 <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
@@ -246,7 +412,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                     <div className="empty-state-title">אין הערות עדיין</div>
                   </div>
                 ) : (
-                  <div className="comments-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                  <div className="comments-list" style={{ maxHeight: '220px', overflowY: 'auto' }}>
                     {comments.map(c => {
                       const isImage = c.attachmentName && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.attachmentName);
                       const isExcel = c.attachmentName && /\.(xlsx|xls)$/i.test(c.attachmentName);
@@ -313,7 +479,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                         if (commentError) setCommentError('');
                       }}
                       maxLength={100}
-                      placeholder="הקלידו את שמכם"
                       disabled={isSubmittingComment}
                     />
                   </div>
@@ -323,14 +488,13 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                     <textarea
                       id={`external-comment-text-${task.id}`}
                       className="form-control"
-                      rows="3"
+                      rows="2"
                       value={commentText}
                       onChange={(e) => {
                         setCommentText(e.target.value);
                         if (commentError) setCommentError('');
                       }}
                       maxLength={5000}
-                      placeholder="כתבו כאן הערה או עדכון לגבי העבודה..."
                       disabled={isSubmittingComment}
                     />
                   </div>
@@ -356,8 +520,28 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 {/* Supplier Contact Name */}
                 <div className="sidebar-row">
                   <span className="sidebar-label">איש קשר ספק</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="sidebar-value">{(task.supplierContactName || task.contactPerson) || '-'}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="sidebar-value">{(task.supplierContactName || task.contactPerson) || '-'}</span>
+                    </div>
+                    {((task.supplierContactName || task.contactPerson)) && (() => {
+                      const name = (task.supplierContactName || task.contactPerson).trim().toLowerCase();
+                      const cObj = contacts.find(c => c.name && c.name.trim().toLowerCase() === name);
+                      const phone = cObj ? cObj.phone : '';
+                      if (!phone) return null;
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                          <span>📞</span>
+                          <a 
+                            href={`tel:${phone.replace(/\s+/g, '')}`} 
+                            className="directory-phone-link direction-ltr" 
+                            style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
+                          >
+                            {phone}
+                          </a>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 

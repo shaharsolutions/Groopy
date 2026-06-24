@@ -156,7 +156,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>⚙️ הגדרות מערכת</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>ניהול שם הלוח, הסטטוסים וצבעי האינדיקטורים במערכת</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn btn-secondary" onClick={onBack} disabled={saving}>
@@ -200,7 +199,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
             <input 
               type="text" 
               className="form-control" 
-              placeholder="לדוגמה: לוח עבודות"
               value={localSettings.boardTitle || ''}
               onChange={(e) => setLocalSettings({ ...localSettings, boardTitle: e.target.value })}
             />
@@ -322,7 +320,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
               <input 
                 type="text" 
                 className="form-control" 
-                placeholder="לדוגמה: בהמתנה לאישור"
                 value={newStatusName}
                 onChange={(e) => setNewStatusName(e.target.value)}
               />

@@ -332,6 +332,17 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
     }
 
     const docRef = await addDoc(collection(db, COMMENTS_COLLECTION), commentData);
+
+    let taskName = jobId;
+    try {
+      const taskDoc = await getDoc(doc(db, TASKS_COLLECTION, jobId));
+      if (taskDoc.exists()) {
+        taskName = taskDoc.data().title || taskDoc.data().jobNumber || jobId;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch task name for logging comment creation:", e);
+    }
+
     await recordActivity({
       action: 'comment.created',
       actionLabel: 'הוספת תגובה',
@@ -339,7 +350,7 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
       targetId: docRef.id,
       targetLabel: authorName.trim(),
       targetUserId: userId,
-      details: `תגובה נוספה לעבודה ${jobId}`,
+      details: `תגובה נוספה לעבודה "${taskName}"`,
       metadata: { jobId, hasAttachment: Boolean(attachmentUrl) }
     });
 
@@ -366,6 +377,20 @@ export const deleteComment = async (commentId, jobId = null) => {
   try {
     const commentSnap = await getDoc(doc(db, COMMENTS_COLLECTION, commentId));
     const commentData = commentSnap.exists() ? commentSnap.data() : {};
+    const finalJobId = jobId || commentData.jobId || '';
+
+    let taskName = finalJobId;
+    if (finalJobId) {
+      try {
+        const taskDoc = await getDoc(doc(db, TASKS_COLLECTION, finalJobId));
+        if (taskDoc.exists()) {
+          taskName = taskDoc.data().title || taskDoc.data().jobNumber || finalJobId;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch task name for logging comment deletion:", e);
+      }
+    }
+
     await deleteDoc(doc(db, COMMENTS_COLLECTION, commentId));
     await recordActivity({
       action: 'comment.deleted',
@@ -374,8 +399,8 @@ export const deleteComment = async (commentId, jobId = null) => {
       targetId: commentId,
       targetLabel: commentData.authorName || '',
       targetUserId: commentData.userId || '',
-      details: jobId ? `תגובה נמחקה מהעבודה ${jobId}` : 'תגובה נמחקה',
-      metadata: { jobId: jobId || commentData.jobId || '' }
+      details: finalJobId ? `תגובה נמחקה מהעבודה "${taskName}"` : 'תגובה נמחקה',
+      metadata: { jobId: finalJobId || commentData.jobId || '' }
     });
     if (jobId) {
       await updateTask(jobId, {});
@@ -1115,41 +1140,172 @@ export const getActivityLogs = async ({ isSystemAdmin = false, actorUid = '', li
   }
 };
 
-/**
- * Ensures that the default suppliers and contacts are present for a user.
- * This is used for both new users (seeding) and existing users who migrated.
- */
-export const ensureDefaultSuppliersAndContacts = async (userId) => {
+const DEFAULT_SUPPLIERS = [
+  { name: 'shenzhen printing ltd', email: 'li@shenzhenprint.com', phone: '+86 138 0000 0000', contactPerson: 'mr. li' },
+  { name: 'אריזות ישראל', email: 'sales@israelpack.co.il', phone: '03-5551234', contactPerson: 'משה כהן' },
+  { name: 'מפעלי קרטון בע"מ', email: 'info@cartonfact.co.il', phone: '04-8884321', contactPerson: '' }
+];
+
+const DEFAULT_CONTACTS = [
+  { name: 'mr. li', role: 'איש קשר מכירות סין', phone: '+86 138 0000 0000', email: 'li@shenzhenprint.com' },
+  { name: 'משה כהן', role: 'מנהל ייצור ישראל', phone: '052-1234567', email: 'moshe@israelpack.co.il' }
+];
+
+const seededTaskSuppliers = INITIAL_TASKS
+  .map(task => task.supplierName)
+  .filter(Boolean);
+
+const seededTaskContacts = INITIAL_TASKS
+  .map(task => task.contactPerson)
+  .filter(Boolean);
+
+const normalizeDirectoryValue = (value = '') => String(value ?? '').trim().toLowerCase();
+
+const DEFAULT_SUPPLIER_NAMES = new Set([
+  ...DEFAULT_SUPPLIERS.map(item => item.name),
+  ...seededTaskSuppliers
+].map(normalizeDirectoryValue));
+
+const DEFAULT_CONTACT_NAMES = new Set([
+  ...DEFAULT_CONTACTS.map(item => item.name),
+  ...seededTaskContacts
+].map(normalizeDirectoryValue));
+
+const matchesDefaultDirectoryItem = (item, defaults) => {
+  return defaults.some((defaultItem) => {
+    return Object.entries(defaultItem).every(([key, value]) => {
+      return normalizeDirectoryValue(item[key] || '') === normalizeDirectoryValue(value || '');
+    });
+  });
+};
+
+const matchesDefaultSupplier = (item) => {
+  const name = normalizeDirectoryValue(item.name);
+  return DEFAULT_SUPPLIER_NAMES.has(name) || matchesDefaultDirectoryItem(item, DEFAULT_SUPPLIERS);
+};
+
+const matchesDefaultContact = (item) => {
+  const name = normalizeDirectoryValue(item.name);
+  return DEFAULT_CONTACT_NAMES.has(name) || matchesDefaultDirectoryItem(item, DEFAULT_CONTACTS);
+};
+
+export const removeDefaultSuppliersAndContacts = async (userId) => {
   if (!userId) return;
   try {
-    // 1. Check if user has any suppliers in the new collection
     const suppliersSnapshot = await getDocs(query(collection(db, 'suppliers'), where('userId', '==', userId)));
-    if (suppliersSnapshot.empty) {
-      console.log(`User ${userId} has 0 suppliers. Seeding default suppliers...`);
-      const defaultSuppliers = [
-        { name: 'Shenzhen Printing Ltd', email: 'li@shenzhenprint.com', phone: '+86 138 0000 0000', address: 'Shenzhen, China', wechat: 'wxid_szprint', notes: 'ספק דפוס ראשי בסין', contactPerson: 'Mr. Li' },
-        { name: 'אריזות ישראל', email: 'sales@israelpack.co.il', phone: '03-5551234', address: 'אזור התעשייה חולון', wechat: '', notes: 'ספק אריזות קרטון בארץ', contactPerson: 'משה כהן' },
-        { name: 'מפעלי קרטון בע"מ', email: 'info@cartonfact.co.il', phone: '04-8884321', address: 'אזור התעשייה מפרץ חיפה', wechat: '', notes: 'ייצור קופסאות קרטון מותאמות אישית', contactPerson: '' }
-      ];
-      for (const sup of defaultSuppliers) {
-        await addSupplier(sup, userId, { skipActivityLog: true });
+    for (const supplierDoc of suppliersSnapshot.docs) {
+      if (matchesDefaultSupplier(supplierDoc.data())) {
+        await deleteDoc(doc(db, 'suppliers', supplierDoc.id));
       }
     }
 
-    // 2. Check if user has the default contacts in the new collection
     const contactsSnapshot = await getDocs(query(collection(db, 'contacts'), where('userId', '==', userId)));
-    const existingNames = new Set(contactsSnapshot.docs.map(doc => doc.data().name.trim().toLowerCase()));
-
-    const defaultContacts = [
-      { name: 'Mr. Li', role: 'איש קשר מכירות סין', phone: '+86 138 0000 0000', email: 'li@shenzhenprint.com', address: 'Shenzhen, China', wechat: 'wxid_szprint', notes: 'עובד מול Shenzhen Printing' },
-      { name: 'משה כהן', role: 'מנהל ייצור ישראל', phone: '052-1234567', email: 'moshe@israelpack.co.il', address: 'חולון', wechat: '', notes: 'מנהל ייצור באריזות ישראל' }
-    ];
-    for (const cont of defaultContacts) {
-      if (!existingNames.has(cont.name.trim().toLowerCase())) {
-        await addContact(cont, userId, { skipActivityLog: true });
+    for (const contactDoc of contactsSnapshot.docs) {
+      if (matchesDefaultContact(contactDoc.data())) {
+        await deleteDoc(doc(db, 'contacts', contactDoc.id));
       }
     }
   } catch (e) {
-    console.error("Error ensuring default suppliers and contacts:", e);
+    console.error("Error removing default suppliers and contacts:", e);
   }
 };
+
+export const getNameMap = async (userId, isSystemAdmin = false) => {
+  const map = {};
+  if (!userId) return map;
+  try {
+    // 1. Fetch tasks
+    let tasksQuery;
+    if (isSystemAdmin) {
+      tasksQuery = collection(db, TASKS_COLLECTION);
+    } else {
+      tasksQuery = query(collection(db, TASKS_COLLECTION), where("userId", "==", userId));
+    }
+    const tasksSnap = await getDocs(tasksQuery);
+    tasksSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      map[docSnap.id] = data.title || data.jobNumber || docSnap.id;
+    });
+
+    // 2. Fetch suppliers
+    let suppliersQuery;
+    if (isSystemAdmin) {
+      suppliersQuery = collection(db, 'suppliers');
+    } else {
+      suppliersQuery = query(collection(db, 'suppliers'), where("userId", "==", userId));
+    }
+    const suppliersSnap = await getDocs(suppliersQuery);
+    suppliersSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      map[docSnap.id] = data.name || docSnap.id;
+    });
+
+    // 3. Fetch contacts
+    let contactsQuery;
+    if (isSystemAdmin) {
+      contactsQuery = collection(db, 'contacts');
+    } else {
+      contactsQuery = query(collection(db, 'contacts'), where("userId", "==", userId));
+    }
+    const contactsSnap = await getDocs(contactsQuery);
+    contactsSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      map[docSnap.id] = data.name || docSnap.id;
+    });
+
+    // 4. Fetch users safely according to rules
+    if (isSystemAdmin) {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      usersSnap.forEach(docSnap => {
+        const data = docSnap.data();
+        map[docSnap.id] = data.displayName || data.email || docSnap.id;
+      });
+    } else {
+      const userSnap = await getDoc(doc(db, 'users', userId));
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        map[userSnap.id] = data.displayName || data.email || userSnap.id;
+      }
+    }
+
+    return map;
+  } catch (e) {
+    console.error("Error building name map:", e);
+    return map;
+  }
+};
+
+export const getContacts = async (userId) => {
+  if (!userId) return [];
+  try {
+    const contactsQuery = query(collection(db, 'contacts'), where('userId', '==', userId));
+    const snapshot = await getDocs(contactsQuery);
+    const conts = [];
+    snapshot.forEach(docSnap => {
+      conts.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    conts.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+    return conts;
+  } catch (e) {
+    console.error("Error fetching contacts from Cloud Firestore:", e);
+    return [];
+  }
+};
+
+export const getSuppliers = async (userId) => {
+  if (!userId) return [];
+  try {
+    const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
+    const snapshot = await getDocs(suppliersQuery);
+    const sups = [];
+    snapshot.forEach(docSnap => {
+      sups.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    sups.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+    return sups;
+  } catch (e) {
+    console.error("Error fetching suppliers from Cloud Firestore:", e);
+    return [];
+  }
+};
+

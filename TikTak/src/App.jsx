@@ -17,9 +17,7 @@ import {
   migrateLegacyTasksToUser,
   registerUserLogin,
   migrateSuppliersAndContacts,
-  addSupplier,
-  addContact,
-  ensureDefaultSuppliersAndContacts
+  removeDefaultSuppliersAndContacts
 } from './utils/storage';
 
 import './App.css';
@@ -112,31 +110,11 @@ export default function App() {
                 }
               };
               await saveGlobalSettings(defaultSettings, user.uid, { skipActivityLog: true });
-
-              // Seed default suppliers
-              const defaultSuppliers = [
-                { name: 'Shenzhen Printing Ltd', email: 'li@shenzhenprint.com', phone: '+86 138 0000 0000', address: 'Shenzhen, China', wechat: 'wxid_szprint', notes: 'ספק דפוס ראשי בסין', contactPerson: 'Mr. Li' },
-                { name: 'אריזות ישראל', email: 'sales@israelpack.co.il', phone: '03-5551234', address: 'אזור התעשייה חולון', wechat: '', notes: 'ספק אריזות קרטון בארץ', contactPerson: 'משה כהן' },
-                { name: 'מפעלי קרטון בע"מ', email: 'info@cartonfact.co.il', phone: '04-8884321', address: 'אזור התעשייה מפרץ חיפה', wechat: '', notes: 'ייצור קופסאות קרטון מותאמות אישית', contactPerson: '' }
-              ];
-              for (const sup of defaultSuppliers) {
-                await addSupplier(sup, user.uid, { skipActivityLog: true });
-              }
-
-              // Seed default contacts
-              const defaultContacts = [
-                { name: 'Mr. Li', role: 'איש קשר מכירות סין', phone: '+86 138 0000 0000', email: 'li@shenzhenprint.com', address: 'Shenzhen, China', wechat: 'wxid_szprint', notes: 'עובד מול Shenzhen Printing' },
-                { name: 'משה כהן', role: 'מנהל ייצור ישראל', phone: '052-1234567', email: 'moshe@israelpack.co.il', address: 'חולון', wechat: '', notes: 'מנהל ייצור באריזות ישראל' }
-              ];
-              for (const cont of defaultContacts) {
-                await addContact(cont, user.uid, { skipActivityLog: true });
-              }
             } else {
               // Run migration for existing users
               await migrateSuppliersAndContacts(user.uid);
             }
-            // Ensure default suppliers and contacts exist for existing users whose collections are empty
-            await ensureDefaultSuppliersAndContacts(user.uid);
+            await removeDefaultSuppliersAndContacts(user.uid);
             await seedUserDatabaseIfEmpty(user.uid);
           } catch (seedingError) {
             console.error("Seeding failed for user", user.uid, seedingError);
@@ -268,6 +246,14 @@ export default function App() {
 
   const effectiveUserId = impersonatedUserId || userId;
   const isSystemAdmin = auth.currentUser?.email === 'shaharsolutions@gmail.com';
+
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!effectiveUserId || !currentUser || currentUser.isAnonymous) return;
+    if (effectiveUserId !== currentUser.uid && !isSystemAdmin) return;
+
+    removeDefaultSuppliersAndContacts(effectiveUserId);
+  }, [effectiveUserId, isSystemAdmin]);
 
   const handleSaveSettings = async (newSettings) => {
     if (!effectiveUserId) return;

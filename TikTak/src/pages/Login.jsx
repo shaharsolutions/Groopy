@@ -209,7 +209,6 @@ export default function Login() {
                       id="email"
                       type="email"
                       className="form-control"
-                      placeholder="name@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
@@ -224,7 +223,6 @@ export default function Login() {
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         className="form-control"
-                        placeholder="הזינו סיסמה..."
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={loading}
@@ -294,7 +292,6 @@ export default function Login() {
                     id="signup-email"
                     type="email"
                     className="form-control"
-                    placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={loading}
@@ -309,7 +306,6 @@ export default function Login() {
                       id="signup-password"
                       type={showPassword ? 'text' : 'password'}
                       className="form-control"
-                      placeholder="הזינו סיסמה..."
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
@@ -332,7 +328,6 @@ export default function Login() {
                     id="signup-confirm-password"
                     type={showPassword ? 'text' : 'password'}
                     className="form-control"
-                    placeholder="הזינו את הסיסמה שנית..."
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={loading}
@@ -391,6 +386,5 @@ export default function Login() {
     </div>
   );
 }
-
 
 

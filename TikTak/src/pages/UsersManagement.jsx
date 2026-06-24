@@ -64,9 +64,6 @@ export default function UsersManagement({ onImpersonate, onBack }) {
       }}>
         <div>
           <h2 style={{ fontSize: '1.8rem', color: '#1e293b', fontWeight: '700' }}>👥 ניהול ופיקוח משתמשים</h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: '6px' }}>
-            צפייה במשתמשי המערכת והתחזות אליהם לצורך תמיכה ופתרון בעיות בזמן אמת.
-          </p>
         </div>
         <button 
           className="btn btn-secondary" 
@@ -89,7 +86,6 @@ export default function UsersManagement({ onImpersonate, onBack }) {
         <div style={{ marginBottom: '24px' }}>
           <input 
             type="text" 
-            placeholder="🔍 חפשו משתמש לפי אימייל או מזהה (UID)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{

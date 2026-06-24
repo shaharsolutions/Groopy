@@ -3,6 +3,28 @@ import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNo
 import ExcelPreviewModal from './ExcelPreviewModal';
 import PdfPreviewModal from './PdfPreviewModal';
 import PlanogramFileCard from './PlanogramFileCard';
+import PlanogramIndicator from './PlanogramIndicator';
+
+function getSundayOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const diff = d.getDate() - day; // Adjust to Sunday
+  const sunday = new Date(d.setDate(diff));
+  const yyyy = sunday.getFullYear();
+  const mm = String(sunday.getMonth() + 1).padStart(2, '0');
+  const dd = String(sunday.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getDayDate(sundayStr, offset) {
+  const [yyyy, mm, dd] = sundayStr.split('-').map(Number);
+  const sunday = new Date(yyyy, mm - 1, dd);
+  const targetDate = new Date(sunday);
+  targetDate.setDate(sunday.getDate() + offset);
+  const tDd = String(targetDate.getDate()).padStart(2, '0');
+  const tMm = String(targetDate.getMonth() + 1).padStart(2, '0');
+  return `${tDd}/${tMm}`;
+}
 
 export default function AdminDetailsModal({ 
   task, 
@@ -204,6 +226,16 @@ export default function AdminDetailsModal({
   const [savingStatus, setSavingStatus] = useState(false);
   const [internalNotes, setInternalNotes] = useState('');
 
+  // Weekly hours states
+  const [activeSunday, setActiveSunday] = useState(() => getSundayOfWeek(new Date()));
+  const [hoursState, setHoursState] = useState({
+    sunday: '0',
+    monday: '0',
+    tuesday: '0',
+    wednesday: '0',
+    thursday: '0'
+  });
+
   // Planogram creation upload states
   const [uploadingPlanogram, setUploadingPlanogram] = useState(false);
   const [uploadErrorPlanogram, setUploadErrorPlanogram] = useState('');
@@ -246,6 +278,52 @@ export default function AdminDetailsModal({
       setErrors({});
     }
   }, [task, startInEditMode, settings, DEFAULT_STATUS, WORK_TYPES]);
+
+  // Sync hours state with active Sunday week
+  useEffect(() => {
+    if (task) {
+      const wh = task.weeklyHours || {};
+      let weekData = {};
+
+      if (wh.sunday !== undefined || wh.monday !== undefined) {
+        const currentWeekSunday = getSundayOfWeek(new Date());
+        if (activeSunday === currentWeekSunday) {
+          weekData = wh;
+        }
+      } else {
+        weekData = wh[activeSunday] || {};
+      }
+
+      const sun = weekData.sunday !== undefined ? String(weekData.sunday) : '0';
+      const mon = weekData.monday !== undefined ? String(weekData.monday) : '0';
+      const tue = weekData.tuesday !== undefined ? String(weekData.tuesday) : '0';
+      const wed = weekData.wednesday !== undefined ? String(weekData.wednesday) : '0';
+      const thu = weekData.thursday !== undefined ? String(weekData.thursday) : '0';
+
+      const timer = setTimeout(() => {
+        setHoursState({
+          sunday: sun,
+          monday: mon,
+          tuesday: tue,
+          wednesday: wed,
+          thursday: thu
+        });
+      }, 0);
+      return () => clearTimeout(timer);
+    } else {
+      const timer = setTimeout(() => {
+        setHoursState({
+          sunday: '0',
+          monday: '0',
+          tuesday: '0',
+          wednesday: '0',
+          thursday: '0'
+        });
+        setActiveSunday(getSundayOfWeek(new Date()));
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [task, activeSunday]);
 
   // Close modal or cancel actions on Escape key press
   useEffect(() => {
@@ -332,6 +410,94 @@ export default function AdminDetailsModal({
   const handleAutoSaveBlur = (event, fieldKey, value) => {
     if (event.relatedTarget?.closest?.('[data-inline-edit-action="true"]')) return;
     void handleSaveField(fieldKey, value);
+  };
+
+  const handleHourChange = (day, val) => {
+    if (val.includes('-')) return;
+    const num = parseFloat(val);
+    if (num < 0) return;
+    setHoursState(prev => ({
+      ...prev,
+      [day]: val
+    }));
+  };
+
+  const handlePrevWeek = () => {
+    const [yyyy, mm, dd] = activeSunday.split('-').map(Number);
+    const activeDate = new Date(yyyy, mm - 1, dd);
+    activeDate.setDate(activeDate.getDate() - 7);
+    const yyyyNew = activeDate.getFullYear();
+    const mmNew = String(activeDate.getMonth() + 1).padStart(2, '0');
+    const ddNew = String(activeDate.getDate()).padStart(2, '0');
+    setActiveSunday(`${yyyyNew}-${mmNew}-${ddNew}`);
+  };
+
+  const handleNextWeek = () => {
+    const [yyyy, mm, dd] = activeSunday.split('-').map(Number);
+    const activeDate = new Date(yyyy, mm - 1, dd);
+    activeDate.setDate(activeDate.getDate() + 7);
+    const yyyyNew = activeDate.getFullYear();
+    const mmNew = String(activeDate.getMonth() + 1).padStart(2, '0');
+    const ddNew = String(activeDate.getDate()).padStart(2, '0');
+    setActiveSunday(`${yyyyNew}-${mmNew}-${ddNew}`);
+  };
+
+  const handleSaveHours = async () => {
+    const weekHours = {
+      sunday: parseFloat(hoursState.sunday) || 0,
+      monday: parseFloat(hoursState.monday) || 0,
+      tuesday: parseFloat(hoursState.tuesday) || 0,
+      wednesday: parseFloat(hoursState.wednesday) || 0,
+      thursday: parseFloat(hoursState.thursday) || 0
+    };
+
+    setHoursState({
+      sunday: String(weekHours.sunday),
+      monday: String(weekHours.monday),
+      tuesday: String(weekHours.tuesday),
+      wednesday: String(weekHours.wednesday),
+      thursday: String(weekHours.thursday)
+    });
+
+    const oldWeeklyHours = task.weeklyHours || {};
+    let newWeeklyHours = {};
+
+    if (oldWeeklyHours.sunday !== undefined || oldWeeklyHours.monday !== undefined) {
+      const currentWeekSunday = getSundayOfWeek(new Date());
+      newWeeklyHours[currentWeekSunday] = {
+        sunday: oldWeeklyHours.sunday || 0,
+        monday: oldWeeklyHours.monday || 0,
+        tuesday: oldWeeklyHours.tuesday || 0,
+        wednesday: oldWeeklyHours.wednesday || 0,
+        thursday: oldWeeklyHours.thursday || 0
+      };
+    } else {
+      newWeeklyHours = { ...oldWeeklyHours };
+    }
+
+    newWeeklyHours[activeSunday] = weekHours;
+
+    try {
+      await updateTask(task.id, { weeklyHours: newWeeklyHours });
+      if (onTaskUpdated) {
+        onTaskUpdated(task.id, {
+          weeklyHours: newWeeklyHours,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save weekly hours", err);
+      alert('השעות לא נשמרו. בדקי את החיבור ונסי שוב.');
+    }
+  };
+
+  const calculateTotalHours = () => {
+    const sun = parseFloat(hoursState.sunday) || 0;
+    const mon = parseFloat(hoursState.monday) || 0;
+    const tue = parseFloat(hoursState.tuesday) || 0;
+    const wed = parseFloat(hoursState.wednesday) || 0;
+    const thu = parseFloat(hoursState.thursday) || 0;
+    return Number((sun + mon + tue + wed + thu).toFixed(2));
   };
 
   // --- Handlers for Quick Updates (Status) ---
@@ -686,7 +852,14 @@ export default function AdminDetailsModal({
       status: createStatus,
       workOrderFiles: createAttachments,
       planogramFile: createPlanogramFile,
-      internalNotes: createInternalNotes.trim()
+      internalNotes: createInternalNotes.trim(),
+      weeklyHours: {
+        sunday: 0,
+        monday: 0,
+        tuesday: 0,
+        wednesday: 0,
+        thursday: 0
+      }
     };
 
     onSave(taskData);
@@ -744,12 +917,15 @@ export default function AdminDetailsModal({
                   <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '8px 12px' }} onClick={handleCancelField}>❌</button>
                 </div>
               ) : (
-                <span 
-                  className="hover-editable-inline" 
-                  onClick={() => startEditingField('title', task.title)}
-                  title="לחצי לעריכת שם העבודה"
-                >
-                  {task.title} ✏️
+                <span className="task-title-with-indicator modal-title-with-indicator">
+                  <span 
+                    className="hover-editable-inline" 
+                    onClick={() => startEditingField('title', task.title)}
+                    title="לחצי לעריכת שם העבודה"
+                  >
+                    {task.title} ✏️
+                  </span>
+                  {task.planogramFile && <PlanogramIndicator />}
                 </span>
               )}
             </h3>
@@ -796,7 +972,6 @@ export default function AdminDetailsModal({
                 <input 
                   type="text"
                   className="form-control"
-                  placeholder="לדוגמה: אריזה מעוצבת למשקל דיגיטלי"
                   value={createTitle}
                   autoFocus
                   onChange={(e) => {
@@ -812,7 +987,6 @@ export default function AdminDetailsModal({
                 <textarea 
                   className="form-control"
                   rows="3"
-                  placeholder="פירוט המשימה, דרישות מיוחדות מהמעצבת..."
                   value={createDescription}
                   onChange={(e) => setCreateDescription(e.target.value)}
                 />
@@ -869,7 +1043,6 @@ export default function AdminDetailsModal({
                     <input 
                       type="text"
                       className="form-control"
-                      placeholder="לדוגמה: Mr. Li"
                       value={createContactPerson}
                       onChange={(e) => setCreateContactPerson(e.target.value)}
                       list="contacts-list-modal"
@@ -908,7 +1081,6 @@ export default function AdminDetailsModal({
                   <input 
                     type="text"
                     className="form-control text-left direction-ltr"
-                    placeholder="example@supplier.com"
                     value={createSupplierContactEmail}
                     onChange={(e) => {
                       setCreateSupplierContactEmail(e.target.value);
@@ -1081,11 +1253,10 @@ export default function AdminDetailsModal({
               </div>
 
               <div className="form-group">
-                <label className="form-label">הערות פנימיות למעצבת (לא יוצגו לצופים חיצוניים)</label>
+                <label className="form-label">הערות פנימיות למעצבת</label>
                 <textarea 
                   className="form-control"
                   rows="2"
-                  placeholder="פרטי לוגיסטיקה, סיסמאות לקבצים, הערות תמחור..."
                   value={createInternalNotes}
                   onChange={(e) => setCreateInternalNotes(e.target.value)}
                 />
@@ -1152,7 +1323,7 @@ export default function AdminDetailsModal({
 
                     {/* Field: Internal Notes */}
                     <div>
-                      <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות למעצבת (לא יוצגו לצופים חיצוניים)</label>
+                      <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות למעצבת</label>
                       {activeEditField === 'internalNotes' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
                           <textarea 
@@ -1313,6 +1484,67 @@ export default function AdminDetailsModal({
                     </div>
                   </div>
 
+                  {/* שעות עבודה בפרויקט */}
+                  <div className="details-section-card">
+                    <h4 className="detail-section-title">🕒 שעות עבודה בפרויקט</h4>
+                    
+                    {/* week navigation panel */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary" 
+                        style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
+                        onClick={handlePrevWeek}
+                      >
+                        ▶ שבוע קודם
+                      </button>
+                      
+                      <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b' }}>
+                        שבוע: {getDayDate(activeSunday, 0)} - {getDayDate(activeSunday, 4)}
+                      </div>
+                      
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary" 
+                        style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
+                        onClick={handleNextWeek}
+                      >
+                        שבוע הבא ◀
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                      {[
+                        { key: 'sunday', label: 'ראשון', offset: 0 },
+                        { key: 'monday', label: 'שני', offset: 1 },
+                        { key: 'tuesday', label: 'שלישי', offset: 2 },
+                        { key: 'wednesday', label: 'רביעי', offset: 3 },
+                        { key: 'thursday', label: 'חמישי', offset: 4 }
+                      ].map(day => (
+                        <div key={day.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <span>{day.label}</span>
+                            <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal', marginTop: '2px' }}>{getDayDate(activeSunday, day.offset)}</span>
+                          </label>
+                          <input 
+                            type="number"
+                            step="any"
+                            min="0"
+                            className="form-control"
+                            style={{ padding: '6px 8px', fontSize: '0.9rem', textAlign: 'center' }}
+                            value={hoursState[day.key]}
+                            onChange={(e) => handleHourChange(day.key, e.target.value)}
+                            onBlur={() => handleSaveHours()}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                      <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
+                      <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>{calculateTotalHours()}</span>
+                    </div>
+                  </div>
+
                   {/* AREA 5: הערות ועדכוני עבודה */}
                   <div className="comments-section">
                     <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
@@ -1320,10 +1552,9 @@ export default function AdminDetailsModal({
                     {comments.length === 0 ? (
                       <div className="empty-state" style={{ padding: '24px' }}>
                         <div className="empty-state-title">אין הערות עדיין</div>
-                        <div className="empty-state-text font-size-sm">היה הראשון להוסיף הערה או לעדכן לגבי התקדמות העבודה.</div>
                       </div>
                     ) : (
-                      <div className="comments-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                      <div className="comments-list" style={{ maxHeight: '220px', overflowY: 'auto' }}>
                         {comments.map(c => {
                           const isImage = c.attachmentName && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.attachmentName);
                           const isExcel = c.attachmentName && /\.(xlsx|xls)$/i.test(c.attachmentName);
@@ -1441,7 +1672,6 @@ export default function AdminDetailsModal({
                         <textarea 
                           className="form-control" 
                           rows="2" 
-                          placeholder="כתבי הערה כאן... (ההערה תוצג גם לצופה החיצוני)"
                           value={commentText} 
                           onChange={(e) => setCommentText(e.target.value)} 
                         />
@@ -1493,25 +1723,44 @@ export default function AdminDetailsModal({
                           <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span 
-                            className="sidebar-value hover-editable-inline" 
-                            onClick={() => startEditingField('contactPerson', task.contactPerson)}
-                            title="לחצי לעריכת איש קשר ספק"
-                          >
-                            {task.contactPerson || 'לחצי להוספה...'} ✏️
-                          </span>
-                          {task.contactPerson && (
-                            <button 
-                              type="button" 
-                              className="btn btn-secondary btn-icon" 
-                              style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              title="פרטי כרטיס איש קשר"
-                              onClick={() => handleOpenContactCard(task.contactPerson)}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span 
+                              className="sidebar-value hover-editable-inline" 
+                              onClick={() => startEditingField('contactPerson', task.contactPerson)}
+                              title="לחצי לעריכת איש קשר ספק"
                             >
-                              ℹ️
-                            </button>
-                          )}
+                              {task.contactPerson || 'לחצי להוספה...'} ✏️
+                            </span>
+                            {task.contactPerson && (
+                              <button 
+                                type="button" 
+                                className="btn btn-secondary btn-icon" 
+                                style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                title="פרטי כרטיס איש קשר"
+                                onClick={() => handleOpenContactCard(task.contactPerson)}
+                              >
+                                ℹ️
+                              </button>
+                            )}
+                          </div>
+                          {task.contactPerson && (() => {
+                            const cObj = CONTACTS.find(c => c.name && c.name.trim().toLowerCase() === task.contactPerson.trim().toLowerCase());
+                            const phone = cObj ? cObj.phone : '';
+                            if (!phone) return null;
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                <span>📞</span>
+                                <a 
+                                  href={`tel:${phone.replace(/\s+/g, '')}`} 
+                                  className="directory-phone-link direction-ltr" 
+                                  style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
+                                >
+                                  {phone}
+                                </a>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

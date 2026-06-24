@@ -6,10 +6,13 @@ import {
   updateTask,
   deleteTask,
   restoreTask,
-  purgeExpiredTasks
+  purgeExpiredTasks,
+  addContact,
+  updateContact
 } from '../utils/storage';
 import AdminDetailsModal from '../components/AdminDetailsModal';
 import StatusPicker from '../components/StatusPicker';
+import PlanogramIndicator from '../components/PlanogramIndicator';
 
 const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
 const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
@@ -92,6 +95,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [startInEditMode, setStartInEditMode] = useState(false);
   const [viewingTask, setViewingTask] = useState(null); // holds task being viewed, or null
   const [deletingTaskId, setDeletingTaskId] = useState(null); // holds task id to delete, or null
+
+  // Inline editing table cells
+  const [editingCell, setEditingCell] = useState({ taskId: null, field: null });
+  const [editValue, setEditValue] = useState('');
+  const [isSavingCell, setIsSavingCell] = useState(false);
 
   // Close delete confirmation modal on Escape key press
   useEffect(() => {
@@ -313,6 +321,93 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     setViewingTask(task);
   };
 
+  const startEditingCell = (taskId, field, initialValue) => {
+    setEditingCell({ taskId, field });
+    setEditValue(initialValue || '');
+  };
+
+  const handleSaveCellInline = async (task, field, value) => {
+    const trimmedVal = typeof value === 'string' ? value.trim() : value;
+
+    // Check if the value hasn't changed
+    const originalValue = field === 'phone'
+      ? (() => {
+          const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+          return contact ? contact.phone : '';
+        })()
+      : field === 'email'
+        ? (task.supplierContactEmail || (() => {
+            const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+            return contact ? contact.email : '';
+          })())
+        : task[field];
+
+    if (trimmedVal === (originalValue || '')) {
+      setEditingCell({ taskId: null, field: null });
+      return;
+    }
+
+    // Validation
+    if (field === 'title' && !trimmedVal) {
+      alert('שם העבודה הוא שדה חובה');
+      return;
+    }
+
+    if (field === 'email' && trimmedVal) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedVal)) {
+        alert('כתובת אימייל לא תקינה');
+        return;
+      }
+    }
+
+    setIsSavingCell(true);
+    try {
+      if (field === 'title' || field === 'contactPerson') {
+        await updateTask(task.id, { [field]: trimmedVal });
+        applyTaskPatch(task.id, { [field]: trimmedVal, updatedAt: new Date().toISOString() });
+      } else if (field === 'email') {
+        await updateTask(task.id, { supplierContactEmail: trimmedVal });
+        applyTaskPatch(task.id, { supplierContactEmail: trimmedVal, updatedAt: new Date().toISOString() });
+      } else if (field === 'phone') {
+        if (task.contactPerson) {
+          const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === task.contactPerson.trim().toLowerCase());
+          if (contact) {
+            await updateContact(contact.id, { ...contact, phone: trimmedVal });
+          } else {
+            await addContact({
+              name: task.contactPerson.trim(),
+              phone: trimmedVal,
+              email: task.supplierContactEmail || '',
+              role: '',
+              address: '',
+              wechat: '',
+              notes: ''
+            }, userId);
+          }
+        } else {
+          alert('לא ניתן לעדכן מספר טלפון ללא איש קשר מוגדר');
+          setIsSavingCell(false);
+          return;
+        }
+      }
+      setEditingCell({ taskId: null, field: null });
+    } catch (err) {
+      console.error(`Failed to save cell for field ${field}`, err);
+      alert('שגיאה בשמירת הנתונים. נסי שוב.');
+    } finally {
+      setIsSavingCell(false);
+    }
+  };
+
+  const handleCellKeyDown = (e, task, field) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveCellInline(task, field, editValue);
+    } else if (e.key === 'Escape') {
+      setEditingCell({ taskId: null, field: null });
+    }
+  };
+
   const handleDeleteTask = async (taskId) => {
     await deleteTask(taskId);
     setDeletingTaskId(null);
@@ -355,7 +450,6 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>{settings?.boardTitle || 'לוח עבודות'}</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>מעקב, עריכה ויצירת משימות גרפיקה במערכת</p>
         </div>
         {workspaceView === 'active' && <button
           className="btn btn-primary"
@@ -471,7 +565,6 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             <input 
               type="text" 
               className="form-control" 
-              placeholder="חיפוש לפי שם עבודה או ספק..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -565,49 +658,187 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                 <tr>
                   {renderSortableHeader('title', 'שם העבודה')}
                   {renderSortableHeader('contactPerson', 'איש קשר אצל הספק')}
+                  <th>טלפון</th>
+                  <th>אימייל</th>
                   {renderSortableHeader('status', 'סטטוס (שינוי מהיר)')}
                   {renderSortableHeader('updatedAt', 'עודכן ב')}
                   <th>פעולות</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTasks.map(task => (
-                  <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                    <td style={{ fontWeight: '600' }}>{task.title}</td>
-                    <td>{task.contactPerson || '-'}</td>
-                    <td>
-                      <StatusPicker
-                        currentStatus={task.status}
-                        statuses={STATUSES}
-                        statusColors={STATUS_CLASSES}
-                        onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
-                        disabled={savingStatusIds.has(task.id)}
-                      />
-                    </td>
-                    <td>{formatDate(task.updatedAt)}</td>
-                    <td>
-                      <div className="actions-cell">
-                        <button 
-                          className="btn btn-secondary btn-icon"
-                          title="צפייה בפרטים"
-                          onClick={() => setViewingTask(task)}
-                        >
-                          👁️
-                        </button>
-                        <button 
-                          className="btn btn-danger btn-icon"
-                          title="מחיקת משימה"
-                          onClick={() => setDeletingTaskId(task.id)}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredTasks.map(task => {
+                  const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+                  const phone = contact ? contact.phone : '';
+                  const email = task.supplierContactEmail || (contact ? contact.email : '');
+
+                  return (
+                    <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
+                      <td 
+                        className={editingCell.taskId === task.id && editingCell.field === 'title' ? '' : 'editable-cell'}
+                        style={{ fontWeight: '600' }}
+                        onClick={(e) => {
+                          if (editingCell.taskId === task.id && editingCell.field === 'title') return;
+                          e.stopPropagation();
+                          startEditingCell(task.id, 'title', task.title);
+                        }}
+                      >
+                        {editingCell.taskId === task.id && editingCell.field === 'title' ? (
+                          <input 
+                            type="text" 
+                            className="form-control table-inline-input"
+                            value={editValue} 
+                            onChange={(e) => setEditValue(e.target.value)} 
+                            onBlur={() => handleSaveCellInline(task, 'title', editValue)}
+                            onKeyDown={(e) => handleCellKeyDown(e, task, 'title')}
+                            autoFocus
+                            disabled={isSavingCell}
+                          />
+                        ) : (
+                          <span className="task-title-with-indicator">
+                            <span>{task.title}</span>
+                            {task.planogramFile && <PlanogramIndicator />}
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className={editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? '' : 'editable-cell'}
+                        onClick={(e) => {
+                          if (editingCell.taskId === task.id && editingCell.field === 'contactPerson') return;
+                          e.stopPropagation();
+                          startEditingCell(task.id, 'contactPerson', task.contactPerson);
+                        }}
+                      >
+                        {editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? (
+                          <input 
+                            type="text" 
+                            className="form-control table-inline-input"
+                            value={editValue} 
+                            onChange={(e) => setEditValue(e.target.value)} 
+                            onBlur={() => handleSaveCellInline(task, 'contactPerson', editValue)}
+                            onKeyDown={(e) => handleCellKeyDown(e, task, 'contactPerson')}
+                            list="contacts-list-table"
+                            autoFocus
+                            disabled={isSavingCell}
+                          />
+                        ) : (
+                          task.contactPerson || '-'
+                        )}
+                      </td>
+                      <td
+                        className={editingCell.taskId === task.id && editingCell.field === 'phone' ? '' : 'editable-cell'}
+                        onClick={(e) => {
+                          if (editingCell.taskId === task.id && editingCell.field === 'phone') return;
+                          e.stopPropagation();
+                          if (!task.contactPerson) {
+                            alert('יש להגדיר איש קשר לפני עדכון מספר טלפון');
+                            return;
+                          }
+                          startEditingCell(task.id, 'phone', phone);
+                        }}
+                      >
+                        {editingCell.taskId === task.id && editingCell.field === 'phone' ? (
+                          <input 
+                            type="text" 
+                            className="form-control table-inline-input direction-ltr text-left"
+                            value={editValue} 
+                            onChange={(e) => setEditValue(e.target.value)} 
+                            onBlur={() => handleSaveCellInline(task, 'phone', editValue)}
+                            onKeyDown={(e) => handleCellKeyDown(e, task, 'phone')}
+                            autoFocus
+                            disabled={isSavingCell}
+                          />
+                        ) : (
+                          phone ? (
+                            <a 
+                              href={`tel:${phone.replace(/\s+/g, '')}`} 
+                              className="directory-phone-link direction-ltr" 
+                              style={{ textDecoration: 'none', color: 'var(--primary)' }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {phone}
+                            </a>
+                          ) : '-'
+                        )}
+                      </td>
+                      <td
+                        className={editingCell.taskId === task.id && editingCell.field === 'email' ? '' : 'editable-cell'}
+                        onClick={(e) => {
+                          if (editingCell.taskId === task.id && editingCell.field === 'email') return;
+                          e.stopPropagation();
+                          startEditingCell(task.id, 'email', email);
+                        }}
+                      >
+                        {editingCell.taskId === task.id && editingCell.field === 'email' ? (
+                          <input 
+                            type="email" 
+                            className="form-control table-inline-input direction-ltr text-left"
+                            value={editValue} 
+                            onChange={(e) => setEditValue(e.target.value)} 
+                            onBlur={() => handleSaveCellInline(task, 'email', editValue)}
+                            onKeyDown={(e) => handleCellKeyDown(e, task, 'email')}
+                            autoFocus
+                            disabled={isSavingCell}
+                          />
+                        ) : (
+                          email ? (
+                            <a 
+                              href={`mailto:${email}`} 
+                              className="direction-ltr"
+                              style={{ textDecoration: 'none', color: 'var(--primary)' }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {email}
+                            </a>
+                          ) : '-'
+                        )}
+                      </td>
+                      <td>
+                        <StatusPicker
+                          currentStatus={task.status}
+                          statuses={STATUSES}
+                          statusColors={STATUS_CLASSES}
+                          onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                          disabled={savingStatusIds.has(task.id)}
+                        />
+                      </td>
+                      <td>{formatDate(task.updatedAt)}</td>
+                      <td>
+                        <div className="actions-cell">
+                          <button 
+                            className="btn btn-secondary btn-icon"
+                            title="צפייה בפרטים"
+                            onClick={() => setViewingTask(task)}
+                          >
+                            👁️
+                          </button>
+                          <button 
+                            className="btn btn-danger btn-icon"
+                            title="מחיקת משימה"
+                            onClick={() => setDeletingTaskId(task.id)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
+          <datalist id="contacts-list-table">
+            {contacts.map(c => {
+              const name = typeof c === 'string' ? c : c.name;
+              const role = typeof c === 'string' ? '' : c.role;
+              const phone = typeof c === 'string' ? '' : c.phone;
+              return (
+                <option key={name} value={name}>
+                  {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
+                </option>
+              );
+            })}
+          </datalist>
 
           {/* Mobile Cards View */}
           <div className="mobile-cards-grid">
@@ -615,7 +846,12 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
                 <div className="task-card-header">
                   <div>
-                    <h4 className="task-card-title">{task.title}</h4>
+                    <h4 className="task-card-title">
+                      <span className="task-title-with-indicator">
+                        <span>{task.title}</span>
+                        {task.planogramFile && <PlanogramIndicator compact />}
+                      </span>
+                    </h4>
                   </div>
                   <StatusPicker
                     currentStatus={task.status}

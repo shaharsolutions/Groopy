@@ -26,6 +26,67 @@ function getDayDate(sundayStr, offset) {
   return `${tDd}/${tMm}`;
 }
 
+function getMonthlySummary(weeklyHoursObj) {
+  if (!weeklyHoursObj) return {};
+
+  const monthlyTotals = {};
+
+  if (weeklyHoursObj.sunday !== undefined || weeklyHoursObj.monday !== undefined) {
+    const currentWeekSunday = getSundayOfWeek(new Date());
+    const [yyyy, mm, dd] = currentWeekSunday.split('-').map(Number);
+    
+    const days = [
+      { key: 'sunday', offset: 0 },
+      { key: 'monday', offset: 1 },
+      { key: 'tuesday', offset: 2 },
+      { key: 'wednesday', offset: 3 },
+      { key: 'thursday', offset: 4 }
+    ];
+
+    days.forEach(day => {
+      const hours = weeklyHoursObj[day.key] || 0;
+      if (hours > 0) {
+        const d = new Date(yyyy, mm - 1, dd + day.offset);
+        const monthName = d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+        monthlyTotals[monthName] = (monthlyTotals[monthName] || 0) + hours;
+      }
+    });
+
+    Object.keys(monthlyTotals).forEach(month => {
+      monthlyTotals[month] = Number(monthlyTotals[month].toFixed(2));
+    });
+    return monthlyTotals;
+  }
+
+  Object.entries(weeklyHoursObj).forEach(([sundayStr, weekData]) => {
+    if (!sundayStr.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+    const [yyyy, mm, dd] = sundayStr.split('-').map(Number);
+
+    const days = [
+      { key: 'sunday', offset: 0 },
+      { key: 'monday', offset: 1 },
+      { key: 'tuesday', offset: 2 },
+      { key: 'wednesday', offset: 3 },
+      { key: 'thursday', offset: 4 }
+    ];
+
+    days.forEach(day => {
+      const hours = weekData[day.key] || 0;
+      if (hours > 0) {
+        const d = new Date(yyyy, mm - 1, dd + day.offset);
+        const monthName = d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+        monthlyTotals[monthName] = (monthlyTotals[monthName] || 0) + hours;
+      }
+    });
+  });
+
+  Object.keys(monthlyTotals).forEach(month => {
+    monthlyTotals[month] = Number(monthlyTotals[month].toFixed(2));
+  });
+
+  return monthlyTotals;
+}
+
 export default function AdminDetailsModal({ 
   task, 
   settings, 
@@ -1543,6 +1604,24 @@ export default function AdminDetailsModal({
                       <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
                       <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>{calculateTotalHours()}</span>
                     </div>
+
+                    {/* Monthly Summary */}
+                    {(() => {
+                      const monthlySummary = getMonthlySummary(task.weeklyHours);
+                      return Object.keys(monthlySummary).length > 0 && (
+                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dotted var(--border)' }}>
+                          <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-muted)' }}>סיכום חודשי מצטבר:</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {Object.entries(monthlySummary).map(([month, total]) => (
+                              <div key={month} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                <span>{month}:</span>
+                                <span style={{ fontWeight: '600' }}>{total} שעות</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* AREA 5: הערות ועדכוני עבודה */}

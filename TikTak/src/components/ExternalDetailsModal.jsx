@@ -466,17 +466,22 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 {/* Monthly Summary */}
                 {(() => {
                   const monthlySummary = getMonthlySummary(task.weeklyHours);
-                  return Object.keys(monthlySummary).length > 0 && (
+                  const hasHours = Object.keys(monthlySummary).length > 0;
+                  return (
                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dotted var(--border)' }}>
                       <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-muted)' }}>סיכום חודשי מצטבר:</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {Object.entries(monthlySummary).map(([month, total]) => (
-                          <div key={month} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                            <span>{month}:</span>
-                            <span style={{ fontWeight: '600' }}>{total} שעות</span>
-                          </div>
-                        ))}
-                      </div>
+                      {hasHours ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {Object.entries(monthlySummary).map(([month, total]) => (
+                            <div key={month} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                              <span>{month}:</span>
+                              <span style={{ fontWeight: '600' }}>{total} שעות</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>אין שעות עבודה מדווחות עדיין</div>
+                      )}
                     </div>
                   );
                 })()}

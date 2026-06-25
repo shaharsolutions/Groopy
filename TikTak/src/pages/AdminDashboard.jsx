@@ -73,7 +73,7 @@ const clearPendingStatus = (taskId, expectedStatus) => {
   }
 };
 
-export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId }) {
+export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, autoOpenTaskId, onClearAutoOpen }) {
   const {
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {}
@@ -190,6 +190,17 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     };
     initTasks();
   }, []);
+
+  // Listen to autoOpenTaskId from global search to open the details modal
+  useEffect(() => {
+    if (autoOpenTaskId && tasks.length > 0) {
+      const taskToOpen = tasks.find(t => t.id === autoOpenTaskId);
+      if (taskToOpen) {
+        setViewingTask(taskToOpen);
+        if (onClearAutoOpen) onClearAutoOpen();
+      }
+    }
+  }, [autoOpenTaskId, tasks, onClearAutoOpen]);
 
   // Filter and sort tasks whenever data or controls change
   const filteredTasks = useMemo(() => {

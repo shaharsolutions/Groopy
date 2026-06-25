@@ -3,6 +3,7 @@ import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import Header from './components/Header';
+import SearchModal from './components/SearchModal';
 
 // Lazy loading pages for better initial load performance
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -35,6 +36,42 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [userId, setUserId] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Global search states
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [autoOpenTaskId, setAutoOpenTaskId] = useState(null);
+  const [autoOpenSupplierId, setAutoOpenSupplierId] = useState(null);
+  const [autoOpenContactId, setAutoOpenContactId] = useState(null);
+  const [searchQueryForActivity, setSearchQueryForActivity] = useState(null);
+
+  // Shortcut key listener for Ctrl+K / Cmd+K
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleSearchNavigate = (view, params) => {
+    setCurrentView(view);
+    if (params.autoOpenTaskId) {
+      setAutoOpenTaskId(params.autoOpenTaskId);
+    }
+    if (params.autoOpenSupplierId) {
+      setAutoOpenSupplierId(params.autoOpenSupplierId);
+    }
+    if (params.autoOpenContactId) {
+      setAutoOpenContactId(params.autoOpenContactId);
+    }
+    if (params.initialSearchQuery) {
+      setSearchQueryForActivity(params.initialSearchQuery);
+    }
+    setIsSearchOpen(false);
+  };
 
   // Impersonation states for admin
   const [impersonatedUserId, setImpersonatedUserId] = useState(null);
@@ -359,6 +396,7 @@ export default function App() {
         onLogout={handleLogout}
         userId={effectiveUserId}
         userEmail={auth.currentUser?.email}
+        onSearchTrigger={() => setIsSearchOpen(true)}
       />
       <Suspense fallback={
         <div style={{
@@ -390,6 +428,12 @@ export default function App() {
               contacts={contacts}
               userId={effectiveUserId}
               onBack={() => setCurrentView('dashboard')}
+              autoOpenSupplierId={autoOpenSupplierId}
+              autoOpenContactId={autoOpenContactId}
+              onClearAutoOpen={() => {
+                setAutoOpenSupplierId(null);
+                setAutoOpenContactId(null);
+              }}
             />
           ) : currentView === 'activity_log' ? (
             <ActivityLogPage
@@ -397,6 +441,8 @@ export default function App() {
               currentUserEmail={auth.currentUser?.email || ''}
               isSystemAdmin={isSystemAdmin}
               onBack={() => setCurrentView('dashboard')}
+              initialSearchQuery={searchQueryForActivity}
+              onClearSearchQuery={() => setSearchQueryForActivity(null)}
             />
           ) : (
             <AdminDashboard
@@ -405,12 +451,27 @@ export default function App() {
               contacts={contacts}
               onSaveSettings={handleSaveSettings}
               userId={effectiveUserId}
+              autoOpenTaskId={autoOpenTaskId}
+              onClearAutoOpen={() => setAutoOpenTaskId(null)}
             />
           )
         ) : (
-          <ExternalDashboard settings={settings} userId={effectiveUserId} />
+          <ExternalDashboard 
+            settings={settings} 
+            userId={effectiveUserId} 
+            autoOpenTaskId={autoOpenTaskId}
+            onClearAutoOpen={() => setAutoOpenTaskId(null)}
+          />
         )}
       </Suspense>
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        userId={effectiveUserId}
+        userRole={userRole}
+        isSystemAdmin={isSystemAdmin}
+        onNavigate={handleSearchNavigate}
+      />
     </div>
   );
 }

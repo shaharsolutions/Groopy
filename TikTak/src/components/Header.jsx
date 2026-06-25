@@ -90,7 +90,7 @@ function getAggregatedMonthlySummary(tasks) {
  *
  * Top bar with logo, share link generator for admin, and role toggling.
  */
-export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, userEmail }) {
+export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, userEmail, onSearchTrigger }) {
   const [copied, setCopied] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [summaryData, setSummaryData] = useState({});
@@ -168,6 +168,23 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
             {copied ? '✔️ הועתק בהצלחה!' : '🔗 העתקת קישור לשיתוף'}
           </button>
         )}
+        <button
+          className="btn btn-secondary"
+          onClick={onSearchTrigger}
+          style={{
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            backgroundColor: '#f1f5f9',
+            color: 'var(--text)',
+            borderColor: 'var(--border)',
+            marginLeft: '8px'
+          }}
+          title="חיפוש גלובלי בכל המערכת (Ctrl+K)"
+        >
+          🔍 חיפוש במערכת
+        </button>
 
         {userEmail === 'shaharsolutions@gmail.com' && onViewChange && (
           currentView === 'users' ? (

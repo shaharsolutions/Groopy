@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   addSupplier,
   updateSupplier,
@@ -16,7 +16,7 @@ const getInitials = (name = '') => {
   return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 };
 
-export default function SuppliersContactsPage({ suppliers = [], contacts = [], userId, onBack }) {
+export default function SuppliersContactsPage({ suppliers = [], contacts = [], userId, onBack, autoOpenSupplierId, autoOpenContactId, onClearAutoOpen }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [supplierSearch, setSupplierSearch] = useState('');
@@ -40,6 +40,27 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
   const [activeSupplierCard, setActiveSupplierCard] = useState(null);
   const [activeContactCard, setActiveContactCard] = useState(null);
   const [pendingDeletion, setPendingDeletion] = useState(null);
+
+  // Listen to autoOpenSupplierId or autoOpenContactId from global search
+  useEffect(() => {
+    if (autoOpenSupplierId && suppliers.length > 0) {
+      const supplier = suppliers.find(s => s.id === autoOpenSupplierId);
+      if (supplier) {
+        setActiveSupplierCard({ id: supplier.id, data: { ...supplier } });
+        if (onClearAutoOpen) onClearAutoOpen();
+      }
+    }
+  }, [autoOpenSupplierId, suppliers, onClearAutoOpen]);
+
+  useEffect(() => {
+    if (autoOpenContactId && contacts.length > 0) {
+      const contact = contacts.find(c => c.id === autoOpenContactId);
+      if (contact) {
+        setActiveContactCard({ id: contact.id, data: { ...contact } });
+        if (onClearAutoOpen) onClearAutoOpen();
+      }
+    }
+  }, [autoOpenContactId, contacts, onClearAutoOpen]);
 
   const filteredSuppliers = useMemo(() => {
     const query = normalizeSearch(supplierSearch);

@@ -3,7 +3,7 @@ import { getTasks } from '../utils/storage';
 const ExternalDetailsModal = lazy(() => import('../components/ExternalDetailsModal'));
 import PlanogramIndicator from '../components/PlanogramIndicator';
 
-export default function ExternalDashboard({ settings, userId }) {
+export default function ExternalDashboard({ settings, userId, autoOpenTaskId, onClearAutoOpen }) {
   const {
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {}
@@ -39,6 +39,17 @@ export default function ExternalDashboard({ settings, userId }) {
     };
     initTasks();
   }, []);
+
+  // Listen to autoOpenTaskId from global search to open the details modal
+  useEffect(() => {
+    if (autoOpenTaskId && tasks.length > 0) {
+      const taskToOpen = tasks.find(t => t.id === autoOpenTaskId);
+      if (taskToOpen) {
+        setViewingTask(taskToOpen);
+        if (onClearAutoOpen) onClearAutoOpen();
+      }
+    }
+  }, [autoOpenTaskId, tasks, onClearAutoOpen]);
 
   // Reload tasks on window focus/active modal refresh to get updated comments or status updates
   useEffect(() => {

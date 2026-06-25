@@ -32,7 +32,7 @@ const getDateOnly = (isoString) => {
   return date.toISOString().slice(0, 10);
 };
 
-export default function ActivityLogPage({ currentUserId, currentUserEmail, isSystemAdmin, onBack }) {
+export default function ActivityLogPage({ currentUserId, currentUserEmail, isSystemAdmin, onBack, initialSearchQuery, onClearSearchQuery }) {
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +51,13 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, isSys
   useEffect(() => {
     setCurrentPage(1);
   }, [filters]);
+
+  useEffect(() => {
+    if (initialSearchQuery !== null && initialSearchQuery !== undefined) {
+      setFilters(prev => ({ ...prev, search: initialSearchQuery }));
+      if (onClearSearchQuery) onClearSearchQuery();
+    }
+  }, [initialSearchQuery, onClearSearchQuery]);
 
 
   useEffect(() => {

@@ -312,6 +312,25 @@ export const getCommentsForTask = async (taskId, userId) => {
   }
 };
 
+export const getAllCommentsForUser = async (userId) => {
+  if (!userId) return [];
+  try {
+    const q = query(
+      collection(db, COMMENTS_COLLECTION),
+      where("userId", "==", userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const comments = [];
+    querySnapshot.forEach((doc) => {
+      comments.push({ id: doc.id, ...doc.data() });
+    });
+    return comments;
+  } catch (e) {
+    console.error(`Error fetching all comments for user ${userId}`, e);
+    return [];
+  }
+};
+
 export const addComment = async (jobId, authorName, text, attachmentUrl = null, attachmentName = null, userId) => {
   if (!userId) throw new Error("User ID is required to add a comment");
   try {

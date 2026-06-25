@@ -674,31 +674,12 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   return (
                     <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
                       <td 
-                        className={editingCell.taskId === task.id && editingCell.field === 'title' ? '' : 'editable-cell'}
                         style={{ fontWeight: '600' }}
-                        onClick={(e) => {
-                          if (editingCell.taskId === task.id && editingCell.field === 'title') return;
-                          e.stopPropagation();
-                          startEditingCell(task.id, 'title', task.title);
-                        }}
                       >
-                        {editingCell.taskId === task.id && editingCell.field === 'title' ? (
-                          <input 
-                            type="text" 
-                            className="form-control table-inline-input"
-                            value={editValue} 
-                            onChange={(e) => setEditValue(e.target.value)} 
-                            onBlur={() => handleSaveCellInline(task, 'title', editValue)}
-                            onKeyDown={(e) => handleCellKeyDown(e, task, 'title')}
-                            autoFocus
-                            disabled={isSavingCell}
-                          />
-                        ) : (
-                          <span className="task-title-with-indicator">
-                            <span>{task.title}</span>
-                            {task.planogramFile && <PlanogramIndicator />}
-                          </span>
-                        )}
+                        <span className="task-title-with-indicator">
+                          <span>{task.title}</span>
+                          {task.planogramFile && <PlanogramIndicator />}
+                        </span>
                       </td>
                       <td
                         className={editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? '' : 'editable-cell'}

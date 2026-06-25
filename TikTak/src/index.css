@@ -438,6 +438,27 @@ button, input, select, textarea {
   vertical-align: middle;
 }
 
+.directory-table th:last-child {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  background-color: #f8fafc;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.04);
+}
+
+.directory-table td:last-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background-color: var(--surface);
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.04);
+}
+
+.directory-table tbody tr:hover td:last-child {
+  background-color: #f8fafc;
+}
+
 .directory-table tbody tr:last-child td {
   border-bottom: 0;
 }
@@ -504,6 +525,11 @@ button, input, select, textarea {
   min-width: 130px;
 }
 
+.directory-actions.editing-actions {
+  min-width: 70px;
+  justify-content: center;
+}
+
 .directory-icon-button {
   min-height: 30px;
   padding: 5px 9px;
@@ -537,7 +563,9 @@ button, input, select, textarea {
 }
 
 .directory-inline-input {
-  min-width: 140px;
+  width: 100%;
+  min-width: 80px;
+  max-width: 180px;
   height: 34px;
   padding: 6px 9px;
   font-size: 0.84rem;
@@ -647,6 +675,13 @@ button, input, select, textarea {
   .directory-table td {
     border: 0;
     padding: 7px 0;
+  }
+
+  .directory-table th:last-child,
+  .directory-table td:last-child {
+    position: static;
+    box-shadow: none;
+    background-color: transparent;
   }
 
   .directory-name-cell,

@@ -1,4 +1,89 @@
 import { useState } from 'react';
+import { getTasks } from '../utils/storage';
+
+function getSundayOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const diff = d.getDate() - day; // Adjust to Sunday
+  const sunday = new Date(d.setDate(diff));
+  const yyyy = sunday.getFullYear();
+  const mm = String(sunday.getMonth() + 1).padStart(2, '0');
+  const dd = String(sunday.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getAggregatedMonthlySummary(tasks) {
+  const monthlyData = {};
+  const days = [
+    { key: 'sunday', offset: 0 },
+    { key: 'monday', offset: 1 },
+    { key: 'tuesday', offset: 2 },
+    { key: 'wednesday', offset: 3 },
+    { key: 'thursday', offset: 4 }
+  ];
+
+  tasks.forEach(task => {
+    const weeklyHoursObj = task.weeklyHours;
+    if (!weeklyHoursObj) return;
+
+    const projectTitle = task.title || 'פרויקט ללא שם';
+
+    const addHours = (monthKey, hours) => {
+      if (hours <= 0) return;
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { total: 0, projects: {} };
+      }
+      monthlyData[monthKey].total += hours;
+      monthlyData[monthKey].projects[projectTitle] = (monthlyData[monthKey].projects[projectTitle] || 0) + hours;
+    };
+
+    if (weeklyHoursObj.sunday !== undefined || weeklyHoursObj.monday !== undefined) {
+      const currentWeekSunday = getSundayOfWeek(new Date());
+      const [yyyy, mm, dd] = currentWeekSunday.split('-').map(Number);
+      
+      days.forEach(day => {
+        const hours = weeklyHoursObj[day.key] || 0;
+        if (hours > 0) {
+          const d = new Date(yyyy, mm - 1, dd + day.offset);
+          const yKey = d.getFullYear();
+          const mKey = String(d.getMonth() + 1).padStart(2, '0');
+          const monthKey = `${yKey}-${mKey}`;
+          addHours(monthKey, hours);
+        }
+      });
+    } else {
+      Object.entries(weeklyHoursObj).forEach(([sundayStr, weekData]) => {
+        if (!sundayStr.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+        const [yyyy, mm, dd] = sundayStr.split('-').map(Number);
+
+        days.forEach(day => {
+          const hours = weekData[day.key] || 0;
+          if (hours > 0) {
+            const d = new Date(yyyy, mm - 1, dd + day.offset);
+            const yKey = d.getFullYear();
+            const mKey = String(d.getMonth() + 1).padStart(2, '0');
+            const monthKey = `${yKey}-${mKey}`;
+            addHours(monthKey, hours);
+          }
+        });
+      });
+    }
+  });
+
+  const roundedData = {};
+  Object.entries(monthlyData).forEach(([monthKey, data]) => {
+    const roundedProjects = {};
+    Object.entries(data.projects).forEach(([title, hrs]) => {
+      roundedProjects[title] = Number(hrs.toFixed(2));
+    });
+    roundedData[monthKey] = {
+      total: Number(data.total.toFixed(2)),
+      projects: roundedProjects
+    };
+  });
+
+  return roundedData;
+}
 
 /**
  * Header Component - Groopy Work Manager
@@ -7,6 +92,39 @@ import { useState } from 'react';
  */
 export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, userEmail }) {
   const [copied, setCopied] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [summaryData, setSummaryData] = useState({});
+  const [expandedMonths, setExpandedMonths] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const toggleMonth = (key) => {
+    setExpandedMonths(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handleOpenSummary = async () => {
+    setIsSummaryOpen(true);
+    setLoading(true);
+    try {
+      const tasks = await getTasks(userId);
+      const summary = getAggregatedMonthlySummary(tasks);
+      setSummaryData(summary);
+      
+      const keys = Object.keys(summary);
+      if (keys.length > 0) {
+        const latestKey = keys.sort()[keys.length - 1];
+        setExpandedMonths({ [latestKey]: true });
+      } else {
+        setExpandedMonths({});
+      }
+    } catch (err) {
+      console.error("Failed to load hours summary:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyLink = () => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&userId=${userId}`;
@@ -140,6 +258,26 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
           </div>
         )}
 
+        {userRole !== 'admin' && (
+          <button
+            className="btn btn-secondary"
+            onClick={handleOpenSummary}
+            style={{
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#eef2ff',
+              color: '#3730a3',
+              borderColor: '#c7d2fe',
+              padding: '6px 12px'
+            }}
+            title="סיכום שעות עבודה מדווחות בכל הפרויקטים"
+          >
+            סיכום שעות
+          </button>
+        )}
+
         <div className="user-badge">
           <span>👤</span>
           <span>
@@ -173,6 +311,119 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
           </button>
         )}
       </div>
+
+      {isSummaryOpen && (
+        <div className="modal-overlay" onClick={() => setIsSummaryOpen(false)} style={{ direction: 'rtl' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">📊 סיכום שעות עבודה</h3>
+              <button className="modal-close" onClick={() => setIsSummaryOpen(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  טוען נתונים...
+                </div>
+              ) : Object.keys(summaryData).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '12px' }}>⏱️</span>
+                  <strong>אין שעות עבודה מדווחות במערכת</strong>
+                </div>
+              ) : (
+                <div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
+                    ריכוז שעות העבודה המדווחות בכל הפרויקטים בסיכום לפי חודש:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {Object.keys(summaryData).sort().map(key => {
+                      const [yyyy, mm] = key.split('-').map(Number);
+                      const date = new Date(yyyy, mm - 1, 1);
+                      const monthName = date.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+                      const monthInfo = summaryData[key];
+                      const isExpanded = !!expandedMonths[key];
+                      return (
+                        <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div 
+                            onClick={() => toggleMonth(key)}
+                            style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center',
+                              padding: '12px 16px',
+                              backgroundColor: 'var(--background)',
+                              borderRadius: 'var(--radius-md)',
+                              border: '1px solid var(--border)',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              transition: 'background-color 0.2s'
+                            }}
+                          >
+                            <span style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isExpanded ? '▼' : '◀'}</span>
+                              <span>{monthName}</span>
+                            </span>
+                            <span style={{ fontWeight: '700', color: 'var(--primary)', fontSize: '1.05rem' }}>{monthInfo.total} שעות</span>
+                          </div>
+                          
+                          {isExpanded && (
+                            <div 
+                              style={{ 
+                                padding: '8px 16px 12px 16px',
+                                marginRight: '16px',
+                                borderRight: '2px solid var(--primary-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px'
+                              }}
+                            >
+                              {Object.entries(monthInfo.projects).map(([projTitle, hrs]) => (
+                                <div 
+                                  key={projTitle}
+                                  style={{ 
+                                    display: 'flex', 
+                                    justifyContent: 'space-between',
+                                    fontSize: '0.85rem',
+                                    color: 'var(--text)',
+                                    padding: '4px 0'
+                                  }}
+                                >
+                                  <span style={{ color: 'var(--text-muted)' }}>• {projTitle}</span>
+                                  <span style={{ fontWeight: '600' }}>{hrs} שעות</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      marginTop: '20px',
+                      padding: '16px',
+                      backgroundColor: 'var(--primary-light)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid color-mix(in srgb, var(--primary) 20%, var(--border))'
+                    }}
+                  >
+                    <span style={{ fontWeight: '700', color: 'var(--text)' }}>סה"כ שעות מצטבר:</span>
+                    <span style={{ fontWeight: '800', color: 'var(--primary)', fontSize: '1.2rem' }}>
+                      {Number(Object.values(summaryData).reduce((a, b) => a + b.total, 0).toFixed(2))} שעות
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setIsSummaryOpen(false)}>סגור</button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

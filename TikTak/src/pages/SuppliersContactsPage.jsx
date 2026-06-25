@@ -285,7 +285,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
     const isEditing = editingSupplier.id === supplier.id;
     if (isEditing) {
       return (
-        <div className="directory-actions">
+        <div className="directory-actions editing-actions">
           <button type="button" className="directory-icon-button success" title="שמירת שם הספק" onClick={() => saveEditedSupplierInline(supplier.id)}>
             ✓
           </button>
@@ -315,7 +315,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
     const isEditing = editingContact.id === contact.id;
     if (isEditing) {
       return (
-        <div className="directory-actions">
+        <div className="directory-actions editing-actions">
           <button type="button" className="directory-icon-button success" title="שמירת פרטי איש קשר" onClick={() => saveEditedContactInline(contact.id)}>
             ✓
           </button>
@@ -519,7 +519,6 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
               <thead>
                 <tr>
                   <th>שם</th>
-                  <th>תפקיד</th>
                   <th>טלפון</th>
                   <th>אימייל</th>
                   <th>פעולות</th>
@@ -528,7 +527,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
               <tbody>
                 {filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan="5">
+                    <td colSpan="4">
                       <div className="directory-empty">לא נמצאו אנשי קשר להצגה.</div>
                     </td>
                   </tr>
@@ -546,13 +545,6 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                               <strong>{contact.name}</strong>
                             )}
                           </div>
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input type="text" className="form-control directory-inline-input" value={editingContact.role} onChange={(e) => setEditingContact({ ...editingContact, role: e.target.value })} />
-                          ) : (
-                            contact.role || <span className="muted-text">לא הוגדר</span>
-                          )}
                         </td>
                         <td>
                           {isEditing ? (

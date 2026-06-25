@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage, addContact, updateContact, addSupplier, updateSupplier } from '../utils/storage';
-import ExcelPreviewModal from './ExcelPreviewModal';
-import PdfPreviewModal from './PdfPreviewModal';
+const ExcelPreviewModal = React.lazy(() => import('./ExcelPreviewModal'));
+const PdfPreviewModal = React.lazy(() => import('./PdfPreviewModal'));
 import PlanogramFileCard from './PlanogramFileCard';
 import PlanogramIndicator from './PlanogramIndicator';
 
@@ -2241,20 +2241,24 @@ export default function AdminDetailsModal({
       )}
 
       {/* Excel Preview Modal */}
-      <ExcelPreviewModal 
-        isOpen={!!excelPreviewFile} 
-        onClose={() => setExcelPreviewFile(null)} 
-        fileUrl={excelPreviewFile?.url} 
-        fileName={excelPreviewFile?.name} 
-      />
+      <React.Suspense fallback={null}>
+        <ExcelPreviewModal 
+          isOpen={!!excelPreviewFile} 
+          onClose={() => setExcelPreviewFile(null)} 
+          fileUrl={excelPreviewFile?.url} 
+          fileName={excelPreviewFile?.name} 
+        />
+      </React.Suspense>
 
       {/* PDF Preview Modal */}
-      <PdfPreviewModal 
-        isOpen={!!pdfPreviewFile} 
-        onClose={() => setPdfPreviewFile(null)} 
-        fileUrl={pdfPreviewFile?.url} 
-        fileName={pdfPreviewFile?.name} 
-      />
+      <React.Suspense fallback={null}>
+        <PdfPreviewModal 
+          isOpen={!!pdfPreviewFile} 
+          onClose={() => setPdfPreviewFile(null)} 
+          fileUrl={pdfPreviewFile?.url} 
+          fileName={pdfPreviewFile?.name} 
+        />
+      </React.Suspense>
     </div>
   );
 }

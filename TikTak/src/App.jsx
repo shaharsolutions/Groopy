@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import Header from './components/Header';
-import AdminDashboard from './pages/AdminDashboard';
-import ExternalDashboard from './pages/ExternalDashboard';
-import SettingsPage from './pages/SettingsPage';
-import SuppliersContactsPage from './pages/SuppliersContactsPage';
-import UsersManagement from './pages/UsersManagement';
-import ActivityLogPage from './pages/ActivityLogPage';
-import Login from './pages/Login';
+
+// Lazy loading pages for better initial load performance
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const ExternalDashboard = lazy(() => import('./pages/ExternalDashboard'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const SuppliersContactsPage = lazy(() => import('./pages/SuppliersContactsPage'));
+const UsersManagement = lazy(() => import('./pages/UsersManagement'));
+const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'));
+const Login = lazy(() => import('./pages/Login'));
+
 import {
   saveGlobalSettings,
   getGlobalSettings,
@@ -295,7 +298,22 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    return <Login />;
+    return (
+      <Suspense fallback={
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          fontFamily: 'Rubik, sans-serif',
+          color: 'var(--text-muted)'
+        }}>
+          טוען דף התחברות...
+        </div>
+      }>
+        <Login />
+      </Suspense>
+    );
   }
 
   return (
@@ -342,44 +360,57 @@ export default function App() {
         userId={effectiveUserId}
         userEmail={auth.currentUser?.email}
       />
-      {userRole === 'admin' ? (
-        currentView === 'users' ? (
-          <UsersManagement
-            onImpersonate={handleImpersonate}
-            onBack={() => setCurrentView('dashboard')}
-          />
-        ) : currentView === 'settings' ? (
-          <SettingsPage
-            settings={settings}
-            onSaveSettings={handleSaveSettings}
-            onBack={() => setCurrentView('dashboard')}
-          />
-        ) : currentView === 'suppliers_contacts' ? (
-          <SuppliersContactsPage
-            suppliers={suppliers}
-            contacts={contacts}
-            userId={effectiveUserId}
-            onBack={() => setCurrentView('dashboard')}
-          />
-        ) : currentView === 'activity_log' ? (
-          <ActivityLogPage
-            currentUserId={userId}
-            currentUserEmail={auth.currentUser?.email || ''}
-            isSystemAdmin={isSystemAdmin}
-            onBack={() => setCurrentView('dashboard')}
-          />
+      <Suspense fallback={
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '50vh',
+          fontFamily: 'Rubik, sans-serif',
+          color: 'var(--text-muted)'
+        }}>
+          טוען תוכן...
+        </div>
+      }>
+        {userRole === 'admin' ? (
+          currentView === 'users' ? (
+            <UsersManagement
+              onImpersonate={handleImpersonate}
+              onBack={() => setCurrentView('dashboard')}
+            />
+          ) : currentView === 'settings' ? (
+            <SettingsPage
+              settings={settings}
+              onSaveSettings={handleSaveSettings}
+              onBack={() => setCurrentView('dashboard')}
+            />
+          ) : currentView === 'suppliers_contacts' ? (
+            <SuppliersContactsPage
+              suppliers={suppliers}
+              contacts={contacts}
+              userId={effectiveUserId}
+              onBack={() => setCurrentView('dashboard')}
+            />
+          ) : currentView === 'activity_log' ? (
+            <ActivityLogPage
+              currentUserId={userId}
+              currentUserEmail={auth.currentUser?.email || ''}
+              isSystemAdmin={isSystemAdmin}
+              onBack={() => setCurrentView('dashboard')}
+            />
+          ) : (
+            <AdminDashboard
+              settings={settings}
+              suppliers={suppliers}
+              contacts={contacts}
+              onSaveSettings={handleSaveSettings}
+              userId={effectiveUserId}
+            />
+          )
         ) : (
-          <AdminDashboard
-            settings={settings}
-            suppliers={suppliers}
-            contacts={contacts}
-            onSaveSettings={handleSaveSettings}
-            userId={effectiveUserId}
-          />
-        )
-      ) : (
-        <ExternalDashboard settings={settings} userId={effectiveUserId} />
-      )}
+          <ExternalDashboard settings={settings} userId={effectiveUserId} />
+        )}
+      </Suspense>
     </div>
   );
 }

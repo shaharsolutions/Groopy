@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import {
   getTasks,
   getTrashedTasks,
@@ -10,7 +10,8 @@ import {
   addContact,
   updateContact
 } from '../utils/storage';
-import AdminDetailsModal from '../components/AdminDetailsModal';
+
+const AdminDetailsModal = lazy(() => import('../components/AdminDetailsModal'));
 import StatusPicker from '../components/StatusPicker';
 import PlanogramIndicator from '../components/PlanogramIndicator';
 
@@ -888,25 +889,27 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
       {/* Unified Task details/edit/create Modal */}
       {(viewingTask || isCreateOpen) && (
-        <AdminDetailsModal 
-          task={viewingTask}
-          settings={settings}
-          suppliers={suppliers}
-          contacts={contacts}
-          onSaveSettings={onSaveSettings}
-          startInEditMode={startInEditMode}
-          onClose={() => {
-            setViewingTask(null);
-            setIsCreateOpen(false);
-            setStartInEditMode(false);
-          }}
-          onSave={handleSaveTask}
-          onDelete={(id) => setDeletingTaskId(id)}
-          onRefresh={loadTasks}
-          onTaskUpdated={applyTaskPatch}
-          onStatusChange={handleStatusChange}
-          userId={userId}
-        />
+        <Suspense fallback={null}>
+          <AdminDetailsModal 
+            task={viewingTask}
+            settings={settings}
+            suppliers={suppliers}
+            contacts={contacts}
+            onSaveSettings={onSaveSettings}
+            startInEditMode={startInEditMode}
+            onClose={() => {
+              setViewingTask(null);
+              setIsCreateOpen(false);
+              setStartInEditMode(false);
+            }}
+            onSave={handleSaveTask}
+            onDelete={(id) => setDeletingTaskId(id)}
+            onRefresh={loadTasks}
+            onTaskUpdated={applyTaskPatch}
+            onStatusChange={handleStatusChange}
+            userId={userId}
+          />
+        </Suspense>
       )}
 
       {/* Custom Delete Confirmation Modal */}

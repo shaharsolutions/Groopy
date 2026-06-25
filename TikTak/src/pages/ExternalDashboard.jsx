@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { getTasks } from '../utils/storage';
-import ExternalDetailsModal from '../components/ExternalDetailsModal';
+const ExternalDetailsModal = lazy(() => import('../components/ExternalDetailsModal'));
 import PlanogramIndicator from '../components/PlanogramIndicator';
 
 export default function ExternalDashboard({ settings, userId }) {
@@ -94,13 +94,19 @@ export default function ExternalDashboard({ settings, userId }) {
     }
     return (
       <main className="dashboard-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', padding: '24px 0' }}>
-        <ExternalDetailsModal 
-          task={viewingTask}
-          settings={settings}
-          onClose={null}
-          isSingleProjectView={true}
-          userId={userId}
-        />
+        <Suspense fallback={
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh', color: 'var(--text-muted)', fontFamily: 'Rubik, sans-serif' }}>
+            טוען פרטי עבודה...
+          </div>
+        }>
+          <ExternalDetailsModal 
+            task={viewingTask}
+            settings={settings}
+            onClose={null}
+            isSingleProjectView={true}
+            userId={userId}
+          />
+        </Suspense>
       </main>
     );
   }
@@ -278,14 +284,16 @@ export default function ExternalDashboard({ settings, userId }) {
 
       {/* External Viewer Task Details Modal */}
       {viewingTask && (
-        <ExternalDetailsModal 
-          task={viewingTask}
-          settings={settings}
-          onClose={() => {
-            setViewingTask(null);
-          }}
-          userId={userId}
-        />
+        <Suspense fallback={null}>
+          <ExternalDetailsModal 
+            task={viewingTask}
+            settings={settings}
+            onClose={() => {
+              setViewingTask(null);
+            }}
+            userId={userId}
+          />
+        </Suspense>
       )}
     </main>
   );

@@ -43,7 +43,6 @@ const renderLastProject = (project) => {
 
   return (
     <span className="directory-project-chip" title={getTaskLabel(project)}>
-      <span className="directory-project-chip-label">פרויקט אחרון</span>
       <span className="directory-project-chip-title">{getTaskLabel(project)}</span>
     </span>
   );

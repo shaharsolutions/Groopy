@@ -501,9 +501,7 @@ button, input, select, textarea {
 }
 
 .directory-project-chip-label {
-  flex: 0 0 auto;
-  color: #64748b;
-  font-weight: 600;
+  display: none;
 }
 
 .directory-project-chip-title {

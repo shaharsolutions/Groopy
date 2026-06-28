@@ -5,15 +5,48 @@ import {
   deleteSupplier,
   addContact,
   updateContact,
-  deleteContact
+  deleteContact,
+  getTasks
 } from '../utils/storage';
 
 const normalizeSearch = (value = '') => value.toString().trim().toLowerCase();
 const hasValue = (value) => Boolean(value && value.toString().trim());
+const getTaskTimestamp = (task = {}) => Date.parse(task.updatedAt || task.createdAt || task.deadline || '') || 0;
 const getInitials = (name = '') => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
   return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+};
+
+const getTaskLabel = (task = {}) => task.title || task.jobNumber || 'פרויקט ללא שם';
+
+const buildLastProjectMap = (tasks, fieldName) => {
+  const map = new Map();
+
+  tasks.forEach((task) => {
+    const key = normalizeSearch(task[fieldName]);
+    if (!key) return;
+
+    const current = map.get(key);
+    if (!current || getTaskTimestamp(task) > getTaskTimestamp(current)) {
+      map.set(key, task);
+    }
+  });
+
+  return map;
+};
+
+const renderLastProject = (project) => {
+  if (!project) {
+    return <span className="muted-text">אין שיוך</span>;
+  }
+
+  return (
+    <span className="directory-project-chip" title={getTaskLabel(project)}>
+      <span className="directory-project-chip-label">פרויקט אחרון</span>
+      <span className="directory-project-chip-title">{getTaskLabel(project)}</span>
+    </span>
+  );
 };
 
 export default function SuppliersContactsPage({ suppliers = [], contacts = [], userId, onBack, autoOpenSupplierId, autoOpenContactId, onClearAutoOpen }) {
@@ -21,6 +54,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
   const [message, setMessage] = useState({ text: '', type: '' });
   const [supplierSearch, setSupplierSearch] = useState('');
   const [contactSearch, setContactSearch] = useState('');
+  const [tasks, setTasks] = useState([]);
 
   const [newSupplier, setNewSupplier] = useState('');
   const [newContactName, setNewContactName] = useState('');
@@ -41,25 +75,70 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
   const [activeContactCard, setActiveContactCard] = useState(null);
   const [pendingDeletion, setPendingDeletion] = useState(null);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLinkedProjects = async () => {
+      const fetchedTasks = await getTasks(userId);
+      if (isMounted) {
+        setTasks(fetchedTasks);
+      }
+    };
+
+    loadLinkedProjects();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId]);
+
+  const lastSupplierProjects = useMemo(
+    () => buildLastProjectMap(tasks, 'supplierName'),
+    [tasks]
+  );
+
+  const lastContactProjects = useMemo(
+    () => buildLastProjectMap(tasks, 'contactPerson'),
+    [tasks]
+  );
+
   // Listen to autoOpenSupplierId or autoOpenContactId from global search
   useEffect(() => {
+    let isCancelled = false;
+
     if (autoOpenSupplierId && suppliers.length > 0) {
       const supplier = suppliers.find(s => s.id === autoOpenSupplierId);
       if (supplier) {
-        setActiveSupplierCard({ id: supplier.id, data: { ...supplier } });
-        if (onClearAutoOpen) onClearAutoOpen();
+        queueMicrotask(() => {
+          if (isCancelled) return;
+          setActiveSupplierCard({ id: supplier.id, data: { ...supplier } });
+          if (onClearAutoOpen) onClearAutoOpen();
+        });
       }
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [autoOpenSupplierId, suppliers, onClearAutoOpen]);
 
   useEffect(() => {
+    let isCancelled = false;
+
     if (autoOpenContactId && contacts.length > 0) {
       const contact = contacts.find(c => c.id === autoOpenContactId);
       if (contact) {
-        setActiveContactCard({ id: contact.id, data: { ...contact } });
-        if (onClearAutoOpen) onClearAutoOpen();
+        queueMicrotask(() => {
+          if (isCancelled) return;
+          setActiveContactCard({ id: contact.id, data: { ...contact } });
+          if (onClearAutoOpen) onClearAutoOpen();
+        });
       }
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [autoOpenContactId, contacts, onClearAutoOpen]);
 
   const filteredSuppliers = useMemo(() => {
@@ -71,9 +150,10 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
       supplier.phone,
       supplier.email,
       supplier.address,
-      supplier.notes
+      supplier.notes,
+      getTaskLabel(lastSupplierProjects.get(normalizeSearch(supplier.name)))
     ].some((value) => normalizeSearch(value).includes(query)));
-  }, [suppliers, supplierSearch]);
+  }, [suppliers, supplierSearch, lastSupplierProjects]);
 
   const filteredContacts = useMemo(() => {
     const query = normalizeSearch(contactSearch);
@@ -84,9 +164,10 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
       contact.phone,
       contact.email,
       contact.address,
-      contact.notes
+      contact.notes,
+      getTaskLabel(lastContactProjects.get(normalizeSearch(contact.name)))
     ].some((value) => normalizeSearch(value).includes(query)));
-  }, [contacts, contactSearch]);
+  }, [contacts, contactSearch, lastContactProjects]);
 
   const suppliersWithDetails = useMemo(
     () => suppliers.filter((supplier) => hasValue(supplier.email) || hasValue(supplier.phone) || hasValue(supplier.contactPerson)).length,
@@ -440,6 +521,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                 <tr>
                   <th>שם הספק</th>
                   <th>איש קשר</th>
+                  <th>פרויקט אחרון</th>
                   <th>תקשורת</th>
                   <th>פעולות</th>
                 </tr>
@@ -447,7 +529,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
               <tbody>
                 {filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan="4">
+                    <td colSpan="5">
                       <div className="directory-empty">לא נמצאו ספקים להצגה.</div>
                     </td>
                   </tr>
@@ -472,6 +554,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                           </div>
                         </td>
                         <td>{supplier.contactPerson || <span className="muted-text">לא הוגדר</span>}</td>
+                        <td>{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
                         <td>
                           <div className="directory-contact-lines">
                             {supplier.phone ? <a className="directory-phone-link direction-ltr" href={`tel:${supplier.phone.replace(/\s+/g, '')}`}>{supplier.phone}</a> : null}
@@ -540,6 +623,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
               <thead>
                 <tr>
                   <th>שם</th>
+                  <th>פרויקט אחרון</th>
                   <th>טלפון</th>
                   <th>אימייל</th>
                   <th>פעולות</th>
@@ -548,7 +632,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
               <tbody>
                 {filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan="4">
+                    <td colSpan="5">
                       <div className="directory-empty">לא נמצאו אנשי קשר להצגה.</div>
                     </td>
                   </tr>
@@ -567,6 +651,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                             )}
                           </div>
                         </td>
+                        <td>{renderLastProject(lastContactProjects.get(normalizeSearch(contact.name)))}</td>
                         <td>
                           {isEditing ? (
                             <input type="text" className="form-control direction-ltr text-left directory-inline-input" value={editingContact.phone} onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })} />

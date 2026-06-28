@@ -484,6 +484,35 @@ button, input, select, textarea {
   unicode-bidi: isolate;
 }
 
+.directory-project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  padding: 4px 7px;
+  border: 1px solid #dbeafe;
+  border-radius: var(--radius-sm);
+  background-color: #eff6ff;
+  color: #1e40af;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.directory-project-chip-label {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.directory-project-chip-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .directory-name-cell {
   display: flex;
   align-items: center;
@@ -695,6 +724,10 @@ button, input, select, textarea {
 
   .directory-icon-button {
     flex: 1;
+  }
+
+  .directory-project-chip {
+    max-width: 100%;
   }
 }
 
@@ -3461,4 +3494,3 @@ select.badge:focus, select.priority-badge:focus {
   color: var(--text-muted);
   margin-right: 6px;
 }
-

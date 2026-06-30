@@ -157,6 +157,7 @@ export default function AdminDetailsModal({
   const [newSubtaskText, setNewSubtaskText] = useState('');
   const [subtaskError, setSubtaskError] = useState('');
   const [subtasksDraft, setSubtasksDraft] = useState([]);
+  const [showCompletedSubtasks, setShowCompletedSubtasks] = useState(false);
   const [savingSubtasks, setSavingSubtasks] = useState(false);
 
   const [attachedFile, setAttachedFile] = useState(null);
@@ -625,12 +626,17 @@ export default function AdminDetailsModal({
   useEffect(() => {
     if (!task) {
       setSubtasksDraft([]);
+      setShowCompletedSubtasks(false);
       return;
     }
     if (!savingSubtasks) {
       setSubtasksDraft(normalizeSubtasks(task.subtasks));
     }
   }, [task?.id, task?.subtasks, task?.createdAt, savingSubtasks]);
+
+  useEffect(() => {
+    setShowCompletedSubtasks(false);
+  }, [task?.id]);
 
   const persistSubtasks = async (nextSubtasks, previousSubtasks = subtasksDraft) => {
     if (!task) return false;
@@ -1731,6 +1737,33 @@ export default function AdminDetailsModal({
 
                     {(() => {
                       const subtasks = subtasksDraft;
+                      const openSubtasks = subtasks.filter(item => !item.completed);
+                      const completedSubtasks = subtasks.filter(item => item.completed);
+                      const renderSubtaskItem = (item) => (
+                        <div className="subtask-item" key={item.id}>
+                          <label className="subtask-main">
+                            <input
+                              type="checkbox"
+                              className="subtask-checkbox"
+                              checked={item.completed}
+                              disabled={savingSubtasks}
+                              onChange={() => handleToggleSubtask(item.id)}
+                            />
+                            <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
+                              {item.text}
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            className="subtask-delete-btn"
+                            title="מחיקת משימה"
+                            disabled={savingSubtasks}
+                            onClick={() => handleDeleteSubtask(item.id)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      );
 
                       return (
                         <div className="project-subtasks-panel">
@@ -1741,32 +1774,34 @@ export default function AdminDetailsModal({
                           {subtasks.length === 0 ? (
                             <div className="subtasks-empty-state">אין משימות בפרויקט עדיין</div>
                           ) : (
-                            <div className="subtask-list compact">
-                              {subtasks.map(item => (
-                                <div className="subtask-item" key={item.id}>
-                                  <label className="subtask-main">
-                                    <input
-                                      type="checkbox"
-                                      className="subtask-checkbox"
-                                      checked={item.completed}
-                                      disabled={savingSubtasks}
-                                      onChange={() => handleToggleSubtask(item.id)}
-                                    />
-                                    <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
-                                      {item.text}
-                                    </span>
-                                  </label>
+                            <div className="project-subtasks-groups">
+                              {openSubtasks.length === 0 ? (
+                                <div className="subtasks-empty-state">אין משימות פתוחות בפרויקט</div>
+                              ) : (
+                                <div className="subtask-list compact">
+                                  {openSubtasks.map(renderSubtaskItem)}
+                                </div>
+                              )}
+
+                              {completedSubtasks.length > 0 && (
+                                <div className="completed-subtasks-section">
                                   <button
                                     type="button"
-                                    className="subtask-delete-btn"
-                                    title="מחיקת משימה"
-                                    disabled={savingSubtasks}
-                                    onClick={() => handleDeleteSubtask(item.id)}
+                                    className="completed-subtasks-toggle"
+                                    onClick={() => setShowCompletedSubtasks(prev => !prev)}
+                                    aria-expanded={showCompletedSubtasks}
                                   >
-                                    🗑️
+                                    <span>{showCompletedSubtasks ? 'הסתרת משימות שהושלמו' : 'הצגת משימות שהושלמו'}</span>
+                                    <span className="completed-subtasks-count">{completedSubtasks.length}</span>
                                   </button>
+
+                                  {showCompletedSubtasks && (
+                                    <div className="subtask-list compact completed-subtasks-list">
+                                      {completedSubtasks.map(renderSubtaskItem)}
+                                    </div>
+                                  )}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           )}
 

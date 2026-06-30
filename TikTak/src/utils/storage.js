@@ -168,6 +168,43 @@ const formatChangedFields = (fieldNames) => {
   return `עודכנו ${fieldNames.length} שדות: ${fieldNames.slice(0, 4).join(', ')} ועוד`;
 };
 
+const getSubtaskCompletionChangeDetails = (previousSubtasks = [], nextSubtasks = []) => {
+  if (!Array.isArray(previousSubtasks) || !Array.isArray(nextSubtasks)) return '';
+  if (previousSubtasks.length !== nextSubtasks.length) return '';
+
+  const previousById = new Map(previousSubtasks.map((item, index) => [
+    item?.id || `legacy-${index}-${item?.text || item}`,
+    item
+  ]));
+  const changedItems = [];
+
+  for (const [index, nextItem] of nextSubtasks.entries()) {
+    const itemId = nextItem?.id || `legacy-${index}-${nextItem?.text || nextItem}`;
+    const previousItem = previousById.get(itemId);
+    if (!previousItem) return '';
+
+    const previousText = typeof previousItem === 'string' ? previousItem : (previousItem.text || '');
+    const nextText = typeof nextItem === 'string' ? nextItem : (nextItem.text || '');
+    if (previousText !== nextText) return '';
+
+    const previousCompleted = Boolean(previousItem?.completed);
+    const nextCompleted = Boolean(nextItem?.completed);
+    if (previousCompleted !== nextCompleted) {
+      changedItems.push({
+        text: nextText.trim() || 'משימה ללא שם',
+        completed: nextCompleted
+      });
+    }
+  }
+
+  if (changedItems.length !== 1) return '';
+
+  const changedItem = changedItems[0];
+  return changedItem.completed
+    ? `המשימה "${changedItem.text}" סומנה כהושלמה`
+    : `הסימון הוסר מהמשימה "${changedItem.text}"`;
+};
+
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const workUpdateFieldLabelsPattern = Object.values(FIELD_LABELS)
   .map(escapeRegExp)
@@ -582,6 +619,9 @@ export const updateTask = async (taskId, updatedData) => {
     const shouldLogTaskUpdate = changedFields.length > 0;
     if (shouldLogTaskUpdate) {
       const isStatusOnly = changedFields.length === 1 && changedFields[0] === 'סטטוס';
+      const subtaskCompletionDetails = changedFields.length === 1 && changedFieldDetails[0]?.key === 'subtasks'
+        ? getSubtaskCompletionChangeDetails(beforeData.subtasks, taskWithoutPrivate.subtasks)
+        : '';
       await recordActivity({
         action: isStatusOnly ? 'task.status_changed' : 'task.updated',
         actionLabel: isStatusOnly ? 'שינוי סטטוס' : 'עדכון עבודה',
@@ -591,6 +631,8 @@ export const updateTask = async (taskId, updatedData) => {
         targetUserId: userId || beforeData.userId || '',
         details: isStatusOnly
           ? `סטטוס עודכן מ-${beforeData.status || 'לא ידוע'} ל-${taskWithoutPrivate.status}`
+          : subtaskCompletionDetails
+            ? subtaskCompletionDetails
           : formatChangedFields(changedFields),
         metadata: {
           changedFields,

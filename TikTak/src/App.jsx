@@ -14,16 +14,6 @@ const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'));
 const SearchModal = lazy(() => import('./components/SearchModal'));
 const Login = lazy(() => import('./pages/Login'));
 
-import {
-  saveGlobalSettings,
-  getGlobalSettings,
-  seedUserDatabaseIfEmpty,
-  migrateLegacyTasksToUser,
-  registerUserLogin,
-  migrateSuppliersAndContacts,
-  removeDefaultSuppliersAndContacts
-} from './utils/storage';
-
 import './App.css';
 
 /**
@@ -121,23 +111,33 @@ export default function App() {
           setIsLoggedIn(true);
           setUserId(user.uid);
 
+          let storageApi;
+          try {
+            storageApi = await import('./utils/storage');
+          } catch (storageImportError) {
+            console.error("Failed to load storage utilities", storageImportError);
+            setError("שגיאה בטעינת נתוני המערכת. אנא נסו שנית.");
+            setInitializing(false);
+            return;
+          }
+
           // Register user login profile
           try {
-            await registerUserLogin(user);
+            await storageApi.registerUserLogin(user);
           } catch (regError) {
             console.error("Failed to register login profile", regError);
           }
 
           // Run legacy tasks migration first!
           try {
-            await migrateLegacyTasksToUser(user.uid, user.email);
+            await storageApi.migrateLegacyTasksToUser(user.uid, user.email);
           } catch (migrationError) {
             console.error("Migration failed", migrationError);
           }
 
           // Seed default settings and tasks for the user if they don't exist
           try {
-            const userSettings = await getGlobalSettings(user.uid);
+            const userSettings = await storageApi.getGlobalSettings(user.uid);
             if (!userSettings) {
               const defaultSettings = {
                 workTypes: ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
@@ -153,13 +153,13 @@ export default function App() {
                 hideWeeklyHours: false,
                 autoArchiveInactiveDays: 45
               };
-              await saveGlobalSettings(defaultSettings, user.uid, { skipActivityLog: true });
+              await storageApi.saveGlobalSettings(defaultSettings, user.uid, { skipActivityLog: true });
             } else {
               // Run migration for existing users
-              await migrateSuppliersAndContacts(user.uid);
+              await storageApi.migrateSuppliersAndContacts(user.uid);
             }
-            await removeDefaultSuppliersAndContacts(user.uid);
-            await seedUserDatabaseIfEmpty(user.uid);
+            await storageApi.removeDefaultSuppliersAndContacts(user.uid);
+            await storageApi.seedUserDatabaseIfEmpty(user.uid);
           } catch (seedingError) {
             console.error("Seeding failed for user", user.uid, seedingError);
           }
@@ -301,11 +301,24 @@ export default function App() {
     if (!effectiveUserId || !currentUser || currentUser.isAnonymous) return;
     if (effectiveUserId !== currentUser.uid && !isSystemAdmin) return;
 
-    removeDefaultSuppliersAndContacts(effectiveUserId);
+    let cancelled = false;
+    const cleanupDefaultDirectoryRecords = async () => {
+      const { removeDefaultSuppliersAndContacts } = await import('./utils/storage');
+      if (!cancelled) {
+        removeDefaultSuppliersAndContacts(effectiveUserId);
+      }
+    };
+
+    cleanupDefaultDirectoryRecords();
+
+    return () => {
+      cancelled = true;
+    };
   }, [effectiveUserId, isSystemAdmin]);
 
   const handleSaveSettings = async (newSettings) => {
     if (!effectiveUserId) return;
+    const { saveGlobalSettings } = await import('./utils/storage');
     await saveGlobalSettings(newSettings, effectiveUserId);
     setSettings(newSettings);
   };

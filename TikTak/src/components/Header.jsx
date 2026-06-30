@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { getTasks } from '../utils/storage';
 
 const SUMMARY_CACHE_TTL_MS = 60 * 1000;
 const summaryCache = new Map();
@@ -137,6 +136,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
         return;
       }
 
+      const { getTasks } = await import('../utils/storage');
       const tasks = await getTasks(userId);
       const summary = getAggregatedMonthlySummary(tasks);
       setSummaryData(summary);

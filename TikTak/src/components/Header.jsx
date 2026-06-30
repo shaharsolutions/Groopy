@@ -227,9 +227,9 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
                 borderColor: '#c7d2fe',
                 marginLeft: '8px'
               }}
-              title="מעבר לפאנל ניהול משתמשים"
+              title="מעבר לפאנל ניהול"
             >
-              👥 ניהול משתמשים
+              🛠️ פאנל ניהול
             </button>
           )
         )}

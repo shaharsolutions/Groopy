@@ -426,6 +426,7 @@ export default function App() {
             <UsersManagement
               onImpersonate={handleImpersonate}
               onBack={() => setCurrentView('dashboard')}
+              onNavigate={setCurrentView}
             />
           ) : currentView === 'settings' ? (
             <SettingsPage

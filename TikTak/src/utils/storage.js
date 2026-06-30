@@ -150,29 +150,6 @@ const FIELD_LABELS = {
   weeklyHours: 'שעות עבודה'
 };
 
-const WORK_UPDATE_COMMENT_FIELDS = new Set([
-  'title',
-  'description',
-  'workType',
-  'storeName',
-  'supplierName',
-  'contactPerson',
-  'importManager',
-  'status',
-  'priority',
-  'deadline',
-  'driveLink',
-  'supplierContactEmail',
-  'diecutsStatus',
-  'imagesStatus',
-  'standardsInstituteRequired',
-  'planogramFile',
-  'workOrderFiles',
-  'subtasks',
-  'attachments',
-  'weeklyHours'
-]);
-
 const getChangedFields = (before = {}, afterPatch = {}) => {
   return Object.keys(afterPatch)
     .filter(key => key !== 'updatedAt')
@@ -191,46 +168,19 @@ const formatChangedFields = (fieldNames) => {
   return `עודכנו ${fieldNames.length} שדות: ${fieldNames.slice(0, 4).join(', ')} ועוד`;
 };
 
-const formatCommentValue = (value) => {
-  if (value === undefined || value === null || value === '') return 'לא הוגדר';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return value.length ? `${value.length} פריטים` : 'ללא פריטים';
-  }
-  return 'עודכן';
-};
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const workUpdateFieldLabelsPattern = Object.values(FIELD_LABELS)
+  .map(escapeRegExp)
+  .join('|');
+const singleFieldWorkUpdatePattern = new RegExp(`^(${workUpdateFieldLabelsPattern}) עודכן מ-[\\s\\S]+ ל-[\\s\\S]+$`);
 
-const formatWorkUpdateCommentText = (changedFields) => {
-  if (changedFields.length === 1) {
-    const field = changedFields[0];
-    if (field.key === 'status') {
-      return `סטטוס העבודה השתנה מ-${formatCommentValue(field.previousValue)} ל-${formatCommentValue(field.newValue)}`;
-    }
-    return `${field.label} עודכן מ-${formatCommentValue(field.previousValue)} ל-${formatCommentValue(field.newValue)}`;
-  }
-
-  return [
-    'עודכנו פרטי עבודה:',
-    ...changedFields.map(field => `${field.label}: מ-${formatCommentValue(field.previousValue)} ל-${formatCommentValue(field.newValue)}`)
-  ].join('\n');
-};
-
-const addWorkUpdateComment = async ({ taskId, userId, changedFields, createdAt }) => {
-  const visibleFields = changedFields.filter(field => WORK_UPDATE_COMMENT_FIELDS.has(field.key));
-  if (!taskId || !userId || visibleFields.length === 0) return;
-
-  const actor = getCurrentActor();
-  if (!actor) return;
-
-  await addDoc(collection(db, COMMENTS_COLLECTION), {
-    jobId: taskId,
-    userId,
-    authorName: getCommentAuthorName(actor.actorName),
-    text: formatWorkUpdateCommentText(visibleFields),
-    createdAt
-  });
+const isSystemWorkUpdateComment = (comment = {}) => {
+  const text = String(comment.text || '').trim();
+  return (
+    text.startsWith('עודכנו פרטי עבודה:') ||
+    /^סטטוס העבודה השתנה מ-[\s\S]+ ל-[\s\S]+$/.test(text) ||
+    singleFieldWorkUpdatePattern.test(text)
+  );
 };
 
 // Seed the database for a specific user if their tasks are empty
@@ -385,8 +335,9 @@ export const getCommentsForTask = async (taskId, userId) => {
     querySnapshot.forEach((doc) => {
       comments.push({ id: doc.id, ...doc.data() });
     });
-    // Show the latest work updates first in the comments/activity panel.
-    return comments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return comments
+      .filter(comment => !isSystemWorkUpdateComment(comment))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (e) {
     console.error(`Error fetching comments for task ${taskId}`, e);
     return [];
@@ -405,7 +356,7 @@ export const getAllCommentsForUser = async (userId) => {
     querySnapshot.forEach((doc) => {
       comments.push({ id: doc.id, ...doc.data() });
     });
-    return comments;
+    return comments.filter(comment => !isSystemWorkUpdateComment(comment));
   } catch (e) {
     console.error(`Error fetching all comments for user ${userId}`, e);
     return [];
@@ -627,12 +578,6 @@ export const updateTask = async (taskId, updatedData) => {
       { ...taskWithoutPrivate, ...(internalNotes !== undefined ? { internalNotes } : {}) }
     );
     const changedFields = changedFieldDetails.map(field => field.label);
-    await addWorkUpdateComment({
-      taskId,
-      userId: userId || beforeData.userId || '',
-      changedFields: changedFieldDetails,
-      createdAt: now
-    });
 
     const shouldLogTaskUpdate = changedFields.length > 0;
     if (shouldLogTaskUpdate) {
@@ -1274,6 +1219,84 @@ export const getAllUsers = async () => {
     return users;
   } catch (e) {
     console.error("Error fetching all users:", e);
+    throw e;
+  }
+};
+
+const readCollectionWithServerFallback = async (collectionName) => {
+  const ref = collection(db, collectionName);
+  try {
+    return await getDocsFromServer(ref);
+  } catch (serverError) {
+    console.warn(`Server ${collectionName} read failed, falling back to Firestore cache`, serverError);
+    return getDocs(ref);
+  }
+};
+
+const parseDateValue = (value) => {
+  const timestamp = Date.parse(value || '');
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+export const getUserManagementStats = async () => {
+  try {
+    const [tasksSnapshot, activitySnapshot] = await Promise.all([
+      readCollectionWithServerFallback(TASKS_COLLECTION),
+      readCollectionWithServerFallback(ACTIVITY_LOGS_COLLECTION)
+    ]);
+
+    const statsByUser = {};
+    const ensureStats = (userId) => {
+      if (!userId) return null;
+      if (!statsByUser[userId]) {
+        statsByUser[userId] = {
+          projectCount: 0,
+          activeProjectCount: 0,
+          archivedProjectCount: 0,
+          weeklyHoursTotal: 0,
+          lastProjectUpdatedAt: '',
+          activityCount: 0,
+          lastActivityAt: ''
+        };
+      }
+      return statsByUser[userId];
+    };
+
+    tasksSnapshot.forEach((docSnap) => {
+      const task = docSnap.data();
+      if (task.deletedAt) return;
+      const stats = ensureStats(task.userId);
+      if (!stats) return;
+
+      const normalizedStatus = normalizeTaskStatus(task.status);
+      const updatedAt = task.updatedAt || task.createdAt || task.deadline || '';
+
+      stats.projectCount += 1;
+      if (normalizedStatus === ARCHIVE_STATUS) {
+        stats.archivedProjectCount += 1;
+      } else {
+        stats.activeProjectCount += 1;
+      }
+      stats.weeklyHoursTotal += Number(task.weeklyHours) || 0;
+      if (parseDateValue(updatedAt) > parseDateValue(stats.lastProjectUpdatedAt)) {
+        stats.lastProjectUpdatedAt = updatedAt;
+      }
+    });
+
+    activitySnapshot.forEach((docSnap) => {
+      const activity = docSnap.data();
+      const stats = ensureStats(activity.actorUid);
+      if (!stats) return;
+
+      stats.activityCount += 1;
+      if (parseDateValue(activity.createdAt) > parseDateValue(stats.lastActivityAt)) {
+        stats.lastActivityAt = activity.createdAt;
+      }
+    });
+
+    return statsByUser;
+  } catch (e) {
+    console.error("Error fetching user management stats:", e);
     throw e;
   }
 };

@@ -252,9 +252,6 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                 autoArchiveInactiveDays: e.target.value
               })}
             />
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '6px' }}>
-              ברירת המחדל היא 45 ימים. כל עדכון בפרויקט מאפס את ספירת הימים.
-            </p>
           </div>
         </div>
 

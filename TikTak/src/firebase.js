@@ -1,5 +1,4 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
@@ -26,8 +25,10 @@ const auth = getAuth(app);
 // Initialize Storage
 const storage = getStorage(app);
 
-// Initialize Analytics safely on client side
-const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+const getAppAnalytics = async () => {
+  if (typeof window === 'undefined') return null;
+  const { getAnalytics, isSupported } = await import('firebase/analytics');
+  return (await isSupported()) ? getAnalytics(app) : null;
+};
 
-export { app, db, auth, analytics, storage };
-
+export { app, db, auth, storage, getAppAnalytics };

@@ -6,11 +6,14 @@ import {
   getContacts
 } from '../utils/storage';
 
+const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
+const searchDataCache = new Map();
+
 const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-export default function SearchModal({ isOpen, onClose, userId, userRole, isSystemAdmin, onNavigate }) {
+export default function SearchModal({ isOpen, onClose, userId, userRole, onNavigate }) {
   const [query, setQuery] = useState('');
   const [tasks, setTasks] = useState([]);
   const [comments, setComments] = useState([]);
@@ -26,6 +29,17 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, isSyste
     if (!isOpen || !userId) return;
 
     const loadSearchData = async () => {
+      const cacheKey = `${userId}:${isAdmin ? 'admin' : 'viewer'}`;
+      const cached = searchDataCache.get(cacheKey);
+      if (cached && Date.now() - cached.createdAt < SEARCH_CACHE_TTL_MS) {
+        setTasks(cached.tasks);
+        setComments(cached.comments);
+        setSuppliers(cached.suppliers);
+        setContacts(cached.contacts);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const promises = [
@@ -39,13 +53,23 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, isSyste
         }
 
         const results = await Promise.all(promises);
-        setTasks(results[0] || []);
-        setComments(results[1] || []);
+        const nextTasks = results[0] || [];
+        const nextComments = results[1] || [];
+        const nextSuppliers = isAdmin ? (results[2] || []) : [];
+        const nextContacts = isAdmin ? (results[3] || []) : [];
 
-        if (isAdmin) {
-          setSuppliers(results[2] || []);
-          setContacts(results[3] || []);
-        }
+        setTasks(nextTasks);
+        setComments(nextComments);
+        setSuppliers(nextSuppliers);
+        setContacts(nextContacts);
+
+        searchDataCache.set(cacheKey, {
+          createdAt: Date.now(),
+          tasks: nextTasks,
+          comments: nextComments,
+          suppliers: nextSuppliers,
+          contacts: nextContacts
+        });
       } catch (err) {
         console.error("Failed to load search index data:", err);
       } finally {

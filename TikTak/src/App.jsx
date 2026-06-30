@@ -3,7 +3,6 @@ import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import Header from './components/Header';
-import SearchModal from './components/SearchModal';
 
 // Lazy loading pages for better initial load performance
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -12,6 +11,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const SuppliersContactsPage = lazy(() => import('./pages/SuppliersContactsPage'));
 const UsersManagement = lazy(() => import('./pages/UsersManagement'));
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'));
+const SearchModal = lazy(() => import('./components/SearchModal'));
 const Login = lazy(() => import('./pages/Login'));
 
 import {
@@ -476,14 +476,17 @@ export default function App() {
           />
         )}
       </Suspense>
-      <SearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        userId={effectiveUserId}
-        userRole={userRole}
-        isSystemAdmin={isSystemAdmin}
-        onNavigate={handleSearchNavigate}
-      />
+      {isSearchOpen && (
+        <Suspense fallback={null}>
+          <SearchModal
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+            userId={effectiveUserId}
+            userRole={userRole}
+            onNavigate={handleSearchNavigate}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

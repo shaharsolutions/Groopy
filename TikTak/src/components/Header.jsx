@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { getTasks } from '../utils/storage';
 
+const SUMMARY_CACHE_TTL_MS = 60 * 1000;
+const summaryCache = new Map();
+
 function getSundayOfWeek(date) {
   const d = new Date(date);
   const day = d.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -126,17 +129,30 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
     setIsSummaryOpen(true);
     setLoading(true);
     try {
+      const cacheKey = userId || 'anonymous';
+      const cached = summaryCache.get(cacheKey);
+      if (cached && Date.now() - cached.createdAt < SUMMARY_CACHE_TTL_MS) {
+        setSummaryData(cached.summary);
+        setExpandedMonths(cached.expandedMonths);
+        return;
+      }
+
       const tasks = await getTasks(userId);
       const summary = getAggregatedMonthlySummary(tasks);
       setSummaryData(summary);
       
       const keys = Object.keys(summary);
+      let nextExpandedMonths = {};
       if (keys.length > 0) {
         const latestKey = keys.sort()[keys.length - 1];
-        setExpandedMonths({ [latestKey]: true });
-      } else {
-        setExpandedMonths({});
+        nextExpandedMonths = { [latestKey]: true };
       }
+      setExpandedMonths(nextExpandedMonths);
+      summaryCache.set(cacheKey, {
+        createdAt: Date.now(),
+        summary,
+        expandedMonths: nextExpandedMonths
+      });
     } catch (err) {
       console.error("Failed to load hours summary:", err);
     } finally {

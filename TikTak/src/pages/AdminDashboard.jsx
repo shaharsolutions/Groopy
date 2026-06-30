@@ -19,6 +19,9 @@ import PlanogramIndicator from '../components/PlanogramIndicator';
 const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
 const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
 const SORT_MODES = new Set(['manual', 'updatedAt', 'status', 'title', 'contactPerson']);
+const COMPLETED_SUBTASK_VISIBILITY_MS = 3000;
+
+const getProjectSubtaskKey = (taskId, subtaskId) => `${taskId}:${subtaskId}`;
 
 const normalizeProjectSubtasks = (task) => {
   if (!Array.isArray(task?.subtasks)) return [];
@@ -114,8 +117,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [sortMode, setSortMode] = useState(() => readSortPreference().mode);
   const [sortDirection, setSortDirection] = useState(() => readSortPreference().direction);
   const [savingStatusIds, setSavingStatusIds] = useState(() => new Set());
+  const [recentlyCompletedSubtaskKeys, setRecentlyCompletedSubtaskKeys] = useState(() => new Set());
   const statusChangeSeq = useRef({});
   const autoArchiveRunKey = useRef('');
+  const completedSubtaskTimers = useRef({});
 
   // Modals State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -145,6 +150,13 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [deletingTaskId, viewingTask, isCreateOpen]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(completedSubtaskTimers.current).forEach(clearTimeout);
+      completedSubtaskTimers.current = {};
+    };
+  }, []);
 
   const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
     if (currentTasks.length === 0) return fetchedTasks;
@@ -290,13 +302,22 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       });
   }, [tasks]);
 
+  const visibleProjectSubtasks = useMemo(() => {
+    return allProjectSubtasks.filter(item => (
+      !item.completed || recentlyCompletedSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id))
+    ));
+  }, [allProjectSubtasks, recentlyCompletedSubtaskKeys]);
+
   const handleToggleProjectSubtask = async (taskId, subtaskId) => {
     const targetTask = tasks.find(task => task.id === taskId);
     if (!targetTask) return;
 
+    const subtaskKey = getProjectSubtaskKey(taskId, subtaskId);
+    let nextCompletedState = false;
     const nextSubtasks = normalizeProjectSubtasks(targetTask).map(subtask => {
       if (subtask.id !== subtaskId) return subtask;
       const completed = !subtask.completed;
+      nextCompletedState = completed;
       return {
         ...subtask,
         completed,
@@ -310,6 +331,30 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         subtasks: nextSubtasks,
         updatedAt: new Date().toISOString()
       });
+
+      if (completedSubtaskTimers.current[subtaskKey]) {
+        clearTimeout(completedSubtaskTimers.current[subtaskKey]);
+        delete completedSubtaskTimers.current[subtaskKey];
+      }
+
+      if (nextCompletedState) {
+        setRecentlyCompletedSubtaskKeys(prev => new Set(prev).add(subtaskKey));
+        completedSubtaskTimers.current[subtaskKey] = setTimeout(() => {
+          setRecentlyCompletedSubtaskKeys(prev => {
+            const next = new Set(prev);
+            next.delete(subtaskKey);
+            return next;
+          });
+          delete completedSubtaskTimers.current[subtaskKey];
+        }, COMPLETED_SUBTASK_VISIBILITY_MS);
+      } else {
+        setRecentlyCompletedSubtaskKeys(prev => {
+          if (!prev.has(subtaskKey)) return prev;
+          const next = new Set(prev);
+          next.delete(subtaskKey);
+          return next;
+        });
+      }
     } catch (err) {
       console.error('Failed to update project subtask from dashboard', err);
       alert('המשימה לא עודכנה. נסי שוב בעוד רגע.');
@@ -706,20 +751,24 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           <div>
             <h3 id="dashboard-subtasks-title">משימות פתוחות</h3>
             <p>
-              {allProjectSubtasks.length > 0
-                ? `${allProjectSubtasks.filter(item => !item.completed).length} פתוחות מתוך ${allProjectSubtasks.length}`
-                : 'אין עדיין משימות בפרויקטים'}
+              {visibleProjectSubtasks.length > 0
+                ? `${allProjectSubtasks.filter(item => !item.completed).length} פתוחות מתוך ${visibleProjectSubtasks.length}`
+                : allProjectSubtasks.length > 0
+                  ? 'אין משימות פתוחות כרגע'
+                  : 'אין עדיין משימות בפרויקטים'}
             </p>
           </div>
         </div>
 
-        {allProjectSubtasks.length === 0 ? (
+        {visibleProjectSubtasks.length === 0 ? (
           <div className="dashboard-subtasks-empty">
-            הוסיפי משימות מתוך אזור הערות ועדכוני עבודה בפרויקט, והן יופיעו כאן.
+            {allProjectSubtasks.length > 0
+              ? 'כל המשימות בפרויקטים סומנו כבוצעו.'
+              : 'הוסיפי משימות מתוך אזור הערות ועדכוני עבודה בפרויקט, והן יופיעו כאן.'}
           </div>
         ) : (
           <div className="dashboard-subtasks-list">
-            {allProjectSubtasks.map(item => (
+            {visibleProjectSubtasks.map(item => (
               <article
                 className={`dashboard-subtask-item ${item.completed ? 'completed' : ''}`}
                 key={`${item.taskId}-${item.id}`}

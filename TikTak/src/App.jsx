@@ -88,7 +88,8 @@ export default function App() {
       'נשלח לספק': 'badge-waiting-approval',
       'אושר לספק': 'badge-approved',
       'ארכיון': 'badge-archive'
-    }
+    },
+    hideWeeklyHours: false
   });
 
   const [suppliers, setSuppliers] = useState([]);
@@ -147,7 +148,8 @@ export default function App() {
                   'נשלח לספק': 'badge-waiting-approval',
                   'אושר לספק': 'badge-approved',
                   'ארכיון': 'badge-archive'
-                }
+                },
+                hideWeeklyHours: false
               };
               await saveGlobalSettings(defaultSettings, user.uid, { skipActivityLog: true });
             } else {
@@ -212,7 +214,8 @@ export default function App() {
           ...prev,
           statuses: defaultStatuses,
           statusColors: defaultStatusColors,
-          defaultStatus: 'חדש'
+          defaultStatus: 'חדש',
+          hideWeeklyHours: false
         }));
       }
     }, (err) => {
@@ -397,6 +400,8 @@ export default function App() {
         userId={effectiveUserId}
         userEmail={auth.currentUser?.email}
         onSearchTrigger={() => setIsSearchOpen(true)}
+        onOpenTask={(taskId) => setAutoOpenTaskId(taskId)}
+        settings={settings}
       />
       <Suspense fallback={
         <div style={{

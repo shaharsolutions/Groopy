@@ -60,7 +60,7 @@ function getMonthlySummary(weeklyHoursObj) {
   if (weeklyHoursObj.sunday !== undefined || weeklyHoursObj.monday !== undefined) {
     const currentWeekSunday = getSundayOfWeek(new Date());
     const [yyyy, mm, dd] = currentWeekSunday.split('-').map(Number);
-    
+
     const days = [
       { key: 'sunday', offset: 0 },
       { key: 'monday', offset: 1 },
@@ -115,7 +115,8 @@ function getMonthlySummary(weeklyHoursObj) {
 
 export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false, userId }) {
   const {
-    statusColors: STATUS_CLASSES = {}
+    statusColors: STATUS_CLASSES = {},
+    hideWeeklyHours = false
   } = settings || {};
   const [comments, setComments] = useState([]);
   const [authorName, setAuthorName] = useState(() => localStorage.getItem('tiktak_comment_author') || '');
@@ -263,19 +264,19 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
             </h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="btn btn-secondary"
               onClick={handleCopyTaskLink}
-              style={{ 
-                fontSize: '0.85rem', 
+              style={{
+                fontSize: '0.85rem',
                 padding: '6px 12px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
                 whiteSpace: 'nowrap',
-                backgroundColor: '#e6f7ed', 
-                color: '#1e4620', 
+                backgroundColor: '#e6f7ed',
+                color: '#1e4620',
                 borderColor: '#1e4620',
                 fontWeight: '600'
               }}
@@ -289,14 +290,14 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
         <div className="modal-body" style={{ maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
           <div className="details-grid">
-            
+
             {/* Main Content Area (Left Column) */}
             <div className="details-main">
-              
+
               {/* AREA 1: פרטי עבודה */}
               <div className="details-section-card">
                 <h4 className="detail-section-title">📁 פרטי עבודה</h4>
-                
+
                 {/* Description */}
                 <div style={{ marginBottom: '16px' }}>
                   <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px', display: 'block', fontSize: '0.85rem' }}>תיאור העבודה</label>
@@ -315,13 +316,13 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
               <div className="details-section-card">
                 <h4 className="detail-section-title">📋 הזמנת עבודה ופלנוגרמה</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  
+
                   {/* הזמנת עבודה */}
                   <div>
                     <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
                       הזמנת עבודה (קבצים מצורפים)
                     </label>
-                    
+
                     {(() => {
                       const filesList = task.workOrderFiles || task.attachments || [];
                       return filesList.length > 0 ? (
@@ -332,10 +333,10 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                             const isPdf = /\.pdf$/i.test(file.name);
                             return (
                               <div key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                                <a 
-                                  href={file.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
+                                <a
+                                  href={file.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                   className="attachment-info"
                                   style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                                   title={file.name}
@@ -371,12 +372,12 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                     <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
                       פלנוגרמה
                     </label>
-                    
+
                     {task.planogramFile ? (
                       <PlanogramFileCard file={task.planogramFile} />
                     ) : (
-                      <div 
-                        className="planogram-preview-container" 
+                      <div
+                        className="planogram-preview-container"
                         style={{ height: '140px', margin: 0, borderStyle: 'dashed' }}
                       >
                         <span className="planogram-empty-text">לא הועלתה פלנוגרמה</span>
@@ -388,109 +389,111 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
               </div>
 
               {/* שעות עבודה בפרויקט */}
-              <div className="details-section-card">
-                <h4 className="detail-section-title">🕒 שעות עבודה בפרויקט</h4>
-                
-                {/* week navigation panel */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
-                    style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
-                    onClick={handlePrevWeek}
-                  >
-                    ▶ שבוע קודם
-                  </button>
-                  
-                  <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b' }}>
-                    שבוע: {getDayDate(activeSunday, 0)} - {getDayDate(activeSunday, 4)}
-                  </div>
-                  
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
-                    style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
-                    onClick={handleNextWeek}
-                  >
-                    שבוע הבא ◀
-                  </button>
-                </div>
+              {!hideWeeklyHours && (
+                <div className="details-section-card">
+                  <h4 className="detail-section-title">🕒 שעות עבודה בפרויקט</h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
-                  {[
-                    { key: 'sunday', label: 'ראשון', offset: 0 },
-                    { key: 'monday', label: 'שני', offset: 1 },
-                    { key: 'tuesday', label: 'שלישי', offset: 2 },
-                    { key: 'wednesday', label: 'רביעי', offset: 3 },
-                    { key: 'thursday', label: 'חמישי', offset: 4 }
-                  ].map(day => {
-                    const wh = getWeeklyHoursForSunday(task.weeklyHours, activeSunday);
-                    const hoursVal = wh[day.key] !== undefined ? wh[day.key] : 0;
+                  {/* week navigation panel */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      onClick={handlePrevWeek}
+                    >
+                      ▶ שבוע קודם
+                    </button>
+
+                    <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b' }}>
+                      שבוע: {getDayDate(activeSunday, 0)} - {getDayDate(activeSunday, 4)}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      onClick={handleNextWeek}
+                    >
+                      שבוע הבא ◀
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                    {[
+                      { key: 'sunday', label: 'ראשון', offset: 0 },
+                      { key: 'monday', label: 'שני', offset: 1 },
+                      { key: 'tuesday', label: 'שלישי', offset: 2 },
+                      { key: 'wednesday', label: 'רביעי', offset: 3 },
+                      { key: 'thursday', label: 'חמישי', offset: 4 }
+                    ].map(day => {
+                      const wh = getWeeklyHoursForSunday(task.weeklyHours, activeSunday);
+                      const hoursVal = wh[day.key] !== undefined ? wh[day.key] : 0;
+                      return (
+                        <div key={day.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <span>{day.label}</span>
+                            <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal', marginTop: '2px' }}>{getDayDate(activeSunday, day.offset)}</span>
+                          </span>
+                          <span style={{
+                            fontSize: '1rem',
+                            fontWeight: '600',
+                            backgroundColor: '#f8fafc',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            minWidth: '40px',
+                            textAlign: 'center',
+                            border: '1px solid var(--border)'
+                          }}>
+                            {hoursVal}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                    <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
+                    <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>
+                      {(() => {
+                        const wh = getWeeklyHoursForSunday(task.weeklyHours, activeSunday);
+                        const sun = parseFloat(wh.sunday) || 0;
+                        const mon = parseFloat(wh.monday) || 0;
+                        const tue = parseFloat(wh.tuesday) || 0;
+                        const wed = parseFloat(wh.wednesday) || 0;
+                        const thu = parseFloat(wh.thursday) || 0;
+                        return Number((sun + mon + tue + wed + thu).toFixed(2));
+                      })()}
+                    </span>
+                  </div>
+
+                  {/* Monthly Summary */}
+                  {(() => {
+                    const monthlySummary = getMonthlySummary(task.weeklyHours);
+                    const hasHours = Object.keys(monthlySummary).length > 0;
                     return (
-                      <div key={day.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <span>{day.label}</span>
-                          <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal', marginTop: '2px' }}>{getDayDate(activeSunday, day.offset)}</span>
-                        </span>
-                        <span style={{ 
-                          fontSize: '1rem', 
-                          fontWeight: '600', 
-                          backgroundColor: '#f8fafc', 
-                          padding: '6px 12px', 
-                          borderRadius: '6px', 
-                          minWidth: '40px', 
-                          textAlign: 'center', 
-                          border: '1px solid var(--border)' 
-                        }}>
-                          {hoursVal}
-                        </span>
+                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dotted var(--border)' }}>
+                        <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-muted)' }}>סיכום חודשי מצטבר:</div>
+                        {hasHours ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {Object.entries(monthlySummary).map(([month, total]) => (
+                              <div key={month} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                <span>{month}:</span>
+                                <span style={{ fontWeight: '600' }}>{total} שעות</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>אין שעות עבודה מדווחות עדיין</div>
+                        )}
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-                  <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
-                  <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>
-                    {(() => {
-                      const wh = getWeeklyHoursForSunday(task.weeklyHours, activeSunday);
-                      const sun = parseFloat(wh.sunday) || 0;
-                      const mon = parseFloat(wh.monday) || 0;
-                      const tue = parseFloat(wh.tuesday) || 0;
-                      const wed = parseFloat(wh.wednesday) || 0;
-                      const thu = parseFloat(wh.thursday) || 0;
-                      return Number((sun + mon + tue + wed + thu).toFixed(2));
-                    })()}
-                  </span>
-                </div>
-
-                {/* Monthly Summary */}
-                {(() => {
-                  const monthlySummary = getMonthlySummary(task.weeklyHours);
-                  const hasHours = Object.keys(monthlySummary).length > 0;
-                  return (
-                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dotted var(--border)' }}>
-                      <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-muted)' }}>סיכום חודשי מצטבר:</div>
-                      {hasHours ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {Object.entries(monthlySummary).map(([month, total]) => (
-                            <div key={month} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                              <span>{month}:</span>
-                              <span style={{ fontWeight: '600' }}>{total} שעות</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>אין שעות עבודה מדווחות עדיין</div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
+              )}
 
               {/* AREA 5: הערות ועדכוני עבודה */}
               <div className="comments-section">
                 <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
-                
+
                 {comments.length === 0 ? (
                   <div className="empty-state" style={{ padding: '24px' }}>
                     <div className="empty-state-title">אין הערות עדיין</div>
@@ -514,18 +517,18 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                             <div style={{ marginTop: '8px' }}>
                               {isImage && (
                                 <a href={c.attachmentUrl} target="_blank" rel="noopener noreferrer">
-                                  <img 
-                                    src={c.attachmentUrl} 
-                                    alt={c.attachmentName} 
-                                    className="comment-image-preview" 
+                                  <img
+                                    src={c.attachmentUrl}
+                                    alt={c.attachmentName}
+                                    className="comment-image-preview"
                                   />
                                 </a>
                               )}
                               <div>
-                                <a 
-                                  href={c.attachmentUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
+                                <a
+                                  href={c.attachmentUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                   className="comment-attachment-link"
                                   onClick={(e) => {
                                     if (isExcel) {
@@ -616,9 +619,9 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                       return (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                           <span>📞</span>
-                          <a 
-                            href={`tel:${phone.replace(/\s+/g, '')}`} 
-                            className="directory-phone-link direction-ltr" 
+                          <a
+                            href={`tel:${phone.replace(/\s+/g, '')}`}
+                            className="directory-phone-link direction-ltr"
                             style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
                           >
                             {phone}
@@ -645,7 +648,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
               {/* AREA 3: חומרים ואישורים */}
               <div className="details-section-card">
                 <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 חומרים ואישורים</h4>
-                
+
                 {/* Status */}
                 <div className="sidebar-row">
                   <span className="sidebar-label">סטטוס עבודה</span>
@@ -769,8 +772,8 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   return (
                     <div key={idx} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '2px' }}>{field.label}</div>
-                      <div 
-                        className={field.isLtr ? 'direction-ltr text-left' : ''} 
+                      <div
+                        className={field.isLtr ? 'direction-ltr text-left' : ''}
                         style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: field.isMultiline ? 'pre-wrap' : 'normal' }}
                       >
                         {field.type === 'phone' ? (
@@ -786,10 +789,10 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                                   cleanVal = '972' + cleanVal.substring(1);
                                 }
                                 return (
-                                  <a 
-                                    href={`https://wa.me/${cleanVal}`} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
+                                  <a
+                                    href={`https://wa.me/${cleanVal}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     title="פתיחת צ'אט בוואטסאפ"
                                     style={{ display: 'inline-flex', alignItems: 'center', transition: 'transform 0.2s' }}
                                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
@@ -816,10 +819,10 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                               cleanVal = '972' + cleanVal.substring(1);
                             }
                             return (
-                              <a 
-                                href={`https://wa.me/${cleanVal}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
+                              <a
+                                href={`https://wa.me/${cleanVal}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 style={{ color: '#10b981', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '6px', transition: 'transform 0.2s' }}
                                 onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
                                 onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -856,21 +859,21 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
       {/* Excel Preview Modal */}
       <Suspense fallback={null}>
-        <ExcelPreviewModal 
-          isOpen={!!excelPreviewFile} 
-          onClose={() => setExcelPreviewFile(null)} 
-          fileUrl={excelPreviewFile?.url} 
-          fileName={excelPreviewFile?.name} 
+        <ExcelPreviewModal
+          isOpen={!!excelPreviewFile}
+          onClose={() => setExcelPreviewFile(null)}
+          fileUrl={excelPreviewFile?.url}
+          fileName={excelPreviewFile?.name}
         />
       </Suspense>
 
       {/* PDF Preview Modal */}
       <Suspense fallback={null}>
-        <PdfPreviewModal 
-          isOpen={!!pdfPreviewFile} 
-          onClose={() => setPdfPreviewFile(null)} 
-          fileUrl={pdfPreviewFile?.url} 
-          fileName={pdfPreviewFile?.name} 
+        <PdfPreviewModal
+          isOpen={!!pdfPreviewFile}
+          onClose={() => setPdfPreviewFile(null)}
+          fileUrl={pdfPreviewFile?.url}
+          fileName={pdfPreviewFile?.name}
         />
       </Suspense>
     </div>

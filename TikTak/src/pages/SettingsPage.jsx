@@ -56,9 +56,9 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     }
 
     const updatedStatuses = [...(localSettings.statuses || []), nameTrimmed];
-    const updatedColors = { 
-      ...(localSettings.statusColors || {}), 
-      [nameTrimmed]: newStatusColor 
+    const updatedColors = {
+      ...(localSettings.statusColors || {}),
+      [nameTrimmed]: newStatusColor
     };
 
     setLocalSettings({
@@ -151,7 +151,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
 
   return (
     <main className="dashboard-container" style={{ maxWidth: '950px', padding: '24px' }}>
-      
+
       {/* Top Header Row */}
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
@@ -186,7 +186,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
 
       {/* Settings Sections */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        
+
         {/* Section 1: Dashboard Details */}
         <div className="filter-panel">
           <h4 className="detail-section-title">🖥️ נראות הלוח</h4>
@@ -196,12 +196,27 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
 
           <div className="form-group" style={{ maxWidth: '500px' }}>
             <label className="form-label">שם הלוח (כותרת ראשית בדאשבורד)</label>
-            <input 
-              type="text" 
-              className="form-control" 
+            <input
+              type="text"
+              className="form-control"
               value={localSettings.boardTitle || ''}
               onChange={(e) => setLocalSettings({ ...localSettings, boardTitle: e.target.value })}
             />
+          </div>
+
+          <div className="form-group" style={{ marginTop: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '500' }}>
+              <input
+                type="checkbox"
+                checked={localSettings.hideWeeklyHours || false}
+                onChange={(e) => setLocalSettings({ ...localSettings, hideWeeklyHours: e.target.checked })}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span>הסתרת שעות עבודה בפרויקט</span>
+            </label>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '4px 0 0 26px' }}>
+              כאשר מסומן, כרטיס "שעות עבודה בפרויקט" לא יופיע בפרטי המשימה וכפתור "סיכום שעות" יוסתר.
+            </p>
           </div>
         </div>
 
@@ -232,13 +247,13 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                   statuses.map((st, index) => {
                     const isEditing = editingIndex === index;
                     const currentColor = (localSettings.statusColors || {})[st] || 'badge-frozen';
-                    
+
                     return (
                       <tr key={index}>
                         <td style={{ padding: '8px' }}>
                           {isEditing ? (
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               className="form-control"
                               style={{ padding: '4px 8px', fontSize: '0.85rem', height: '28px' }}
                               value={editingValue}
@@ -251,7 +266,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                           )}
                         </td>
                         <td style={{ padding: '8px' }}>
-                          <select 
+                          <select
                             className="form-control"
                             style={{ padding: '2px 8px', fontSize: '0.85rem', height: '28px' }}
                             value={currentColor}
@@ -268,16 +283,16 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                           <div style={{ display: 'flex', gap: '6px' }}>
                             {isEditing ? (
                               <>
-                                <button 
-                                  className="btn btn-secondary btn-icon" 
-                                  style={{ padding: '4px', color: '#10b981', borderColor: '#10b981' }} 
+                                <button
+                                  className="btn btn-secondary btn-icon"
+                                  style={{ padding: '4px', color: '#10b981', borderColor: '#10b981' }}
                                   onClick={() => saveEditedStatusName(index)}
                                 >
                                   ✔️
                                 </button>
-                                <button 
-                                  className="btn btn-secondary btn-icon" 
-                                  style={{ padding: '4px', color: '#ef4444', borderColor: '#ef4444' }} 
+                                <button
+                                  className="btn btn-secondary btn-icon"
+                                  style={{ padding: '4px', color: '#ef4444', borderColor: '#ef4444' }}
                                   onClick={() => setEditingIndex(null)}
                                 >
                                   ❌
@@ -285,17 +300,17 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                               </>
                             ) : (
                               <>
-                                <button 
-                                  className="btn btn-secondary btn-icon" 
-                                  style={{ padding: '4px' }} 
+                                <button
+                                  className="btn btn-secondary btn-icon"
+                                  style={{ padding: '4px' }}
                                   title="שינוי שם הסטטוס"
                                   onClick={() => startEditing(index, st)}
                                 >
                                   ✏️
                                 </button>
-                                <button 
-                                  className="btn btn-danger btn-icon" 
-                                  style={{ padding: '4px' }} 
+                                <button
+                                  className="btn btn-danger btn-icon"
+                                  style={{ padding: '4px' }}
                                   title="מחיקת הסטטוס"
                                   onClick={() => handleRemoveStatus(st)}
                                 >
@@ -317,9 +332,9 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
           <form onSubmit={handleAddStatus} className="form-grid-2col" style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontSize: '0.8rem' }}>שם סטטוס חדש</label>
-              <input 
-                type="text" 
-                className="form-control" 
+              <input
+                type="text"
+                className="form-control"
                 value={newStatusName}
                 onChange={(e) => setNewStatusName(e.target.value)}
               />
@@ -327,7 +342,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontSize: '0.8rem' }}>בחירת צבע</label>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <select 
+                <select
                   className="form-control"
                   value={newStatusColor}
                   onChange={(e) => setNewStatusColor(e.target.value)}
@@ -353,8 +368,8 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
             הסטטוס שיוקצה אוטומטית לכל משימה/פרויקט חדש שנוצר במערכת.
           </p>
           <div className="form-group" style={{ maxWidth: '350px' }}>
-            <select 
-              className="form-control" 
+            <select
+              className="form-control"
               value={localSettings.defaultStatus || 'חדש'}
               onChange={(e) => setLocalSettings({ ...localSettings, defaultStatus: e.target.value })}
             >

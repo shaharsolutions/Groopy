@@ -19,6 +19,29 @@ const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
 const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
 const SORT_MODES = new Set(['manual', 'updatedAt', 'status', 'title', 'contactPerson']);
 
+const normalizeProjectSubtasks = (task) => {
+  if (!Array.isArray(task?.subtasks)) return [];
+  return task.subtasks
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        return {
+          id: `legacy-${index}-${item}`,
+          text: item,
+          completed: false,
+          createdAt: task.createdAt || ''
+        };
+      }
+      return {
+        id: item.id || `legacy-${index}-${item.text || ''}`,
+        text: item.text || '',
+        completed: Boolean(item.completed),
+        createdAt: item.createdAt || task.createdAt || '',
+        completedAt: item.completedAt || null
+      };
+    })
+    .filter(item => item.text.trim());
+};
+
 const readSortPreference = () => {
   try {
     const savedPreference = JSON.parse(localStorage.getItem(SORT_PREFERENCE_KEY) || '{}');
@@ -82,7 +105,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [trashedTasks, setTrashedTasks] = useState([]);
   const [workspaceView, setWorkspaceView] = useState('active');
   const [restoringTaskId, setRestoringTaskId] = useState(null);
-  
+
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -178,7 +201,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       const fetchedTasks = await getTasks(userId);
       setTasks(fetchedTasks);
       await loadTrash();
-      
+
       const params = new URLSearchParams(window.location.search);
       const urlTaskId = params.get('taskId');
       if (urlTaskId) {
@@ -209,7 +232,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     // Search query filter ( title, contactPerson )
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter(t => 
+      result = result.filter(t =>
         (t.title && t.title.toLowerCase().includes(q)) ||
         (t.contactPerson && t.contactPerson.toLowerCase().includes(q))
       );
@@ -241,6 +264,47 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
     return result;
   }, [tasks, searchQuery, statusFilter, sortMode, sortDirection, STATUSES]);
+
+  const allProjectSubtasks = useMemo(() => {
+    return tasks
+      .flatMap(task => normalizeProjectSubtasks(task).map(subtask => ({
+        ...subtask,
+        taskId: task.id,
+        projectTitle: task.title || task.jobNumber || 'פרויקט ללא שם',
+        projectStatus: task.status || '',
+        projectUpdatedAt: task.updatedAt || task.createdAt || ''
+      })))
+      .sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return (Date.parse(b.createdAt) || Date.parse(b.projectUpdatedAt) || 0) - (Date.parse(a.createdAt) || Date.parse(a.projectUpdatedAt) || 0);
+      });
+  }, [tasks]);
+
+  const handleToggleProjectSubtask = async (taskId, subtaskId) => {
+    const targetTask = tasks.find(task => task.id === taskId);
+    if (!targetTask) return;
+
+    const nextSubtasks = normalizeProjectSubtasks(targetTask).map(subtask => {
+      if (subtask.id !== subtaskId) return subtask;
+      const completed = !subtask.completed;
+      return {
+        ...subtask,
+        completed,
+        completedAt: completed ? new Date().toISOString() : null
+      };
+    });
+
+    try {
+      await updateTask(taskId, { subtasks: nextSubtasks });
+      applyTaskPatch(taskId, {
+        subtasks: nextSubtasks,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Failed to update project subtask from dashboard', err);
+      alert('המשימה לא עודכנה. נסי שוב בעוד רגע.');
+    }
+  };
 
   const handleSort = (column) => {
     const nextDirection = sortMode === column
@@ -321,10 +385,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const handleCellClick = (task, e) => {
     // Check if click was on select, button, or links
     if (
-      e.target.tagName === 'SELECT' || 
-      e.target.tagName === 'BUTTON' || 
-      e.target.closest('.actions-cell') || 
-      e.target.closest('.badge') || 
+      e.target.tagName === 'SELECT' ||
+      e.target.tagName === 'BUTTON' ||
+      e.target.closest('.actions-cell') ||
+      e.target.closest('.badge') ||
       e.target.closest('.priority-badge') ||
       e.target.closest('a')
     ) {
@@ -457,7 +521,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
   return (
     <main className="dashboard-container">
-      
+
       {/* Upper Actions Panel */}
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
@@ -546,8 +610,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
       {/* Status Filter Chips */}
       <div className="status-chips-container">
-        <button 
-          type="button" 
+        <button
+          type="button"
           className={`status-chip ${statusFilter === '' ? 'active' : ''}`}
           onClick={() => setStatusFilter('')}
         >
@@ -556,9 +620,9 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         {STATUSES.map(st => {
           const count = tasks.filter(t => t.status === st).length;
           return (
-            <button 
+            <button
               key={st}
-              type="button" 
+              type="button"
               className={`status-chip ${statusFilter === st ? 'active' : ''} ${count === 0 ? 'empty' : ''}`}
               onClick={() => setStatusFilter(st)}
             >
@@ -574,9 +638,9 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           {/* Search input */}
           <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '280px' }}>
             <label className="form-label" style={{ fontSize: '0.8rem' }}>חיפוש חופשי</label>
-            <input 
-              type="text" 
-              className="form-control" 
+            <input
+              type="text"
+              className="form-control"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -609,9 +673,9 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> עבודות בסך הכל
           </div>
           {(searchQuery || statusFilter || sortMode !== 'manual') && (
-            <button 
+            <button
               type="button"
-              className="btn btn-secondary" 
+              className="btn btn-secondary"
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('');
@@ -627,14 +691,62 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         </div>
       </div>
 
+      <section className="dashboard-subtasks-overview" aria-labelledby="dashboard-subtasks-title">
+        <div className="dashboard-subtasks-header">
+          <div>
+            <h3 id="dashboard-subtasks-title">משימות מכל הפרויקטים</h3>
+            <p>
+              {allProjectSubtasks.length > 0
+                ? `${allProjectSubtasks.filter(item => !item.completed).length} פתוחות מתוך ${allProjectSubtasks.length}`
+                : 'אין עדיין משימות בפרויקטים'}
+            </p>
+          </div>
+        </div>
+
+        {allProjectSubtasks.length === 0 ? (
+          <div className="dashboard-subtasks-empty">
+            הוסיפי משימות מתוך אזור הערות ועדכוני עבודה בפרויקט, והן יופיעו כאן.
+          </div>
+        ) : (
+          <div className="dashboard-subtasks-list">
+            {allProjectSubtasks.map(item => (
+              <article
+                className={`dashboard-subtask-item ${item.completed ? 'completed' : ''}`}
+                key={`${item.taskId}-${item.id}`}
+              >
+                <label className="dashboard-subtask-main">
+                  <input
+                    type="checkbox"
+                    checked={item.completed}
+                    onChange={() => handleToggleProjectSubtask(item.taskId, item.id)}
+                  />
+                  <span>{item.text}</span>
+                </label>
+                <button
+                  type="button"
+                  className="dashboard-subtask-project"
+                  onClick={() => {
+                    const project = tasks.find(task => task.id === item.taskId);
+                    if (project) setViewingTask(project);
+                  }}
+                  title="פתיחת הפרויקט"
+                >
+                  {item.projectTitle}
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* Empty State */}
       {tasks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📂</div>
           <div className="empty-state-title">אין עבודות במערכת עדיין</div>
           <div className="empty-state-text">לחצי על הכפתור למטה כדי ליצור את עבודת הגרפיקה הראשונה במערכת!</div>
-          <button 
-            className="btn btn-primary" 
+          <button
+            className="btn btn-primary"
             style={{ marginTop: '16px' }}
             onClick={() => {
               setViewingTask(null);
@@ -650,8 +762,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           <div className="empty-state-icon">🔍</div>
           <div className="empty-state-title">לא נמצאו עבודות מתאימות</div>
           <div className="empty-state-text">נסו לשנות או לאפס את תנאי הסינון כדי לראות את שאר המשימות.</div>
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             style={{ marginTop: '16px' }}
             onClick={() => {
               setSearchQuery('');
@@ -672,7 +784,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   {renderSortableHeader('contactPerson', 'איש קשר אצל הספק')}
                   <th>טלפון</th>
                   <th>אימייל</th>
-                  {renderSortableHeader('status', 'סטטוס (שינוי מהיר)')}
+                  {renderSortableHeader('status', 'סטטוס')}
                   {renderSortableHeader('updatedAt', 'עודכן ב')}
                   <th>פעולות</th>
                 </tr>
@@ -685,7 +797,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
                   return (
                     <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                      <td 
+                      <td
                         style={{ fontWeight: '600' }}
                       >
                         <span className="task-title-with-indicator">
@@ -702,11 +814,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         }}
                       >
                         {editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? (
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="form-control table-inline-input"
-                            value={editValue} 
-                            onChange={(e) => setEditValue(e.target.value)} 
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
                             onBlur={() => handleSaveCellInline(task, 'contactPerson', editValue)}
                             onKeyDown={(e) => handleCellKeyDown(e, task, 'contactPerson')}
                             list="contacts-list-table"
@@ -730,11 +842,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         }}
                       >
                         {editingCell.taskId === task.id && editingCell.field === 'phone' ? (
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="form-control table-inline-input direction-ltr text-left"
-                            value={editValue} 
-                            onChange={(e) => setEditValue(e.target.value)} 
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
                             onBlur={() => handleSaveCellInline(task, 'phone', editValue)}
                             onKeyDown={(e) => handleCellKeyDown(e, task, 'phone')}
                             autoFocus
@@ -742,9 +854,9 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                           />
                         ) : (
                           phone ? (
-                            <a 
-                              href={`tel:${phone.replace(/\s+/g, '')}`} 
-                              className="directory-phone-link direction-ltr" 
+                            <a
+                              href={`tel:${phone.replace(/\s+/g, '')}`}
+                              className="directory-phone-link direction-ltr"
                               style={{ textDecoration: 'none', color: 'var(--primary)' }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -762,11 +874,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         }}
                       >
                         {editingCell.taskId === task.id && editingCell.field === 'email' ? (
-                          <input 
-                            type="email" 
+                          <input
+                            type="email"
                             className="form-control table-inline-input direction-ltr text-left"
-                            value={editValue} 
-                            onChange={(e) => setEditValue(e.target.value)} 
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
                             onBlur={() => handleSaveCellInline(task, 'email', editValue)}
                             onKeyDown={(e) => handleCellKeyDown(e, task, 'email')}
                             autoFocus
@@ -774,8 +886,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                           />
                         ) : (
                           email ? (
-                            <a 
-                              href={`mailto:${email}`} 
+                            <a
+                              href={`mailto:${email}`}
                               className="direction-ltr"
                               style={{ textDecoration: 'none', color: 'var(--primary)' }}
                               onClick={(e) => e.stopPropagation()}
@@ -797,14 +909,14 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                       <td>{formatDate(task.updatedAt)}</td>
                       <td>
                         <div className="actions-cell">
-                          <button 
+                          <button
                             className="btn btn-secondary btn-icon"
                             title="צפייה בפרטים"
                             onClick={() => setViewingTask(task)}
                           >
                             👁️
                           </button>
-                          <button 
+                          <button
                             className="btn btn-danger btn-icon"
                             title="מחיקת משימה"
                             onClick={() => setDeletingTaskId(task.id)}
@@ -854,7 +966,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     disabled={savingStatusIds.has(task.id)}
                   />
                 </div>
-                
+
                 <div className="task-card-meta">
                   <div className="meta-item">
                     <span className="meta-label">איש קשר</span>
@@ -867,15 +979,15 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                 </div>
 
                 <div className="task-card-actions">
-                  <button 
-                    className="btn btn-secondary" 
+                  <button
+                    className="btn btn-secondary"
                     style={{ flex: 1, padding: '8px' }}
                     onClick={() => setViewingTask(task)}
                   >
                     פרטים
                   </button>
-                  <button 
-                    className="btn btn-secondary" 
+                  <button
+                    className="btn btn-secondary"
                     style={{ padding: '8px' }}
                     onClick={() => {
                       setStartInEditMode(true);
@@ -884,8 +996,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   >
                     ערוך
                   </button>
-                  <button 
-                    className="btn btn-danger" 
+                  <button
+                    className="btn btn-danger"
                     style={{ padding: '8px' }}
                     onClick={() => setDeletingTaskId(task.id)}
                   >
@@ -901,7 +1013,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       {/* Unified Task details/edit/create Modal */}
       {(viewingTask || isCreateOpen) && (
         <Suspense fallback={null}>
-          <AdminDetailsModal 
+          <AdminDetailsModal
             task={viewingTask}
             settings={settings}
             suppliers={suppliers}
@@ -938,14 +1050,14 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               </p>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
+              <button
+                className="btn btn-secondary"
                 onClick={() => setDeletingTaskId(null)}
               >
                 ביטול
               </button>
-              <button 
-                className="btn btn-danger" 
+              <button
+                className="btn btn-danger"
                 style={{ backgroundColor: 'var(--color-needs-revision)', color: 'white' }}
                 onClick={() => handleDeleteTask(deletingTaskId)}
               >

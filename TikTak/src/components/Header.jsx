@@ -27,6 +27,7 @@ function getAggregatedMonthlySummary(tasks) {
     if (!weeklyHoursObj) return;
 
     const projectTitle = task.title || 'פרויקט ללא שם';
+    const projectKey = task.id || projectTitle;
 
     const addHours = (monthKey, hours) => {
       if (hours <= 0) return;
@@ -34,7 +35,14 @@ function getAggregatedMonthlySummary(tasks) {
         monthlyData[monthKey] = { total: 0, projects: {} };
       }
       monthlyData[monthKey].total += hours;
-      monthlyData[monthKey].projects[projectTitle] = (monthlyData[monthKey].projects[projectTitle] || 0) + hours;
+      if (!monthlyData[monthKey].projects[projectKey]) {
+        monthlyData[monthKey].projects[projectKey] = {
+          title: projectTitle,
+          taskId: task.id,
+          hours: 0
+        };
+      }
+      monthlyData[monthKey].projects[projectKey].hours += hours;
     };
 
     if (weeklyHoursObj.sunday !== undefined || weeklyHoursObj.monday !== undefined) {
@@ -73,8 +81,11 @@ function getAggregatedMonthlySummary(tasks) {
   const roundedData = {};
   Object.entries(monthlyData).forEach(([monthKey, data]) => {
     const roundedProjects = {};
-    Object.entries(data.projects).forEach(([title, hrs]) => {
-      roundedProjects[title] = Number(hrs.toFixed(2));
+    Object.entries(data.projects).forEach(([projectKey, project]) => {
+      roundedProjects[projectKey] = {
+        ...project,
+        hours: Number(project.hours.toFixed(2))
+      };
     });
     roundedData[monthKey] = {
       total: Number(data.total.toFixed(2)),
@@ -90,7 +101,7 @@ function getAggregatedMonthlySummary(tasks) {
  *
  * Top bar with logo, share link generator for admin, and role toggling.
  */
-export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, userEmail, onSearchTrigger }) {
+export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, userEmail, onSearchTrigger, onOpenTask, settings }) {
   const [copied, setCopied] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [summaryData, setSummaryData] = useState({});
@@ -102,6 +113,13 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  const handleOpenProject = (taskId) => {
+    if (!taskId || !onOpenTask) return;
+    setIsSummaryOpen(false);
+    onViewChange?.('dashboard');
+    onOpenTask(taskId);
   };
 
   const handleOpenSummary = async () => {
@@ -275,7 +293,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
           </div>
         )}
 
-        {userRole !== 'admin' && (
+        {userId && !settings?.hideWeeklyHours && (
           <button
             className="btn btn-secondary"
             onClick={handleOpenSummary}
@@ -393,20 +411,28 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
                                 gap: '8px'
                               }}
                             >
-                              {Object.entries(monthInfo.projects).map(([projTitle, hrs]) => (
-                                <div 
-                                  key={projTitle}
+                              {Object.entries(monthInfo.projects).map(([projectKey, project]) => (
+                                <button
+                                  key={projectKey}
+                                  type="button"
+                                  className="hours-summary-project-row"
+                                  onClick={() => handleOpenProject(project.taskId)}
+                                  disabled={!project.taskId || !onOpenTask}
+                                  aria-label={`פתיחת כרטיס הפרויקט ${project.title}`}
                                   style={{ 
                                     display: 'flex', 
                                     justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: '12px',
                                     fontSize: '0.85rem',
-                                    color: 'var(--text)',
-                                    padding: '4px 0'
+                                    cursor: project.taskId && onOpenTask ? 'pointer' : 'default',
+                                    fontFamily: 'inherit',
+                                    textAlign: 'right'
                                   }}
                                 >
-                                  <span style={{ color: 'var(--text-muted)' }}>• {projTitle}</span>
-                                  <span style={{ fontWeight: '600' }}>{hrs} שעות</span>
-                                </div>
+                                  <span className="hours-summary-project-title">• {project.title}</span>
+                                  <span className="hours-summary-project-hours">{project.hours} שעות</span>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -415,23 +441,6 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
                     })}
                   </div>
                   
-                  <div 
-                    style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      marginTop: '20px',
-                      padding: '16px',
-                      backgroundColor: 'var(--primary-light)',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid color-mix(in srgb, var(--primary) 20%, var(--border))'
-                    }}
-                  >
-                    <span style={{ fontWeight: '700', color: 'var(--text)' }}>סה"כ שעות מצטבר:</span>
-                    <span style={{ fontWeight: '800', color: 'var(--primary)', fontSize: '1.2rem' }}>
-                      {Number(Object.values(summaryData).reduce((a, b) => a + b.total, 0).toFixed(2))} שעות
-                    </span>
-                  </div>
                 </div>
               )}
             </div>

@@ -84,6 +84,14 @@ const getCurrentActor = () => {
   };
 };
 
+const getCommentAuthorName = (fallbackName = '') => {
+  const user = auth.currentUser;
+  if (user && !user.isAnonymous && user.email) {
+    return user.email.trim();
+  }
+  return fallbackName.trim();
+};
+
 const recordActivity = async ({
   action,
   actionLabel,
@@ -116,40 +124,111 @@ const recordActivity = async ({
   }
 };
 
-const getChangedFieldLabels = (before = {}, afterPatch = {}) => {
-  const fieldLabels = {
-    title: 'שם עבודה',
-    description: 'תיאור',
-    workType: 'סוג עבודה',
-    storeName: 'חנות',
-    supplierName: 'ספק',
-    contactPerson: 'איש קשר',
-    importManager: 'מנהל יבוא',
-    status: 'סטטוס',
-    priority: 'עדיפות',
-    deadline: 'דדליין',
-    driveLink: 'קישור דרייב',
-    supplierContactEmail: 'אימייל ספק',
-    diecutsStatus: 'סטטוס שטנצים',
-    imagesStatus: 'סטטוס תמונות',
-    standardsInstituteRequired: 'מכון תקנים',
-    planogramFile: 'פלנוגרמה',
-    workOrderFiles: 'קבצים',
-    subtasks: 'תתי משימות',
-    attachments: 'קבצים מצורפים',
-    internalNotes: 'הערות פנימיות'
-  };
+const FIELD_LABELS = {
+  title: 'שם עבודה',
+  description: 'תיאור',
+  workType: 'סוג עבודה',
+  storeName: 'חנות',
+  supplierName: 'ספק',
+  contactPerson: 'איש קשר',
+  importManager: 'מנהל יבוא',
+  status: 'סטטוס',
+  priority: 'עדיפות',
+  deadline: 'דדליין',
+  driveLink: 'קישור דרייב',
+  supplierContactEmail: 'אימייל ספק',
+  diecutsStatus: 'דייקאטים',
+  imagesStatus: 'תמונות',
+  standardsInstituteRequired: 'דרישות מכון תקנים',
+  planogramFile: 'פלנוגרמה',
+  workOrderFiles: 'קבצים',
+  subtasks: 'תתי משימות',
+  attachments: 'קבצים מצורפים',
+  internalNotes: 'הערות פנימיות',
+  weeklyHours: 'שעות עבודה'
+};
 
+const WORK_UPDATE_COMMENT_FIELDS = new Set([
+  'title',
+  'description',
+  'workType',
+  'storeName',
+  'supplierName',
+  'contactPerson',
+  'importManager',
+  'status',
+  'priority',
+  'deadline',
+  'driveLink',
+  'supplierContactEmail',
+  'diecutsStatus',
+  'imagesStatus',
+  'standardsInstituteRequired',
+  'planogramFile',
+  'workOrderFiles',
+  'subtasks',
+  'attachments',
+  'weeklyHours'
+]);
+
+const getChangedFields = (before = {}, afterPatch = {}) => {
   return Object.keys(afterPatch)
     .filter(key => key !== 'updatedAt')
     .filter(key => JSON.stringify(before[key] ?? null) !== JSON.stringify(afterPatch[key] ?? null))
-    .map(key => fieldLabels[key] || key);
+    .map(key => ({
+      key,
+      label: FIELD_LABELS[key] || key,
+      previousValue: before[key],
+      newValue: afterPatch[key]
+    }));
 };
 
 const formatChangedFields = (fieldNames) => {
   if (!fieldNames.length) return 'עודכן זמן הפעילות';
   if (fieldNames.length <= 4) return `עודכנו השדות: ${fieldNames.join(', ')}`;
   return `עודכנו ${fieldNames.length} שדות: ${fieldNames.slice(0, 4).join(', ')} ועוד`;
+};
+
+const formatCommentValue = (value) => {
+  if (value === undefined || value === null || value === '') return 'לא הוגדר';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.length ? `${value.length} פריטים` : 'ללא פריטים';
+  }
+  return 'עודכן';
+};
+
+const formatWorkUpdateCommentText = (changedFields) => {
+  if (changedFields.length === 1) {
+    const field = changedFields[0];
+    if (field.key === 'status') {
+      return `סטטוס העבודה השתנה מ-${formatCommentValue(field.previousValue)} ל-${formatCommentValue(field.newValue)}`;
+    }
+    return `${field.label} עודכן מ-${formatCommentValue(field.previousValue)} ל-${formatCommentValue(field.newValue)}`;
+  }
+
+  return [
+    'עודכנו פרטי עבודה:',
+    ...changedFields.map(field => `${field.label}: מ-${formatCommentValue(field.previousValue)} ל-${formatCommentValue(field.newValue)}`)
+  ].join('\n');
+};
+
+const addWorkUpdateComment = async ({ taskId, userId, changedFields, createdAt }) => {
+  const visibleFields = changedFields.filter(field => WORK_UPDATE_COMMENT_FIELDS.has(field.key));
+  if (!taskId || !userId || visibleFields.length === 0) return;
+
+  const actor = getCurrentActor();
+  if (!actor) return;
+
+  await addDoc(collection(db, COMMENTS_COLLECTION), {
+    jobId: taskId,
+    userId,
+    authorName: getCommentAuthorName(actor.actorName),
+    text: formatWorkUpdateCommentText(visibleFields),
+    createdAt
+  });
 };
 
 // Seed the database for a specific user if their tasks are empty
@@ -304,8 +383,8 @@ export const getCommentsForTask = async (taskId, userId) => {
     querySnapshot.forEach((doc) => {
       comments.push({ id: doc.id, ...doc.data() });
     });
-    // Sort comments chronologically by creation time
-    return comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    // Show the latest work updates first in the comments/activity panel.
+    return comments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (e) {
     console.error(`Error fetching comments for task ${taskId}`, e);
     return [];
@@ -335,10 +414,11 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
   if (!userId) throw new Error("User ID is required to add a comment");
   try {
     const now = new Date().toISOString();
+    const resolvedAuthorName = getCommentAuthorName(authorName);
     const commentData = {
       jobId,
       userId,
-      authorName: authorName.trim(),
+      authorName: resolvedAuthorName,
       text: text.trim(),
       createdAt: now
     };
@@ -367,7 +447,7 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
       actionLabel: 'הוספת תגובה',
       targetType: 'comment',
       targetId: docRef.id,
-      targetLabel: authorName.trim(),
+      targetLabel: resolvedAuthorName,
       targetUserId: userId,
       details: `תגובה נוספה לעבודה "${taskName}"`,
       metadata: { jobId, hasAttachment: Boolean(attachmentUrl) }
@@ -540,10 +620,18 @@ export const updateTask = async (taskId, updatedData) => {
       }
     }
 
-    const changedFields = getChangedFieldLabels(
+    const changedFieldDetails = getChangedFields(
       { ...beforeData, internalNotes: undefined },
       { ...taskWithoutPrivate, ...(internalNotes !== undefined ? { internalNotes } : {}) }
     );
+    const changedFields = changedFieldDetails.map(field => field.label);
+    await addWorkUpdateComment({
+      taskId,
+      userId: userId || beforeData.userId || '',
+      changedFields: changedFieldDetails,
+      createdAt: now
+    });
+
     const shouldLogTaskUpdate = changedFields.length > 0;
     if (shouldLogTaskUpdate) {
       const isStatusOnly = changedFields.length === 1 && changedFields[0] === 'סטטוס';
@@ -1327,4 +1415,3 @@ export const getSuppliers = async (userId) => {
     return [];
   }
 };
-

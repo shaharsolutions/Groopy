@@ -34,7 +34,7 @@ function getMonthlySummary(weeklyHoursObj) {
   if (weeklyHoursObj.sunday !== undefined || weeklyHoursObj.monday !== undefined) {
     const currentWeekSunday = getSundayOfWeek(new Date());
     const [yyyy, mm, dd] = currentWeekSunday.split('-').map(Number);
-    
+
     const days = [
       { key: 'sunday', offset: 0 },
       { key: 'monday', offset: 1 },
@@ -87,14 +87,14 @@ function getMonthlySummary(weeklyHoursObj) {
   return monthlyTotals;
 }
 
-export default function AdminDetailsModal({ 
-  task, 
-  settings, 
+export default function AdminDetailsModal({
+  task,
+  settings,
   suppliers: SUPPLIERS = [],
   contacts: CONTACTS = [],
   onSaveSettings,
-  onClose, 
-  onSave, 
+  onClose,
+  onSave,
   onDelete,
   onRefresh,
   onTaskUpdated,
@@ -111,7 +111,8 @@ export default function AdminDetailsModal({
       'בטיפול': 'badge-in-progress',
       'נשלח לספק': 'badge-waiting-approval',
       'אושר לספק': 'badge-approved'
-    }
+    },
+    hideWeeklyHours = false
   } = settings || {};
 
   const isCreateMode = !task;
@@ -155,7 +156,10 @@ export default function AdminDetailsModal({
   });
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
-  
+  const [newSubtaskText, setNewSubtaskText] = useState('');
+  const [subtaskError, setSubtaskError] = useState('');
+  const [savingSubtasks, setSavingSubtasks] = useState(false);
+
   const [attachedFile, setAttachedFile] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadErrorFile, setUploadErrorFile] = useState('');
@@ -306,7 +310,7 @@ export default function AdminDetailsModal({
   useEffect(() => {
     if (task) {
       setQuickStatus(task.status || '');
-      
+
       const loadComments = async () => {
         const fetchedComments = await getCommentsForTask(task.id, userId);
         setComments(fetchedComments);
@@ -317,7 +321,7 @@ export default function AdminDetailsModal({
       };
       loadComments();
       loadPrivateNotes();
-      
+
       // If we clicked edit directly from table
       if (startInEditMode && activeEditField === null) {
         startEditingField('title', task.title);
@@ -576,6 +580,8 @@ export default function AdminDetailsModal({
         await updateTask(task.id, { status: newStatus });
       }
       setQuickStatus(newStatus);
+      const fetchedComments = await getCommentsForTask(task.id, userId);
+      setComments(fetchedComments);
       if (!onStatusChange && onRefresh) {
         await onRefresh();
       }
@@ -594,6 +600,90 @@ export default function AdminDetailsModal({
 
   // --- Handlers for Comments ---
 
+  const normalizeSubtasks = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items
+      .map((item, index) => {
+        if (typeof item === 'string') {
+          return {
+            id: `legacy-${index}-${item}`,
+            text: item,
+            completed: false,
+            createdAt: task?.createdAt || new Date().toISOString()
+          };
+        }
+        return {
+          id: item.id || `legacy-${index}-${item.text || ''}`,
+          text: item.text || '',
+          completed: Boolean(item.completed),
+          createdAt: item.createdAt || task?.createdAt || new Date().toISOString(),
+          completedAt: item.completedAt || null
+        };
+      })
+      .filter(item => item.text.trim());
+  };
+
+  const persistSubtasks = async (nextSubtasks) => {
+    if (!task) return;
+    setSavingSubtasks(true);
+    setSubtaskError('');
+    try {
+      await updateTask(task.id, { subtasks: nextSubtasks });
+      if (onTaskUpdated) {
+        onTaskUpdated(task.id, {
+          subtasks: nextSubtasks,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error('Failed to save subtasks', err);
+      setSubtaskError('השינוי במשימות לא נשמר. נסי שוב בעוד רגע.');
+    } finally {
+      setSavingSubtasks(false);
+    }
+  };
+
+  const handleAddSubtask = async (e) => {
+    e.preventDefault();
+    const text = newSubtaskText.trim();
+    if (!text) {
+      setSubtaskError('נא להזין שם משימה');
+      return;
+    }
+
+    const nextSubtasks = [
+      ...normalizeSubtasks(task.subtasks),
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        text,
+        completed: false,
+        createdAt: new Date().toISOString()
+      }
+    ];
+
+    await persistSubtasks(nextSubtasks);
+    setNewSubtaskText('');
+  };
+
+  const handleToggleSubtask = async (subtaskId) => {
+    const nextSubtasks = normalizeSubtasks(task.subtasks).map(item => {
+      if (item.id !== subtaskId) return item;
+      const completed = !item.completed;
+      return {
+        ...item,
+        completed,
+        completedAt: completed ? new Date().toISOString() : null
+      };
+    });
+    await persistSubtasks(nextSubtasks);
+  };
+
+  const handleDeleteSubtask = async (subtaskId) => {
+    const nextSubtasks = normalizeSubtasks(task.subtasks).filter(item => item.id !== subtaskId);
+    await persistSubtasks(nextSubtasks);
+  };
+
   const handleDeleteComment = (commentId) => {
     setCommentToDelete(commentId);
   };
@@ -602,7 +692,7 @@ export default function AdminDetailsModal({
     if (!commentToDelete) return;
     try {
       await deleteComment(commentToDelete, task.id);
-      const fetchedComments = await getCommentsForTask(task.id);
+      const fetchedComments = await getCommentsForTask(task.id, userId);
       setComments(fetchedComments);
       setCommentToDelete(null);
       if (onRefresh) onRefresh();
@@ -641,7 +731,7 @@ export default function AdminDetailsModal({
       }
       setCommentText('');
       setAttachedFile(null);
-      const fetchedComments = await getCommentsForTask(task.id);
+      const fetchedComments = await getCommentsForTask(task.id, userId);
       setComments(fetchedComments);
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -653,7 +743,7 @@ export default function AdminDetailsModal({
   const handleCommentFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
     if (file.size > MAX_SIZE) {
       setUploadErrorFile('גודל הקובץ עולה על המותר (מקסימום 15MB)');
@@ -792,7 +882,7 @@ export default function AdminDetailsModal({
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       await handleUploadFilesCreateMode(e.dataTransfer.files);
     }
@@ -883,7 +973,7 @@ export default function AdminDetailsModal({
 
   const handleSubmitCreate = (e) => {
     e.preventDefault();
-    
+
     const formErrors = {};
     if (!createTitle.trim()) {
       formErrors.title = 'שדה שם העבודה הוא חובה';
@@ -894,7 +984,7 @@ export default function AdminDetailsModal({
         formErrors.supplierContactEmail = 'כתובת אימייל לא תקינה';
       }
     }
-    
+
     if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
       return;
@@ -939,19 +1029,19 @@ export default function AdminDetailsModal({
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (e) {
+    } catch {
       return isoString;
     }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal-content" 
+      <div
+        className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ 
-          maxWidth: isCreateMode ? '820px' : '1000px', 
-          transition: 'max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)' 
+        style={{
+          maxWidth: isCreateMode ? '820px' : '1000px',
+          transition: 'max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       >
         {/* Modal Header */}
@@ -962,11 +1052,11 @@ export default function AdminDetailsModal({
                 'יצירת עבודה חדשה'
               ) : activeEditField === 'title' ? (
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', paddingLeft: '40px' }}>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    value={editTitle} 
-                    onChange={(e) => setEditTitle(e.target.value)} 
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
                     onBlur={(e) => handleAutoSaveBlur(e, 'title', editTitle)}
                     autoFocus
                     onKeyDown={(e) => {
@@ -979,8 +1069,8 @@ export default function AdminDetailsModal({
                 </div>
               ) : (
                 <span className="task-title-with-indicator modal-title-with-indicator">
-                  <span 
-                    className="hover-editable-inline" 
+                  <span
+                    className="hover-editable-inline"
                     onClick={() => startEditingField('title', task.title)}
                     title="לחצי לעריכת שם העבודה"
                   >
@@ -993,19 +1083,19 @@ export default function AdminDetailsModal({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
             {!isCreateMode && (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn btn-secondary"
                 onClick={handleCopyTaskLink}
-                style={{ 
-                  fontSize: '0.85rem', 
+                style={{
+                  fontSize: '0.85rem',
                   padding: '6px 12px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                   whiteSpace: 'nowrap',
-                  backgroundColor: '#e6f7ed', 
-                  color: '#1e4620', 
+                  backgroundColor: '#e6f7ed',
+                  color: '#1e4620',
                   borderColor: '#1e4620',
                   fontWeight: '600'
                 }}
@@ -1027,10 +1117,10 @@ export default function AdminDetailsModal({
             }
           }}>
             <div className="modal-body" style={{ maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              
+
               <div className="form-group">
                 <label className="form-label">שם העבודה *</label>
-                <input 
+                <input
                   type="text"
                   className="form-control"
                   value={createTitle}
@@ -1045,7 +1135,7 @@ export default function AdminDetailsModal({
 
               <div className="form-group">
                 <label className="form-label">תיאור ופרטים נוספים</label>
-                <textarea 
+                <textarea
                   className="form-control"
                   rows="3"
                   value={createDescription}
@@ -1058,7 +1148,7 @@ export default function AdminDetailsModal({
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">סטטוס</label>
-                  <div 
+                  <div
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
@@ -1101,7 +1191,7 @@ export default function AdminDetailsModal({
                 <div className="form-group">
                   <label className="form-label">איש קשר אצל הספק</label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
+                    <input
                       type="text"
                       className="form-control"
                       value={createContactPerson}
@@ -1110,9 +1200,9 @@ export default function AdminDetailsModal({
                       style={{ flex: 1 }}
                     />
                     {createContactPerson && (
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary btn-icon" 
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-icon"
                         style={{ padding: '6px 8px', fontSize: '0.85rem', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="פרטי כרטיס איש קשר"
                         onClick={() => handleOpenContactCard(createContactPerson)}
@@ -1139,7 +1229,7 @@ export default function AdminDetailsModal({
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">מייל איש קשר ספק</label>
-                  <input 
+                  <input
                     type="text"
                     className="form-control text-left direction-ltr"
                     value={createSupplierContactEmail}
@@ -1153,7 +1243,7 @@ export default function AdminDetailsModal({
 
                 <div className="form-group">
                   <label className="form-label">דרישות מכון תקנים</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={createStandardsInstituteRequired}
                     onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
@@ -1167,7 +1257,7 @@ export default function AdminDetailsModal({
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">דייקאטים</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={createDiecutsStatus}
                     onChange={(e) => setCreateDiecutsStatus(e.target.value)}
@@ -1180,7 +1270,7 @@ export default function AdminDetailsModal({
 
                 <div className="form-group">
                   <label className="form-label">תמונות</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={createImagesStatus}
                     onChange={(e) => setCreateImagesStatus(e.target.value)}
@@ -1197,8 +1287,8 @@ export default function AdminDetailsModal({
                 <label className="form-label">
                   הזמנת עבודה (קבצים מצורפים כגון תעודות, הוראות עבודה, PDF)
                 </label>
-                
-                <div 
+
+                <div
                   className={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
                   onDragEnter={handleDrag}
                   onDragOver={handleDrag}
@@ -1213,11 +1303,11 @@ export default function AdminDetailsModal({
                   <div className="file-upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>
                     עד 15MB לקובץ
                   </div>
-                  <input 
-                    type="file" 
-                    id="modal-task-file-input-create" 
-                    multiple 
-                    className="file-upload-input" 
+                  <input
+                    type="file"
+                    id="modal-task-file-input-create"
+                    multiple
+                    className="file-upload-input"
                     onChange={handleFileChangeCreateMode}
                   />
                 </div>
@@ -1225,19 +1315,19 @@ export default function AdminDetailsModal({
                 {uploading && (
                   <div style={{ marginTop: '10px', textAlign: 'center', color: 'var(--primary)' }}>
                     <span>🔄 מעלה קובץ {currentUploadIndex} מתוך {totalUploadCount} ({uploadProgress}%)</span>
-                    <div style={{ 
-                      width: '100%', 
-                      height: '6px', 
-                      backgroundColor: 'var(--border-color, #e2e8f0)', 
-                      borderRadius: '3px', 
+                    <div style={{
+                      width: '100%',
+                      height: '6px',
+                      backgroundColor: 'var(--border-color, #e2e8f0)',
+                      borderRadius: '3px',
                       marginTop: '6px',
                       overflow: 'hidden'
                     }}>
-                      <div style={{ 
-                        width: `${uploadProgress}%`, 
-                        height: '100%', 
-                        backgroundColor: 'var(--primary)', 
-                        transition: 'width 0.2s ease-in-out' 
+                      <div style={{
+                        width: `${uploadProgress}%`,
+                        height: '100%',
+                        backgroundColor: 'var(--primary)',
+                        transition: 'width 0.2s ease-in-out'
                       }} />
                     </div>
                   </div>
@@ -1255,10 +1345,10 @@ export default function AdminDetailsModal({
                       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
                       return (
                         <div key={idx} className="attachment-row">
-                          <a 
-                            href={file.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="attachment-info"
                             title="צפייה בקובץ"
                           >
@@ -1267,8 +1357,8 @@ export default function AdminDetailsModal({
                               {file.name}
                             </span>
                           </a>
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             className="attachment-delete-btn"
                             onClick={() => handleDeleteAttachmentCreateMode(idx)}
                             title="הסר קובץ"
@@ -1289,9 +1379,9 @@ export default function AdminDetailsModal({
                   <PlanogramFileCard file={createPlanogramFile} onDelete={handlePlanogramDeleteCreate} deleteLabel="הסרה" />
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary" 
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
                       style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
                       onClick={() => document.getElementById('planogram-upload-create-input').click()}
                       disabled={uploadingPlanogram}
@@ -1299,9 +1389,9 @@ export default function AdminDetailsModal({
                       {uploadingPlanogram ? `🔄 מעלה...` : 'בחירת פלנוגרמה'}
                     </button>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(תמונה או PDF, עד 15MB)</span>
-                    <input 
-                      type="file" 
-                      id="planogram-upload-create-input" 
+                    <input
+                      type="file"
+                      id="planogram-upload-create-input"
                       accept="image/*,.pdf,application/pdf"
                       style={{ display: 'none' }}
                       onChange={handlePlanogramUploadCreate}
@@ -1315,7 +1405,7 @@ export default function AdminDetailsModal({
 
               <div className="form-group">
                 <label className="form-label">הערות פנימיות למעצבת</label>
-                <textarea 
+                <textarea
                   className="form-control"
                   rows="2"
                   value={createInternalNotes}
@@ -1324,7 +1414,7 @@ export default function AdminDetailsModal({
               </div>
 
             </div>
-            
+
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 ביטול
@@ -1339,14 +1429,14 @@ export default function AdminDetailsModal({
           <>
             <div className="modal-body" style={{ maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
               <div className="details-grid">
-                
+
                 {/* Main View Area (Left Column) */}
                 <div className="details-main">
-                  
+
                   {/* AREA 1: פרטי עבודה */}
                   <div className="details-section-card">
                     <h4 className="detail-section-title">📁 פרטי עבודה</h4>
-                    
+
 
 
                     {/* Field: Description */}
@@ -1354,11 +1444,11 @@ export default function AdminDetailsModal({
                       <label className="form-label" style={{ fontWeight: '700', marginBottom: '4px', display: 'block', fontSize: '0.85rem' }}>תיאור העבודה</label>
                       {activeEditField === 'description' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                          <textarea 
-                            className="form-control" 
-                            rows="4" 
-                            value={editDescription} 
-                            onChange={(e) => setEditDescription(e.target.value)} 
+                          <textarea
+                            className="form-control"
+                            rows="4"
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
                             onBlur={(e) => handleAutoSaveBlur(e, 'description', editDescription)}
                             autoFocus
                           />
@@ -1368,8 +1458,8 @@ export default function AdminDetailsModal({
                           </div>
                         </div>
                       ) : (
-                        <div 
-                          className="description-box hover-editable" 
+                        <div
+                          className="description-box hover-editable"
                           onClick={() => startEditingField('description', task.description)}
                           title="לחצי לעריכת תיאור"
                         >
@@ -1387,11 +1477,11 @@ export default function AdminDetailsModal({
                       <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות למעצבת</label>
                       {activeEditField === 'internalNotes' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                          <textarea 
-                            className="form-control" 
-                            rows="3" 
-                            value={editInternalNotes} 
-                            onChange={(e) => setEditInternalNotes(e.target.value)} 
+                          <textarea
+                            className="form-control"
+                            rows="3"
+                            value={editInternalNotes}
+                            onChange={(e) => setEditInternalNotes(e.target.value)}
                             onBlur={(e) => handleAutoSaveBlur(e, 'internalNotes', editInternalNotes)}
                             autoFocus
                           />
@@ -1401,8 +1491,8 @@ export default function AdminDetailsModal({
                           </div>
                         </div>
                       ) : (
-                        <div 
-                          className="description-box hover-editable" 
+                        <div
+                          className="description-box hover-editable"
                           style={{ backgroundColor: 'var(--secondary-light)', borderColor: 'var(--border)' }}
                           onClick={() => startEditingField('internalNotes', internalNotes)}
                           title="לחצי לעריכת הערות פנימיות"
@@ -1421,13 +1511,13 @@ export default function AdminDetailsModal({
                   <div className="details-section-card">
                     <h4 className="detail-section-title">📋 הזמנת עבודה ופלנוגרמה</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                      
+
                       {/* הזמנת עבודה */}
                       <div>
                         <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
                           הזמנת עבודה (קבצים מצורפים)
                         </label>
-                        
+
                         {(() => {
                           const filesList = task.workOrderFiles || task.attachments || [];
                           return filesList.length > 0 ? (
@@ -1438,10 +1528,10 @@ export default function AdminDetailsModal({
                                 const isPdf = /\.pdf$/i.test(file.name);
                                 return (
                                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                                    <a 
-                                      href={file.url} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer" 
+                                    <a
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
                                       className="attachment-info"
                                       style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}
                                       title={file.name}
@@ -1460,8 +1550,8 @@ export default function AdminDetailsModal({
                                         {file.name}
                                       </span>
                                     </a>
-                                    <button 
-                                      type="button" 
+                                    <button
+                                      type="button"
                                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px' }}
                                       onClick={() => handleDeleteAttachmentDirectly(idx)}
                                       title="מחיקת קובץ"
@@ -1482,24 +1572,24 @@ export default function AdminDetailsModal({
                         {/* Add file inline */}
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               className="comment-attachment-btn"
                               style={{ padding: '6px 10px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                               onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
                               disabled={uploading}
                             >
-                              {uploading 
-                                ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%` 
+                              {uploading
+                                ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%`
                                 : '📎 הוספת קובץ'}
                             </button>
                             {!uploading && (
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 15MB)</span>
                             )}
                           </div>
-                          <input 
-                            type="file" 
-                            id="view-attachment-file-input-inline" 
+                          <input
+                            type="file"
+                            id="view-attachment-file-input-inline"
                             multiple
                             style={{ display: 'none' }}
                             onChange={handleUploadFilesDirectly}
@@ -1513,27 +1603,27 @@ export default function AdminDetailsModal({
                         <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
                           פלנוגרמה
                         </label>
-                        
+
                         {task.planogramFile ? (
                           <PlanogramFileCard file={task.planogramFile} onDelete={handlePlanogramDeleteView} />
                         ) : (
-                          <div 
-                            className="planogram-preview-container" 
+                          <div
+                            className="planogram-preview-container"
                             style={{ height: '140px', margin: 0, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center', alignItems: 'center' }}
                           >
                             <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא הועלתה פלנוגרמה</span>
-                            <button 
-                              type="button" 
-                              className="btn btn-secondary" 
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
                               style={{ padding: '4px 10px', fontSize: '0.75rem' }}
                               onClick={() => document.getElementById('planogram-upload-view-input').click()}
                               disabled={uploading}
                             >
                               העלאת פלנוגרמה
                             </button>
-                            <input 
-                              type="file" 
-                              id="planogram-upload-view-input" 
+                            <input
+                              type="file"
+                              id="planogram-upload-view-input"
                               accept="image/*,.pdf,application/pdf"
                               style={{ display: 'none' }}
                               onChange={handlePlanogramUploadView}
@@ -1546,93 +1636,158 @@ export default function AdminDetailsModal({
                   </div>
 
                   {/* שעות עבודה בפרויקט */}
-                  <div className="details-section-card">
-                    <h4 className="detail-section-title">🕒 שעות עבודה בפרויקט</h4>
-                    
-                    {/* week navigation panel */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary" 
-                        style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
-                        onClick={handlePrevWeek}
-                      >
-                        ▶ שבוע קודם
-                      </button>
-                      
-                      <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b' }}>
-                        שבוע: {getDayDate(activeSunday, 0)} - {getDayDate(activeSunday, 4)}
+                  {!hideWeeklyHours && (
+                    <div className="details-section-card">
+                      <h4 className="detail-section-title">🕒 שעות עבודה בפרויקט</h4>
+
+                      {/* week navigation panel */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          onClick={handlePrevWeek}
+                        >
+                          ▶ שבוע קודם
+                        </button>
+
+                        <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b' }}>
+                          שבוע: {getDayDate(activeSunday, 0)} - {getDayDate(activeSunday, 4)}
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          onClick={handleNextWeek}
+                        >
+                          שבוע הבא ◀
+                        </button>
                       </div>
-                      
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary" 
-                        style={{ padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} 
-                        onClick={handleNextWeek}
-                      >
-                        שבוע הבא ◀
-                      </button>
-                    </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
-                      {[
-                        { key: 'sunday', label: 'ראשון', offset: 0 },
-                        { key: 'monday', label: 'שני', offset: 1 },
-                        { key: 'tuesday', label: 'שלישי', offset: 2 },
-                        { key: 'wednesday', label: 'רביעי', offset: 3 },
-                        { key: 'thursday', label: 'חמישי', offset: 4 }
-                      ].map(day => (
-                        <div key={day.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <span>{day.label}</span>
-                            <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal', marginTop: '2px' }}>{getDayDate(activeSunday, day.offset)}</span>
-                          </label>
-                          <input 
-                            type="number"
-                            step="any"
-                            min="0"
-                            className="form-control"
-                            style={{ padding: '6px 8px', fontSize: '0.9rem', textAlign: 'center' }}
-                            value={hoursState[day.key]}
-                            onChange={(e) => handleHourChange(day.key, e.target.value)}
-                            onBlur={() => handleSaveHours()}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-                      <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
-                      <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>{calculateTotalHours()}</span>
-                    </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                        {[
+                          { key: 'sunday', label: 'ראשון', offset: 0 },
+                          { key: 'monday', label: 'שני', offset: 1 },
+                          { key: 'tuesday', label: 'שלישי', offset: 2 },
+                          { key: 'wednesday', label: 'רביעי', offset: 3 },
+                          { key: 'thursday', label: 'חמישי', offset: 4 }
+                        ].map(day => (
+                          <div key={day.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <span>{day.label}</span>
+                              <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal', marginTop: '2px' }}>{getDayDate(activeSunday, day.offset)}</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              className="form-control"
+                              style={{ padding: '6px 8px', fontSize: '0.9rem', textAlign: 'center' }}
+                              value={hoursState[day.key]}
+                              onChange={(e) => handleHourChange(day.key, e.target.value)}
+                              onBlur={() => handleSaveHours()}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                        <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
+                        <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>{calculateTotalHours()}</span>
+                      </div>
 
-                    {/* Monthly Summary */}
-                    {(() => {
-                      const monthlySummary = getMonthlySummary(task.weeklyHours);
-                      const hasHours = Object.keys(monthlySummary).length > 0;
-                      return (
-                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dotted var(--border)' }}>
-                          <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-muted)' }}>סיכום חודשי מצטבר:</div>
-                          {hasHours ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {Object.entries(monthlySummary).map(([month, total]) => (
-                                <div key={month} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                                  <span>{month}:</span>
-                                  <span style={{ fontWeight: '600' }}>{total} שעות</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>אין שעות עבודה מדווחות עדיין</div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
+                      {/* Monthly Summary */}
+                      {(() => {
+                        const monthlySummary = getMonthlySummary(task.weeklyHours);
+                        const hasHours = Object.keys(monthlySummary).length > 0;
+                        return (
+                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dotted var(--border)' }}>
+                            <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-muted)' }}>סיכום חודשי מצטבר:</div>
+                            {hasHours ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {Object.entries(monthlySummary).map(([month, total]) => (
+                                  <div key={month} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                    <span>{month}:</span>
+                                    <span style={{ fontWeight: '600' }}>{total} שעות</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>אין שעות עבודה מדווחות עדיין</div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {/* AREA 5: הערות ועדכוני עבודה */}
                   <div className="comments-section">
                     <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
-                    
+
+                    {(() => {
+                      const subtasks = normalizeSubtasks(task.subtasks);
+
+                      return (
+                        <div className="project-subtasks-panel">
+                          <div className="project-subtasks-header">
+                            <h5>משימות בפרויקט</h5>
+                          </div>
+
+                          {subtasks.length === 0 ? (
+                            <div className="subtasks-empty-state">אין משימות בפרויקט עדיין</div>
+                          ) : (
+                            <div className="subtask-list compact">
+                              {subtasks.map(item => (
+                                <div className="subtask-item" key={item.id}>
+                                  <label className="subtask-main">
+                                    <input
+                                      type="checkbox"
+                                      className="subtask-checkbox"
+                                      checked={item.completed}
+                                      disabled={savingSubtasks}
+                                      onChange={() => handleToggleSubtask(item.id)}
+                                    />
+                                    <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
+                                      {item.text}
+                                    </span>
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="subtask-delete-btn"
+                                    title="מחיקת משימה"
+                                    disabled={savingSubtasks}
+                                    onClick={() => handleDeleteSubtask(item.id)}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <form className="subtask-add-form" onSubmit={handleAddSubtask}>
+                            <input
+                              type="text"
+                              className="subtask-add-input"
+                              value={newSubtaskText}
+                              onChange={(e) => setNewSubtaskText(e.target.value)}
+                              placeholder="משימה חדשה בפרויקט"
+                              disabled={savingSubtasks}
+                            />
+                            <button
+                              type="submit"
+                              className="btn btn-secondary subtask-add-btn"
+                              disabled={savingSubtasks}
+                            >
+                              הוספה
+                            </button>
+                          </form>
+                          {subtaskError && <div className="subtask-error">{subtaskError}</div>}
+                        </div>
+                      );
+                    })()}
+
                     {comments.length === 0 ? (
                       <div className="empty-state" style={{ padding: '24px' }}>
                         <div className="empty-state-title">אין הערות עדיין</div>
@@ -1650,14 +1805,14 @@ export default function AdminDetailsModal({
                                   <span className="comment-author">{c.authorName}</span>
                                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(c.createdAt)}</span>
                                 </div>
-                                <button 
+                                <button
                                   type="button"
                                   onClick={() => handleDeleteComment(c.id)}
                                   title="מחיקת הערה"
-                                  style={{ 
-                                    background: 'none', 
-                                    border: 'none', 
-                                    cursor: 'pointer', 
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
                                     padding: '2px 6px',
                                     fontSize: '1rem',
                                     color: 'var(--priority-urgent-text)',
@@ -1676,17 +1831,17 @@ export default function AdminDetailsModal({
                                 <div style={{ marginTop: '8px' }}>
                                   {isImage ? (
                                     <a href={c.attachmentUrl} target="_blank" rel="noopener noreferrer">
-                                      <img 
-                                        src={c.attachmentUrl} 
-                                        alt={c.attachmentName} 
-                                        className="comment-image-preview" 
+                                      <img
+                                        src={c.attachmentUrl}
+                                        alt={c.attachmentName}
+                                        className="comment-image-preview"
                                       />
                                     </a>
                                   ) : (
-                                    <a 
-                                      href={c.attachmentUrl} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer" 
+                                    <a
+                                      href={c.attachmentUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
                                       className="attachment-info"
                                       style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                                       title={c.attachmentName}
@@ -1719,17 +1874,17 @@ export default function AdminDetailsModal({
                       <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                         <div className="form-group" style={{ marginBottom: '8px' }}>
                           <label className="form-label" style={{ fontSize: '0.8rem' }}>שם כותב/ת ההערה</label>
-                          <input 
-                            type="text" 
-                            className="form-control" 
-                            value={authorName} 
-                            onChange={(e) => setAuthorName(e.target.value)} 
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={authorName}
+                            onChange={(e) => setAuthorName(e.target.value)}
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               className="comment-attachment-btn"
                               style={{ padding: '8px 12px', fontSize: '0.8rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                               onClick={() => document.getElementById('comment-file-input').click()}
@@ -1743,9 +1898,9 @@ export default function AdminDetailsModal({
                               </span>
                             )}
                           </div>
-                          <input 
-                            type="file" 
-                            id="comment-file-input" 
+                          <input
+                            type="file"
+                            id="comment-file-input"
                             style={{ display: 'none' }}
                             onChange={handleCommentFileChange}
                           />
@@ -1753,11 +1908,11 @@ export default function AdminDetailsModal({
                         </div>
                       </div>
                       <div className="form-group" style={{ marginBottom: '8px' }}>
-                        <textarea 
-                          className="form-control" 
-                          rows="2" 
-                          value={commentText} 
-                          onChange={(e) => setCommentText(e.target.value)} 
+                        <textarea
+                          className="form-control"
+                          rows="2"
+                          value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
                         />
                       </div>
                       {commentError && <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '8px' }}>{commentError}</div>}
@@ -1771,22 +1926,22 @@ export default function AdminDetailsModal({
 
                 {/* Sidebar View Area (Right Column) */}
                 <div className="details-sidebar">
-                  
+
                   {/* AREA 2: ספק ואיש קשר */}
                   <div className="details-section-card">
                     <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>📇 ספק ואיש קשר</h4>
-                    
+
                     {/* Supplier Contact Person */}
                     <div className="sidebar-row">
                       <span className="sidebar-label">איש קשר אצל הספק</span>
                       {activeEditField === 'contactPerson' ? (
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                          <input 
-                            type="text" 
-                            className="form-control" 
+                          <input
+                            type="text"
+                            className="form-control"
                             style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                            value={editContactPerson} 
-                            onChange={(e) => setEditContactPerson(e.target.value)} 
+                            value={editContactPerson}
+                            onChange={(e) => setEditContactPerson(e.target.value)}
                             onBlur={(e) => handleAutoSaveBlur(e, 'contactPerson', editContactPerson)}
                             list="contacts-list-inline"
                             autoFocus
@@ -1809,17 +1964,17 @@ export default function AdminDetailsModal({
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span 
-                              className="sidebar-value hover-editable-inline" 
+                            <span
+                              className="sidebar-value hover-editable-inline"
                               onClick={() => startEditingField('contactPerson', task.contactPerson)}
                               title="לחצי לעריכת איש קשר ספק"
                             >
                               {task.contactPerson || 'לחצי להוספה...'} ✏️
                             </span>
                             {task.contactPerson && (
-                              <button 
-                                type="button" 
-                                className="btn btn-secondary btn-icon" 
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-icon"
                                 style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                 title="פרטי כרטיס איש קשר"
                                 onClick={() => handleOpenContactCard(task.contactPerson)}
@@ -1835,9 +1990,9 @@ export default function AdminDetailsModal({
                             return (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                                 <span>📞</span>
-                                <a 
-                                  href={`tel:${phone.replace(/\s+/g, '')}`} 
-                                  className="directory-phone-link direction-ltr" 
+                                <a
+                                  href={`tel:${phone.replace(/\s+/g, '')}`}
+                                  className="directory-phone-link direction-ltr"
                                   style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
                                 >
                                   {phone}
@@ -1854,12 +2009,12 @@ export default function AdminDetailsModal({
                       <span className="sidebar-label">מייל איש קשר ספק</span>
                       {activeEditField === 'supplierContactEmail' ? (
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                          <input 
-                            type="text" 
-                            className="form-control text-left direction-ltr" 
+                          <input
+                            type="text"
+                            className="form-control text-left direction-ltr"
                             style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                            value={editSupplierContactEmail} 
-                            onChange={(e) => setEditSupplierContactEmail(e.target.value)} 
+                            value={editSupplierContactEmail}
+                            onChange={(e) => setEditSupplierContactEmail(e.target.value)}
                             onBlur={(e) => handleAutoSaveBlur(e, 'supplierContactEmail', editSupplierContactEmail)}
                             autoFocus
                             onKeyDown={(e) => {
@@ -1871,11 +2026,11 @@ export default function AdminDetailsModal({
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
-                          <span 
-                            className="sidebar-value hover-editable-inline" 
+                          <span
+                            className="sidebar-value hover-editable-inline"
                             onClick={() => startEditingField('supplierContactEmail', task.supplierContactEmail)}
                             title="לחצי לעריכת מייל איש קשר ספק"
-                            style={{ 
+                            style={{
                               color: task.supplierContactEmail ? 'var(--primary)' : 'var(--text-muted)',
                               whiteSpace: 'nowrap',
                               display: 'inline-flex',
@@ -1883,7 +2038,7 @@ export default function AdminDetailsModal({
                               gap: '4px'
                             }}
                           >
-                            <span style={{ 
+                            <span style={{
                               textDecoration: task.supplierContactEmail ? 'underline' : 'none',
                               direction: task.supplierContactEmail ? 'ltr' : 'rtl'
                             }}>
@@ -1892,9 +2047,9 @@ export default function AdminDetailsModal({
                             ✏️
                           </span>
                           {task.supplierContactEmail && (
-                            <button 
-                              type="button" 
-                              className="btn btn-secondary btn-icon" 
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-icon"
                               style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                               title={copiedEmail ? "הועתק!" : "העתק אימייל"}
                               onClick={() => handleCopyEmail(task.supplierContactEmail)}
@@ -1910,11 +2065,11 @@ export default function AdminDetailsModal({
                   {/* AREA 3: חומרים ואישורים */}
                   <div className="details-section-card">
                     <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 חומרים ואישורים</h4>
-                    
+
                     {/* Status Picker (Grid) */}
                     <div className="sidebar-row" style={{ display: 'block', marginBottom: '16px' }}>
                       <span className="sidebar-label" style={{ display: 'block', marginBottom: '6px' }}>סטטוס עבודה</span>
-                      <div 
+                      <div
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '1fr 1fr',
@@ -2071,14 +2226,14 @@ export default function AdminDetailsModal({
 
             {/* Modal Footer */}
             <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
-              <button 
-                type="button" 
-                className="btn btn-danger" 
+              <button
+                type="button"
+                className="btn btn-danger"
                 onClick={() => onDelete(task.id)}
               >
                 🗑️ מחיקת עבודה
               </button>
-              
+
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 סגור
               </button>
@@ -2143,11 +2298,11 @@ export default function AdminDetailsModal({
                       <a href={`tel:${f.value}`} className="direction-ltr text-left" style={{ fontSize: '0.9rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'underline' }}>
                         {f.value}
                       </a>
-                      <a 
-                        href={`https://wa.me/${f.value.replace(/[^0-9]/g, '')}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        title="שליחת הודעת WhatsApp" 
+                      <a
+                        href={`https://wa.me/${f.value.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="שליחת הודעת WhatsApp"
                         style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366' }}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -2192,17 +2347,17 @@ export default function AdminDetailsModal({
             <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת הערה</h3>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק הערה זו לצמיתות? לא ניתן לבטל פעולה זו.</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => setCommentToDelete(null)}
                 style={{ flex: 1 }}
               >
                 ביטול
               </button>
-              <button 
-                type="button" 
-                className="btn btn-danger" 
+              <button
+                type="button"
+                className="btn btn-danger"
                 onClick={confirmDeleteComment}
                 style={{ flex: 1 }}
               >
@@ -2219,17 +2374,17 @@ export default function AdminDetailsModal({
             <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת פלנוגרמה</h3>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק את הפלנוגרמה? לא ניתן לבטל פעולה זו.</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => setShowPlanogramDeleteConfirm(false)}
                 style={{ flex: 1 }}
               >
                 ביטול
               </button>
-              <button 
-                type="button" 
-                className="btn btn-danger" 
+              <button
+                type="button"
+                className="btn btn-danger"
                 onClick={confirmDeletePlanogram}
                 style={{ flex: 1 }}
               >
@@ -2242,21 +2397,21 @@ export default function AdminDetailsModal({
 
       {/* Excel Preview Modal */}
       <React.Suspense fallback={null}>
-        <ExcelPreviewModal 
-          isOpen={!!excelPreviewFile} 
-          onClose={() => setExcelPreviewFile(null)} 
-          fileUrl={excelPreviewFile?.url} 
-          fileName={excelPreviewFile?.name} 
+        <ExcelPreviewModal
+          isOpen={!!excelPreviewFile}
+          onClose={() => setExcelPreviewFile(null)}
+          fileUrl={excelPreviewFile?.url}
+          fileName={excelPreviewFile?.name}
         />
       </React.Suspense>
 
       {/* PDF Preview Modal */}
       <React.Suspense fallback={null}>
-        <PdfPreviewModal 
-          isOpen={!!pdfPreviewFile} 
-          onClose={() => setPdfPreviewFile(null)} 
-          fileUrl={pdfPreviewFile?.url} 
-          fileName={pdfPreviewFile?.name} 
+        <PdfPreviewModal
+          isOpen={!!pdfPreviewFile}
+          onClose={() => setPdfPreviewFile(null)}
+          fileUrl={pdfPreviewFile?.url}
+          fileName={pdfPreviewFile?.name}
         />
       </React.Suspense>
     </div>

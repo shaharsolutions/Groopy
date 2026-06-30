@@ -156,6 +156,7 @@ export default function AdminDetailsModal({
   const [commentError, setCommentError] = useState('');
   const [newSubtaskText, setNewSubtaskText] = useState('');
   const [subtaskError, setSubtaskError] = useState('');
+  const [subtasksDraft, setSubtasksDraft] = useState([]);
   const [savingSubtasks, setSavingSubtasks] = useState(false);
 
   const [attachedFile, setAttachedFile] = useState(null);
@@ -621,8 +622,19 @@ export default function AdminDetailsModal({
       .filter(item => item.text.trim());
   };
 
-  const persistSubtasks = async (nextSubtasks) => {
-    if (!task) return;
+  useEffect(() => {
+    if (!task) {
+      setSubtasksDraft([]);
+      return;
+    }
+    if (!savingSubtasks) {
+      setSubtasksDraft(normalizeSubtasks(task.subtasks));
+    }
+  }, [task?.id, task?.subtasks, task?.createdAt, savingSubtasks]);
+
+  const persistSubtasks = async (nextSubtasks, previousSubtasks = subtasksDraft) => {
+    if (!task) return false;
+    setSubtasksDraft(nextSubtasks);
     setSavingSubtasks(true);
     setSubtaskError('');
     try {
@@ -634,9 +646,12 @@ export default function AdminDetailsModal({
         });
       }
       if (onRefresh) onRefresh();
+      return true;
     } catch (err) {
       console.error('Failed to save subtasks', err);
+      setSubtasksDraft(previousSubtasks);
       setSubtaskError('השינוי במשימות לא נשמר. נסי שוב בעוד רגע.');
+      return false;
     } finally {
       setSavingSubtasks(false);
     }
@@ -651,7 +666,7 @@ export default function AdminDetailsModal({
     }
 
     const nextSubtasks = [
-      ...normalizeSubtasks(task.subtasks),
+      ...subtasksDraft,
       {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         text,
@@ -660,12 +675,12 @@ export default function AdminDetailsModal({
       }
     ];
 
-    await persistSubtasks(nextSubtasks);
-    setNewSubtaskText('');
+    const saved = await persistSubtasks(nextSubtasks, subtasksDraft);
+    if (saved) setNewSubtaskText('');
   };
 
   const handleToggleSubtask = async (subtaskId) => {
-    const nextSubtasks = normalizeSubtasks(task.subtasks).map(item => {
+    const nextSubtasks = subtasksDraft.map(item => {
       if (item.id !== subtaskId) return item;
       const completed = !item.completed;
       return {
@@ -674,12 +689,12 @@ export default function AdminDetailsModal({
         completedAt: completed ? new Date().toISOString() : null
       };
     });
-    await persistSubtasks(nextSubtasks);
+    await persistSubtasks(nextSubtasks, subtasksDraft);
   };
 
   const handleDeleteSubtask = async (subtaskId) => {
-    const nextSubtasks = normalizeSubtasks(task.subtasks).filter(item => item.id !== subtaskId);
-    await persistSubtasks(nextSubtasks);
+    const nextSubtasks = subtasksDraft.filter(item => item.id !== subtaskId);
+    await persistSubtasks(nextSubtasks, subtasksDraft);
   };
 
   const handleDeleteComment = (commentId) => {
@@ -1715,7 +1730,7 @@ export default function AdminDetailsModal({
                     <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
 
                     {(() => {
-                      const subtasks = normalizeSubtasks(task.subtasks);
+                      const subtasks = subtasksDraft;
 
                       return (
                         <div className="project-subtasks-panel">

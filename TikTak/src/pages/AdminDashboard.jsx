@@ -704,7 +704,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       <section className="dashboard-subtasks-overview" aria-labelledby="dashboard-subtasks-title">
         <div className="dashboard-subtasks-header">
           <div>
-            <h3 id="dashboard-subtasks-title">משימות מכל הפרויקטים</h3>
+            <h3 id="dashboard-subtasks-title">משימות פתוחות</h3>
             <p>
               {allProjectSubtasks.length > 0
                 ? `${allProjectSubtasks.filter(item => !item.completed).length} פתוחות מתוך ${allProjectSubtasks.length}`

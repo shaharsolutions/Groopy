@@ -151,9 +151,7 @@ export default function AdminDetailsModal({
   const [comments, setComments] = useState([]);
   const [commentToDelete, setCommentToDelete] = useState(null);
   const [showPlanogramDeleteConfirm, setShowPlanogramDeleteConfirm] = useState(false);
-  const [authorName, setAuthorName] = useState(() => {
-    return localStorage.getItem('tiktak_comment_author_admin') || 'מנהל/ת תיקתק';
-  });
+  const commentAuthorName = 'מנהל/ת תיקתק';
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
   const [newSubtaskText, setNewSubtaskText] = useState('');
@@ -706,10 +704,6 @@ export default function AdminDetailsModal({
     e.preventDefault();
     setCommentError('');
 
-    if (!authorName.trim()) {
-      setCommentError('נא להזין שם כותב');
-      return;
-    }
     if (!commentText.trim()) {
       setCommentError('נא להזין תוכן תגובה');
       return;
@@ -718,17 +712,12 @@ export default function AdminDetailsModal({
     try {
       await addComment(
         task.id,
-        authorName,
+        commentAuthorName,
         commentText,
         attachedFile ? attachedFile.url : null,
         attachedFile ? attachedFile.name : null,
         userId
       );
-      if (authorName.trim()) {
-        localStorage.setItem('tiktak_comment_author_admin', authorName.trim());
-      } else {
-        localStorage.removeItem('tiktak_comment_author_admin');
-      }
       setCommentText('');
       setAttachedFile(null);
       const fetchedComments = await getCommentsForTask(task.id, userId);
@@ -1510,10 +1499,10 @@ export default function AdminDetailsModal({
                   {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
                   <div className="details-section-card">
                     <h4 className="detail-section-title">📋 הזמנת עבודה ופלנוגרמה</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div className="work-order-planogram-grid">
 
                       {/* הזמנת עבודה */}
-                      <div>
+                      <div className="work-order-column">
                         <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
                           הזמנת עבודה (קבצים מצורפים)
                         </label>
@@ -1599,7 +1588,7 @@ export default function AdminDetailsModal({
                       </div>
 
                       {/* פלנוגרמה */}
-                      <div>
+                      <div className="planogram-column">
                         <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
                           פלנוגרמה
                         </label>
@@ -1871,16 +1860,7 @@ export default function AdminDetailsModal({
 
                     {/* Form to add a comment */}
                     <form onSubmit={handleAddComment} className="comment-form" style={{ marginTop: '16px' }}>
-                      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div className="form-group" style={{ marginBottom: '8px' }}>
-                          <label className="form-label" style={{ fontSize: '0.8rem' }}>שם כותב/ת ההערה</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={authorName}
-                            onChange={(e) => setAuthorName(e.target.value)}
-                          />
-                        </div>
+                      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                         <div className="form-group" style={{ marginBottom: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button

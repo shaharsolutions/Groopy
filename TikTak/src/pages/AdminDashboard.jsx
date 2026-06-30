@@ -634,7 +634,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
       {/* Filter and Search Panel */}
       <div className="filter-panel">
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="admin-filter-controls">
           {/* Search input */}
           <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '280px' }}>
             <label className="form-label" style={{ fontSize: '0.8rem' }}>חיפוש חופשי</label>
@@ -947,65 +947,79 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
           {/* Mobile Cards View */}
           <div className="mobile-cards-grid">
-            {filteredTasks.map(task => (
-              <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
-                <div className="task-card-header">
-                  <div>
-                    <h4 className="task-card-title">
-                      <span className="task-title-with-indicator">
-                        <span>{task.title}</span>
-                        {task.planogramFile && <PlanogramIndicator compact />}
+            {filteredTasks.map(task => {
+              const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+              const phone = contact ? contact.phone : '';
+              const email = task.supplierContactEmail || (contact ? contact.email : '');
+
+              return (
+                <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
+                  <div className="task-card-header">
+                    <div>
+                      <h4 className="task-card-title">
+                        <span className="task-title-with-indicator">
+                          <span>{task.title}</span>
+                          {task.planogramFile && <PlanogramIndicator compact />}
+                        </span>
+                      </h4>
+                    </div>
+                    <StatusPicker
+                      currentStatus={task.status}
+                      statuses={STATUSES}
+                      statusColors={STATUS_CLASSES}
+                      onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                      disabled={savingStatusIds.has(task.id)}
+                    />
+                  </div>
+
+                  <div className="task-card-meta">
+                    <div className="meta-item">
+                      <span className="meta-label">איש קשר</span>
+                      <span className="meta-value">{task.contactPerson || '-'}</span>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-label">עודכן ב</span>
+                      <span className="meta-value">{formatDate(task.updatedAt)}</span>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-label">טלפון</span>
+                      <span className="meta-value">
+                        {phone ? <a className="directory-phone-link direction-ltr" href={`tel:${phone.replace(/\s+/g, '')}`} onClick={(e) => e.stopPropagation()}>{phone}</a> : '-'}
                       </span>
-                    </h4>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-label">אימייל</span>
+                      <span className="meta-value">
+                        {email ? <a className="direction-ltr mobile-email-link" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>{email}</a> : '-'}
+                      </span>
+                    </div>
                   </div>
-                  <StatusPicker
-                    currentStatus={task.status}
-                    statuses={STATUSES}
-                    statusColors={STATUS_CLASSES}
-                    onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
-                    disabled={savingStatusIds.has(task.id)}
-                  />
-                </div>
 
-                <div className="task-card-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">איש קשר</span>
-                    <span className="meta-value">{task.contactPerson || '-'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">עודכן ב</span>
-                    <span className="meta-value">{formatDate(task.updatedAt)}</span>
+                  <div className="task-card-actions">
+                    <button
+                      className="btn btn-secondary"
+                      style={{ flex: 1, padding: '8px' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingTask(task);
+                      }}
+                    >
+                      פרטים
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ padding: '8px' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingTaskId(task.id);
+                      }}
+                    >
+                      מחק
+                    </button>
                   </div>
                 </div>
-
-                <div className="task-card-actions">
-                  <button
-                    className="btn btn-secondary"
-                    style={{ flex: 1, padding: '8px' }}
-                    onClick={() => setViewingTask(task)}
-                  >
-                    פרטים
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    style={{ padding: '8px' }}
-                    onClick={() => {
-                      setStartInEditMode(true);
-                      setViewingTask(task);
-                    }}
-                  >
-                    ערוך
-                  </button>
-                  <button
-                    className="btn btn-danger"
-                    style={{ padding: '8px' }}
-                    onClick={() => setDeletingTaskId(task.id)}
-                  >
-                    מחק
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

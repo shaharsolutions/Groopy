@@ -537,7 +537,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                     const isEditing = editingSupplier.id === supplier.id;
                     return (
                       <tr key={supplier.id}>
-                        <td>
+                        <td data-label="שם הספק">
                           <div className="directory-name-cell">
                             <span className="directory-avatar">{getInitials(supplier.name)}</span>
                             {isEditing ? (
@@ -552,16 +552,16 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                             )}
                           </div>
                         </td>
-                        <td>{supplier.contactPerson || <span className="muted-text">לא הוגדר</span>}</td>
-                        <td>{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
-                        <td>
+                        <td data-label="איש קשר">{supplier.contactPerson || <span className="muted-text">לא הוגדר</span>}</td>
+                        <td data-label="פרויקט אחרון">{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
+                        <td data-label="תקשורת">
                           <div className="directory-contact-lines">
                             {supplier.phone ? <a className="directory-phone-link direction-ltr" href={`tel:${supplier.phone.replace(/\s+/g, '')}`}>{supplier.phone}</a> : null}
                             {supplier.email ? <a className="direction-ltr" href={`mailto:${supplier.email}`}>{supplier.email}</a> : null}
                             {!supplier.phone && !supplier.email ? <span className="muted-text">אין פרטי התקשרות</span> : null}
                           </div>
                         </td>
-                        <td>{renderSupplierActions(supplier)}</td>
+                        <td data-label="פעולות">{renderSupplierActions(supplier)}</td>
                       </tr>
                     );
                   })
@@ -640,7 +640,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                     const isEditing = editingContact.id === contact.id;
                     return (
                       <tr key={contact.id}>
-                        <td>
+                        <td data-label="שם">
                           <div className="directory-name-cell">
                             <span className="directory-avatar contact">{getInitials(contact.name)}</span>
                             {isEditing ? (
@@ -650,22 +650,22 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                             )}
                           </div>
                         </td>
-                        <td>{renderLastProject(lastContactProjects.get(normalizeSearch(contact.name)))}</td>
-                        <td>
+                        <td data-label="פרויקט אחרון">{renderLastProject(lastContactProjects.get(normalizeSearch(contact.name)))}</td>
+                        <td data-label="טלפון">
                           {isEditing ? (
                             <input type="text" className="form-control direction-ltr text-left directory-inline-input" value={editingContact.phone} onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })} />
                           ) : (
                             contact.phone ? <a className="directory-phone-link direction-ltr" href={`tel:${contact.phone.replace(/\s+/g, '')}`}>{contact.phone}</a> : <span className="muted-text">לא הוגדר</span>
                           )}
                         </td>
-                        <td>
+                        <td data-label="אימייל">
                           {isEditing ? (
                             <input type="email" className="form-control direction-ltr text-left directory-inline-input" value={editingContact.email} onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })} />
                           ) : (
                             contact.email ? <a className="direction-ltr" href={`mailto:${contact.email}`}>{contact.email}</a> : <span className="muted-text">לא הוגדר</span>
                           )}
                         </td>
-                        <td>{renderContactActions(contact)}</td>
+                        <td data-label="פעולות">{renderContactActions(contact)}</td>
                       </tr>
                     );
                   })

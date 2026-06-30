@@ -31,7 +31,7 @@ export default function StatusPicker({ currentStatus, statuses, statusColors, on
   const allAvailableStatuses = statuses.includes(currentStatus) ? statuses : [...statuses, currentStatus];
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 1010 : 'auto' }}>
+    <div className="status-picker" style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 1010 : 'auto' }}>
       <button
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}

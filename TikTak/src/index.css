@@ -91,6 +91,7 @@ body {
   text-align: right;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 button, input, select, textarea {
@@ -161,6 +162,13 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.header-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .user-badge {
@@ -700,8 +708,31 @@ button, input, select, textarea {
   }
 
   .directory-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
     border: 0;
     padding: 7px 0;
+    color: var(--text);
+  }
+
+  .directory-table td::before {
+    content: attr(data-label);
+    flex: 0 0 96px;
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+  }
+
+  .directory-table td[colspan] {
+    display: block;
+  }
+
+  .directory-table td[colspan]::before,
+  .directory-table td[data-label="שם הספק"]::before,
+  .directory-table td[data-label="שם"]::before {
+    display: none;
   }
 
   .directory-table th:last-child,
@@ -716,7 +747,14 @@ button, input, select, textarea {
     min-width: 0;
   }
 
+  .directory-name-cell,
+  .directory-contact-lines {
+    flex: 1;
+    min-width: 0;
+  }
+
   .directory-actions {
+    flex: 1;
     justify-content: stretch;
   }
 
@@ -1075,6 +1113,13 @@ button, input, select, textarea {
   box-shadow: var(--shadow-sm);
 }
 
+.admin-filter-controls {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr;
@@ -1082,8 +1127,47 @@ button, input, select, textarea {
 }
 
 @media (max-width: 768px) {
+  .dashboard-container {
+    padding: 16px;
+  }
+
+  .flex-between {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .flex-between .btn {
+    width: 100%;
+  }
+
   .filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .filter-panel {
+    padding: 14px;
+    margin-bottom: 18px;
+  }
+
+  .admin-filter-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .admin-filter-controls .form-group {
+    min-width: 0 !important;
+  }
+
+  .filter-summary {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .filter-summary .btn {
+    width: 100%;
   }
 }
 
@@ -1385,6 +1469,7 @@ select.badge:focus, select.priority-badge:focus {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 12px;
   border-bottom: 1px dashed var(--border);
   padding-bottom: 12px;
 }
@@ -1421,6 +1506,14 @@ select.badge:focus, select.priority-badge:focus {
 
 .meta-value {
   font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mobile-email-link {
+  color: var(--primary);
+  text-decoration: none;
+  word-break: break-all;
 }
 
 .task-card-actions {
@@ -1437,6 +1530,36 @@ select.badge:focus, select.priority-badge:focus {
   }
   .mobile-cards-grid {
     display: grid;
+  }
+}
+
+@media (max-width: 640px) {
+  .task-card {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .task-card-header {
+    flex-direction: column;
+  }
+
+  .task-card-header .status-picker {
+    width: 100%;
+  }
+
+  .task-card-header .status-picker .badge,
+  .task-card-header select.badge {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-card-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .task-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -1951,40 +2074,68 @@ select.badge:focus, select.priority-badge:focus {
 @media (max-width: 768px) {
   .app-header {
     flex-direction: column;
-    gap: 14px;
-    padding: 14px 16px;
+    gap: 10px;
+    padding: 10px 12px;
     align-items: stretch;
   }
 
   .header-brand {
     justify-content: center;
     text-align: center;
+    gap: 8px;
+  }
+
+  .header-logo {
+    width: 34px;
+    height: 34px;
+  }
+
+  .header-title {
+    font-size: 1.05rem;
+    line-height: 1.1;
   }
 
   .header-actions {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 8px;
+    width: calc(100% + 24px);
+    margin-inline: -12px;
+    padding: 0 12px 4px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .header-actions .btn {
-    flex: 1 1 calc(50% - 10px);
-    font-size: 0.85rem;
-    padding: 8px 12px;
-    min-width: 120px;
+  .header-actions > div {
+    display: contents !important;
+  }
+
+  .header-actions .btn,
+  .header-actions > div .btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: max-content;
+    min-height: 36px;
+    padding: 7px 10px !important;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    border-radius: var(--radius-sm);
   }
 
   .user-badge {
-    width: 100%;
-    justify-content: center;
-    order: -1; /* Keep badge prominent */
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 36px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+    white-space: nowrap;
   }
 }
 
 @media (max-width: 480px) {
-  .header-actions .btn {
-    flex: 1 1 100%; /* Stack buttons on very small screens */
+  .header-brand p {
+    font-size: 0.68rem !important;
   }
 }
 
@@ -3241,7 +3392,21 @@ select.badge:focus, select.priority-badge:focus {
 }
 
 /* Planogram Preview Container */
+.work-order-planogram-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.work-order-column,
+.planogram-column {
+  min-width: 0;
+}
+
 .planogram-preview-container {
+  width: 100%;
+  min-width: 0;
   margin-top: 12px;
   position: relative;
   border-radius: var(--radius-md, 10px);
@@ -3260,6 +3425,8 @@ select.badge:focus, select.priority-badge:focus {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  width: 100%;
 }
 
 .planogram-file-card .planogram-preview-container {
@@ -3378,6 +3545,20 @@ select.badge:focus, select.priority-badge:focus {
   font-size: 0.85rem;
   font-style: italic;
   text-align: center;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .work-order-planogram-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .planogram-preview-container,
+  .planogram-file-card .planogram-preview-container {
+    height: 120px !important;
+  }
 }
 
 /* Status selection grids */
@@ -3398,7 +3579,7 @@ select.badge:focus, select.priority-badge:focus {
   gap: 6px;
   padding: 5px;
   margin-bottom: 20px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
 }
@@ -3429,7 +3610,7 @@ select.badge:focus, select.priority-badge:focus {
 
 .trash-panel {
   padding: 22px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
 }
@@ -3451,7 +3632,7 @@ select.badge:focus, select.priority-badge:focus {
   justify-content: space-between;
   gap: 20px;
   padding: 16px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--background);
 }

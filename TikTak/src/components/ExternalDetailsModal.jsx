@@ -119,7 +119,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
     hideWeeklyHours = false
   } = settings || {};
   const [comments, setComments] = useState([]);
-  const [authorName, setAuthorName] = useState(() => localStorage.getItem('tiktak_comment_author') || '');
+  const commentAuthorName = 'משתמש/ת חיצוני/ת';
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -208,13 +208,8 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
   const handleAddComment = async (e) => {
     e.preventDefault();
-    const trimmedAuthorName = authorName.trim();
     const trimmedCommentText = commentText.trim();
 
-    if (!trimmedAuthorName) {
-      setCommentError('נא להזין את שם כותב/ת ההערה');
-      return;
-    }
     if (!trimmedCommentText) {
       setCommentError('נא לכתוב את תוכן ההערה');
       return;
@@ -223,8 +218,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
     setIsSubmittingComment(true);
     setCommentError('');
     try {
-      const newComment = await addComment(task.id, trimmedAuthorName, trimmedCommentText, null, null, userId);
-      localStorage.setItem('tiktak_comment_author', trimmedAuthorName);
+      const newComment = await addComment(task.id, commentAuthorName, trimmedCommentText, null, null, userId);
       setComments(currentComments => [...currentComments, newComment]);
       setCommentText('');
     } catch (err) {
@@ -553,22 +547,6 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
                 <form onSubmit={handleAddComment} className="comment-form">
                   <h5 style={{ fontWeight: '600' }}>הוספת הערה</h5>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label" htmlFor={`external-comment-author-${task.id}`}>שם כותב/ת *</label>
-                    <input
-                      id={`external-comment-author-${task.id}`}
-                      type="text"
-                      className="form-control"
-                      value={authorName}
-                      onChange={(e) => {
-                        setAuthorName(e.target.value);
-                        if (commentError) setCommentError('');
-                      }}
-                      maxLength={100}
-                      disabled={isSubmittingComment}
-                    />
-                  </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label" htmlFor={`external-comment-text-${task.id}`}>תוכן ההערה *</label>

@@ -7,6 +7,7 @@ import {
   deleteTask,
   restoreTask,
   purgeExpiredTasks,
+  autoArchiveInactiveTasks,
   addContact,
   updateContact
 } from '../utils/storage';
@@ -99,7 +100,8 @@ const clearPendingStatus = (taskId, expectedStatus) => {
 export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, autoOpenTaskId, onClearAutoOpen }) {
   const {
     statuses: STATUSES = [],
-    statusColors: STATUS_CLASSES = {}
+    statusColors: STATUS_CLASSES = {},
+    autoArchiveInactiveDays = 45
   } = settings || {};
   const [tasks, setTasks] = useState([]);
   const [trashedTasks, setTrashedTasks] = useState([]);
@@ -113,6 +115,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [sortDirection, setSortDirection] = useState(() => readSortPreference().direction);
   const [savingStatusIds, setSavingStatusIds] = useState(() => new Set());
   const statusChangeSeq = useRef({});
+  const autoArchiveRunKey = useRef('');
 
   // Modals State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -186,8 +189,15 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
   // Fetch tasks on mount
   useEffect(() => {
+    if (!userId) return;
+
     const initTasks = async () => {
       await purgeExpiredTasks(userId);
+      const archiveRunKey = `${userId}:${autoArchiveInactiveDays}`;
+      if (autoArchiveRunKey.current !== archiveRunKey) {
+        autoArchiveRunKey.current = archiveRunKey;
+        await autoArchiveInactiveTasks(userId, autoArchiveInactiveDays);
+      }
       const pendingStatuses = readPendingStatuses();
       await Promise.all(Object.entries(pendingStatuses).map(async ([taskId, status]) => {
         try {
@@ -212,7 +222,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       }
     };
     initTasks();
-  }, []);
+  }, [userId, autoArchiveInactiveDays]);
 
   // Listen to autoOpenTaskId from global search to open the details modal
   useEffect(() => {

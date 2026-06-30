@@ -89,7 +89,8 @@ export default function App() {
       'אושר לספק': 'badge-approved',
       'ארכיון': 'badge-archive'
     },
-    hideWeeklyHours: false
+    hideWeeklyHours: false,
+    autoArchiveInactiveDays: 45
   });
 
   const [suppliers, setSuppliers] = useState([]);
@@ -149,7 +150,8 @@ export default function App() {
                   'אושר לספק': 'badge-approved',
                   'ארכיון': 'badge-archive'
                 },
-                hideWeeklyHours: false
+                hideWeeklyHours: false,
+                autoArchiveInactiveDays: 45
               };
               await saveGlobalSettings(defaultSettings, user.uid, { skipActivityLog: true });
             } else {
@@ -207,7 +209,10 @@ export default function App() {
           ...dbSettings,
           statuses: dbSettings.statuses || defaultStatuses,
           statusColors: dbSettings.statusColors || defaultStatusColors,
-          defaultStatus: dbSettings.defaultStatus || 'חדש'
+          defaultStatus: dbSettings.defaultStatus || 'חדש',
+          autoArchiveInactiveDays: Number.isFinite(Number(dbSettings.autoArchiveInactiveDays))
+            ? Number(dbSettings.autoArchiveInactiveDays)
+            : 45
         }));
       } else {
         setSettings(prev => ({
@@ -215,7 +220,8 @@ export default function App() {
           statuses: defaultStatuses,
           statusColors: defaultStatusColors,
           defaultStatus: 'חדש',
-          hideWeeklyHours: false
+          hideWeeklyHours: false,
+          autoArchiveInactiveDays: 45
         }));
       }
     }, (err) => {

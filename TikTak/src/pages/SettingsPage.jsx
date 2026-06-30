@@ -13,6 +13,8 @@ const PRESET_COLORS = [
   { value: 'badge-frozen', label: 'אפור', previewClass: 'badge-frozen' }
 ];
 
+const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
+
 export default function SettingsPage({ settings, onSaveSettings, onBack }) {
   const [localSettings, setLocalSettings] = useState(JSON.parse(JSON.stringify(settings)));
   const [saving, setSaving] = useState(false);
@@ -32,9 +34,18 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
   };
 
   const handleSave = async () => {
+    const autoArchiveDays = Number(localSettings.autoArchiveInactiveDays);
+    if (!Number.isFinite(autoArchiveDays) || autoArchiveDays < 1) {
+      showMsg('יש להזין מספר ימים תקין לארכוב אוטומטי', 'danger');
+      return;
+    }
+
     setSaving(true);
     try {
-      await onSaveSettings(localSettings);
+      await onSaveSettings({
+        ...localSettings,
+        autoArchiveInactiveDays: Math.floor(autoArchiveDays)
+      });
       showMsg('ההגדרות נשמרו בהצלחה בשרת!', 'success');
     } catch (e) {
       console.error(e);
@@ -216,6 +227,24 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
             </label>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '4px 0 0 26px' }}>
               כאשר מסומן, כרטיס "שעות עבודה בפרויקט" לא יופיע בפרטי המשימה וכפתור "סיכום שעות" יוסתר.
+            </p>
+          </div>
+
+          <div className="form-group" style={{ maxWidth: '320px', marginTop: '16px' }}>
+            <label className="form-label">ארכוב אוטומטי לאחר חוסר פעילות</label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              className="form-control"
+              value={localSettings.autoArchiveInactiveDays ?? DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS}
+              onChange={(e) => setLocalSettings({
+                ...localSettings,
+                autoArchiveInactiveDays: e.target.value
+              })}
+            />
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '6px' }}>
+              פרויקטים שלא עודכנו במשך מספר הימים שהוגדר יועברו אוטומטית לסטטוס "ארכיון".
             </p>
           </div>
         </div>

@@ -71,6 +71,8 @@ const TASKS_COLLECTION = 'tasks';
 const COMMENTS_COLLECTION = 'comments';
 const ACTIVITY_LOGS_COLLECTION = 'activityLogs';
 const TRASH_RETENTION_DAYS = 30;
+const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
+const ARCHIVE_STATUS = 'ארכיון';
 const SYSTEM_ADMIN_EMAIL = 'shaharsolutions@gmail.com';
 
 const getCurrentActor = () => {
@@ -754,6 +756,62 @@ export const purgeExpiredTasks = async (userId) => {
   const expiredTasks = trashedTasks.filter(task => Date.parse(task.expiresAt) <= now);
   await Promise.all(expiredTasks.map(task => permanentlyDeleteTask(task.id)));
   return expiredTasks.length;
+};
+
+export const autoArchiveInactiveTasks = async (userId, inactiveDays = DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS) => {
+  if (!userId) return 0;
+  assertSystemManagerSession();
+
+  const parsedDays = Number(inactiveDays);
+  const days = Number.isFinite(parsedDays) && parsedDays > 0
+    ? Math.floor(parsedDays)
+    : DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const q = query(collection(db, TASKS_COLLECTION), where("userId", "==", userId));
+  let querySnapshot;
+
+  try {
+    querySnapshot = await getDocsFromServer(q);
+  } catch (serverError) {
+    console.warn('Server task read failed during auto archive, falling back to cache', serverError);
+    querySnapshot = await getDocs(q);
+  }
+
+  const now = new Date().toISOString();
+  const tasksToArchive = [];
+
+  querySnapshot.forEach((taskDoc) => {
+    const taskData = taskDoc.data();
+    if (taskData.deletedAt || taskData.status === ARCHIVE_STATUS) return;
+
+    const lastActivity = Date.parse(taskData.updatedAt || taskData.createdAt || '');
+    if (!Number.isFinite(lastActivity) || lastActivity > cutoff) return;
+
+    tasksToArchive.push({ id: taskDoc.id, ...taskData });
+  });
+
+  for (const task of tasksToArchive) {
+    await updateDoc(doc(db, TASKS_COLLECTION, task.id), {
+      status: ARCHIVE_STATUS,
+      updatedAt: now
+    });
+    await recordActivity({
+      action: 'task.auto_archived',
+      actionLabel: 'ארכוב אוטומטי',
+      targetType: 'task',
+      targetId: task.id,
+      targetLabel: task.title || task.jobNumber || '',
+      targetUserId: task.userId || userId,
+      details: `העבודה הועברה לארכיון לאחר ${days} ימים ללא עדכון`,
+      metadata: {
+        previousStatus: task.status || '',
+        archivedAfterDays: days,
+        lastActivityAt: task.updatedAt || task.createdAt || ''
+      }
+    });
+  }
+
+  return tasksToArchive.length;
 };
 
 const SETTINGS_COLLECTION = 'settings';

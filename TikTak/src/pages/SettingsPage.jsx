@@ -230,8 +230,17 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
             </p>
           </div>
 
-          <div className="form-group" style={{ maxWidth: '320px', marginTop: '16px' }}>
-            <label className="form-label">ארכוב אוטומטי לאחר חוסר פעילות</label>
+        </div>
+
+        {/* Section 2: Auto Archive */}
+        <div className="filter-panel">
+          <h4 className="detail-section-title">🗄️ ארכוב אוטומטי</h4>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+            הגדרת מספר הימים ללא שינוי או עדכון בפרויקט, שלאחריהם הוא יעבור אוטומטית לארכיון.
+          </p>
+
+          <div className="form-group" style={{ maxWidth: '320px' }}>
+            <label className="form-label">מספר ימים עד העברה לארכיון</label>
             <input
               type="number"
               min="1"
@@ -244,12 +253,12 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
               })}
             />
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '6px' }}>
-              פרויקטים שלא עודכנו במשך מספר הימים שהוגדר יועברו אוטומטית לסטטוס "ארכיון".
+              ברירת המחדל היא 45 ימים. כל עדכון בפרויקט מאפס את ספירת הימים.
             </p>
           </div>
         </div>
 
-        {/* Section 2: Statuses List Management */}
+        {/* Section 3: Statuses List Management */}
         <div className="filter-panel">
           <h4 className="detail-section-title">🔄 ניהול סטטוסים וצבעי אינדיקציה</h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
@@ -390,7 +399,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
           </form>
         </div>
 
-        {/* Section 3: Default Workflow Settings */}
+        {/* Section 4: Default Workflow Settings */}
         <div className="filter-panel">
           <h4 className="detail-section-title">⚙️ סטטוס ברירת מחדל</h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '12px' }}>

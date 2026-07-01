@@ -23,6 +23,21 @@ const COMPLETED_SUBTASK_VISIBILITY_MS = 3000;
 
 const getProjectSubtaskKey = (taskId, subtaskId) => `${taskId}:${subtaskId}`;
 
+const isDateInCurrentWeek = (dateValue) => {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(now.getDate() - now.getDay());
+
+  const nextWeekStart = new Date(weekStart);
+  nextWeekStart.setDate(weekStart.getDate() + 7);
+
+  return date >= weekStart && date < nextWeekStart;
+};
+
 const normalizeProjectSubtasks = (task) => {
   if (!Array.isArray(task?.subtasks)) return [];
   return task.subtasks
@@ -118,6 +133,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [sortDirection, setSortDirection] = useState(() => readSortPreference().direction);
   const [savingStatusIds, setSavingStatusIds] = useState(() => new Set());
   const [recentlyCompletedSubtaskKeys, setRecentlyCompletedSubtaskKeys] = useState(() => new Set());
+  const [showCompletedThisWeekSubtasks, setShowCompletedThisWeekSubtasks] = useState(false);
   const statusChangeSeq = useRef({});
   const autoArchiveRunKey = useRef('');
   const completedSubtaskTimers = useRef({});
@@ -302,11 +318,26 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       });
   }, [tasks]);
 
+  const completedThisWeekProjectSubtasks = useMemo(() => (
+    allProjectSubtasks.filter(item => item.completed && isDateInCurrentWeek(item.completedAt))
+  ), [allProjectSubtasks]);
+
+  const completedThisWeekSubtaskKeys = useMemo(() => (
+    new Set(completedThisWeekProjectSubtasks.map(item => getProjectSubtaskKey(item.taskId, item.id)))
+  ), [completedThisWeekProjectSubtasks]);
+
   const visibleProjectSubtasks = useMemo(() => {
     return allProjectSubtasks.filter(item => (
+      (showCompletedThisWeekSubtasks && completedThisWeekSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id))) ||
       !item.completed || recentlyCompletedSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id))
     ));
-  }, [allProjectSubtasks, recentlyCompletedSubtaskKeys]);
+  }, [allProjectSubtasks, completedThisWeekSubtaskKeys, recentlyCompletedSubtaskKeys, showCompletedThisWeekSubtasks]);
+
+  const openProjectSubtasksCount = useMemo(() => (
+    allProjectSubtasks.filter(item => !item.completed).length
+  ), [allProjectSubtasks]);
+
+  const completedThisWeekProjectSubtasksCount = completedThisWeekProjectSubtasks.length;
 
   const handleToggleProjectSubtask = async (taskId, subtaskId) => {
     const targetTask = tasks.find(task => task.id === taskId);
@@ -752,12 +783,25 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             <h3 id="dashboard-subtasks-title">משימות פתוחות</h3>
             <p>
               {visibleProjectSubtasks.length > 0
-                ? `${allProjectSubtasks.filter(item => !item.completed).length} פתוחות מתוך ${visibleProjectSubtasks.length}`
+                ? showCompletedThisWeekSubtasks
+                  ? `${openProjectSubtasksCount} פתוחות, ${completedThisWeekProjectSubtasksCount} הושלמו השבוע`
+                  : `${openProjectSubtasksCount} פתוחות מתוך ${visibleProjectSubtasks.length}`
                 : allProjectSubtasks.length > 0
                   ? 'אין משימות פתוחות כרגע'
                   : 'אין עדיין משימות בפרויקטים'}
             </p>
           </div>
+          {completedThisWeekProjectSubtasksCount > 0 && (
+            <button
+              type="button"
+              className={`dashboard-subtasks-toggle ${showCompletedThisWeekSubtasks ? 'active' : ''}`}
+              onClick={() => setShowCompletedThisWeekSubtasks(prev => !prev)}
+              aria-pressed={showCompletedThisWeekSubtasks}
+            >
+              <span>{showCompletedThisWeekSubtasks ? 'הסתרת משימות שהושלמו השבוע' : 'הצגת משימות שהושלמו השבוע'}</span>
+              <span className="dashboard-subtasks-toggle-count">{completedThisWeekProjectSubtasksCount}</span>
+            </button>
+          )}
         </div>
 
         {visibleProjectSubtasks.length === 0 ? (

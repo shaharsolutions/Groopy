@@ -1414,7 +1414,7 @@ export default function AdminDetailsModal({
               </div>
 
               <div className="form-group">
-                <label className="form-label">הערות פנימיות למעצבת</label>
+                <label className="form-label">הערות פנימיות</label>
                 <textarea
                   className="form-control"
                   rows="2"
@@ -1484,7 +1484,7 @@ export default function AdminDetailsModal({
 
                     {/* Field: Internal Notes */}
                     <div>
-                      <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות למעצבת</label>
+                      <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות</label>
                       {activeEditField === 'internalNotes' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
                           <textarea

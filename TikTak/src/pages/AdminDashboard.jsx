@@ -493,10 +493,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
     // Check if the value hasn't changed
     const originalValue = field === 'phone'
-      ? (() => {
+      ? (task.supplierContactPhone || (() => {
           const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
           return contact ? contact.phone : '';
-        })()
+        })())
       : field === 'email'
         ? (task.supplierContactEmail || (() => {
             const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
@@ -531,6 +531,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         await updateTask(task.id, { supplierContactEmail: trimmedVal });
         applyTaskPatch(task.id, { supplierContactEmail: trimmedVal, updatedAt: new Date().toISOString() });
       } else if (field === 'phone') {
+        await updateTask(task.id, { supplierContactPhone: trimmedVal });
+        applyTaskPatch(task.id, { supplierContactPhone: trimmedVal, updatedAt: new Date().toISOString() });
         if (task.contactPerson) {
           const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === task.contactPerson.trim().toLowerCase());
           if (contact) {
@@ -546,10 +548,6 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               notes: ''
             }, userId);
           }
-        } else {
-          alert('לא ניתן לעדכן מספר טלפון ללא איש קשר מוגדר');
-          setIsSavingCell(false);
-          return;
         }
       }
       setEditingCell({ taskId: null, field: null });
@@ -895,7 +893,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               <tbody>
                 {filteredTasks.map(task => {
                   const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
-                  const phone = contact ? contact.phone : '';
+                  const phone = task.supplierContactPhone || (contact ? contact.phone : '');
                   const email = task.supplierContactEmail || (contact ? contact.email : '');
 
                   return (
@@ -1052,7 +1050,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           <div className="mobile-cards-grid">
             {filteredTasks.map(task => {
               const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
-              const phone = contact ? contact.phone : '';
+              const phone = task.supplierContactPhone || (contact ? contact.phone : '');
               const email = task.supplierContactEmail || (contact ? contact.email : '');
 
               return (

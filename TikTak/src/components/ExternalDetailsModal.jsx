@@ -610,6 +610,18 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   </div>
                 </div>
 
+                {/* Supplier Contact Phone */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">טלפון איש קשר ספק</span>
+                  {task.supplierContactPhone ? (
+                    <a href={`tel:${task.supplierContactPhone.replace(/\s+/g, '')}`} className="sidebar-value direction-ltr text-left directory-phone-link" style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
+                      {task.supplierContactPhone}
+                    </a>
+                  ) : (
+                    <span className="sidebar-value">-</span>
+                  )}
+                </div>
+
                 {/* Supplier Contact Email */}
                 <div className="sidebar-row">
                   <span className="sidebar-label">מייל איש קשר ספק</span>
@@ -637,16 +649,16 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                   </div>
                 </div>
 
-                {/* Diecuts Status */}
-                <div className="sidebar-row">
-                  <span className="sidebar-label">דייקאטים</span>
-                  <span className="sidebar-value">{task.diecutsStatus || 'אין'}</span>
-                </div>
-
                 {/* Images Status */}
                 <div className="sidebar-row">
                   <span className="sidebar-label">תמונות</span>
                   <span className="sidebar-value">{task.imagesStatus || 'אין'}</span>
+                </div>
+
+                {/* Diecuts Status */}
+                <div className="sidebar-row">
+                  <span className="sidebar-label">דייקאטים</span>
+                  <span className="sidebar-value">{task.diecutsStatus || 'אין'}</span>
                 </div>
 
                 {/* Standards Institute Required */}

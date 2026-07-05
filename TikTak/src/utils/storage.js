@@ -138,6 +138,7 @@ const FIELD_LABELS = {
   priority: 'עדיפות',
   deadline: 'דדליין',
   driveLink: 'קישור דרייב',
+  supplierContactPhone: 'טלפון איש קשר ספק',
   supplierContactEmail: 'אימייל ספק',
   diecutsStatus: 'דייקאטים',
   imagesStatus: 'תמונות',
@@ -593,6 +594,7 @@ export const updateTask = async (taskId, updatedData) => {
     const shouldSyncDirectory =
       Object.prototype.hasOwnProperty.call(taskWithoutPrivate, 'supplierName') ||
       Object.prototype.hasOwnProperty.call(taskWithoutPrivate, 'contactPerson') ||
+      Object.prototype.hasOwnProperty.call(taskWithoutPrivate, 'supplierContactPhone') ||
       Object.prototype.hasOwnProperty.call(taskWithoutPrivate, 'supplierContactEmail');
 
     if (shouldSyncDirectory && docSnap.exists()) {
@@ -1103,6 +1105,7 @@ export const autoAddSupplierAndContactFromTask = async (taskData) => {
 
     const supplierName = taskData.supplierName ? taskData.supplierName.trim() : '';
     const contactPerson = taskData.contactPerson ? taskData.contactPerson.trim() : '';
+    const supplierContactPhone = taskData.supplierContactPhone ? taskData.supplierContactPhone.trim() : '';
     const supplierContactEmail = taskData.supplierContactEmail ? taskData.supplierContactEmail.trim() : '';
 
     if (!supplierName && !contactPerson) return;
@@ -1122,7 +1125,7 @@ export const autoAddSupplierAndContactFromTask = async (taskData) => {
         await addSupplier({
           name: supplierName,
           email: supplierContactEmail,
-          phone: '',
+          phone: supplierContactPhone,
           address: '',
           wechat: '',
           notes: '',
@@ -1133,6 +1136,10 @@ export const autoAddSupplierAndContactFromTask = async (taskData) => {
         const updatedFields = {};
         if (!existingSup.email && supplierContactEmail) {
           updatedFields.email = supplierContactEmail;
+          updated = true;
+        }
+        if (!existingSup.phone && supplierContactPhone) {
+          updatedFields.phone = supplierContactPhone;
           updated = true;
         }
         if (!existingSup.contactPerson && contactPerson) {
@@ -1153,15 +1160,22 @@ export const autoAddSupplierAndContactFromTask = async (taskData) => {
         await addContact({
           name: contactPerson,
           role: '',
-          phone: '',
+          phone: supplierContactPhone,
           email: supplierContactEmail,
           address: '',
           wechat: '',
           notes: ''
         }, userId, { skipActivityLog: true });
       } else {
+        const updatedFields = {};
         if (!existingContact.email && supplierContactEmail) {
-          await updateContact(existingContact.id, { ...existingContact, email: supplierContactEmail }, { skipActivityLog: true });
+          updatedFields.email = supplierContactEmail;
+        }
+        if (!existingContact.phone && supplierContactPhone) {
+          updatedFields.phone = supplierContactPhone;
+        }
+        if (Object.keys(updatedFields).length > 0) {
+          await updateContact(existingContact.id, { ...existingContact, ...updatedFields }, { skipActivityLog: true });
         }
       }
     }

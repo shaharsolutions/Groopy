@@ -80,7 +80,7 @@ service cloud.firestore {
         'title', 'description', 'workType', 'storeName', 'supplierName',
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
         'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks',
-        'supplierContactEmail', 'diecutsStatus', 'imagesStatus', 'standardsInstituteRequired',
+        'supplierContactPhone', 'supplierContactEmail', 'diecutsStatus', 'imagesStatus', 'standardsInstituteRequired',
         'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId', 'weeklyHours'
       ];
 
@@ -107,6 +107,7 @@ service cloud.firestore {
              (!('driveLink' in data) || isValidUrl(data.driveLink)) &&
              (!('attachments' in data) || data.attachments is list) &&
              (!('subtasks' in data) || data.subtasks is list) &&
+             (!('supplierContactPhone' in data) || data.supplierContactPhone is string) &&
              (!('supplierContactEmail' in data) || data.supplierContactEmail is string) &&
              (!('diecutsStatus' in data) || data.diecutsStatus is string) &&
              (!('imagesStatus' in data) || data.imagesStatus is string) &&

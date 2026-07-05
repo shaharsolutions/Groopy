@@ -257,7 +257,6 @@ export default function AdminDetailsModal({
   const [editDescription, setEditDescription] = useState('');
   const [editWorkType, setEditWorkType] = useState('');
   const [editContactPerson, setEditContactPerson] = useState('');
-  const [editSupplierContactPhone, setEditSupplierContactPhone] = useState('');
   const [editSupplierContactEmail, setEditSupplierContactEmail] = useState('');
   const [editDiecutsStatus, setEditDiecutsStatus] = useState('אין');
   const [editImagesStatus, setEditImagesStatus] = useState('אין');
@@ -269,7 +268,6 @@ export default function AdminDetailsModal({
   const [createDescription, setCreateDescription] = useState('');
   const [createWorkType, setCreateWorkType] = useState(WORK_TYPES[0] || 'אריזה');
   const [createContactPerson, setCreateContactPerson] = useState('');
-  const [createSupplierContactPhone, setCreateSupplierContactPhone] = useState('');
   const [createSupplierContactEmail, setCreateSupplierContactEmail] = useState('');
   const [createDiecutsStatus, setCreateDiecutsStatus] = useState('אין');
   const [createImagesStatus, setCreateImagesStatus] = useState('אין');
@@ -427,7 +425,6 @@ export default function AdminDetailsModal({
     if (fieldKey === 'description') setEditDescription(value || '');
     if (fieldKey === 'workType') setEditWorkType(value || '');
     if (fieldKey === 'contactPerson') setEditContactPerson(value || '');
-    if (fieldKey === 'supplierContactPhone') setEditSupplierContactPhone(value || '');
     if (fieldKey === 'supplierContactEmail') setEditSupplierContactEmail(value || '');
     if (fieldKey === 'diecutsStatus') setEditDiecutsStatus(value || 'אין');
     if (fieldKey === 'imagesStatus') setEditImagesStatus(value || 'אין');
@@ -1035,7 +1032,6 @@ export default function AdminDetailsModal({
       workType: createWorkType,
       supplierName: '',
       contactPerson: createContactPerson.trim(),
-      supplierContactPhone: createSupplierContactPhone.trim(),
       supplierContactEmail: createSupplierContactEmail.trim(),
       diecutsStatus: createDiecutsStatus,
       imagesStatus: createImagesStatus,
@@ -1228,107 +1224,97 @@ export default function AdminDetailsModal({
               </div>
 
               <div className="form-row">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div className="form-group">
-                    <label className="form-label">איש קשר אצל הספק</label>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={createContactPerson}
-                        onChange={(e) => setCreateContactPerson(e.target.value)}
-                        list="contacts-list-modal"
-                        style={{ flex: 1 }}
-                      />
-                      {createContactPerson && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-icon"
-                          style={{ padding: '6px 8px', fontSize: '0.85rem', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="פרטי כרטיס איש קשר"
-                          onClick={() => handleOpenContactCard(createContactPerson)}
-                        >
-                          ℹ️
-                        </button>
-                      )}
-                    </div>
-                    <datalist id="contacts-list-modal">
-                      {CONTACTS.map(c => {
-                        const name = typeof c === 'string' ? c : c.name;
-                        const role = typeof c === 'string' ? '' : c.role;
-                        const phone = typeof c === 'string' ? '' : c.phone;
-                        return (
-                          <option key={name} value={name}>
-                            {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
-                          </option>
-                        );
-                      })}
-                    </datalist>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">טלפון איש קשר ספק</label>
-                    <input
-                      type="tel"
-                      className="form-control text-left direction-ltr"
-                      value={createSupplierContactPhone}
-                      onChange={(e) => setCreateSupplierContactPhone(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">מייל איש קשר ספק</label>
+                <div className="form-group">
+                  <label className="form-label">איש קשר אצל הספק</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input
                       type="text"
-                      className="form-control text-left direction-ltr"
-                      value={createSupplierContactEmail}
-                      onChange={(e) => {
-                        setCreateSupplierContactEmail(e.target.value);
-                        if (errors.supplierContactEmail) setErrors({...errors, supplierContactEmail: null});
-                      }}
+                      className="form-control"
+                      value={createContactPerson}
+                      onChange={(e) => setCreateContactPerson(e.target.value)}
+                      list="contacts-list-modal"
+                      style={{ flex: 1 }}
                     />
-                    {errors.supplierContactEmail && <span className="form-error">{errors.supplierContactEmail}</span>}
+                    {createContactPerson && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-icon"
+                        style={{ padding: '6px 8px', fontSize: '0.85rem', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="פרטי כרטיס איש קשר"
+                        onClick={() => handleOpenContactCard(createContactPerson)}
+                      >
+                        ℹ️
+                      </button>
+                    )}
                   </div>
+                  <datalist id="contacts-list-modal">
+                    {CONTACTS.map(c => {
+                      const name = typeof c === 'string' ? c : c.name;
+                      const role = typeof c === 'string' ? '' : c.role;
+                      const phone = typeof c === 'string' ? '' : c.phone;
+                      return (
+                        <option key={name} value={name}>
+                          {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
+                        </option>
+                      );
+                    })}
+                  </datalist>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">מייל איש קשר ספק</label>
+                  <input
+                    type="text"
+                    className="form-control text-left direction-ltr"
+                    value={createSupplierContactEmail}
+                    onChange={(e) => {
+                      setCreateSupplierContactEmail(e.target.value);
+                      if (errors.supplierContactEmail) setErrors({...errors, supplierContactEmail: null});
+                    }}
+                  />
+                  {errors.supplierContactEmail && <span className="form-error">{errors.supplierContactEmail}</span>}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div className="form-group">
-                    <label className="form-label">דרישות מכון תקנים</label>
-                    <select
-                      className="form-control"
-                      value={createStandardsInstituteRequired}
-                      onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
-                    >
-                      <option value="לא">לא</option>
-                      <option value="כן">כן</option>
-                    </select>
-                  </div>
+                <div className="form-group">
+                  <label className="form-label">דרישות מכון תקנים</label>
+                  <select
+                    className="form-control"
+                    value={createStandardsInstituteRequired}
+                    onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
+                  >
+                    <option value="לא">לא</option>
+                    <option value="כן">כן</option>
+                  </select>
+                </div>
+              </div>
 
-                  <div className="form-group">
-                    <label className="form-label">תמונות</label>
-                    <select
-                      className="form-control"
-                      value={createImagesStatus}
-                      onChange={(e) => setCreateImagesStatus(e.target.value)}
-                    >
-                      <option value="אין">אין</option>
-                      <option value="יש">יש</option>
-                      <option value="חלקי">חלקי</option>
-                    </select>
-                  </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">דייקאטים</label>
+                  <select
+                    className="form-control"
+                    value={createDiecutsStatus}
+                    onChange={(e) => setCreateDiecutsStatus(e.target.value)}
+                  >
+                    <option value="אין">אין</option>
+                    <option value="יש">יש</option>
+                    <option value="חלקי">חלקי</option>
+                  </select>
+                </div>
 
-                  <div className="form-group">
-                    <label className="form-label">דייקאטים</label>
-                    <select
-                      className="form-control"
-                      value={createDiecutsStatus}
-                      onChange={(e) => setCreateDiecutsStatus(e.target.value)}
-                    >
-                      <option value="אין">אין</option>
-                      <option value="יש">יש</option>
-                      <option value="חלקי">חלקי</option>
-                    </select>
-                  </div>
+                <div className="form-group">
+                  <label className="form-label">תמונות</label>
+                  <select
+                    className="form-control"
+                    value={createImagesStatus}
+                    onChange={(e) => setCreateImagesStatus(e.target.value)}
+                  >
+                    <option value="אין">אין</option>
+                    <option value="יש">יש</option>
+                    <option value="חלקי">חלקי</option>
+                  </select>
                 </div>
               </div>
 
@@ -2078,59 +2064,6 @@ export default function AdminDetailsModal({
                       )}
                     </div>
 
-                    {/* Supplier Contact Phone */}
-                    <div className="sidebar-row">
-                      <span className="sidebar-label">טלפון איש קשר ספק</span>
-                      {activeEditField === 'supplierContactPhone' ? (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                          <input
-                            type="tel"
-                            className="form-control text-left direction-ltr"
-                            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                            value={editSupplierContactPhone}
-                            onChange={(e) => setEditSupplierContactPhone(e.target.value)}
-                            onBlur={(e) => handleAutoSaveBlur(e, 'supplierContactPhone', editSupplierContactPhone)}
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveField('supplierContactPhone', editSupplierContactPhone);
-                            }}
-                          />
-                          <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactPhone', editSupplierContactPhone)}>✔️</button>
-                          <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
-                          <span
-                            className="sidebar-value hover-editable-inline"
-                            onClick={() => startEditingField('supplierContactPhone', task.supplierContactPhone)}
-                            title="לחצי לעריכת טלפון איש קשר ספק"
-                            style={{
-                              color: task.supplierContactPhone ? 'var(--primary)' : 'var(--text-muted)',
-                              whiteSpace: 'nowrap',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <span style={{ direction: task.supplierContactPhone ? 'ltr' : 'rtl' }}>
-                              {task.supplierContactPhone || 'לחצי להוספה...'}
-                            </span>
-                            ✏️
-                          </span>
-                          {task.supplierContactPhone && (
-                            <a
-                              href={`tel:${task.supplierContactPhone.replace(/\s+/g, '')}`}
-                              className="btn btn-secondary btn-icon"
-                              style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textDecoration: 'none' }}
-                              title="חיוג לטלפון איש קשר ספק"
-                            >
-                              📞
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
                     {/* Supplier Contact Email */}
                     <div className="sidebar-row">
                       <span className="sidebar-label">מייל איש קשר ספק</span>
@@ -2233,42 +2166,6 @@ export default function AdminDetailsModal({
                       </div>
                     </div>
 
-                    {/* Images Status */}
-                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                      <span className="sidebar-label">תמונות</span>
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-                        {[
-                          { val: 'אין', label: 'אין', class: 'badge-needs-revision' },
-                          { val: 'חלקי', label: 'חלקי', class: 'badge-in-progress' },
-                          { val: 'יש', label: 'יש', class: 'badge-approved' }
-                        ].map(item => {
-                          const isActive = (task.imagesStatus || 'אין') === item.val;
-                          return (
-                            <button
-                              key={item.val}
-                              type="button"
-                              className={`badge ${item.class}`}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '0.75rem',
-                                cursor: 'pointer',
-                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
-                                opacity: isActive ? 1 : 0.4,
-                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                                fontWeight: isActive ? '700' : '500',
-                                transition: 'all 0.15s ease',
-                                borderRadius: '12px'
-                              }}
-                              onClick={() => handleSaveField('imagesStatus', item.val)}
-                              title={`שינוי תמונות ל-${item.label}`}
-                            >
-                              {item.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
                     {/* Diecuts Status */}
                     <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                       <span className="sidebar-label">דייקאטים</span>
@@ -2297,6 +2194,42 @@ export default function AdminDetailsModal({
                               }}
                               onClick={() => handleSaveField('diecutsStatus', item.val)}
                               title={`שינוי דייקאטים ל-${item.label}`}
+                            >
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Images Status */}
+                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                      <span className="sidebar-label">תמונות</span>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                        {[
+                          { val: 'אין', label: 'אין', class: 'badge-needs-revision' },
+                          { val: 'חלקי', label: 'חלקי', class: 'badge-in-progress' },
+                          { val: 'יש', label: 'יש', class: 'badge-approved' }
+                        ].map(item => {
+                          const isActive = (task.imagesStatus || 'אין') === item.val;
+                          return (
+                            <button
+                              key={item.val}
+                              type="button"
+                              className={`badge ${item.class}`}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                opacity: isActive ? 1 : 0.4,
+                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                fontWeight: isActive ? '700' : '500',
+                                transition: 'all 0.15s ease',
+                                borderRadius: '12px'
+                              }}
+                              onClick={() => handleSaveField('imagesStatus', item.val)}
+                              title={`שינוי תמונות ל-${item.label}`}
                             >
                               {item.label}
                             </button>

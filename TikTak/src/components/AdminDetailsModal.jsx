@@ -284,6 +284,7 @@ export default function AdminDetailsModal({
   const [currentUploadIndex, setCurrentUploadIndex] = useState(0);
   const [totalUploadCount, setTotalUploadCount] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+  const [planogramDragActive, setPlanogramDragActive] = useState(false);
   const [errors, setErrors] = useState({});
 
   // Quick-edit states for View Mode (Status)
@@ -943,20 +944,17 @@ export default function AdminDetailsModal({
     setCreateAttachments(createAttachments.filter((_, idx) => idx !== indexToDelete));
   };
 
-  const handlePlanogramUploadCreate = async (e) => {
-    const file = e.target.files[0];
+  const uploadPlanogramCreateFile = async (file) => {
     if (!file) return;
 
     const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
     if (file.size > MAX_SIZE) {
       setUploadErrorPlanogram('גודל הקובץ עולה על המותר (מקסימום 15MB)');
-      e.target.value = '';
       return;
     }
 
     if (!/\.(jpg|jpeg|png|webp|gif|pdf)$/i.test(file.name)) {
       setUploadErrorPlanogram('אנא בחרי קובץ תמונה או PDF');
-      e.target.value = '';
       return;
     }
 
@@ -968,12 +966,40 @@ export default function AdminDetailsModal({
         setUploadProgressPlanogram(progress);
       });
       setCreatePlanogramFile(result);
-      e.target.value = '';
     } catch (err) {
       console.error(err);
       setUploadErrorPlanogram('שגיאה בהעלאת הפלנוגרמה');
     } finally {
       setUploadingPlanogram(false);
+    }
+  };
+
+  const handlePlanogramUploadCreate = async (e) => {
+    const file = e.target.files[0];
+    await uploadPlanogramCreateFile(file);
+    e.target.value = '';
+  };
+
+  const handlePlanogramDragCreate = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (uploadingPlanogram) return;
+
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setPlanogramDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setPlanogramDragActive(false);
+    }
+  };
+
+  const handlePlanogramDropCreate = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPlanogramDragActive(false);
+    if (uploadingPlanogram) return;
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await uploadPlanogramCreateFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -1388,23 +1414,27 @@ export default function AdminDetailsModal({
                 {createPlanogramFile ? (
                   <PlanogramFileCard file={createPlanogramFile} onDelete={handlePlanogramDeleteCreate} deleteLabel="הסרה" />
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      onClick={() => document.getElementById('planogram-upload-create-input').click()}
-                      disabled={uploadingPlanogram}
-                    >
-                      {uploadingPlanogram ? `🔄 מעלה...` : 'בחירת פלנוגרמה'}
-                    </button>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(תמונה או PDF, עד 15MB)</span>
+                  <div
+                    className={`file-upload-zone planogram-upload-zone ${planogramDragActive ? 'drag-active' : ''} ${uploadingPlanogram ? 'is-uploading' : ''}`}
+                    onDragEnter={handlePlanogramDragCreate}
+                    onDragOver={handlePlanogramDragCreate}
+                    onDragLeave={handlePlanogramDragCreate}
+                    onDrop={handlePlanogramDropCreate}
+                  >
+                    <div className="file-upload-icon">🗂️</div>
+                    <div className="file-upload-text">
+                      <strong>{uploadingPlanogram ? 'מעלה פלנוגרמה...' : 'גררי לכאן פלנוגרמה'}</strong> או לחצי לבחירה מהמחשב
+                    </div>
+                    <div className="file-upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>
+                      תמונה או PDF, עד 15MB
+                    </div>
                     <input
                       type="file"
                       id="planogram-upload-create-input"
                       accept="image/*,.pdf,application/pdf"
-                      style={{ display: 'none' }}
+                      className="file-upload-input"
                       onChange={handlePlanogramUploadCreate}
+                      disabled={uploadingPlanogram}
                     />
                   </div>
                 )}

@@ -2383,6 +2383,15 @@ select.badge:focus, select.priority-badge:focus {
   background-color: var(--primary-light);
 }
 
+.file-upload-zone.is-uploading {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.file-upload-zone.is-uploading .file-upload-input {
+  cursor: progress;
+}
+
 .file-upload-icon {
   font-size: 2rem;
   color: var(--primary);

@@ -1,7 +1,13 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
-import { getTasks } from '../utils/storage';
+import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 const ExternalDetailsModal = lazy(() => import('../components/ExternalDetailsModal'));
 import PlanogramIndicator from '../components/PlanogramIndicator';
+
+let storageApiPromise = null;
+
+const loadStorageApi = () => {
+  storageApiPromise ??= import('../utils/storage');
+  return storageApiPromise;
+};
 
 export default function ExternalDashboard({ settings, userId, autoOpenTaskId, onClearAutoOpen }) {
   const {
@@ -9,7 +15,6 @@ export default function ExternalDashboard({ settings, userId, autoOpenTaskId, on
     statusColors: STATUS_CLASSES = {}
   } = settings || {};
   const [tasks, setTasks] = useState([]);
-  const [filteredTasks, setFilteredTasks] = useState([]);
   
   // Search and Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,14 +23,13 @@ export default function ExternalDashboard({ settings, userId, autoOpenTaskId, on
   // Selected task for modal view
   const [viewingTask, setViewingTask] = useState(null);
 
-  const loadTasks = async () => {
-    const fetchedTasks = await getTasks(userId);
-    setTasks(fetchedTasks);
-  };
-
   useEffect(() => {
+    let cancelled = false;
+
     const initTasks = async () => {
+      const { getTasks } = await loadStorageApi();
       const fetchedTasks = await getTasks(userId);
+      if (cancelled) return;
       setTasks(fetchedTasks);
       
       const params = new URLSearchParams(window.location.search);
@@ -38,21 +42,25 @@ export default function ExternalDashboard({ settings, userId, autoOpenTaskId, on
       }
     };
     initTasks();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   // Listen to autoOpenTaskId from global search to open the details modal
   useEffect(() => {
     if (autoOpenTaskId && tasks.length > 0) {
       const taskToOpen = tasks.find(t => t.id === autoOpenTaskId);
       if (taskToOpen) {
-        setViewingTask(taskToOpen);
-        if (onClearAutoOpen) onClearAutoOpen();
+        queueMicrotask(() => {
+          setViewingTask(taskToOpen);
+          if (onClearAutoOpen) onClearAutoOpen();
+        });
       }
     }
   }, [autoOpenTaskId, tasks, onClearAutoOpen]);
 
-  // Reload tasks on window focus/active modal refresh to get updated comments or status updates
-  useEffect(() => {
+  const filteredTasks = useMemo(() => {
     let result = [...tasks];
 
     // Search query filter (title, supplierContact)
@@ -72,8 +80,16 @@ export default function ExternalDashboard({ settings, userId, autoOpenTaskId, on
     // Sort by updatedAt descending so the latest modified shows first
     result.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
-    setFilteredTasks(result);
+    return result;
   }, [tasks, searchQuery, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    const counts = new Map();
+    tasks.forEach(task => {
+      counts.set(task.status, (counts.get(task.status) || 0) + 1);
+    });
+    return counts;
+  }, [tasks]);
 
   const handleCellClick = (task, e) => {
     if (e.target.tagName === 'BUTTON' || e.target.closest('.btn') || e.target.closest('a')) {
@@ -143,7 +159,7 @@ export default function ExternalDashboard({ settings, userId, autoOpenTaskId, on
           הכל <span className="chip-count">{tasks.length}</span>
         </button>
         {STATUSES.map(st => {
-          const count = tasks.filter(t => t.status === st).length;
+          const count = statusCounts.get(st) || 0;
           return (
             <button 
               key={st}

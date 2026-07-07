@@ -1,7 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,14 +14,8 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore
-const db = getFirestore(app);
-
 // Initialize Auth
 const auth = getAuth(app);
-
-// Initialize Storage
-const storage = getStorage(app);
 
 const getAppAnalytics = async () => {
   if (typeof window === 'undefined') return null;
@@ -31,4 +23,4 @@ const getAppAnalytics = async () => {
   return (await isSupported()) ? getAnalytics(app) : null;
 };
 
-export { app, db, auth, storage, getAppAnalytics };
+export { app, auth, getAppAnalytics };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 export default function ExcelPreviewModal({ isOpen, onClose, fileUrl, fileName }) {

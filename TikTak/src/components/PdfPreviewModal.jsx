@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function PdfPreviewModal({ isOpen, onClose, fileUrl, fileName }) {
   if (!isOpen || !fileUrl) return null;
 

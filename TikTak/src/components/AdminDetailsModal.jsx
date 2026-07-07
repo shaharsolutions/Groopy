@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage, addContact, updateContact, addSupplier, updateSupplier } from '../utils/storage';
 const ExcelPreviewModal = React.lazy(() => import('./ExcelPreviewModal'));
 const PdfPreviewModal = React.lazy(() => import('./PdfPreviewModal'));
@@ -90,9 +90,7 @@ function getMonthlySummary(weeklyHoursObj) {
 export default function AdminDetailsModal({
   task,
   settings,
-  suppliers: SUPPLIERS = [],
   contacts: CONTACTS = [],
-  onSaveSettings,
   onClose,
   onSave,
   onDelete,
@@ -171,27 +169,6 @@ export default function AdminDetailsModal({
   const [activeCardEditField, setActiveCardEditField] = useState(null);
   const [isSavingInfoCard, setIsSavingInfoCard] = useState(false);
 
-  const handleOpenSupplierCard = (supplierName) => {
-    if (!supplierName) return;
-    setActiveCardEditField(null);
-    const sup = SUPPLIERS.find(s => (typeof s === 'string' ? s : s.name) === supplierName);
-    const supObj = typeof sup === 'string' ? { name: sup } : (sup || { name: supplierName });
-    setActiveInfoCard({
-      type: 'supplier',
-      title: `📇 כרטיס ספק: ${supObj.name}`,
-      supplierId: supObj.id,
-      fields: [
-        { key: 'name', label: 'שם הספק', value: supObj.name },
-        { key: 'contactPerson', label: 'איש קשר אצל הספק', value: supObj.contactPerson || '' },
-        { key: 'phone', label: 'טלפון', value: supObj.phone || '', isLtr: true, type: 'phone' },
-        { key: 'email', label: 'אימייל', value: supObj.email || '', isLtr: true, type: 'email' },
-        { key: 'address', label: 'כתובת', value: supObj.address || '' },
-        { key: 'wechat', label: 'WeChat / WhatsApp', value: supObj.wechat || '', isLtr: true, type: 'whatsapp' },
-        { key: 'notes', label: 'הערות ומידע נוסף', value: supObj.notes || '', isMultiline: true }
-      ]
-    });
-  };
-
   const handleOpenContactCard = (contactName) => {
     if (!contactName) return;
     setActiveCardEditField(null);
@@ -255,12 +232,8 @@ export default function AdminDetailsModal({
   // States for temporary field values while editing inline
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [editWorkType, setEditWorkType] = useState('');
   const [editContactPerson, setEditContactPerson] = useState('');
   const [editSupplierContactEmail, setEditSupplierContactEmail] = useState('');
-  const [editDiecutsStatus, setEditDiecutsStatus] = useState('אין');
-  const [editImagesStatus, setEditImagesStatus] = useState('אין');
-  const [editStandardsInstituteRequired, setEditStandardsInstituteRequired] = useState('לא');
   const [editInternalNotes, setEditInternalNotes] = useState('');
 
   // States for CREATE mode (full form)
@@ -294,6 +267,7 @@ export default function AdminDetailsModal({
 
   // Weekly hours states
   const [activeSunday, setActiveSunday] = useState(() => getSundayOfWeek(new Date()));
+  const [savingHours, setSavingHours] = useState(false);
   const [hoursState, setHoursState] = useState({
     sunday: '0',
     monday: '0',
@@ -305,45 +279,65 @@ export default function AdminDetailsModal({
   // Planogram creation upload states
   const [uploadingPlanogram, setUploadingPlanogram] = useState(false);
   const [uploadErrorPlanogram, setUploadErrorPlanogram] = useState('');
-  const [uploadProgressPlanogram, setUploadProgressPlanogram] = useState(0);
+  const [, setUploadProgressPlanogram] = useState(0);
+
+  const startEditingField = useCallback((fieldKey, value) => {
+    setActiveEditField(fieldKey);
+    if (fieldKey === 'title') setEditTitle(value || '');
+    if (fieldKey === 'description') setEditDescription(value || '');
+    if (fieldKey === 'contactPerson') setEditContactPerson(value || '');
+    if (fieldKey === 'supplierContactEmail') setEditSupplierContactEmail(value || '');
+    if (fieldKey === 'internalNotes') setEditInternalNotes(value || '');
+  }, []);
 
   // Sync with task updates
   useEffect(() => {
+    let cancelled = false;
+
     if (task) {
-      setQuickStatus(task.status || '');
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setQuickStatus(task.status || '');
+        if (startInEditMode && activeEditField === null) {
+          startEditingField('title', task.title);
+        }
+      });
 
       const loadComments = async () => {
         const fetchedComments = await getCommentsForTask(task.id, userId);
+        if (cancelled) return;
         setComments(fetchedComments);
       };
       const loadPrivateNotes = async () => {
         const notes = await getPrivateNotes(task.id, userId);
+        if (cancelled) return;
         setInternalNotes(notes);
       };
       loadComments();
       loadPrivateNotes();
-
-      // If we clicked edit directly from table
-      if (startInEditMode && activeEditField === null) {
-        startEditingField('title', task.title);
-      }
     } else {
-      // Seed default creation form
-      setCreateTitle('');
-      setCreateDescription('');
-      setCreateWorkType(WORK_TYPES[0] || 'אריזה');
-      setCreateContactPerson('');
-      setCreateSupplierContactEmail('');
-      setCreateDiecutsStatus('אין');
-      setCreateImagesStatus('אין');
-      setCreateStandardsInstituteRequired('לא');
-      setCreateStatus(DEFAULT_STATUS || 'חדש');
-      setCreateAttachments([]);
-      setCreatePlanogramFile(null);
-      setCreateInternalNotes('');
-      setErrors({});
+      queueMicrotask(() => {
+        if (cancelled) return;
+        // Seed default creation form
+        setCreateTitle('');
+        setCreateDescription('');
+        setCreateWorkType(WORK_TYPES[0] || 'אריזה');
+        setCreateContactPerson('');
+        setCreateSupplierContactEmail('');
+        setCreateDiecutsStatus('אין');
+        setCreateImagesStatus('אין');
+        setCreateStandardsInstituteRequired('לא');
+        setCreateStatus(DEFAULT_STATUS || 'חדש');
+        setCreateAttachments([]);
+        setCreatePlanogramFile(null);
+        setCreateInternalNotes('');
+        setErrors({});
+      });
     }
-  }, [task, startInEditMode, settings, DEFAULT_STATUS, WORK_TYPES]);
+    return () => {
+      cancelled = true;
+    };
+  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, WORK_TYPES, startEditingField]);
 
   // Sync hours state with active Sunday week
   useEffect(() => {
@@ -415,22 +409,7 @@ export default function AdminDetailsModal({
     };
   }, [commentToDelete, showPlanogramDeleteConfirm, activeEditField, onClose]);
 
-  if (!task && !isCreateMode) return null;
-
   // --- Inline Field Handlers ---
-
-  const startEditingField = (fieldKey, value) => {
-    setActiveEditField(fieldKey);
-    if (fieldKey === 'title') setEditTitle(value || '');
-    if (fieldKey === 'description') setEditDescription(value || '');
-    if (fieldKey === 'workType') setEditWorkType(value || '');
-    if (fieldKey === 'contactPerson') setEditContactPerson(value || '');
-    if (fieldKey === 'supplierContactEmail') setEditSupplierContactEmail(value || '');
-    if (fieldKey === 'diecutsStatus') setEditDiecutsStatus(value || 'אין');
-    if (fieldKey === 'imagesStatus') setEditImagesStatus(value || 'אין');
-    if (fieldKey === 'standardsInstituteRequired') setEditStandardsInstituteRequired(value || 'לא');
-    if (fieldKey === 'internalNotes') setEditInternalNotes(value || '');
-  };
 
   const handleCancelField = () => {
     setActiveEditField(null);
@@ -509,6 +488,8 @@ export default function AdminDetailsModal({
   };
 
   const handleSaveHours = async () => {
+    if (savingHours) return;
+
     const weekHours = {
       sunday: parseFloat(hoursState.sunday) || 0,
       monday: parseFloat(hoursState.monday) || 0,
@@ -543,6 +524,7 @@ export default function AdminDetailsModal({
 
     newWeeklyHours[activeSunday] = weekHours;
 
+    setSavingHours(true);
     try {
       await updateTask(task.id, { weeklyHours: newWeeklyHours });
       if (onTaskUpdated) {
@@ -554,6 +536,8 @@ export default function AdminDetailsModal({
     } catch (err) {
       console.error("Failed to save weekly hours", err);
       alert('השעות לא נשמרו. בדקי את החיבור ונסי שוב.');
+    } finally {
+      setSavingHours(false);
     }
   };
 
@@ -601,7 +585,7 @@ export default function AdminDetailsModal({
 
   // --- Handlers for Comments ---
 
-  const normalizeSubtasks = (items) => {
+  const normalizeSubtasks = useCallback((items) => {
     if (!Array.isArray(items)) return [];
     return items
       .map((item, index) => {
@@ -622,21 +606,41 @@ export default function AdminDetailsModal({
         };
       })
       .filter(item => item.text.trim());
-  };
+  }, [task?.createdAt]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!task) {
-      setSubtasksDraft([]);
-      setShowCompletedSubtasks(false);
-      return;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setSubtasksDraft([]);
+        setShowCompletedSubtasks(false);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     if (!savingSubtasks) {
-      setSubtasksDraft(normalizeSubtasks(task.subtasks));
+      const nextSubtasks = normalizeSubtasks(task.subtasks);
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setSubtasksDraft(nextSubtasks);
+      });
     }
-  }, [task?.id, task?.subtasks, task?.createdAt, savingSubtasks]);
+    return () => {
+      cancelled = true;
+    };
+  }, [task, savingSubtasks, normalizeSubtasks]);
 
   useEffect(() => {
-    setShowCompletedSubtasks(false);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setShowCompletedSubtasks(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [task?.id]);
 
   const persistSubtasks = async (nextSubtasks, previousSubtasks = subtasksDraft) => {
@@ -1731,9 +1735,20 @@ export default function AdminDetailsModal({
                           </div>
                         ))}
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-                        <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
-                        <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>{calculateTotalHours()}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                          <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>סה"כ שעות שבועי:</span>
+                          <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--primary)' }}>{calculateTotalHours()}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          style={{ padding: '7px 14px', fontSize: '0.85rem' }}
+                          onClick={handleSaveHours}
+                          disabled={savingHours}
+                        >
+                          {savingHours ? 'שומר...' : '💾 שמור שעות'}
+                        </button>
                       </div>
 
                       {/* Monthly Summary */}

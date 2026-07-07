@@ -5,7 +5,9 @@
  * Tasks, comments, private notes and settings are scoped to the authenticated user ID.
  */
 
-import { db, storage, auth } from '../firebase';
+import { auth } from '../firebase';
+import { db } from '../firebaseDb';
+import { storage } from '../firebaseStorage';
 import {
   collection,
   doc,

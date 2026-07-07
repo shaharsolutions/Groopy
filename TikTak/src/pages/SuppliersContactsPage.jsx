@@ -1,13 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
-import {
-  addSupplier,
-  updateSupplier,
-  deleteSupplier,
-  addContact,
-  updateContact,
-  deleteContact,
-  getTasks
-} from '../utils/storage';
+
+let storageApiPromise = null;
+
+const loadStorageApi = () => {
+  storageApiPromise ??= import('../utils/storage');
+  return storageApiPromise;
+};
 
 const normalizeSearch = (value = '') => value.toString().trim().toLowerCase();
 const hasValue = (value) => Boolean(value && value.toString().trim());
@@ -78,6 +76,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
     let isMounted = true;
 
     const loadLinkedProjects = async () => {
+      const { getTasks } = await loadStorageApi();
       const fetchedTasks = await getTasks(userId);
       if (isMounted) {
         setTasks(fetchedTasks);
@@ -204,6 +203,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
 
     setSaving(true);
     try {
+      const { addSupplier } = await loadStorageApi();
       await addSupplier(newSupplierObj, userId);
       setNewSupplier('');
       showMsg(`הספק "${newSupplierObj.name}" נוסף בהצלחה`);
@@ -218,6 +218,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
   const handleRemoveSupplier = async (supplierId, supplierName) => {
     setSaving(true);
     try {
+      const { deleteSupplier } = await loadStorageApi();
       await deleteSupplier(supplierId);
       setPendingDeletion(null);
       showMsg(`הספק "${supplierName}" הוסר בהצלחה`);
@@ -248,6 +249,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
 
     setSaving(true);
     try {
+      const { updateSupplier } = await loadStorageApi();
       await updateSupplier(supplierId, { ...original, name: newValue });
       setEditingSupplier({ id: null, value: '' });
       showMsg(`שם הספק עודכן ל-"${newValue}"`);
@@ -265,6 +267,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
 
     setSaving(true);
     try {
+      const { updateSupplier } = await loadStorageApi();
       await updateSupplier(supplierId, {
         ...original,
         ...updatedFields,
@@ -303,6 +306,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
 
     setSaving(true);
     try {
+      const { addContact } = await loadStorageApi();
       await addContact(newContactObj, userId);
       setNewContactName('');
       setNewContactRole('');
@@ -320,6 +324,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
   const handleRemoveContact = async (contactId, contactName) => {
     setSaving(true);
     try {
+      const { deleteContact } = await loadStorageApi();
       await deleteContact(contactId);
       setPendingDeletion(null);
       showMsg(`איש הקשר "${contactName}" הוסר בהצלחה`);
@@ -345,6 +350,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
 
     setSaving(true);
     try {
+      const { updateContact } = await loadStorageApi();
       await updateContact(contactId, {
         ...original,
         name: newName,
@@ -368,6 +374,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
 
     setSaving(true);
     try {
+      const { updateContact } = await loadStorageApi();
       await updateContact(contactId, {
         ...original,
         ...updatedFields,

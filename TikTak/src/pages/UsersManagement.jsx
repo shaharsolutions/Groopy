@@ -1,5 +1,11 @@
-import { useState, useEffect } from 'react';
-import { getAllUsers, getUserManagementStats } from '../utils/storage';
+import { useMemo, useState, useEffect } from 'react';
+
+let storageApiPromise = null;
+
+const loadStorageApi = () => {
+  storageApiPromise ??= import('../utils/storage');
+  return storageApiPromise;
+};
 
 const adminActions = [
   {
@@ -41,6 +47,7 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
       try {
         setLoading(true);
         setError('');
+        const { getAllUsers, getUserManagementStats } = await loadStorageApi();
         const [usersList, statsByUser] = await Promise.all([
           getAllUsers(),
           getUserManagementStats()
@@ -60,7 +67,7 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
     fetchUsers();
   }, []);
 
-  const totals = users.reduce((acc, user) => {
+  const totals = useMemo(() => users.reduce((acc, user) => {
     const stats = usageStats[user.uid] || {};
     acc.projectCount += stats.projectCount || 0;
     acc.activeProjectCount += stats.activeProjectCount || 0;
@@ -70,11 +77,14 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
       acc.lastActivityAt = stats.lastActivityAt;
     }
     return acc;
-  }, { projectCount: 0, activeProjectCount: 0, activityCount: 0, weeklyHoursTotal: 0, lastActivityAt: '' });
+  }, { projectCount: 0, activeProjectCount: 0, activityCount: 0, weeklyHoursTotal: 0, lastActivityAt: '' }), [users, usageStats]);
 
-  const filteredUsers = users.filter(user =>
-    (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = useMemo(() => {
+    const normalizedSearch = searchTerm.toLowerCase();
+    return users.filter(user =>
+      (user.email || '').toLowerCase().includes(normalizedSearch)
+    );
+  }, [users, searchTerm]);
 
   const formatNumber = (value) => (Number(value) || 0).toLocaleString('he-IL');
   const maxProjectCount = Math.max(1, ...users.map(user => usageStats[user.uid]?.projectCount || 0));

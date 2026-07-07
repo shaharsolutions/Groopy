@@ -1,7 +1,6 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { auth } from './firebase';
 import Header from './components/Header';
 
 // Lazy loading pages for better initial load performance
@@ -191,9 +190,20 @@ export default function App() {
     if (!effectiveUserId) return;
 
     let unsubscribeSettings = () => {};
-    // Listen to settings in real time from Firestore
-    const settingsDocRef = doc(db, 'settings', effectiveUserId);
-    unsubscribeSettings = onSnapshot(settingsDocRef, (docSnap) => {
+    let unsubscribeSuppliers = () => {};
+    let unsubscribeContacts = () => {};
+    let cancelled = false;
+
+    const attachDirectoryListeners = async () => {
+      const [{ doc, onSnapshot, collection, query, where }, { db }] = await Promise.all([
+        import('firebase/firestore'),
+        import('./firebaseDb')
+      ]);
+      if (cancelled) return;
+
+      // Listen to settings in real time from Firestore
+      const settingsDocRef = doc(db, 'settings', effectiveUserId);
+      unsubscribeSettings = onSnapshot(settingsDocRef, (docSnap) => {
       const defaultStatuses = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'];
       const defaultStatusColors = {
         'חדש': 'badge-new',
@@ -228,10 +238,9 @@ export default function App() {
       console.error("Settings real-time listener error:", err);
     });
 
-    // Listen to suppliers real-time from Firestore
-    let unsubscribeSuppliers = () => {};
-    const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', effectiveUserId));
-    unsubscribeSuppliers = onSnapshot(suppliersQuery, (snapshot) => {
+      // Listen to suppliers real-time from Firestore
+      const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', effectiveUserId));
+      unsubscribeSuppliers = onSnapshot(suppliersQuery, (snapshot) => {
       const sups = [];
       snapshot.forEach(docSnap => {
         sups.push({ id: docSnap.id, ...docSnap.data() });
@@ -243,10 +252,9 @@ export default function App() {
       console.error("Suppliers real-time listener error:", err);
     });
 
-    // Listen to contacts real-time from Firestore
-    let unsubscribeContacts = () => {};
-    const contactsQuery = query(collection(db, 'contacts'), where('userId', '==', effectiveUserId));
-    unsubscribeContacts = onSnapshot(contactsQuery, (snapshot) => {
+      // Listen to contacts real-time from Firestore
+      const contactsQuery = query(collection(db, 'contacts'), where('userId', '==', effectiveUserId));
+      unsubscribeContacts = onSnapshot(contactsQuery, (snapshot) => {
       const conts = [];
       snapshot.forEach(docSnap => {
         conts.push({ id: docSnap.id, ...docSnap.data() });
@@ -257,8 +265,14 @@ export default function App() {
     }, (err) => {
       console.error("Contacts real-time listener error:", err);
     });
+    };
+
+    attachDirectoryListeners().catch((err) => {
+      console.error("Failed to attach directory listeners:", err);
+    });
 
     return () => {
+      cancelled = true;
       unsubscribeSettings();
       unsubscribeSuppliers();
       unsubscribeContacts();

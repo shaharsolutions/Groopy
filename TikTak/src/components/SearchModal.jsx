@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  getTasks, 
-  getAllCommentsForUser, 
-  getSuppliers, 
-  getContacts
-} from '../utils/storage';
 
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const searchDataCache = new Map();
+let storageApiPromise = null;
+
+const loadStorageApi = () => {
+  storageApiPromise ??= import('../utils/storage');
+  return storageApiPromise;
+};
 
 const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -42,6 +42,12 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
 
       setLoading(true);
       try {
+        const {
+          getTasks,
+          getAllCommentsForUser,
+          getSuppliers,
+          getContacts
+        } = await loadStorageApi();
         const promises = [
           getTasks(userId),
           getAllCommentsForUser(userId)

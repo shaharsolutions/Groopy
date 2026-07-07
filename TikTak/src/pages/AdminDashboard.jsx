@@ -1,16 +1,4 @@
-import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
-import {
-  getTasks,
-  getTrashedTasks,
-  createTask,
-  updateTask,
-  deleteTask,
-  restoreTask,
-  purgeExpiredTasks,
-  autoArchiveInactiveTasks,
-  addContact,
-  updateContact
-} from '../utils/storage';
+import { useCallback, useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 
 const AdminDetailsModal = lazy(() => import('../components/AdminDetailsModal'));
 import StatusPicker from '../components/StatusPicker';
@@ -20,6 +8,12 @@ const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
 const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
 const SORT_MODES = new Set(['manual', 'updatedAt', 'status', 'title', 'contactPerson']);
 const COMPLETED_SUBTASK_VISIBILITY_MS = 3000;
+let storageApiPromise = null;
+
+const loadStorageApi = () => {
+  storageApiPromise ??= import('../utils/storage');
+  return storageApiPromise;
+};
 
 const getProjectSubtaskKey = (taskId, subtaskId) => `${taskId}:${subtaskId}`;
 
@@ -115,6 +109,19 @@ const clearPendingStatus = (taskId, expectedStatus) => {
   }
 };
 
+const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
+  if (currentTasks.length === 0) return fetchedTasks;
+
+  const fetchedById = new Map(fetchedTasks.map(task => [task.id, task]));
+  const mergedTasks = currentTasks
+    .filter(task => fetchedById.has(task.id))
+    .map(task => fetchedById.get(task.id));
+  const knownIds = new Set(mergedTasks.map(task => task.id));
+  const newTasks = fetchedTasks.filter(task => !knownIds.has(task.id));
+
+  return [...mergedTasks, ...newTasks];
+};
+
 export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, autoOpenTaskId, onClearAutoOpen }) {
   const {
     statuses: STATUSES = [],
@@ -137,6 +144,12 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const statusChangeSeq = useRef({});
   const autoArchiveRunKey = useRef('');
   const completedSubtaskTimers = useRef({});
+  const storageApi = useRef(null);
+
+  const getStorageApi = useCallback(async () => {
+    storageApi.current ??= await loadStorageApi();
+    return storageApi.current;
+  }, []);
 
   // Modals State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -174,20 +187,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     };
   }, []);
 
-  const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
-    if (currentTasks.length === 0) return fetchedTasks;
-
-    const fetchedById = new Map(fetchedTasks.map(task => [task.id, task]));
-    const mergedTasks = currentTasks
-      .filter(task => fetchedById.has(task.id))
-      .map(task => fetchedById.get(task.id));
-    const knownIds = new Set(mergedTasks.map(task => task.id));
-    const newTasks = fetchedTasks.filter(task => !knownIds.has(task.id));
-
-    return [...mergedTasks, ...newTasks];
-  };
-
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
+    const { getTasks } = await getStorageApi();
     const fetchedTasks = await getTasks(userId);
     setTasks(prev => mergeTasksPreservingOrder(prev, fetchedTasks));
     setViewingTask(prev => {
@@ -195,16 +196,17 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       const updated = fetchedTasks.find(t => t.id === prev.id);
       return updated || prev;
     });
-  };
+  }, [getStorageApi, userId]);
 
-  const loadTrash = async () => {
+  const loadTrash = useCallback(async () => {
+    const { getTrashedTasks } = await getStorageApi();
     const fetchedTasks = await getTrashedTasks(userId);
-    const loadedAt = Date.now();
+    const loadedAt = Number(new Date());
     setTrashedTasks(fetchedTasks.map(task => ({
       ...task,
       daysRemaining: Math.max(0, Math.ceil((Date.parse(task.expiresAt) - loadedAt) / (24 * 60 * 60 * 1000)))
     })));
-  };
+  }, [getStorageApi, userId]);
 
   const applyTaskPatch = (taskId, patch) => {
     setTasks(prev => prev.map(task => (
@@ -220,6 +222,12 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     if (!userId) return;
 
     const initTasks = async () => {
+      const {
+        purgeExpiredTasks,
+        autoArchiveInactiveTasks,
+        updateTask,
+        getTasks
+      } = await getStorageApi();
       await purgeExpiredTasks(userId);
       const archiveRunKey = `${userId}:${autoArchiveInactiveDays}`;
       if (autoArchiveRunKey.current !== archiveRunKey) {
@@ -250,15 +258,17 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       }
     };
     initTasks();
-  }, [userId, autoArchiveInactiveDays]);
+  }, [userId, autoArchiveInactiveDays, getStorageApi, loadTrash]);
 
   // Listen to autoOpenTaskId from global search to open the details modal
   useEffect(() => {
     if (autoOpenTaskId && tasks.length > 0) {
       const taskToOpen = tasks.find(t => t.id === autoOpenTaskId);
       if (taskToOpen) {
-        setViewingTask(taskToOpen);
-        if (onClearAutoOpen) onClearAutoOpen();
+        queueMicrotask(() => {
+          setViewingTask(taskToOpen);
+          if (onClearAutoOpen) onClearAutoOpen();
+        });
       }
     }
   }, [autoOpenTaskId, tasks, onClearAutoOpen]);
@@ -302,6 +312,23 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
     return result;
   }, [tasks, searchQuery, statusFilter, sortMode, sortDirection, STATUSES]);
+
+  const statusCounts = useMemo(() => {
+    const counts = new Map();
+    tasks.forEach(task => {
+      counts.set(task.status, (counts.get(task.status) || 0) + 1);
+    });
+    return counts;
+  }, [tasks]);
+
+  const contactsByName = useMemo(() => {
+    const map = new Map();
+    contacts.forEach(contact => {
+      const key = contact.name?.trim().toLowerCase();
+      if (key) map.set(key, contact);
+    });
+    return map;
+  }, [contacts]);
 
   const allProjectSubtasks = useMemo(() => {
     return tasks
@@ -357,6 +384,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     });
 
     try {
+      const { updateTask } = await getStorageApi();
       await updateTask(taskId, { subtasks: nextSubtasks });
       applyTaskPatch(taskId, {
         subtasks: nextSubtasks,
@@ -430,6 +458,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     setSavingStatusIds(prev => new Set(prev).add(taskId));
 
     try {
+      const { updateTask } = await getStorageApi();
       await updateTask(taskId, { status: newStatus });
       if (statusChangeSeq.current[taskId] !== requestId) return false;
 
@@ -456,12 +485,14 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const handleSaveTask = async (taskData) => {
     if (viewingTask) {
       // Edit mode
+      const { updateTask, getTasks } = await getStorageApi();
       await updateTask(viewingTask.id, taskData);
       const allTasks = await getTasks(userId);
       const updated = allTasks.find(t => t.id === viewingTask.id);
       setViewingTask(updated || null);
     } else {
       // Create mode
+      const { createTask } = await getStorageApi();
       await createTask(taskData, userId);
       setIsCreateOpen(false);
     }
@@ -494,12 +525,12 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     // Check if the value hasn't changed
     const originalValue = field === 'phone'
       ? (() => {
-          const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+          const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
           return contact ? contact.phone : '';
         })()
       : field === 'email'
         ? (task.supplierContactEmail || (() => {
-            const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+            const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
             return contact ? contact.email : '';
           })())
         : task[field];
@@ -524,6 +555,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
     setIsSavingCell(true);
     try {
+      const { updateTask, updateContact, addContact } = await getStorageApi();
       if (field === 'title' || field === 'contactPerson') {
         await updateTask(task.id, { [field]: trimmedVal });
         applyTaskPatch(task.id, { [field]: trimmedVal, updatedAt: new Date().toISOString() });
@@ -532,7 +564,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         applyTaskPatch(task.id, { supplierContactEmail: trimmedVal, updatedAt: new Date().toISOString() });
       } else if (field === 'phone') {
         if (task.contactPerson) {
-          const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === task.contactPerson.trim().toLowerCase());
+          const contact = contactsByName.get(task.contactPerson.trim().toLowerCase());
           if (contact) {
             await updateContact(contact.id, { ...contact, phone: trimmedVal });
           } else {
@@ -571,6 +603,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   };
 
   const handleDeleteTask = async (taskId) => {
+    const { deleteTask } = await getStorageApi();
     await deleteTask(taskId);
     setDeletingTaskId(null);
     setViewingTask(null);
@@ -581,6 +614,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const handleRestoreTask = async (taskId) => {
     setRestoringTaskId(taskId);
     try {
+      const { restoreTask } = await getStorageApi();
       await restoreTask(taskId);
       await Promise.all([loadTasks(), loadTrash()]);
     } catch (err) {
@@ -704,7 +738,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           הכל <span className="chip-count">{tasks.length}</span>
         </button>
         {STATUSES.map(st => {
-          const count = tasks.filter(t => t.status === st).length;
+          const count = statusCounts.get(st) || 0;
           return (
             <button
               key={st}
@@ -894,7 +928,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               </thead>
               <tbody>
                 {filteredTasks.map(task => {
-                  const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+                  const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
                   const phone = contact ? contact.phone : '';
                   const email = task.supplierContactEmail || (contact ? contact.email : '');
 
@@ -1051,7 +1085,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           {/* Mobile Cards View */}
           <div className="mobile-cards-grid">
             {filteredTasks.map(task => {
-              const contact = contacts.find(c => c.name && c.name.trim().toLowerCase() === (task.contactPerson || '').trim().toLowerCase());
+              const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
               const phone = contact ? contact.phone : '';
               const email = task.supplierContactEmail || (contact ? contact.email : '');
 

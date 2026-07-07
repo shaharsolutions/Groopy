@@ -49,13 +49,15 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, isSys
   const itemsPerPage = 50;
 
   useEffect(() => {
-    setCurrentPage(1);
+    queueMicrotask(() => setCurrentPage(1));
   }, [filters]);
 
   useEffect(() => {
     if (initialSearchQuery !== null && initialSearchQuery !== undefined) {
-      setFilters(prev => ({ ...prev, search: initialSearchQuery }));
-      if (onClearSearchQuery) onClearSearchQuery();
+      queueMicrotask(() => {
+        setFilters(prev => ({ ...prev, search: initialSearchQuery }));
+        if (onClearSearchQuery) onClearSearchQuery();
+      });
     }
   }, [initialSearchQuery, onClearSearchQuery]);
 

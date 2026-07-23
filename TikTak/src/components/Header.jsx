@@ -103,7 +103,7 @@ function getAggregatedMonthlySummary(tasks) {
  *
  * Top bar with logo, share link generator for admin, and role toggling.
  */
-export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, userEmail, onSearchTrigger, onOpenTask, settings }) {
+export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, organizationId, userEmail, onSearchTrigger, onOpenTask, settings, organizationName }) {
   const [copied, setCopied] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [summaryData, setSummaryData] = useState({});
@@ -160,16 +160,17 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
     }
   };
 
-  const handleCopyLink = () => {
-    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&userId=${userId}`;
-    navigator.clipboard.writeText(shareUrl)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(err => {
-        console.error("Failed to copy link", err);
-      });
+  const handleCopyLink = async () => {
+    try {
+      const { createShortShareLink } = await import('../utils/storage');
+      const shortId = await createShortShareLink(userId, organizationId);
+      const shareUrl = `${window.location.origin}/v/${shortId}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link", err);
+    }
   };
 
   return (
@@ -178,7 +179,9 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
         <img src="/favicon.png" className="header-logo" alt="לוגו תיקתק" style={{ objectFit: 'cover', background: 'white', padding: '2px' }} />
         <div>
           <h1 className="header-title">תיקתק</h1>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>מערכת מעקב וניהול משימות</p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {organizationName ? `מערכת מעקב וניהול משימות · ${organizationName}` : 'מערכת מעקב וניהול משימות'}
+          </p>
         </div>
       </div>
 
@@ -296,7 +299,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
             )}
 
             {/* Settings button */}
-            {currentView !== 'settings' && (
+            {userEmail === 'shaharsolutions@gmail.com' && currentView !== 'settings' && (
               <button
                 className="btn btn-secondary"
                 onClick={() => onViewChange('settings')}

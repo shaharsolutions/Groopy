@@ -144,8 +144,9 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
   const handleCopyTaskLink = () => {
     if (!task) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&userId=${userId}&taskId=${task.id}`;
-    navigator.clipboard.writeText(shareUrl)
+    const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.set('taskId', task.id);
+    navigator.clipboard.writeText(shareUrl.toString())
       .then(() => {
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);

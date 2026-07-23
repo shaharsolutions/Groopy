@@ -71,6 +71,43 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.token.email == 'shaharsolutions@gmail.com';
     }
 
+    function isAnonymousViewer() {
+      return isAuthenticated() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    function currentOrganizationId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId;
+    }
+
+    function viewerOrganizationId() {
+      return get(/databases/$(database)/documents/viewerSessions/$(request.auth.uid)).data.organizationId;
+    }
+
+    function viewerOwnerId() {
+      return get(/databases/$(database)/documents/viewerSessions/$(request.auth.uid)).data.ownerId;
+    }
+
+    function isViewer() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/viewerSessions/$(request.auth.uid));
+    }
+
+    function canViewerAccessOrganization(organizationId) {
+      return isViewer() && organizationId == viewerOrganizationId();
+    }
+
+    function canAccessOrganization(organizationId) {
+      return isAdmin() || (
+        isAuthenticated() &&
+        !isAnonymousViewer() &&
+        organizationId is string &&
+        organizationId == currentOrganizationId()
+      );
+    }
+
+    function isLegacyOwner(data) {
+      return isAuthenticated() && !isAnonymousViewer() && data.userId == request.auth.uid && !('organizationId' in data);
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
@@ -81,11 +118,11 @@ service cloud.firestore {
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
         'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks',
         'supplierContactEmail', 'diecutsStatus', 'imagesStatus', 'standardsInstituteRequired',
-        'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId', 'weeklyHours'
+        'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId', 'organizationId', 'weeklyHours'
       ];
 
       let requiredFields = [
-        'title', 'status', 'jobNumber', 'createdAt', 'updatedAt', 'userId'
+        'title', 'status', 'jobNumber', 'createdAt', 'updatedAt', 'userId', 'organizationId'
       ];
 
       return hasRequiredFields(data, requiredFields) &&
@@ -94,6 +131,7 @@ service cloud.firestore {
              data.jobNumber is string && data.jobNumber.matches("^GP-\\d+$") &&
              data.status is string && data.status.size() >= 1 && data.status.size() <= 100 &&
              data.userId is string &&
+             data.organizationId is string &&
              data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
              data.updatedAt is string && data.updatedAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
              (!('workType' in data) || (data.workType is string && data.workType.size() >= 1 && data.workType.size() <= 100)) &&
@@ -117,12 +155,13 @@ service cloud.firestore {
     }
 
     function isValidComment(data) {
-      let allowedFields = ['jobId', 'authorName', 'text', 'createdAt', 'attachmentUrl', 'attachmentName', 'userId'];
+      let allowedFields = ['jobId', 'authorName', 'text', 'createdAt', 'attachmentUrl', 'attachmentName', 'userId', 'organizationId'];
 
-      return hasRequiredFields(data, ['jobId', 'authorName', 'text', 'createdAt', 'userId']) &&
+      return hasRequiredFields(data, ['jobId', 'authorName', 'text', 'createdAt', 'userId', 'organizationId']) &&
              hasOnlyAllowedFields(data, allowedFields) &&
              data.jobId is string && data.jobId.size() > 0 &&
              data.userId is string &&
+             data.organizationId is string &&
              data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
              data.text is string && data.text.size() >= 1 && data.text.size() <= 5000 &&
              data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*") &&
@@ -131,24 +170,25 @@ service cloud.firestore {
     }
 
     function isValidPrivateNote(data) {
-      let allowedFields = ['notes', 'userId'];
+      let allowedFields = ['notes', 'userId', 'organizationId'];
       return hasOnlyAllowedFields(data, allowedFields) &&
              hasRequiredFields(data, allowedFields) &&
              data.notes is string && data.notes.size() <= 5000 &&
-             data.userId is string;
+             data.userId is string &&
+             data.organizationId is string;
     }
 
     function isValidActivityLog(data) {
       let allowedFields = [
         'actorUid', 'actorEmail', 'actorName', 'isSystemAdmin',
         'action', 'actionLabel', 'targetType', 'targetId', 'targetLabel',
-        'targetUserId', 'details', 'metadata', 'createdAt'
+        'targetUserId', 'organizationId', 'details', 'metadata', 'createdAt'
       ];
 
       return hasRequiredFields(data, [
                'actorUid', 'actorEmail', 'actorName', 'isSystemAdmin',
                'action', 'actionLabel', 'targetType', 'targetId',
-               'targetLabel', 'targetUserId', 'details', 'createdAt'
+               'targetLabel', 'targetUserId', 'organizationId', 'details', 'createdAt'
              ]) &&
              hasOnlyAllowedFields(data, allowedFields) &&
              data.actorUid is string &&
@@ -162,6 +202,7 @@ service cloud.firestore {
              data.targetId is string && data.targetId.size() <= 200 &&
              data.targetLabel is string && data.targetLabel.size() <= 200 &&
              data.targetUserId is string && data.targetUserId.size() <= 200 &&
+             data.organizationId is string &&
              data.details is string && data.details.size() <= 1000 &&
              (!('metadata' in data) || data.metadata is map) &&
              data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*");
@@ -173,79 +214,130 @@ service cloud.firestore {
 
     // Tasks Collection Rules
     match /tasks/{taskId} {
-      allow read: if isAuthenticated();
+      allow read: if (isViewer() && resource.data.userId == viewerOwnerId()) || isLegacyOwner(resource.data) || (canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin();
       allow create: if isAuthenticated() &&
-                    (
-                      (isValidTask(request.resource.data) && request.resource.data.userId == request.auth.uid) ||
-                      (isValidTask(request.resource.data) && isAdmin())
-                    );
+                    !isAnonymousViewer() &&
+                    isValidTask(request.resource.data) &&
+                    canAccessOrganization(request.resource.data.organizationId) &&
+                    (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update: if isAuthenticated() &&
                     (
                       // Case 1: Legacy task migration (assign to current authenticated user)
                       (
                         (!('userId' in resource.data) || resource.data.userId == null || resource.data.userId == "") &&
-                        request.resource.data.userId == request.auth.uid
+                        request.resource.data.userId == request.auth.uid &&
+                        canAccessOrganization(request.resource.data.organizationId)
                       ) ||
                       // Case 2: Standard task update (must pass validation and preserve ownership)
                       (
                         isValidTask(request.resource.data) &&
-                        (resource.data.userId == request.auth.uid || isAdmin()) &&
-                        request.resource.data.userId == resource.data.userId
+                        (
+                          (isLegacyOwner(resource.data) && canAccessOrganization(request.resource.data.organizationId)) ||
+                          (canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) ||
+                          isAdmin()
+                        ) &&
+                        request.resource.data.userId == resource.data.userId &&
+                        (
+                          !('organizationId' in resource.data) ||
+                          request.resource.data.organizationId == resource.data.organizationId
+                        )
                       )
                     );
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
+      allow delete: if isAuthenticated() && !isAnonymousViewer() && ((canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Comments Collection Rules
     match /comments/{commentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (isValidComment(request.resource.data) || isAdmin());
+      allow read: if (isViewer() && resource.data.userId == viewerOwnerId()) || isLegacyOwner(resource.data) || (canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidComment(request.resource.data) && ((isViewer() && request.resource.data.userId == viewerOwnerId()) || (canAccessOrganization(request.resource.data.organizationId) && request.resource.data.userId == request.auth.uid) || isAdmin());
       allow update: if isAuthenticated() &&
                     (
                       (!('userId' in resource.data) || resource.data.userId == null || resource.data.userId == "") ||
-                      (resource.data.userId == request.auth.uid || isAdmin())
+                      (isLegacyOwner(resource.data) || (canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin())
                     );
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
+      allow delete: if isAuthenticated() && !isAnonymousViewer() && ((canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Private Notes Rules
     match /taskPrivateNotes/{taskId} {
-      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
-      allow create, update: if isAuthenticated() && isValidPrivateNote(request.resource.data) && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || !('userId' in resource.data) || isAdmin());
+      allow read: if isAuthenticated() && !isAnonymousViewer() && (resource == null || isLegacyOwner(resource.data) || (canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin());
+      allow create, update: if isAuthenticated() && !isAnonymousViewer() && isValidPrivateNote(request.resource.data) && canAccessOrganization(request.resource.data.organizationId) && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && !isAnonymousViewer() && ((canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Settings Collection Rules
     match /settings/{documentId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (documentId == request.auth.uid || isAdmin());
+      allow read: if (isViewer() && documentId == viewerOrganizationId()) ||
+                     documentId == request.auth.uid ||
+                     documentId == currentOrganizationId() ||
+                     isAdmin();
+      allow write: if isAuthenticated() && !isAnonymousViewer() && isAdmin();
     }
 
     // Contacts Collection Rules
     match /contacts/{contactId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if (isViewer() && resource.data.organizationId == viewerOrganizationId()) || isLegacyOwner(resource.data) || (canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create, update: if isAuthenticated() && !isAnonymousViewer() && canAccessOrganization(request.resource.data.organizationId) && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && !isAnonymousViewer() && ((canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Suppliers Collection Rules
     match /suppliers/{supplierId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if (isViewer() && resource.data.organizationId == viewerOrganizationId()) || isLegacyOwner(resource.data) || (canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create, update: if isAuthenticated() && !isAnonymousViewer() && canAccessOrganization(request.resource.data.organizationId) && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && !isAnonymousViewer() && ((canAccessOrganization(resource.data.organizationId) && resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Users Collection Rules
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (request.auth.uid == userId && request.resource.data.organizationId == 'groopy')
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (
+          request.auth.uid == userId &&
+          (
+            request.resource.data.organizationId == resource.data.organizationId ||
+            (!('organizationId' in resource.data) && request.resource.data.organizationId == 'groopy')
+          )
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && !isAnonymousViewer();
+      allow delete: if isAdmin();
+    }
+
+    match /viewerSessions/{viewerUid} {
+      allow create, update: if isAuthenticated() &&
+                            request.auth.uid == viewerUid &&
+                            request.resource.data.organizationId is string &&
+                            request.resource.data.ownerId is string &&
+                            request.resource.data.viewerToken is string &&
+                            request.resource.data.viewerToken == get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.viewerToken;
+      allow read, delete: if isAuthenticated() && request.auth.uid == viewerUid;
+    }
+
+    match /shareLinks/{shortId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && !isAnonymousViewer();
     }
 
     // Activity Log Rules
     match /activityLogs/{activityLogId} {
       allow read: if isAuthenticated() && (resource.data.actorUid == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && isValidActivityLog(request.resource.data);
-      allow update, delete: if false;
+      allow create: if isAuthenticated() && !isAnonymousViewer() && isValidActivityLog(request.resource.data) && canAccessOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() &&
+                    !('organizationId' in resource.data) &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['organizationId']) &&
+                    (resource.data.actorUid == request.auth.uid || isAdmin());
+      allow delete: if false;
     }
   }
 }

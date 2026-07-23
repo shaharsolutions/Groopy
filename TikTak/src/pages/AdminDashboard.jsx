@@ -122,7 +122,7 @@ const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
   return [...mergedTasks, ...newTasks];
 };
 
-export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, autoOpenTaskId, onClearAutoOpen }) {
+export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, organizationId, autoOpenTaskId, onClearAutoOpen }) {
   const {
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {},
@@ -1182,6 +1182,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             onTaskUpdated={applyTaskPatch}
             onStatusChange={handleStatusChange}
             userId={userId}
+            organizationId={organizationId}
           />
         </Suspense>
       )}

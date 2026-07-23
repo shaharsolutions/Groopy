@@ -34,9 +34,14 @@ const adminActions = [
   }
 ];
 
-export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
+export default function UsersManagement({ onImpersonate, onManageOrganization, onBack, onNavigate }) {
   const [users, setUsers] = useState([]);
   const [usageStats, setUsageStats] = useState({});
+  const [organizations, setOrganizations] = useState([]);
+  const [newOrganizationName, setNewOrganizationName] = useState('');
+  const [savingOrganization, setSavingOrganization] = useState('');
+  const [editingOrganizationId, setEditingOrganizationId] = useState('');
+  const [editingOrganizationName, setEditingOrganizationName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,15 +52,17 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
       try {
         setLoading(true);
         setError('');
-        const { getAllUsers, getUserManagementStats } = await loadStorageApi();
-        const [usersList, statsByUser] = await Promise.all([
+        const { getAllUsers, getUserManagementStats, getOrganizations } = await loadStorageApi();
+        const [usersList, statsByUser, organizationsList] = await Promise.all([
           getAllUsers(),
-          getUserManagementStats()
+          getUserManagementStats(),
+          getOrganizations()
         ]);
         // Sort by lastLogin descending
         usersList.sort((a, b) => new Date(b.lastLogin || 0) - new Date(a.lastLogin || 0));
         setUsers(usersList);
         setUsageStats(statsByUser);
+        setOrganizations(organizationsList);
         setRelativeNow(Date.now());
       } catch (err) {
         console.error("Failed to load users list", err);
@@ -67,17 +74,121 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
     fetchUsers();
   }, []);
 
-  const totals = useMemo(() => users.reduce((acc, user) => {
-    const stats = usageStats[user.uid] || {};
-    acc.projectCount += stats.projectCount || 0;
-    acc.activeProjectCount += stats.activeProjectCount || 0;
-    acc.activityCount += stats.activityCount || 0;
-    acc.weeklyHoursTotal += stats.weeklyHoursTotal || 0;
-    if (stats.lastActivityAt && new Date(stats.lastActivityAt) > new Date(acc.lastActivityAt || 0)) {
-      acc.lastActivityAt = stats.lastActivityAt;
+  const organizationById = useMemo(() => Object.fromEntries(
+    organizations.map(organization => [organization.id, organization])
+  ), [organizations]);
+
+  const organizationSummaries = useMemo(() => organizations.map(organization => {
+    const members = users.filter(user => (user.organizationId || 'groopy') === organization.id);
+    return members.reduce((summary, user) => {
+      const stats = usageStats[user.uid] || {};
+      summary.projectCount += stats.projectCount || 0;
+      summary.activeProjectCount += stats.activeProjectCount || 0;
+      summary.activityCount += stats.activityCount || 0;
+      if (stats.lastActivityAt && new Date(stats.lastActivityAt) > new Date(summary.lastActivityAt || 0)) {
+        summary.lastActivityAt = stats.lastActivityAt;
+      }
+      return summary;
+    }, {
+      ...organization,
+      members,
+      memberCount: members.length,
+      projectCount: 0,
+      activeProjectCount: 0,
+      activityCount: 0,
+      lastActivityAt: ''
+    });
+  }), [organizations, users, usageStats]);
+
+  const handleCreateOrganization = async (event) => {
+    event.preventDefault();
+    if (!newOrganizationName.trim()) return;
+    try {
+      setSavingOrganization('new');
+      const { createOrganization } = await loadStorageApi();
+      const organization = await createOrganization(newOrganizationName);
+      setOrganizations(current => [...current, organization].sort((a, b) => a.name.localeCompare(b.name, 'he')));
+      setNewOrganizationName('');
+    } catch (err) {
+      console.error('Failed to create organization', err);
+      setError('יצירת הארגון נכשלה. אנא נסו שוב.');
+    } finally {
+      setSavingOrganization('');
     }
-    return acc;
-  }, { projectCount: 0, activeProjectCount: 0, activityCount: 0, weeklyHoursTotal: 0, lastActivityAt: '' }), [users, usageStats]);
+  };
+
+  const handleOrganizationChange = async (userId, nextOrganizationId) => {
+    try {
+      setSavingOrganization(userId);
+      const { assignUserToOrganization, migrateUserDataToOrganization } = await loadStorageApi();
+      await assignUserToOrganization(userId, nextOrganizationId);
+      await migrateUserDataToOrganization(userId, nextOrganizationId);
+      setUsers(current => current.map(user => user.uid === userId ? { ...user, organizationId: nextOrganizationId } : user));
+    } catch (err) {
+      console.error('Failed to assign organization', err);
+      setError('שיוך המשתמש לארגון נכשל.');
+    } finally {
+      setSavingOrganization('');
+    }
+  };
+
+  const handleStartOrganizationEdit = (organization) => {
+    setEditingOrganizationId(organization.id);
+    setEditingOrganizationName(organization.name || '');
+  };
+
+  const handleSaveOrganizationName = async (organizationId) => {
+    if (!editingOrganizationName.trim()) return;
+    try {
+      setSavingOrganization(`edit:${organizationId}`);
+      const { updateOrganization } = await loadStorageApi();
+      await updateOrganization(organizationId, { name: editingOrganizationName });
+      setOrganizations(current => current.map(organization => (
+        organization.id === organizationId
+          ? { ...organization, name: editingOrganizationName.trim() }
+          : organization
+      )).sort((a, b) => a.name.localeCompare(b.name, 'he')));
+      setEditingOrganizationId('');
+      setEditingOrganizationName('');
+    } catch (err) {
+      console.error('Failed to rename organization', err);
+      setError('עדכון שם הארגון נכשל.');
+    } finally {
+      setSavingOrganization('');
+    }
+  };
+
+  const handleToggleOrganization = async (organization) => {
+    if (organization.id === 'groopy') return;
+    const nextActive = organization.active === false;
+    try {
+      setSavingOrganization(`status:${organization.id}`);
+      const { updateOrganization } = await loadStorageApi();
+      await updateOrganization(organization.id, { active: nextActive });
+      setOrganizations(current => current.map(item => (
+        item.id === organization.id ? { ...item, active: nextActive } : item
+      )));
+    } catch (err) {
+      console.error('Failed to update organization status', err);
+      setError('עדכון סטטוס הארגון נכשל.');
+    } finally {
+      setSavingOrganization('');
+    }
+  };
+
+  const totals = useMemo(() => {
+    return users.reduce((acc, user) => {
+      const stats = usageStats[user.uid] || {};
+      acc.projectCount += stats.projectCount || 0;
+      acc.activeProjectCount += stats.activeProjectCount || 0;
+      acc.weeklyHoursTotal += stats.weeklyHoursTotal || 0;
+      acc.activityCount += stats.activityCount || 0;
+      if (stats.lastActivityAt && new Date(stats.lastActivityAt) > new Date(acc.lastActivityAt || 0)) {
+        acc.lastActivityAt = stats.lastActivityAt;
+      }
+      return acc;
+    }, { projectCount: 0, activeProjectCount: 0, activityCount: 0, weeklyHoursTotal: 0, lastActivityAt: '' });
+  }, [users, usageStats]);
 
   const filteredUsers = useMemo(() => {
     const normalizedSearch = searchTerm.toLowerCase();
@@ -262,6 +373,149 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
         ))}
       </section>
 
+      <form onSubmit={handleCreateOrganization} style={{
+        display: 'flex',
+        gap: '10px',
+        alignItems: 'end',
+        padding: '16px',
+        marginBottom: '20px',
+        borderRadius: '12px',
+        border: '1px solid #dbeafe',
+        background: '#eff6ff'
+      }}>
+        <label style={{ flex: 1, color: '#1e3a8a', fontWeight: '700' }}>
+          יצירת ארגון חדש
+          <input
+            value={newOrganizationName}
+            onChange={(event) => setNewOrganizationName(event.target.value)}
+            placeholder="שם הארגון"
+            style={{ display: 'block', width: '100%', marginTop: '7px', padding: '10px 12px', border: '1px solid #bfdbfe', borderRadius: '8px', fontFamily: 'inherit' }}
+          />
+        </label>
+        <button className="btn btn-primary" type="submit" disabled={savingOrganization === 'new' || !newOrganizationName.trim()}>
+          {savingOrganization === 'new' ? 'יוצר...' : 'הוספת ארגון'}
+        </button>
+      </form>
+
+      <section style={{
+        background: 'rgba(255, 255, 255, 0.82)',
+        border: '1px solid #e2e8f0',
+        borderRadius: '16px',
+        padding: '22px',
+        marginBottom: '24px',
+        boxShadow: '0 10px 25px -16px rgba(15, 23, 42, 0.35)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '18px', flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.3rem' }}>ארגונים במערכת</h3>
+            <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '0.9rem' }}>ניהול ארגונים, שיוכים ונתוני שימוש מרוכזים</p>
+          </div>
+          <span style={{ padding: '6px 11px', borderRadius: '999px', background: '#eef2ff', color: '#4338ca', fontWeight: '800' }}>
+            {formatNumber(organizations.length)} ארגונים
+          </span>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>טוען ארגונים...</div>
+        ) : organizationSummaries.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>עדיין לא נוצרו ארגונים.</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '14px' }}>
+            {organizationSummaries.map(organization => {
+              const isActive = organization.active !== false;
+              const isEditing = editingOrganizationId === organization.id;
+              return (
+                <article key={organization.id} style={{
+                  border: `1px solid ${isActive ? '#c7d2fe' : '#e2e8f0'}`,
+                  borderRadius: '14px',
+                  padding: '17px',
+                  background: isActive ? 'linear-gradient(145deg, #ffffff, #f8faff)' : '#f8fafc'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', gap: '7px' }}>
+                          <input
+                            autoFocus
+                            value={editingOrganizationName}
+                            onChange={(event) => setEditingOrganizationName(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') handleSaveOrganizationName(organization.id);
+                              if (event.key === 'Escape') setEditingOrganizationId('');
+                            }}
+                            style={{ width: '100%', padding: '8px 10px', border: '1px solid #a5b4fc', borderRadius: '7px', fontFamily: 'inherit', fontWeight: '700' }}
+                          />
+                          <button type="button" className="btn btn-primary" onClick={() => handleSaveOrganizationName(organization.id)} disabled={savingOrganization === `edit:${organization.id}`}>שמור</button>
+                        </div>
+                      ) : (
+                        <>
+                          <strong style={{ display: 'block', color: '#0f172a', fontSize: '1.08rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{organization.name}</strong>
+                          <span style={{ display: 'inline-block', marginTop: '7px', padding: '4px 8px', borderRadius: '999px', background: isActive ? '#dcfce7' : '#e2e8f0', color: isActive ? '#166534' : '#475569', fontSize: '0.77rem', fontWeight: '800' }}>
+                            {isActive ? 'ארגון פעיל' : 'ארגון לא פעיל'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    {!isEditing && (
+                      <button type="button" className="btn btn-secondary" onClick={() => handleStartOrganizationEdit(organization)} style={{ padding: '6px 10px', fontSize: '0.8rem' }}>עריכת שם</button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', margin: '16px 0' }}>
+                    {[
+                      ['משתמשים', organization.memberCount],
+                      ['פרויקטים', organization.projectCount],
+                      ['פעילים', organization.activeProjectCount]
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ padding: '9px', borderRadius: '9px', background: '#f8fafc', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                        <strong style={{ display: 'block', color: '#1e293b' }}>{formatNumber(value)}</strong>
+                        <span style={{ color: '#64748b', fontSize: '0.76rem' }}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ minHeight: '38px', color: '#64748b', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                    {organization.members.length > 0
+                      ? organization.members.slice(0, 3).map(member => member.email).filter(Boolean).join(' · ')
+                      : 'אין משתמשים משויכים לארגון'}
+                    {organization.members.length > 3 ? ` ועוד ${organization.members.length - 3}` : ''}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', paddingTop: '13px', marginTop: '13px', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                      פעילות אחרונה: {formatCompactDateTime(organization.lastActivityAt)}
+                    </span>
+                    <div style={{ display: 'flex', gap: '7px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => onManageOrganization?.(organization.id, organization.name)}
+                        style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+                      >
+                        ⚙️ הגדרות עבודה
+                      </button>
+                      {organization.id === 'groopy' ? (
+                        <span style={{ color: '#4338ca', fontSize: '0.78rem', fontWeight: '800' }}>ארגון ברירת מחדל</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleToggleOrganization(organization)}
+                          disabled={savingOrganization === `status:${organization.id}`}
+                          style={{ padding: '6px 10px', fontSize: '0.8rem', color: isActive ? '#b45309' : '#166534' }}
+                        >
+                          {isActive ? 'השבתת ארגון' : 'הפעלת ארגון'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <section style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -353,13 +607,14 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
           <div style={{ overflowX: 'auto' }}>
             <table style={{
               width: '100%',
-              minWidth: '920px',
+              minWidth: '1080px',
               borderCollapse: 'collapse',
               textAlign: 'right'
             }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '33%' }}>משתמש</th>
+                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700' }}>ארגון</th>
                   <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '28%' }}>עומס פרויקטים</th>
                   <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '27%' }}>פעילות ושימוש</th>
                   <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '600', textAlign: 'center' }}>פעולות</th>
@@ -448,6 +703,19 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
                         </div>
                       </td>
                       <td style={{ padding: '16px', color: '#475569' }}>
+                        <select
+                          value={user.organizationId || 'groopy'}
+                          onChange={(event) => handleOrganizationChange(user.uid, event.target.value)}
+                          disabled={savingOrganization === user.uid}
+                          aria-label={`ארגון עבור ${user.email || user.uid}`}
+                          style={{ minWidth: '150px', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', fontFamily: 'inherit' }}
+                        >
+                          {organizations.map(organization => (
+                            <option key={organization.id} value={organization.id}>{organization.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ padding: '16px', color: '#475569' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'baseline' }}>
                           <strong style={{ color: '#0f172a', fontSize: '1.08rem' }}>{formatNumber(stats.projectCount)} פרויקטים</strong>
                           <span style={{ color: '#64748b', fontSize: '0.82rem', fontWeight: '700' }}>
@@ -474,7 +742,12 @@ export default function UsersManagement({ onImpersonate, onBack, onNavigate }) {
                         {user.email !== 'shaharsolutions@gmail.com' ? (
                           <button
                             className="btn btn-secondary"
-                            onClick={() => onImpersonate(user.uid, user.email)}
+                            onClick={() => onImpersonate(
+                              user.uid,
+                              user.email,
+                              user.organizationId || 'groopy',
+                              organizationById[user.organizationId || 'groopy']?.name || 'Groopy'
+                            )}
                             style={{
                               backgroundColor: '#eff6ff',
                               color: '#1d4ed8',

@@ -1,8 +1,51 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSystemAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'shaharsolutions@gmail.com';
+    }
+
+    function isAnonymousViewer() {
+      return isAuthenticated() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    function userOrganizationId() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.organizationId;
+    }
+
+    function viewerOrganizationId() {
+      return firestore.get(/databases/(default)/documents/viewerSessions/$(request.auth.uid)).data.organizationId;
+    }
+
+    match /organizations/{organizationId}/{allPaths=**} {
+      allow read: if isSystemAdmin() ||
+                     (!isAnonymousViewer() && organizationId == userOrganizationId()) ||
+                     (isAnonymousViewer() && organizationId == viewerOrganizationId());
+      allow write: if isSystemAdmin() ||
+                      (isAuthenticated() && !isAnonymousViewer() && organizationId == userOrganizationId());
+    }
+
+    // Existing files keep working while new uploads are written into an
+    // organization-specific path.
+    match /comments/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && !isAnonymousViewer();
+    }
+    match /tasks/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && !isAnonymousViewer();
+    }
+    match /planograms/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && !isAnonymousViewer();
+    }
+    match /uploads/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && !isAnonymousViewer();
     }
   }
 }

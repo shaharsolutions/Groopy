@@ -36,11 +36,12 @@ const assertSystemManagerSession = () => {
 // Helper to upload files directly to Firebase Storage
 export const uploadFileToStorage = (file, folderPath = 'uploads', onProgress = null) => {
   assertSystemManagerSession();
+  if (!activeOrganizationId) throw new Error('Organization context is required to upload files');
   return new Promise((resolve, reject) => {
     // Generate a unique file name to avoid collisions
     const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
     const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${fileExtension}`;
-    const storageRef = ref(storage, `${folderPath}/${uniqueFileName}`);
+    const storageRef = ref(storage, `organizations/${activeOrganizationId}/${folderPath}/${uniqueFileName}`);
 
     const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -76,6 +77,73 @@ const TRASH_RETENTION_DAYS = 30;
 const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
 const ARCHIVE_STATUS = 'ארכיון';
 const SYSTEM_ADMIN_EMAIL = 'shaharsolutions@gmail.com';
+export const DEFAULT_ORGANIZATION_ID = 'groopy';
+export const DEFAULT_ORGANIZATION_NAME = 'Groopy';
+let activeOrganizationId = '';
+
+export const setActiveOrganizationContext = (organizationId) => {
+  activeOrganizationId = organizationId || '';
+};
+
+const createShareToken = () => {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+export const getOrCreateOrganizationShareToken = async (organizationId) => {
+  if (!organizationId) throw new Error('Organization ID is required');
+  assertSystemManagerSession();
+  const organizationRef = doc(db, 'organizations', organizationId);
+  const organizationSnap = await getDoc(organizationRef);
+  const existingToken = organizationSnap.exists() ? organizationSnap.data().viewerToken : '';
+  if (existingToken) return existingToken;
+  const viewerToken = createShareToken();
+  await setDoc(organizationRef, { viewerToken }, { merge: true });
+  return viewerToken;
+};
+
+export const authorizeViewerSession = async (organizationId, viewerToken, ownerId) => {
+  const user = auth.currentUser;
+  if (!user || !organizationId || !viewerToken || !ownerId) {
+    throw new Error('קישור השיתוף אינו תקין או שפג תוקפו');
+  }
+  await setDoc(doc(db, 'viewerSessions', user.uid), {
+    organizationId,
+    ownerId,
+    viewerToken,
+    createdAt: new Date().toISOString()
+  });
+  return true;
+};
+
+export const createShortShareLink = async (userId, organizationId) => {
+  if (!userId || !organizationId) throw new Error('User ID and Organization ID are required');
+  assertSystemManagerSession();
+  const viewerToken = await getOrCreateOrganizationShareToken(organizationId);
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  const shortId = Array.from(bytes, b => b.toString(36).padStart(2, '0')).join('').substring(0, 8);
+  const docRef = doc(db, 'shareLinks', shortId);
+  await setDoc(docRef, {
+    userId,
+    organizationId,
+    shareToken: viewerToken,
+    createdAt: new Date().toISOString()
+  });
+  return shortId;
+};
+
+export const resolveShortShareLink = async (shortId) => {
+  if (!shortId) return null;
+  const docSnap = await getDoc(doc(db, 'shareLinks', shortId));
+  if (docSnap.exists()) {
+    return docSnap.data();
+  }
+  return null;
+};
+
+const currentOrganizationId = () => activeOrganizationId || DEFAULT_ORGANIZATION_ID;
 
 const getCurrentActor = () => {
   const user = auth.currentUser;
@@ -104,7 +172,8 @@ const recordActivity = async ({
   targetLabel = '',
   targetUserId = '',
   details = '',
-  metadata = {}
+  metadata = {},
+  organizationId = ''
 }) => {
   const actor = getCurrentActor();
   if (!actor) return;
@@ -119,6 +188,7 @@ const recordActivity = async ({
       targetId,
       targetLabel,
       targetUserId,
+      organizationId: organizationId || activeOrganizationId || targetUserId,
       details,
       metadata,
       createdAt: now
@@ -227,7 +297,7 @@ export const seedUserDatabaseIfEmpty = async (userId) => {
   if (!userId) return false;
 
   try {
-    const q = query(collection(db, TASKS_COLLECTION), where("userId", "==", userId));
+    const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
     const taskQuerySnapshot = await getDocs(q);
 
     if (taskQuerySnapshot.empty) {
@@ -240,12 +310,13 @@ export const seedUserDatabaseIfEmpty = async (userId) => {
         const newTaskData = {
           ...taskWithoutPrivate,
           userId,
+          organizationId: currentOrganizationId(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
         await setDoc(doc(db, TASKS_COLLECTION, newTaskId), newTaskData);
         if (internalNotes) {
-          await setDoc(doc(db, 'taskPrivateNotes', newTaskId), { notes: internalNotes, userId });
+          await setDoc(doc(db, 'taskPrivateNotes', newTaskId), { notes: internalNotes, userId, organizationId: currentOrganizationId() });
         }
       }
 
@@ -259,6 +330,7 @@ export const seedUserDatabaseIfEmpty = async (userId) => {
           ...commentWithoutId,
           jobId: newTaskId,
           userId,
+          organizationId: currentOrganizationId(),
           createdAt: new Date().toISOString()
         });
       }
@@ -307,20 +379,30 @@ export const normalizeTaskStatus = (status) => {
   return mapping[status] || 'חדש';
 };
 
+const getLegacyOwnerId = (scopeId) => {
+  const currentUser = auth.currentUser;
+  return currentUser && !currentUser.isAnonymous ? currentUser.uid : scopeId;
+};
+
 export const getTasks = async (userId) => {
   if (!userId) return [];
   try {
     let querySnapshot;
-    const q = query(collection(db, TASKS_COLLECTION), where("userId", "==", userId));
+    const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
     try {
       // A page refresh must reflect the persisted server value, not a stale cache.
       querySnapshot = await getDocsFromServer(q);
     } catch (serverError) {
       console.warn('Server task read failed, falling back to Firestore cache', serverError);
-      querySnapshot = await getDocs(q);
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (organizationQueryError) {
+        console.warn('Organization task query is not available yet; loading legacy user tasks', organizationQueryError);
+        querySnapshot = null;
+      }
     }
     const tasks = [];
-    querySnapshot.forEach((doc) => {
+    querySnapshot?.forEach((doc) => {
       const data = doc.data();
       if (data.deletedAt) return;
       tasks.push({
@@ -340,16 +422,21 @@ export const getTrashedTasks = async (userId) => {
   if (!userId) return [];
   try {
     let querySnapshot;
-    const q = query(collection(db, TASKS_COLLECTION), where("userId", "==", userId));
+    const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
     try {
       querySnapshot = await getDocsFromServer(q);
     } catch (serverError) {
       console.warn('Server trash read failed, falling back to Firestore cache', serverError);
-      querySnapshot = await getDocs(q);
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (organizationQueryError) {
+        console.warn('Organization trash query is not available yet; loading legacy user trash', organizationQueryError);
+        querySnapshot = null;
+      }
     }
 
     const tasks = [];
-    querySnapshot.forEach((taskDoc) => {
+    querySnapshot?.forEach((taskDoc) => {
       const data = taskDoc.data();
       if (!data.deletedAt) return;
       tasks.push({ id: taskDoc.id, ...data, status: normalizeTaskStatus(data.status) });
@@ -364,12 +451,18 @@ export const getTrashedTasks = async (userId) => {
 export const getCommentsForTask = async (taskId, userId) => {
   if (!userId) return [];
   try {
-    const q = query(
+    let q = query(
       collection(db, COMMENTS_COLLECTION),
       where("jobId", "==", taskId),
       where("userId", "==", userId)
     );
-    const querySnapshot = await getDocs(q);
+    let querySnapshot;
+    try {
+      querySnapshot = await getDocs(q);
+    } catch (organizationQueryError) {
+      console.warn('Organization comments query is not available yet; loading legacy comments', organizationQueryError);
+      querySnapshot = null;
+    }
     const comments = [];
     querySnapshot.forEach((doc) => {
       comments.push({ id: doc.id, ...doc.data() });
@@ -410,6 +503,7 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
     const commentData = {
       jobId,
       userId,
+      organizationId: currentOrganizationId(),
       authorName: resolvedAuthorName,
       text: text.trim(),
       createdAt: now
@@ -507,7 +601,10 @@ export const getPrivateNotes = async (taskId, userId) => {
   try {
     const docRef = doc(db, 'taskPrivateNotes', taskId);
     const docSnap = await getDoc(docRef);
-    if (docSnap.exists() && docSnap.data().userId === userId) {
+    if (docSnap.exists() && (
+      docSnap.data().organizationId === userId ||
+      docSnap.data().userId === getLegacyOwnerId(userId)
+    )) {
       return docSnap.data().notes || '';
     }
     return '';
@@ -530,6 +627,7 @@ export const createTask = async (taskData, userId, options = {}) => {
     const newTask = {
       ...taskWithoutPrivate,
       userId,
+      organizationId: currentOrganizationId(),
       jobNumber,
       createdAt: now,
       updatedAt: now
@@ -538,7 +636,7 @@ export const createTask = async (taskData, userId, options = {}) => {
     const docRef = await addDoc(collection(db, TASKS_COLLECTION), newTask);
 
     if (internalNotes) {
-      await setDoc(doc(db, 'taskPrivateNotes', docRef.id), { notes: internalNotes, userId });
+      await setDoc(doc(db, 'taskPrivateNotes', docRef.id), { notes: internalNotes, userId, organizationId: currentOrganizationId() });
     }
 
     // Auto-add supplier & contact to settings if new
@@ -586,10 +684,10 @@ export const updateTask = async (taskId, updatedData) => {
     }
 
     const docSnap = await getDoc(docRef);
-    const userId = docSnap.exists() ? docSnap.data().userId : null;
+    const userId = docSnap.exists() ? (docSnap.data().organizationId || docSnap.data().userId) : null;
 
     if (internalNotes !== undefined && userId) {
-      await setDoc(doc(db, 'taskPrivateNotes', taskId), { notes: internalNotes, userId });
+      await setDoc(doc(db, 'taskPrivateNotes', taskId), { notes: internalNotes, userId, organizationId: currentOrganizationId() });
     }
 
     const shouldSyncDirectory =
@@ -756,7 +854,7 @@ export const autoArchiveInactiveTasks = async (userId, inactiveDays = DEFAULT_AU
     ? Math.floor(parsedDays)
     : DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS;
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const q = query(collection(db, TASKS_COLLECTION), where("userId", "==", userId));
+  const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
   let querySnapshot;
 
   try {
@@ -825,7 +923,7 @@ export const saveGlobalSettings = async (settingsData, userId, options = {}) => 
   assertSystemManagerSession();
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, userId);
-    await setDoc(docRef, settingsData);
+    await setDoc(docRef, { ...settingsData, organizationId: userId });
     if (!options.skipActivityLog) {
       await recordActivity({
         action: 'settings.updated',
@@ -855,7 +953,8 @@ export const addSupplier = async (supplierData, userId, options = {}) => {
     delete dataToSave.id;
     const docRef = await addDoc(collection(db, 'suppliers'), {
       ...dataToSave,
-      userId
+      userId,
+      organizationId: currentOrganizationId()
     });
     if (!options.skipActivityLog) {
       await recordActivity({
@@ -940,7 +1039,8 @@ export const addContact = async (contactData, userId, options = {}) => {
     delete dataToSave.id;
     const docRef = await addDoc(collection(db, 'contacts'), {
       ...dataToSave,
-      userId
+      userId,
+      organizationId: currentOrganizationId()
     });
     if (!options.skipActivityLog) {
       await recordActivity({
@@ -1043,6 +1143,7 @@ export const migrateSuppliersAndContacts = async (userId) => {
         if (nameTrimmed && !existingNames.has(nameTrimmed.toLowerCase())) {
           await addDoc(collection(db, 'suppliers'), {
             userId,
+            organizationId: currentOrganizationId(),
             name: nameTrimmed,
             email: (supObj.email || '').trim(),
             phone: (supObj.phone || '').trim(),
@@ -1071,6 +1172,7 @@ export const migrateSuppliersAndContacts = async (userId) => {
         if (nameTrimmed && !existingNames.has(nameTrimmed.toLowerCase())) {
           await addDoc(collection(db, 'contacts'), {
             userId,
+            organizationId: currentOrganizationId(),
             name: nameTrimmed,
             role: (contObj.role || '').trim(),
             phone: (contObj.phone || '').trim(),
@@ -1100,7 +1202,7 @@ export const migrateSuppliersAndContacts = async (userId) => {
  */
 export const autoAddSupplierAndContactFromTask = async (taskData) => {
   try {
-    const userId = taskData.userId;
+    const userId = taskData.organizationId || taskData.userId;
     if (!userId) return;
 
     const supplierName = taskData.supplierName ? taskData.supplierName.trim() : '';
@@ -1232,12 +1334,30 @@ export const registerUserLogin = async (user) => {
   if (!user || user.isAnonymous) return;
   try {
     const userRef = doc(db, 'users', user.uid);
+    const existingUser = await getDoc(userRef);
+    const organizationId = existingUser.exists()
+      ? (existingUser.data().organizationId || DEFAULT_ORGANIZATION_ID)
+      : DEFAULT_ORGANIZATION_ID;
+
     await setDoc(userRef, {
       uid: user.uid,
       email: user.email,
       lastLogin: new Date().toISOString(),
-      displayName: user.displayName || ''
+      displayName: user.displayName || '',
+      organizationId
     }, { merge: true });
+    if (organizationId === DEFAULT_ORGANIZATION_ID) {
+      const defaultOrganizationRef = doc(db, 'organizations', DEFAULT_ORGANIZATION_ID);
+      const defaultOrganizationSnap = await getDoc(defaultOrganizationRef);
+      if (!defaultOrganizationSnap.exists()) {
+        await setDoc(defaultOrganizationRef, {
+          id: DEFAULT_ORGANIZATION_ID,
+          name: DEFAULT_ORGANIZATION_NAME,
+          createdAt: new Date().toISOString(),
+          active: true
+        });
+      }
+    }
     await recordActivity({
       action: 'user.login',
       actionLabel: 'כניסה למערכת',
@@ -1245,12 +1365,213 @@ export const registerUserLogin = async (user) => {
       targetId: user.uid,
       targetLabel: user.email || '',
       targetUserId: user.uid,
+      organizationId,
       details: 'המשתמש התחבר למערכת',
       metadata: {}
     });
+    return { uid: user.uid, organizationId };
   } catch (e) {
     console.error("Error registering user login in Firestore:", e);
+    return { uid: user.uid, organizationId: DEFAULT_ORGANIZATION_ID };
   }
+};
+
+export const getUserOrganization = async (userId) => {
+  if (!userId) return null;
+  const userSnap = await getDoc(doc(db, 'users', userId));
+  if (!userSnap.exists()) return null;
+  const profile = userSnap.data();
+  const organizationId = profile.organizationId || DEFAULT_ORGANIZATION_ID;
+  let organizationName = organizationId === DEFAULT_ORGANIZATION_ID ? DEFAULT_ORGANIZATION_NAME : organizationId;
+  try {
+    const organizationSnap = await getDoc(doc(db, 'organizations', organizationId));
+    if (organizationSnap.exists()) organizationName = organizationSnap.data().name || organizationName;
+  } catch {
+    try {
+      const registrySnap = await getDoc(doc(db, SETTINGS_COLLECTION, 'system-organizations'));
+      const registryOrganization = registrySnap.data()?.organizations?.find(item => item.id === organizationId);
+      if (registryOrganization?.name) organizationName = registryOrganization.name;
+    } catch {
+      // Keep a stable fallback name when organization metadata is not readable.
+    }
+  }
+  return {
+    id: organizationId,
+    name: organizationName
+  };
+};
+
+export const migrateUserDataToOrganization = async (userId, organizationId = DEFAULT_ORGANIZATION_ID) => {
+  if (!userId || !organizationId) return 0;
+  assertSystemManagerSession();
+  let migratedCount = 0;
+  const collectionsToMigrate = [TASKS_COLLECTION, COMMENTS_COLLECTION, 'taskPrivateNotes', 'suppliers', 'contacts'];
+
+  for (const collectionName of collectionsToMigrate) {
+    const legacySnapshot = await getDocs(query(collection(db, collectionName), where('userId', '==', userId)));
+    for (const legacyDoc of legacySnapshot.docs) {
+      if (legacyDoc.data().organizationId) continue;
+      await updateDoc(doc(db, collectionName, legacyDoc.id), { organizationId });
+      migratedCount += 1;
+    }
+  }
+
+  const legacyActivitySnapshot = await getDocs(query(
+    collection(db, ACTIVITY_LOGS_COLLECTION),
+    where('actorUid', '==', userId)
+  ));
+  for (const activityDoc of legacyActivitySnapshot.docs) {
+    if (activityDoc.data().organizationId) continue;
+    await updateDoc(doc(db, ACTIVITY_LOGS_COLLECTION, activityDoc.id), { organizationId });
+    migratedCount += 1;
+  }
+
+  const legacySettingsRef = doc(db, SETTINGS_COLLECTION, userId);
+  const legacySettingsSnap = await getDoc(legacySettingsRef);
+  const organizationSettingsRef = doc(db, SETTINGS_COLLECTION, organizationId);
+  const organizationSettingsSnap = await getDoc(organizationSettingsRef);
+  if (!organizationSettingsSnap.exists() && legacySettingsSnap.exists() && getCurrentActor()?.isSystemAdmin) {
+    await setDoc(organizationSettingsRef, {
+      ...legacySettingsSnap.data(),
+      organizationId
+    });
+    migratedCount += 1;
+  }
+  if (legacySettingsSnap.exists() && !legacySettingsSnap.data().organizationId) {
+    await setDoc(legacySettingsRef, { organizationId }, { merge: true });
+    migratedCount += 1;
+  }
+
+  return migratedCount;
+};
+
+export const assignExistingUsersToDefaultOrganization = async () => {
+  const actor = getCurrentActor();
+  if (!actor?.isSystemAdmin) return 0;
+  const usersSnapshot = await getDocs(collection(db, 'users'));
+  let assignedCount = 0;
+  for (const userDoc of usersSnapshot.docs) {
+    const profile = userDoc.data();
+    const targetOrganizationId = profile.organizationId || DEFAULT_ORGANIZATION_ID;
+    if (!profile.organizationId) {
+      await updateDoc(doc(db, 'users', userDoc.id), { organizationId: targetOrganizationId });
+      assignedCount += 1;
+    }
+    await migrateUserDataToOrganization(profile.uid || userDoc.id, targetOrganizationId);
+  }
+  return assignedCount;
+};
+
+const ORGANIZATIONS_REGISTRY_REF = () => doc(db, SETTINGS_COLLECTION, 'system-organizations');
+
+const readOrganizationRegistry = async () => {
+  try {
+    const registrySnap = await getDoc(ORGANIZATIONS_REGISTRY_REF());
+    return registrySnap.exists() && Array.isArray(registrySnap.data().organizations)
+      ? registrySnap.data().organizations
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveOrganizationRegistry = async (organizations) => {
+  await setDoc(ORGANIZATIONS_REGISTRY_REF(), {
+    organizations,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+};
+
+export const getOrganizations = async () => {
+  assertSystemManagerSession();
+  let collectionOrganizations = [];
+  try {
+    const snapshot = await getDocs(collection(db, 'organizations'));
+    collectionOrganizations = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+  } catch (error) {
+    console.warn('Organizations collection is not available yet; using the compatibility registry', error);
+  }
+
+  const registryOrganizations = await readOrganizationRegistry();
+  const organizationsById = new Map([
+    [DEFAULT_ORGANIZATION_ID, {
+      id: DEFAULT_ORGANIZATION_ID,
+      name: DEFAULT_ORGANIZATION_NAME,
+      active: true
+    }]
+  ]);
+  registryOrganizations.forEach(organization => organizationsById.set(organization.id, organization));
+  collectionOrganizations.forEach(organization => organizationsById.set(organization.id, organization));
+
+  const organizations = [...organizationsById.values()];
+  for (const organization of organizations) {
+    if (collectionOrganizations.some(item => item.id === organization.id)) continue;
+    try {
+      await setDoc(doc(db, 'organizations', organization.id), organization, { merge: true });
+    } catch {
+      // The compatibility registry remains authoritative until the new rules are deployed.
+    }
+  }
+
+  return organizations.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+};
+
+export const createOrganization = async (name) => {
+  assertSystemManagerSession();
+  const normalizedName = String(name || '').trim();
+  if (!normalizedName) throw new Error('יש להזין שם ארגון');
+  const organizationRef = doc(collection(db, 'organizations'));
+  const organization = {
+    id: organizationRef.id,
+    name: normalizedName,
+    active: true,
+    createdAt: new Date().toISOString()
+  };
+  try {
+    await setDoc(organizationRef, organization);
+  } catch (error) {
+    console.warn('Saving organization in compatibility registry', error);
+    const organizations = await getOrganizations();
+    await saveOrganizationRegistry([...organizations, organization]);
+  }
+  return organization;
+};
+
+export const updateOrganization = async (organizationId, updates = {}) => {
+  assertSystemManagerSession();
+  if (!organizationId) throw new Error('חסר מזהה ארגון');
+  const allowedUpdates = {};
+  if (Object.prototype.hasOwnProperty.call(updates, 'name')) {
+    const normalizedName = String(updates.name || '').trim();
+    if (!normalizedName) throw new Error('יש להזין שם ארגון');
+    allowedUpdates.name = normalizedName;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'active')) {
+    allowedUpdates.active = Boolean(updates.active);
+  }
+  if (Object.keys(allowedUpdates).length === 0) return true;
+  try {
+    await updateDoc(doc(db, 'organizations', organizationId), {
+      ...allowedUpdates,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.warn('Updating organization in compatibility registry', error);
+    const organizations = await getOrganizations();
+    await saveOrganizationRegistry(organizations.map(organization => (
+      organization.id === organizationId
+        ? { ...organization, ...allowedUpdates, updatedAt: new Date().toISOString() }
+        : organization
+    )));
+  }
+  return true;
+};
+
+export const assignUserToOrganization = async (userId, organizationId) => {
+  assertSystemManagerSession();
+  if (!userId || !organizationId) throw new Error('חסרים פרטי משתמש או ארגון');
+  await updateDoc(doc(db, 'users', userId), { organizationId });
+  return true;
 };
 
 export const getAllUsers = async () => {
@@ -1451,7 +1772,7 @@ export const getNameMap = async (userId, isSystemAdmin = false) => {
     if (isSystemAdmin) {
       tasksQuery = collection(db, TASKS_COLLECTION);
     } else {
-      tasksQuery = query(collection(db, TASKS_COLLECTION), where("userId", "==", userId));
+      tasksQuery = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
     }
     const tasksSnap = await getDocs(tasksQuery);
     tasksSnap.forEach(docSnap => {
@@ -1464,7 +1785,7 @@ export const getNameMap = async (userId, isSystemAdmin = false) => {
     if (isSystemAdmin) {
       suppliersQuery = collection(db, 'suppliers');
     } else {
-      suppliersQuery = query(collection(db, 'suppliers'), where("userId", "==", userId));
+      suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
     }
     const suppliersSnap = await getDocs(suppliersQuery);
     suppliersSnap.forEach(docSnap => {
@@ -1477,7 +1798,7 @@ export const getNameMap = async (userId, isSystemAdmin = false) => {
     if (isSystemAdmin) {
       contactsQuery = collection(db, 'contacts');
     } else {
-      contactsQuery = query(collection(db, 'contacts'), where("userId", "==", userId));
+      contactsQuery = query(collection(db, 'contacts'), where('userId', '==', userId));
     }
     const contactsSnap = await getDocs(contactsQuery);
     contactsSnap.forEach(docSnap => {

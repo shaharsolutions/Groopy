@@ -32,7 +32,7 @@ const getDateOnly = (isoString) => {
   return date.toISOString().slice(0, 10);
 };
 
-export default function ActivityLogPage({ currentUserId, currentUserEmail, isSystemAdmin, onBack, initialSearchQuery, onClearSearchQuery }) {
+export default function ActivityLogPage({ currentUserId, currentUserEmail, organizationId, isSystemAdmin, onBack, initialSearchQuery, onClearSearchQuery }) {
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +70,7 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, isSys
         setLoading(true);
         setError('');
         const [activityLogs, usersList, nameMap] = await Promise.all([
-          getActivityLogs({ isSystemAdmin, actorUid: currentUserId }),
+          getActivityLogs({ isSystemAdmin, actorUid: currentUserId, organizationId }),
           isSystemAdmin ? getAllUsers() : Promise.resolve([]),
           getNameMap(currentUserId, isSystemAdmin)
         ]);
@@ -172,7 +172,7 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, isSys
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, isSystemAdmin]);
+  }, [currentUserId, organizationId, isSystemAdmin]);
 
   const userEmailByUid = useMemo(() => {
     const map = new Map(users.map(user => [user.uid, user.email]));

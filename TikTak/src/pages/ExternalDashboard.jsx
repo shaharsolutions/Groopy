@@ -9,7 +9,7 @@ const loadStorageApi = () => {
   return storageApiPromise;
 };
 
-export default function ExternalDashboard({ settings, userId, autoOpenTaskId, onClearAutoOpen }) {
+export default function ExternalDashboard({ settings, userId, organizationId, autoOpenTaskId, onClearAutoOpen }) {
   const {
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {}
@@ -132,6 +132,7 @@ export default function ExternalDashboard({ settings, userId, autoOpenTaskId, on
             onClose={null}
             isSingleProjectView={true}
             userId={userId}
+            organizationId={organizationId}
           />
         </Suspense>
       </main>
@@ -319,6 +320,7 @@ export default function ExternalDashboard({ settings, userId, autoOpenTaskId, on
               setViewingTask(null);
             }}
             userId={userId}
+            organizationId={organizationId}
           />
         </Suspense>
       )}

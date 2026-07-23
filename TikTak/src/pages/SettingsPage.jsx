@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { NEW_TASK_FIELD_DEFINITIONS, NEW_TASK_FIELD_STYLES, normalizeNewTaskFields } from '../data/taskFieldConfig';
 
 const PRESET_COLORS = [
   { value: 'badge-new', label: 'כחול עדין', previewClass: 'badge-new' },
@@ -15,7 +16,7 @@ const PRESET_COLORS = [
 
 const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
 
-export default function SettingsPage({ settings, onSaveSettings, onBack }) {
+export default function SettingsPage({ settings, organizationName, onSaveSettings, onBack }) {
   const [localSettings, setLocalSettings] = useState(JSON.parse(JSON.stringify(settings)));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -27,6 +28,11 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
   // Editing state for status names
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingValue, setEditingValue] = useState('');
+  const [taskFieldOptionDrafts, setTaskFieldOptionDrafts] = useState(() => Object.fromEntries(
+    NEW_TASK_FIELD_DEFINITIONS
+      .filter(field => field.options)
+      .map(field => [field.key, normalizeNewTaskFields(settings.newTaskFields)[field.key].options.join(', ')])
+  ));
 
   const showMsg = (text, type = 'success') => {
     setMessage({ text, type });
@@ -44,6 +50,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     try {
       await onSaveSettings({
         ...localSettings,
+        newTaskFields: normalizeNewTaskFields(localSettings.newTaskFields),
         autoArchiveInactiveDays: Math.floor(autoArchiveDays)
       });
       showMsg('ההגדרות נשמרו בהצלחה בשרת!', 'success');
@@ -158,6 +165,51 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
     });
   };
 
+  const handleTaskFieldToggle = (fieldKey, enabled) => {
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
+    setLocalSettings({
+      ...localSettings,
+      newTaskFields: {
+        ...normalizedFields,
+        [fieldKey]: { ...normalizedFields[fieldKey], enabled }
+      }
+    });
+  };
+
+  const handleTaskFieldDefaultChange = (fieldKey, defaultValue) => {
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
+    setLocalSettings({
+      ...localSettings,
+      newTaskFields: {
+        ...normalizedFields,
+        [fieldKey]: { ...normalizedFields[fieldKey], defaultValue }
+      }
+    });
+  };
+
+  const handleTaskFieldConfigChange = (fieldKey, patch) => {
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
+    setLocalSettings({
+      ...localSettings,
+      newTaskFields: {
+        ...normalizedFields,
+        [fieldKey]: { ...normalizedFields[fieldKey], ...patch }
+      }
+    });
+  };
+
+  const handleTaskFieldOptionsChange = (fieldKey, value) => {
+    setTaskFieldOptionDrafts(current => ({ ...current, [fieldKey]: value }));
+    const options = value.split(',').map(option => option.trim()).filter(Boolean);
+    if (options.length === 0) return;
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
+    const currentDefault = normalizedFields[fieldKey].defaultValue;
+    handleTaskFieldConfigChange(fieldKey, {
+      options,
+      defaultValue: options.includes(currentDefault) ? currentDefault : options[0]
+    });
+  };
+
   const statuses = localSettings.statuses || [];
 
   return (
@@ -167,6 +219,11 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>⚙️ הגדרות מערכת</h2>
+          {organizationName && (
+            <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              שדות והעדפות עבודה עבור ארגון {organizationName}
+            </p>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn btn-secondary" onClick={onBack} disabled={saving}>
@@ -252,6 +309,104 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
                 autoArchiveInactiveDays: e.target.value
               })}
             />
+          </div>
+        </div>
+
+        <div className="filter-panel">
+          <h4 className="detail-section-title">🧩 שדות עבודה חדשה</h4>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+            התאמת שם, סגנון, אפשרויות וברירת מחדל של השדות שיופיעו לכל משתמשי הארגון.
+          </p>
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {NEW_TASK_FIELD_DEFINITIONS.map(field => {
+              const config = normalizeNewTaskFields(localSettings.newTaskFields)[field.key];
+              return (
+                <div key={field.key} style={{
+                  display: 'grid',
+                  gap: '12px',
+                  padding: '13px 14px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  background: config.enabled ? '#ffffff' : '#f8fafc'
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={config.enabled !== false}
+                      onChange={(event) => handleTaskFieldToggle(field.key, event.target.checked)}
+                      style={{ width: '18px', height: '18px', marginTop: '2px' }}
+                    />
+                    <span>
+                      <strong style={{ display: 'block', color: '#1e293b' }}>{field.label}</strong>
+                      {field.description && (
+                        <span style={{ display: 'block', color: '#64748b', fontSize: '0.8rem', marginTop: '3px' }}>{field.description}</span>
+                      )}
+                    </span>
+                  </label>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                    gap: '10px',
+                    alignItems: 'end',
+                    opacity: config.enabled === false ? 0.55 : 1
+                  }}>
+                    <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                      שם השדה
+                      <input
+                        className="form-control"
+                        value={config.label}
+                        onChange={(event) => handleTaskFieldConfigChange(field.key, { label: event.target.value })}
+                        disabled={config.enabled === false}
+                        style={{ marginTop: '5px' }}
+                      />
+                    </label>
+
+                    <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                      סגנון תצוגה
+                      <select
+                        className="form-control"
+                        value={config.style}
+                        onChange={(event) => handleTaskFieldConfigChange(field.key, { style: event.target.value })}
+                        disabled={config.enabled === false}
+                        style={{ marginTop: '5px' }}
+                      >
+                        {NEW_TASK_FIELD_STYLES.map(style => <option key={style.value} value={style.value}>{style.label}</option>)}
+                      </select>
+                    </label>
+
+                    {field.options && (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        אפשרויות בחירה
+                        <input
+                          className="form-control"
+                          value={taskFieldOptionDrafts[field.key] ?? (config.options || field.options).join(', ')}
+                          onChange={(event) => handleTaskFieldOptionsChange(field.key, event.target.value)}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                          placeholder="הפרדה באמצעות פסיק"
+                        />
+                      </label>
+                    )}
+
+                    {field.options && (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        ברירת מחדל
+                        <select
+                          className="form-control"
+                          value={config.defaultValue}
+                          onChange={(event) => handleTaskFieldDefaultChange(field.key, event.target.value)}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                        >
+                          {(config.options || field.options).map(option => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -420,7 +575,7 @@ export default function SettingsPage({ settings, onSaveSettings, onBack }) {
       {/* Floating Save Panel at the bottom */}
       <div className="filter-panel flex-between" style={{ marginTop: '24px', backgroundColor: '#f8fafc' }}>
         <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          שמירה של ההגדרות תעדכן את סביבת העבודה ואת הלוח עבור כלל המשתמשים במערכת באופן מיידי.
+          שמירת ההגדרות תעדכן את טופס העבודה והלוח עבור כלל משתמשי הארגון באופן מיידי.
         </span>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn btn-secondary" onClick={onBack} disabled={saving}>

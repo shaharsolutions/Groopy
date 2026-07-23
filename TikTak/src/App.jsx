@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy } from 'react';
 import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Header from './components/Header';
+import { DEFAULT_NEW_TASK_FIELDS } from './data/taskFieldConfig';
 
 // Lazy loading pages for better initial load performance
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -24,6 +25,8 @@ export default function App() {
   const [error, setError] = useState(null);
   const [currentView, setCurrentView] = useState('dashboard');
   const [userId, setUserId] = useState(null);
+  const [organizationId, setOrganizationId] = useState(null);
+  const [organizationName, setOrganizationName] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Global search states
@@ -65,6 +68,9 @@ export default function App() {
   // Impersonation states for admin
   const [impersonatedUserId, setImpersonatedUserId] = useState(null);
   const [impersonatedUserEmail, setImpersonatedUserEmail] = useState('');
+  const [impersonatedOrganizationId, setImpersonatedOrganizationId] = useState(null);
+  const [impersonatedOrganizationName, setImpersonatedOrganizationName] = useState('');
+  const [organizationManagementMode, setOrganizationManagementMode] = useState(false);
 
   // Dynamic application settings
   const [settings, setSettings] = useState({
@@ -78,6 +84,7 @@ export default function App() {
       'אושר לספק': 'badge-approved',
       'ארכיון': 'badge-archive'
     },
+    newTaskFields: DEFAULT_NEW_TASK_FIELDS,
     hideWeeklyHours: false,
     autoArchiveInactiveDays: 45
   });
@@ -85,20 +92,51 @@ export default function App() {
   const [suppliers, setSuppliers] = useState([]);
   const [contacts, setContacts] = useState([]);
 
-  const isSharedLink = new URLSearchParams(window.location.search).get('mode') === 'viewer';
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  const shortCode = (pathParts[0] === 'v' && pathParts[1]) ? pathParts[1] : new URLSearchParams(window.location.search).get('v');
+  const isSharedLink = Boolean(shortCode) || new URLSearchParams(window.location.search).get('mode') === 'viewer';
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const isViewer = params.get('mode') === 'viewer';
-    const targetUserId = params.get('userId');
+    const targetUserId = params.get('userId') || params.get('ownerId');
+    const targetOrganizationId = params.get('organizationId') || 'groopy';
+    const viewerToken = params.get('shareToken');
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        if (isViewer && targetUserId) {
+        if (isSharedLink) {
           // Shared link viewer mode
-          setUserRole('external');
-          setIsLoggedIn(true);
-          setUserId(targetUserId);
+          try {
+            const { authorizeViewerSession, resolveShortShareLink } = await import('./utils/storage');
+            let resolvedUserId = targetUserId;
+            let resolvedOrganizationId = targetOrganizationId;
+            let resolvedToken = viewerToken;
+
+            if (shortCode) {
+              const linkData = await resolveShortShareLink(shortCode);
+              if (linkData) {
+                resolvedUserId = linkData.userId;
+                resolvedOrganizationId = linkData.organizationId;
+                resolvedToken = linkData.shareToken;
+              } else {
+                throw new Error('קישור שיתוף קצר לא נמצא');
+              }
+            }
+
+            if (!resolvedUserId || !resolvedOrganizationId || !resolvedToken) {
+              throw new Error('פרטי קישור שיתוף חסרים');
+            }
+
+            await authorizeViewerSession(resolvedOrganizationId, resolvedToken, resolvedUserId);
+            setUserRole('external');
+            setIsLoggedIn(true);
+            setUserId(resolvedUserId);
+            setOrganizationId(resolvedOrganizationId);
+          } catch (viewerError) {
+            console.error('Viewer authorization failed', viewerError);
+            setError('קישור השיתוף אינו תקין. יש לבקש קישור חדש ממנהל/ת הארגון.');
+          }
         } else if (user.isAnonymous) {
           // Anonymous login but no viewer query parameter -> show Login screen
           setIsLoggedIn(false);
@@ -122,7 +160,16 @@ export default function App() {
 
           // Register user login profile
           try {
-            await storageApi.registerUserLogin(user);
+            const profile = await storageApi.registerUserLogin(user);
+            const resolvedOrganizationId = profile?.organizationId || storageApi.DEFAULT_ORGANIZATION_ID;
+            storageApi.setActiveOrganizationContext(resolvedOrganizationId);
+            setOrganizationId(resolvedOrganizationId);
+            const organization = await storageApi.getUserOrganization(user.uid);
+            setOrganizationName(organization?.name || resolvedOrganizationId);
+            await storageApi.migrateUserDataToOrganization(user.uid, resolvedOrganizationId);
+            if (user.email === 'shaharsolutions@gmail.com') {
+              await storageApi.assignExistingUsersToDefaultOrganization();
+            }
           } catch (regError) {
             console.error("Failed to register login profile", regError);
           }
@@ -136,7 +183,8 @@ export default function App() {
 
           // Seed default settings and tasks for the user if they don't exist
           try {
-            const userSettings = await storageApi.getGlobalSettings(user.uid);
+            const resolvedOrganizationId = (await storageApi.getUserOrganization(user.uid))?.id || storageApi.DEFAULT_ORGANIZATION_ID;
+            const userSettings = await storageApi.getGlobalSettings(resolvedOrganizationId);
             if (!userSettings) {
               const defaultSettings = {
                 workTypes: ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
@@ -149,13 +197,13 @@ export default function App() {
                   'אושר לספק': 'badge-approved',
                   'ארכיון': 'badge-archive'
                 },
+                newTaskFields: DEFAULT_NEW_TASK_FIELDS,
                 hideWeeklyHours: false,
                 autoArchiveInactiveDays: 45
               };
-              await storageApi.saveGlobalSettings(defaultSettings, user.uid, { skipActivityLog: true });
-            } else {
-              // Run migration for existing users
-              await storageApi.migrateSuppliersAndContacts(user.uid);
+              if (user.email === 'shaharsolutions@gmail.com') {
+                await storageApi.saveGlobalSettings(defaultSettings, resolvedOrganizationId, { skipActivityLog: true });
+              }
             }
             await storageApi.removeDefaultSuppliersAndContacts(user.uid);
             await storageApi.seedUserDatabaseIfEmpty(user.uid);
@@ -166,7 +214,7 @@ export default function App() {
         setInitializing(false);
       } else {
         // Not authenticated
-        if (isViewer && targetUserId) {
+        if (isSharedLink) {
           try {
             await signInAnonymously(auth);
           } catch (err) {
@@ -187,7 +235,8 @@ export default function App() {
 
   useEffect(() => {
     const effectiveUserId = impersonatedUserId || userId;
-    if (!effectiveUserId) return;
+    const effectiveOrganizationId = impersonatedOrganizationId || organizationId;
+    if (!effectiveUserId || !effectiveOrganizationId) return;
 
     let unsubscribeSettings = () => {};
     let unsubscribeSuppliers = () => {};
@@ -202,7 +251,7 @@ export default function App() {
       if (cancelled) return;
 
       // Listen to settings in real time from Firestore
-      const settingsDocRef = doc(db, 'settings', effectiveUserId);
+      const settingsDocRef = doc(db, 'settings', effectiveOrganizationId);
       unsubscribeSettings = onSnapshot(settingsDocRef, (docSnap) => {
       const defaultStatuses = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'];
       const defaultStatusColors = {
@@ -277,7 +326,7 @@ export default function App() {
       unsubscribeSuppliers();
       unsubscribeContacts();
     };
-  }, [userId, impersonatedUserId]);
+  }, [userId, impersonatedUserId, organizationId, impersonatedOrganizationId]);
 
   const handleRoleChange = (newRole) => {
     setUserRole(newRole);
@@ -289,31 +338,59 @@ export default function App() {
       await signOut(auth);
       setIsLoggedIn(false);
       setUserId(null);
+      setOrganizationId(null);
+      setOrganizationName('');
       setImpersonatedUserId(null);
       setImpersonatedUserEmail('');
+      setImpersonatedOrganizationId(null);
+      setImpersonatedOrganizationName('');
+      setOrganizationManagementMode(false);
     } catch (e) {
       console.error("Sign out failed", e);
     }
   };
 
-  const handleImpersonate = (targetUid, targetEmail) => {
+  const handleImpersonate = (targetUid, targetEmail, targetOrganizationId, targetOrganizationName = '') => {
     setImpersonatedUserId(targetUid);
     setImpersonatedUserEmail(targetEmail);
+    setImpersonatedOrganizationId(targetOrganizationId);
+    setImpersonatedOrganizationName(targetOrganizationName);
+    setOrganizationManagementMode(false);
     setCurrentView('dashboard'); // Go back to dashboard to view their board
   };
 
   const handleStopImpersonation = () => {
     setImpersonatedUserId(null);
     setImpersonatedUserEmail('');
+    setImpersonatedOrganizationId(null);
+    setImpersonatedOrganizationName('');
+    setOrganizationManagementMode(false);
+  };
+
+  const handleManageOrganizationSettings = (targetOrganizationId, targetOrganizationName) => {
+    setImpersonatedUserId(null);
+    setImpersonatedUserEmail('');
+    setImpersonatedOrganizationId(targetOrganizationId);
+    setImpersonatedOrganizationName(targetOrganizationName);
+    setOrganizationManagementMode(true);
+    setCurrentView('settings');
   };
 
   const effectiveUserId = impersonatedUserId || userId;
+  const effectiveOrganizationId = impersonatedOrganizationId || organizationId;
+  const effectiveOrganizationName = impersonatedOrganizationName || organizationName;
   const isSystemAdmin = auth.currentUser?.email === 'shaharsolutions@gmail.com';
+
+  useEffect(() => {
+    import('./utils/storage').then(({ setActiveOrganizationContext }) => {
+      setActiveOrganizationContext(effectiveOrganizationId);
+    });
+  }, [effectiveOrganizationId]);
 
   useEffect(() => {
     const currentUser = auth.currentUser;
     if (!effectiveUserId || !currentUser || currentUser.isAnonymous) return;
-    if (effectiveUserId !== currentUser.uid && !isSystemAdmin) return;
+    if (impersonatedOrganizationId && !isSystemAdmin) return;
 
     let cancelled = false;
     const cleanupDefaultDirectoryRecords = async () => {
@@ -328,12 +405,12 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [effectiveUserId, isSystemAdmin]);
+  }, [effectiveUserId, impersonatedOrganizationId, isSystemAdmin]);
 
   const handleSaveSettings = async (newSettings) => {
-    if (!effectiveUserId) return;
+    if (!effectiveOrganizationId) return;
     const { saveGlobalSettings } = await import('./utils/storage');
-    await saveGlobalSettings(newSettings, effectiveUserId);
+    await saveGlobalSettings(newSettings, effectiveOrganizationId);
     setSettings(newSettings);
   };
 
@@ -391,7 +468,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {impersonatedUserId && (
+      {(impersonatedUserId || organizationManagementMode) && (
         <div style={{
           backgroundColor: '#e0e7ff',
           color: '#3730a3',
@@ -405,7 +482,11 @@ export default function App() {
           fontFamily: 'Rubik, sans-serif',
           direction: 'rtl'
         }}>
-          <span>👁️ הנכם מחוברים בהתחזות עבור: <strong>{impersonatedUserEmail}</strong> (כל הפעולות יבוצעו בשמו)</span>
+          <span>
+            {organizationManagementMode
+              ? <>⚙️ עריכת הגדרות העבודה של ארגון <strong>{effectiveOrganizationName}</strong></>
+              : <>👁️ צפייה בארגון <strong>{effectiveOrganizationName}</strong> דרך המשתמש/ת {impersonatedUserEmail}</>}
+          </span>
           <button
             onClick={handleStopImpersonation}
             style={{
@@ -431,10 +512,12 @@ export default function App() {
         onViewChange={setCurrentView}
         onLogout={handleLogout}
         userId={effectiveUserId}
+        organizationId={effectiveOrganizationId}
         userEmail={auth.currentUser?.email}
         onSearchTrigger={() => setIsSearchOpen(true)}
         onOpenTask={(taskId) => setAutoOpenTaskId(taskId)}
         settings={settings}
+        organizationName={effectiveOrganizationName}
       />
       <Suspense fallback={
         <div style={{
@@ -452,14 +535,24 @@ export default function App() {
           currentView === 'users' ? (
             <UsersManagement
               onImpersonate={handleImpersonate}
+              onManageOrganization={handleManageOrganizationSettings}
               onBack={() => setCurrentView('dashboard')}
               onNavigate={setCurrentView}
             />
           ) : currentView === 'settings' ? (
             <SettingsPage
+              key={`${effectiveOrganizationId}:${JSON.stringify(settings)}`}
               settings={settings}
+              organizationName={effectiveOrganizationName}
               onSaveSettings={handleSaveSettings}
-              onBack={() => setCurrentView('dashboard')}
+              onBack={() => {
+                if (organizationManagementMode) {
+                  handleStopImpersonation();
+                  setCurrentView('users');
+                } else {
+                  setCurrentView('dashboard');
+                }
+              }}
             />
           ) : currentView === 'suppliers_contacts' ? (
             <SuppliersContactsPage
@@ -477,6 +570,7 @@ export default function App() {
           ) : currentView === 'activity_log' ? (
             <ActivityLogPage
               currentUserId={userId}
+              organizationId={effectiveOrganizationId}
               currentUserEmail={auth.currentUser?.email || ''}
               isSystemAdmin={isSystemAdmin}
               onBack={() => setCurrentView('dashboard')}
@@ -490,6 +584,7 @@ export default function App() {
               contacts={contacts}
               onSaveSettings={handleSaveSettings}
               userId={effectiveUserId}
+              organizationId={effectiveOrganizationId}
               autoOpenTaskId={autoOpenTaskId}
               onClearAutoOpen={() => setAutoOpenTaskId(null)}
             />
@@ -498,6 +593,7 @@ export default function App() {
           <ExternalDashboard 
             settings={settings} 
             userId={effectiveUserId} 
+            organizationId={effectiveOrganizationId}
             autoOpenTaskId={autoOpenTaskId}
             onClearAutoOpen={() => setAutoOpenTaskId(null)}
           />

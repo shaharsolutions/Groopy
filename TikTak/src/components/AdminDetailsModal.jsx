@@ -1,9 +1,10 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage, addContact, updateContact, addSupplier, updateSupplier } from '../utils/storage';
+import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage, addContact, updateContact, addSupplier, updateSupplier, getOrCreateOrganizationShareToken } from '../utils/storage';
 const ExcelPreviewModal = React.lazy(() => import('./ExcelPreviewModal'));
 const PdfPreviewModal = React.lazy(() => import('./PdfPreviewModal'));
 import PlanogramFileCard from './PlanogramFileCard';
 import PlanogramIndicator from './PlanogramIndicator';
+import { normalizeNewTaskFields } from '../data/taskFieldConfig';
 
 function getSundayOfWeek(date) {
   const d = new Date(date);
@@ -98,7 +99,8 @@ export default function AdminDetailsModal({
   onTaskUpdated,
   onStatusChange,
   startInEditMode = false,
-  userId
+  userId,
+  organizationId
 }) {
   const {
     statuses: STATUSES = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק'],
@@ -113,6 +115,24 @@ export default function AdminDetailsModal({
     hideWeeklyHours = false
   } = settings || {};
 
+  const newTaskFields = normalizeNewTaskFields(settings?.newTaskFields);
+  const isNewTaskFieldEnabled = (fieldKey) => newTaskFields[fieldKey]?.enabled !== false;
+  const getNewTaskFieldLabel = (fieldKey) => newTaskFields[fieldKey]?.label || fieldKey;
+  const getNewTaskFieldOptions = (fieldKey) => newTaskFields[fieldKey]?.options || [];
+  const getNewTaskFieldStyle = (fieldKey) => {
+    const style = newTaskFields[fieldKey]?.style;
+    if (style === 'highlighted') {
+      return { padding: '14px', border: '1px solid #c7d2fe', borderRadius: '10px', background: '#f8faff' };
+    }
+    if (style === 'compact') {
+      return { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' };
+    }
+    return undefined;
+  };
+  const defaultDiecutsStatus = newTaskFields.diecutsStatus.defaultValue || 'אין';
+  const defaultImagesStatus = newTaskFields.imagesStatus.defaultValue || 'אין';
+  const defaultStandardsInstituteRequired = newTaskFields.standardsInstituteRequired.defaultValue || 'לא';
+
   const isCreateMode = !task;
 
   const [copiedLink, setCopiedLink] = useState(false);
@@ -120,17 +140,17 @@ export default function AdminDetailsModal({
   const [excelPreviewFile, setExcelPreviewFile] = useState(null);
   const [pdfPreviewFile, setPdfPreviewFile] = useState(null);
 
-  const handleCopyTaskLink = () => {
+  const handleCopyTaskLink = async () => {
     if (!task) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&userId=${userId}&taskId=${task.id}`;
-    navigator.clipboard.writeText(shareUrl)
-      .then(() => {
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 2000);
-      })
-      .catch(err => {
-        console.error("Failed to copy link", err);
-      });
+    try {
+      const shareToken = await getOrCreateOrganizationShareToken(organizationId);
+      const shareUrl = `${window.location.origin}${window.location.pathname}?mode=viewer&userId=${userId}&organizationId=${organizationId}&shareToken=${shareToken}&taskId=${task.id}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link", err);
+    }
   };
 
   const handleCopyEmail = (emailStr) => {
@@ -242,9 +262,9 @@ export default function AdminDetailsModal({
   const [createWorkType, setCreateWorkType] = useState(WORK_TYPES[0] || 'אריזה');
   const [createContactPerson, setCreateContactPerson] = useState('');
   const [createSupplierContactEmail, setCreateSupplierContactEmail] = useState('');
-  const [createDiecutsStatus, setCreateDiecutsStatus] = useState('אין');
-  const [createImagesStatus, setCreateImagesStatus] = useState('אין');
-  const [createStandardsInstituteRequired, setCreateStandardsInstituteRequired] = useState('לא');
+  const [createDiecutsStatus, setCreateDiecutsStatus] = useState(defaultDiecutsStatus);
+  const [createImagesStatus, setCreateImagesStatus] = useState(defaultImagesStatus);
+  const [createStandardsInstituteRequired, setCreateStandardsInstituteRequired] = useState(defaultStandardsInstituteRequired);
   const [createStatus, setCreateStatus] = useState(DEFAULT_STATUS || 'חדש');
   const [createInternalNotes, setCreateInternalNotes] = useState('');
   const [createAttachments, setCreateAttachments] = useState([]);
@@ -324,9 +344,9 @@ export default function AdminDetailsModal({
         setCreateWorkType(WORK_TYPES[0] || 'אריזה');
         setCreateContactPerson('');
         setCreateSupplierContactEmail('');
-        setCreateDiecutsStatus('אין');
-        setCreateImagesStatus('אין');
-        setCreateStandardsInstituteRequired('לא');
+        setCreateDiecutsStatus(defaultDiecutsStatus);
+        setCreateImagesStatus(defaultImagesStatus);
+        setCreateStandardsInstituteRequired(defaultStandardsInstituteRequired);
         setCreateStatus(DEFAULT_STATUS || 'חדש');
         setCreateAttachments([]);
         setCreatePlanogramFile(null);
@@ -337,7 +357,7 @@ export default function AdminDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, WORK_TYPES, startEditingField]);
+  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, WORK_TYPES, startEditingField, defaultDiecutsStatus, defaultImagesStatus, defaultStandardsInstituteRequired]);
 
   // Sync hours state with active Sunday week
   useEffect(() => {
@@ -1019,7 +1039,7 @@ export default function AdminDetailsModal({
       formErrors.title = 'שדה שם העבודה הוא חובה';
     }
 
-    if (createSupplierContactEmail.trim()) {
+    if (isNewTaskFieldEnabled('supplierContactEmail') && createSupplierContactEmail.trim()) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createSupplierContactEmail.trim())) {
         formErrors.supplierContactEmail = 'כתובת אימייל לא תקינה';
       }
@@ -1035,14 +1055,14 @@ export default function AdminDetailsModal({
       description: createDescription.trim(),
       workType: createWorkType,
       supplierName: '',
-      contactPerson: createContactPerson.trim(),
-      supplierContactEmail: createSupplierContactEmail.trim(),
-      diecutsStatus: createDiecutsStatus,
-      imagesStatus: createImagesStatus,
-      standardsInstituteRequired: createStandardsInstituteRequired,
       status: createStatus,
-      workOrderFiles: createAttachments,
-      planogramFile: createPlanogramFile,
+      ...(isNewTaskFieldEnabled('contactPerson') ? { contactPerson: createContactPerson.trim() } : {}),
+      ...(isNewTaskFieldEnabled('supplierContactEmail') ? { supplierContactEmail: createSupplierContactEmail.trim() } : {}),
+      ...(isNewTaskFieldEnabled('diecutsStatus') ? { diecutsStatus: createDiecutsStatus } : {}),
+      ...(isNewTaskFieldEnabled('imagesStatus') ? { imagesStatus: createImagesStatus } : {}),
+      ...(isNewTaskFieldEnabled('standardsInstituteRequired') ? { standardsInstituteRequired: createStandardsInstituteRequired } : {}),
+      ...(isNewTaskFieldEnabled('workOrderFiles') ? { workOrderFiles: createAttachments } : {}),
+      ...(isNewTaskFieldEnabled('planogramFile') ? { planogramFile: createPlanogramFile } : {}),
       internalNotes: createInternalNotes.trim(),
       weeklyHours: {
         sunday: 0,
@@ -1185,9 +1205,10 @@ export default function AdminDetailsModal({
 
 
 
+              {isNewTaskFieldEnabled('status') && (
               <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">סטטוס</label>
+                <div className="form-group" style={getNewTaskFieldStyle('status')}>
+                  <label className="form-label">{getNewTaskFieldLabel('status')}</label>
                   <div
                     style={{
                       display: 'grid',
@@ -1226,10 +1247,12 @@ export default function AdminDetailsModal({
                   </div>
                 </div>
               </div>
+              )}
 
+              {isNewTaskFieldEnabled('contactPerson') && (
               <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">איש קשר אצל הספק</label>
+                <div className="form-group" style={getNewTaskFieldStyle('contactPerson')}>
+                  <label className="form-label">{getNewTaskFieldLabel('contactPerson')}</label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input
                       type="text"
@@ -1265,10 +1288,13 @@ export default function AdminDetailsModal({
                   </datalist>
                 </div>
               </div>
+              )}
 
+              {(isNewTaskFieldEnabled('supplierContactEmail') || isNewTaskFieldEnabled('standardsInstituteRequired')) && (
               <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">מייל איש קשר ספק</label>
+                {isNewTaskFieldEnabled('supplierContactEmail') && (
+                <div className="form-group" style={getNewTaskFieldStyle('supplierContactEmail')}>
+                  <label className="form-label">{getNewTaskFieldLabel('supplierContactEmail')}</label>
                   <input
                     type="text"
                     className="form-control text-left direction-ltr"
@@ -1280,52 +1306,64 @@ export default function AdminDetailsModal({
                   />
                   {errors.supplierContactEmail && <span className="form-error">{errors.supplierContactEmail}</span>}
                 </div>
+                )}
 
-                <div className="form-group">
-                  <label className="form-label">דרישות מכון תקנים</label>
+                {isNewTaskFieldEnabled('standardsInstituteRequired') && (
+                <div className="form-group" style={getNewTaskFieldStyle('standardsInstituteRequired')}>
+                  <label className="form-label">{getNewTaskFieldLabel('standardsInstituteRequired')}</label>
                   <select
                     className="form-control"
                     value={createStandardsInstituteRequired}
                     onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
                   >
-                    <option value="לא">לא</option>
-                    <option value="כן">כן</option>
+                    {getNewTaskFieldOptions('standardsInstituteRequired').map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
                   </select>
                 </div>
+                )}
               </div>
+              )}
 
+              {(isNewTaskFieldEnabled('diecutsStatus') || isNewTaskFieldEnabled('imagesStatus')) && (
               <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">דייקאטים</label>
+                {isNewTaskFieldEnabled('diecutsStatus') && (
+                <div className="form-group" style={getNewTaskFieldStyle('diecutsStatus')}>
+                  <label className="form-label">{getNewTaskFieldLabel('diecutsStatus')}</label>
                   <select
                     className="form-control"
                     value={createDiecutsStatus}
                     onChange={(e) => setCreateDiecutsStatus(e.target.value)}
                   >
-                    <option value="אין">אין</option>
-                    <option value="יש">יש</option>
-                    <option value="חלקי">חלקי</option>
+                    {getNewTaskFieldOptions('diecutsStatus').map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
                   </select>
                 </div>
+                )}
 
-                <div className="form-group">
-                  <label className="form-label">תמונות</label>
+                {isNewTaskFieldEnabled('imagesStatus') && (
+                <div className="form-group" style={getNewTaskFieldStyle('imagesStatus')}>
+                  <label className="form-label">{getNewTaskFieldLabel('imagesStatus')}</label>
                   <select
                     className="form-control"
                     value={createImagesStatus}
                     onChange={(e) => setCreateImagesStatus(e.target.value)}
                   >
-                    <option value="אין">אין</option>
-                    <option value="יש">יש</option>
-                    <option value="חלקי">חלקי</option>
+                    {getNewTaskFieldOptions('imagesStatus').map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
                   </select>
                 </div>
+                )}
               </div>
+              )}
 
               {/* הזמנת עבודה (קבצים מצורפים) */}
-              <div className="form-group">
+              {isNewTaskFieldEnabled('workOrderFiles') && (
+              <div className="form-group" style={getNewTaskFieldStyle('workOrderFiles')}>
                 <label className="form-label">
-                  הזמנת עבודה (קבצים מצורפים כגון תעודות, הוראות עבודה, PDF)
+                  {getNewTaskFieldLabel('workOrderFiles')}
                 </label>
 
                 <div
@@ -1411,10 +1449,12 @@ export default function AdminDetailsModal({
                   </div>
                 )}
               </div>
+              )}
 
               {/* פלנוגרמה Upload */}
-              <div className="form-group">
-                <label className="form-label">העלאת פלנוגרמה</label>
+              {isNewTaskFieldEnabled('planogramFile') && (
+              <div className="form-group" style={getNewTaskFieldStyle('planogramFile')}>
+                <label className="form-label">{getNewTaskFieldLabel('planogramFile')}</label>
                 {createPlanogramFile ? (
                   <PlanogramFileCard file={createPlanogramFile} onDelete={handlePlanogramDeleteCreate} deleteLabel="הסרה" />
                 ) : (
@@ -1446,6 +1486,7 @@ export default function AdminDetailsModal({
                   <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '6px' }}>{uploadErrorPlanogram}</div>
                 )}
               </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">הערות פנימיות</label>

@@ -1835,14 +1835,16 @@ export default function AdminDetailsModal({
                               disabled={savingSubtasks}
                               onChange={() => handleToggleSubtask(item.id)}
                             />
-                            <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
-                              {item.text}
-                            </span>
-                            {item.completed && (
-                              <span className="subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.createdAt || task?.createdAt)}`}>
-                                הושלם ב-{formatDate(item.completedAt || item.createdAt || task?.createdAt)}
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                              <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
+                                {item.text}
                               </span>
-                            )}
+                              {item.completed && (
+                                <span className="subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.createdAt || task?.createdAt)}`}>
+                                  הושלם ב-{formatDate(item.completedAt || item.createdAt || task?.createdAt)}
+                                </span>
+                              )}
+                            </div>
                           </label>
                           <button
                             type="button"

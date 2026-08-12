@@ -868,12 +868,14 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     checked={item.completed}
                     onChange={() => handleToggleProjectSubtask(item.taskId, item.id)}
                   />
-                  <span>{item.text}</span>
-                  {item.completed && (
-                    <span className="dashboard-subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.updatedAt || item.createdAt)}`}>
-                      הושלם ב-{formatDate(item.completedAt || item.updatedAt || item.createdAt)}
-                    </span>
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <span>{item.text}</span>
+                    {item.completed && (
+                      <span className="dashboard-subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.updatedAt || item.createdAt)}`}>
+                        הושלם ב-{formatDate(item.completedAt || item.updatedAt || item.createdAt)}
+                      </span>
+                    )}
+                  </div>
                 </label>
                 <button
                   type="button"
@@ -1051,18 +1053,20 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         )}
                       </td>
                       <td>
-                        <StatusPicker
-                          currentStatus={task.status}
-                          statuses={STATUSES}
-                          statusColors={STATUS_CLASSES}
-                          onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
-                          disabled={savingStatusIds.has(task.id)}
-                        />
-                        {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
-                          <div className="task-completed-date-badge">
-                            הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                          <StatusPicker
+                            currentStatus={task.status}
+                            statuses={STATUSES}
+                            statusColors={STATUS_CLASSES}
+                            onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                            disabled={savingStatusIds.has(task.id)}
+                          />
+                          {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                            <div className="task-completed-date-badge">
+                              הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td>{formatDate(task.updatedAt)}</td>
                       <td>
@@ -1121,13 +1125,20 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         </span>
                       </h4>
                     </div>
-                    <StatusPicker
-                      currentStatus={task.status}
-                      statuses={STATUSES}
-                      statusColors={STATUS_CLASSES}
-                      onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
-                      disabled={savingStatusIds.has(task.id)}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                      <StatusPicker
+                        currentStatus={task.status}
+                        statuses={STATUSES}
+                        statusColors={STATUS_CLASSES}
+                        onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                        disabled={savingStatusIds.has(task.id)}
+                      />
+                      {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                        <div className="task-completed-date-badge">
+                          הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="task-card-meta">

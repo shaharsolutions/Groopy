@@ -717,7 +717,7 @@ export default function AdminDetailsModal({
       return {
         ...item,
         completed,
-        completedAt: completed ? new Date().toISOString() : null
+        completedAt: completed ? (item.completedAt || new Date().toISOString()) : null
       };
     });
     await persistSubtasks(nextSubtasks, subtasksDraft);
@@ -1838,6 +1838,11 @@ export default function AdminDetailsModal({
                             <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
                               {item.text}
                             </span>
+                            {item.completed && item.completedAt && (
+                              <span className="subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt)}`}>
+                                הושלם ב-{formatDate(item.completedAt)}
+                              </span>
+                            )}
                           </label>
                           <button
                             type="button"

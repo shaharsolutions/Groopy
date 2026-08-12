@@ -98,7 +98,6 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const isViewer = params.get('mode') === 'viewer';
     const targetUserId = params.get('userId') || params.get('ownerId');
     const targetOrganizationId = params.get('organizationId') || 'groopy';
     const viewerToken = params.get('shareToken');

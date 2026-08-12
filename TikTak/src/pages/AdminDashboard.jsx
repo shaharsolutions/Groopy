@@ -379,7 +379,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       return {
         ...subtask,
         completed,
-        completedAt: completed ? new Date().toISOString() : null
+        completedAt: completed ? (subtask.completedAt || new Date().toISOString()) : null
       };
     });
 
@@ -858,6 +858,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     onChange={() => handleToggleProjectSubtask(item.taskId, item.id)}
                   />
                   <span>{item.text}</span>
+                  {item.completed && item.completedAt && (
+                    <span className="dashboard-subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt)}`}>
+                      הושלם ב-{formatDate(item.completedAt)}
+                    </span>
+                  )}
                 </label>
                 <button
                   type="button"

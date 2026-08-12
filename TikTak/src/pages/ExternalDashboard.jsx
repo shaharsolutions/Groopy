@@ -9,6 +9,29 @@ const loadStorageApi = () => {
   return storageApiPromise;
 };
 
+const SORT_PREFERENCE_KEY = 'tiktak_external_sort_preference';
+const SORT_MODES = new Set(['default', 'status', 'title', 'contactPerson']);
+
+const readSortPreference = () => {
+  try {
+    const savedPreference = JSON.parse(localStorage.getItem(SORT_PREFERENCE_KEY) || '{}');
+    return {
+      mode: SORT_MODES.has(savedPreference.mode) ? savedPreference.mode : 'default',
+      direction: savedPreference.direction === 'desc' ? 'desc' : 'asc'
+    };
+  } catch {
+    return { mode: 'default', direction: 'asc' };
+  }
+};
+
+const saveSortPreference = (mode, direction) => {
+  try {
+    localStorage.setItem(SORT_PREFERENCE_KEY, JSON.stringify({ mode, direction }));
+  } catch (err) {
+    console.warn('Could not store sort preference locally', err);
+  }
+};
+
 export default function ExternalDashboard({ settings, userId, organizationId, autoOpenTaskId, onClearAutoOpen }) {
   const {
     statuses: STATUSES = [],
@@ -16,9 +39,11 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
   } = settings || {};
   const [tasks, setTasks] = useState([]);
   
-  // Search and Filter state
+  // Search, Filter and Sort state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sortMode, setSortMode] = useState(() => readSortPreference().mode);
+  const [sortDirection, setSortDirection] = useState(() => readSortPreference().direction);
 
   // Selected task for modal view
   const [viewingTask, setViewingTask] = useState(null);
@@ -77,11 +102,63 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
       result = result.filter(t => t.status === statusFilter);
     }
 
-    // Sort by updatedAt descending so the latest modified shows first
-    result.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    // Sorting logic
+    if (sortMode !== 'default') {
+      const statusOrder = new Map(STATUSES.map((status, index) => [status, index]));
+      const direction = sortDirection === 'asc' ? 1 : -1;
+
+      result.sort((a, b) => {
+        let comparison = 0;
+        if (sortMode === 'status') {
+          comparison = (statusOrder.get(a.status) ?? 999) - (statusOrder.get(b.status) ?? 999);
+        } else if (sortMode === 'contactPerson') {
+          const contactA = a.contactPerson || a.supplierContactName || '';
+          const contactB = b.contactPerson || b.supplierContactName || '';
+          comparison = contactA.localeCompare(contactB, 'he', { sensitivity: 'base', numeric: true });
+        } else if (sortMode === 'title') {
+          comparison = (a.title || '').localeCompare(b.title || '', 'he', { sensitivity: 'base', numeric: true });
+        }
+
+        if (comparison !== 0) return comparison * direction;
+        return (a.title || '').localeCompare(b.title || '', 'he', { sensitivity: 'base' });
+      });
+    } else {
+      // Default sort by updatedAt descending so the latest modified shows first
+      result.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+    }
 
     return result;
-  }, [tasks, searchQuery, statusFilter]);
+  }, [tasks, searchQuery, statusFilter, sortMode, sortDirection, STATUSES]);
+
+  const handleSort = (column) => {
+    const nextDirection = sortMode === column
+      ? (sortDirection === 'asc' ? 'desc' : 'asc')
+      : 'asc';
+    setSortMode(column);
+    setSortDirection(nextDirection);
+    saveSortPreference(column, nextDirection);
+  };
+
+  const getAriaSort = (column) => {
+    if (sortMode !== column) return 'none';
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  };
+
+  const renderSortableHeader = (column, label) => (
+    <th aria-sort={getAriaSort(column)}>
+      <button
+        type="button"
+        className={`sortable-header ${sortMode === column ? 'active' : ''}`}
+        onClick={() => handleSort(column)}
+        title={`מיון לפי ${label}`}
+      >
+        <span>{label}</span>
+        <span className="sort-indicator" aria-hidden="true">
+          {sortMode === column ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
 
   const statusCounts = useMemo(() => {
     const counts = new Map();
@@ -191,13 +268,16 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
           <div>
             מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> עבודות בסך הכל
           </div>
-          {(searchQuery || statusFilter) && (
+          {(searchQuery || statusFilter || sortMode !== 'default') && (
             <button 
               type="button"
               className="btn btn-secondary" 
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('');
+                setSortMode('default');
+                setSortDirection('asc');
+                saveSortPreference('default', 'asc');
               }}
               style={{ fontSize: '0.8rem', padding: '4px 10px', height: 'auto' }}
             >
@@ -234,9 +314,9 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
             <table className="task-table">
               <thead>
                 <tr>
-                  <th>שם העבודה</th>
-                  <th>איש קשר ספק</th>
-                  <th>סטטוס</th>
+                  {renderSortableHeader('title', 'שם העבודה')}
+                  {renderSortableHeader('contactPerson', 'איש קשר ספק')}
+                  {renderSortableHeader('status', 'סטטוס')}
                   <th>פעולות</th>
                 </tr>
               </thead>

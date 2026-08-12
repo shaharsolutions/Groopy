@@ -2756,6 +2756,24 @@ select.badge:focus, select.priority-badge:focus {
   color: var(--text-muted);
 }
 
+.subtask-completed-date,
+.dashboard-subtask-completed-date {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-completed, #064e3b);
+  background-color: #d1fae5;
+  border: 1px solid #6ee7b7;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  margin-inline-start: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-decoration: none !important;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+}
+
 .subtask-delete-btn {
   background: none;
   border: none;

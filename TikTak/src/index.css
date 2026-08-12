@@ -2774,6 +2774,29 @@ select.badge:focus, select.priority-badge:focus {
   align-items: center;
 }
 
+.task-completed-date-badge {
+  display: inline-block;
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: #064e3b;
+  background-color: #d1fae5;
+  border: 1px solid #6ee7b7;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+.completed-date-highlight {
+  color: #064e3b !important;
+  font-weight: 600 !important;
+  background-color: #d1fae5;
+  border: 1px solid #6ee7b7;
+  border-radius: 9999px;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+}
+
 .subtask-delete-btn {
   background: none;
   border: none;

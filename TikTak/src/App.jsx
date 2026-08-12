@@ -157,60 +157,58 @@ export default function App() {
             return;
           }
 
-          // Register user login profile
+          // Register user login profile and set organization context
+          let resolvedOrgId = storageApi.DEFAULT_ORGANIZATION_ID;
           try {
             const profile = await storageApi.registerUserLogin(user);
-            const resolvedOrganizationId = profile?.organizationId || storageApi.DEFAULT_ORGANIZATION_ID;
-            storageApi.setActiveOrganizationContext(resolvedOrganizationId);
-            setOrganizationId(resolvedOrganizationId);
-            const organization = await storageApi.getUserOrganization(user.uid);
-            setOrganizationName(organization?.name || resolvedOrganizationId);
-            await storageApi.migrateUserDataToOrganization(user.uid, resolvedOrganizationId);
-            if (user.email === 'shaharsolutions@gmail.com') {
-              await storageApi.assignExistingUsersToDefaultOrganization();
-            }
+            resolvedOrgId = profile?.organizationId || storageApi.DEFAULT_ORGANIZATION_ID;
+            storageApi.setActiveOrganizationContext(resolvedOrgId);
+            setOrganizationId(resolvedOrgId);
           } catch (regError) {
             console.error("Failed to register login profile", regError);
           }
 
-          // Run legacy tasks migration first!
-          try {
-            await storageApi.migrateLegacyTasksToUser(user.uid, user.email);
-          } catch (migrationError) {
-            console.error("Migration failed", migrationError);
-          }
+          // Unblock main UI immediately for instant startup!
+          setInitializing(false);
 
-          // Seed default settings and tasks for the user if they don't exist
-          try {
-            const resolvedOrganizationId = (await storageApi.getUserOrganization(user.uid))?.id || storageApi.DEFAULT_ORGANIZATION_ID;
-            const userSettings = await storageApi.getGlobalSettings(resolvedOrganizationId);
-            if (!userSettings) {
-              const defaultSettings = {
-                workTypes: ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
-                statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
-                defaultStatus: 'חדש',
-                statusColors: {
-                  'חדש': 'badge-new',
-                  'בטיפול': 'badge-in-progress',
-                  'נשלח לספק': 'badge-waiting-approval',
-                  'אושר לספק': 'badge-approved',
-                  'ארכיון': 'badge-archive'
-                },
-                newTaskFields: DEFAULT_NEW_TASK_FIELDS,
-                hideWeeklyHours: false,
-                autoArchiveInactiveDays: 45
-              };
+          // Run background migrations & organization setup asynchronously without blocking UI
+          (async () => {
+            try {
+              const organization = await storageApi.getUserOrganization(user.uid);
+              if (organization?.name) setOrganizationName(organization.name);
+              await storageApi.migrateUserDataToOrganization(user.uid, resolvedOrgId);
               if (user.email === 'shaharsolutions@gmail.com') {
-                await storageApi.saveGlobalSettings(defaultSettings, resolvedOrganizationId, { skipActivityLog: true });
+                await storageApi.assignExistingUsersToDefaultOrganization();
               }
+              await storageApi.migrateLegacyTasksToUser(user.uid, user.email);
+
+              const userSettings = await storageApi.getGlobalSettings(resolvedOrgId);
+              if (!userSettings && user.email === 'shaharsolutions@gmail.com') {
+                const defaultSettings = {
+                  workTypes: ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
+                  statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
+                  defaultStatus: 'חדש',
+                  statusColors: {
+                    'חדש': 'badge-new',
+                    'בטיפול': 'badge-in-progress',
+                    'נשלח לספק': 'badge-waiting-approval',
+                    'אושר לספק': 'badge-approved',
+                    'ארכיון': 'badge-archive'
+                  },
+                  newTaskFields: DEFAULT_NEW_TASK_FIELDS,
+                  hideWeeklyHours: false,
+                  autoArchiveInactiveDays: 45
+                };
+                await storageApi.saveGlobalSettings(defaultSettings, resolvedOrgId, { skipActivityLog: true });
+              }
+              await storageApi.removeDefaultSuppliersAndContacts(user.uid);
+              await storageApi.seedUserDatabaseIfEmpty(user.uid);
+            } catch (bgError) {
+              console.error("Background initialization error", bgError);
             }
-            await storageApi.removeDefaultSuppliersAndContacts(user.uid);
-            await storageApi.seedUserDatabaseIfEmpty(user.uid);
-          } catch (seedingError) {
-            console.error("Seeding failed for user", user.uid, seedingError);
-          }
+          })();
+          return;
         }
-        setInitializing(false);
       } else {
         // Not authenticated
         if (isSharedLink) {

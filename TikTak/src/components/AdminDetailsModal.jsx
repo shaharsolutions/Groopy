@@ -622,7 +622,7 @@ export default function AdminDetailsModal({
           text: item.text || '',
           completed: Boolean(item.completed),
           createdAt: item.createdAt || task?.createdAt || new Date().toISOString(),
-          completedAt: item.completedAt || null
+          completedAt: item.completedAt || (item.completed ? (item.createdAt || task?.createdAt || new Date().toISOString()) : null)
         };
       })
       .filter(item => item.text.trim());
@@ -1838,9 +1838,9 @@ export default function AdminDetailsModal({
                             <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
                               {item.text}
                             </span>
-                            {item.completed && item.completedAt && (
-                              <span className="subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt)}`}>
-                                הושלם ב-{formatDate(item.completedAt)}
+                            {item.completed && (
+                              <span className="subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.createdAt || task?.createdAt)}`}>
+                                הושלם ב-{formatDate(item.completedAt || item.createdAt || task?.createdAt)}
                               </span>
                             )}
                           </label>
@@ -2225,6 +2225,11 @@ export default function AdminDetailsModal({
                           );
                         })}
                       </div>
+                      {(quickStatus === 'אושר לספק' || quickStatus === 'ארכיון' || task?.completedAt) && (
+                        <div className="task-completed-date-badge" style={{ marginTop: '8px', textAlign: 'center' }}>
+                          הושלם ב-{formatDate(task?.completedAt || task?.updatedAt)}
+                        </div>
+                      )}
                     </div>
 
                     {/* Diecuts Status */}

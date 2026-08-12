@@ -49,7 +49,7 @@ const normalizeProjectSubtasks = (task) => {
         text: item.text || '',
         completed: Boolean(item.completed),
         createdAt: item.createdAt || task.createdAt || '',
-        completedAt: item.completedAt || null
+        completedAt: item.completedAt || (item.completed ? (item.updatedAt || task.updatedAt || task.createdAt) : null)
       };
     })
     .filter(item => item.text.trim());
@@ -228,25 +228,32 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         updateTask,
         getTasks
       } = await getStorageApi();
-      await purgeExpiredTasks(userId);
+
+      // Fetch main tasks IMMEDIATELY in parallel for fast loading
+      const tasksPromise = getTasks(userId);
+
+      // Run background maintenance tasks asynchronously
+      purgeExpiredTasks(userId).catch(err => console.error("Purge error", err));
       const archiveRunKey = `${userId}:${autoArchiveInactiveDays}`;
       if (autoArchiveRunKey.current !== archiveRunKey) {
         autoArchiveRunKey.current = archiveRunKey;
-        await autoArchiveInactiveTasks(userId, autoArchiveInactiveDays);
+        autoArchiveInactiveTasks(userId, autoArchiveInactiveDays).catch(err => console.error("AutoArchive error", err));
       }
       const pendingStatuses = readPendingStatuses();
-      await Promise.all(Object.entries(pendingStatuses).map(async ([taskId, status]) => {
-        try {
-          await updateTask(taskId, { status });
-          clearPendingStatus(taskId, status);
-        } catch (err) {
-          console.error(`Failed to restore pending status for task ${taskId}`, err);
-        }
-      }));
+      if (Object.keys(pendingStatuses).length > 0) {
+        Promise.all(Object.entries(pendingStatuses).map(async ([taskId, status]) => {
+          try {
+            await updateTask(taskId, { status });
+            clearPendingStatus(taskId, status);
+          } catch (err) {
+            console.error(`Failed to restore pending status for task ${taskId}`, err);
+          }
+        })).catch(err => console.error(err));
+      }
 
-      const fetchedTasks = await getTasks(userId);
+      const fetchedTasks = await tasksPromise;
       setTasks(fetchedTasks);
-      await loadTrash();
+      loadTrash().catch(err => console.error(err));
 
       const params = new URLSearchParams(window.location.search);
       const urlTaskId = params.get('taskId');
@@ -452,6 +459,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
   const handleStatusChange = async (taskId, newStatus) => {
     const changedAt = new Date().toISOString();
+    const isCompleted = newStatus === 'אושר לספק' || newStatus === 'ארכיון';
+    const targetTask = tasks.find(t => t.id === taskId);
+    const completedAt = isCompleted ? (targetTask?.completedAt || changedAt) : null;
+
     const requestId = (statusChangeSeq.current[taskId] || 0) + 1;
     statusChangeSeq.current[taskId] = requestId;
     rememberPendingStatus(taskId, newStatus);
@@ -459,11 +470,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
     try {
       const { updateTask } = await getStorageApi();
-      await updateTask(taskId, { status: newStatus });
+      await updateTask(taskId, { status: newStatus, completedAt });
       if (statusChangeSeq.current[taskId] !== requestId) return false;
 
       // Show the new value only after Firestore confirms the write.
-      applyTaskPatch(taskId, { status: newStatus, updatedAt: changedAt });
+      applyTaskPatch(taskId, { status: newStatus, completedAt, updatedAt: changedAt });
       clearPendingStatus(taskId, newStatus);
       return true;
     } catch (err) {
@@ -858,9 +869,9 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     onChange={() => handleToggleProjectSubtask(item.taskId, item.id)}
                   />
                   <span>{item.text}</span>
-                  {item.completed && item.completedAt && (
-                    <span className="dashboard-subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt)}`}>
-                      הושלם ב-{formatDate(item.completedAt)}
+                  {item.completed && (
+                    <span className="dashboard-subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.updatedAt || item.createdAt)}`}>
+                      הושלם ב-{formatDate(item.completedAt || item.updatedAt || item.createdAt)}
                     </span>
                   )}
                 </label>
@@ -1047,6 +1058,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                           onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
                           disabled={savingStatusIds.has(task.id)}
                         />
+                        {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                          <div className="task-completed-date-badge">
+                            הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
+                          </div>
+                        )}
                       </td>
                       <td>{formatDate(task.updatedAt)}</td>
                       <td>
@@ -1123,6 +1139,12 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                       <span className="meta-label">עודכן ב</span>
                       <span className="meta-value">{formatDate(task.updatedAt)}</span>
                     </div>
+                    {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                      <div className="meta-item">
+                        <span className="meta-label">תאריך השלמה</span>
+                        <span className="meta-value completed-date-highlight">{formatDate(task.completedAt || task.updatedAt)}</span>
+                      </div>
+                    )}
                     <div className="meta-item">
                       <span className="meta-label">טלפון</span>
                       <span className="meta-value">

@@ -25,6 +25,7 @@ import {
 } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { INITIAL_TASKS, INITIAL_COMMENTS } from '../data/mockData';
+import { APP_VERSIONS, DEFAULT_APP_VERSION } from './featureFlags';
 
 const assertSystemManagerSession = () => {
   const user = auth.currentUser;
@@ -199,9 +200,9 @@ const recordActivity = async ({
 };
 
 const FIELD_LABELS = {
-  title: 'שם עבודה',
+  title: 'שם פרויקט',
   description: 'תיאור',
-  workType: 'סוג עבודה',
+  workType: 'סוג פרויקט',
   storeName: 'חנות',
   supplierName: 'ספק',
   contactPerson: 'איש קשר',
@@ -218,6 +219,7 @@ const FIELD_LABELS = {
   workOrderFiles: 'קבצים',
   subtasks: 'תתי משימות',
   attachments: 'קבצים מצורפים',
+  boardId: 'לוח',
   internalNotes: 'הערות פנימיות',
   weeklyHours: 'שעות עבודה'
 };
@@ -286,8 +288,9 @@ const singleFieldWorkUpdatePattern = new RegExp(`^(${workUpdateFieldLabelsPatter
 const isSystemWorkUpdateComment = (comment = {}) => {
   const text = String(comment.text || '').trim();
   return (
+    text.startsWith('עודכנו פרטי פרויקט:') ||
     text.startsWith('עודכנו פרטי עבודה:') ||
-    /^סטטוס העבודה השתנה מ-[\s\S]+ ל-[\s\S]+$/.test(text) ||
+    /^סטטוס (הפרויקט|העבודה) השתנה מ-[\s\S]+ ל-[\s\S]+$/.test(text) ||
     singleFieldWorkUpdatePattern.test(text)
   );
 };
@@ -535,7 +538,7 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
       targetId: docRef.id,
       targetLabel: resolvedAuthorName,
       targetUserId: userId,
-      details: `תגובה נוספה לעבודה "${taskName}"`,
+      details: `תגובה נוספה לפרויקט "${taskName}"`,
       metadata: { jobId, hasAttachment: Boolean(attachmentUrl) }
     });
 
@@ -584,7 +587,7 @@ export const deleteComment = async (commentId, jobId = null) => {
       targetId: commentId,
       targetLabel: commentData.authorName || '',
       targetUserId: commentData.userId || '',
-      details: finalJobId ? `תגובה נמחקה מהעבודה "${taskName}"` : 'תגובה נמחקה',
+      details: finalJobId ? `תגובה נמחקה מהפרויקט "${taskName}"` : 'תגובה נמחקה',
       metadata: { jobId: finalJobId || commentData.jobId || '' }
     });
     if (jobId) {
@@ -644,12 +647,12 @@ export const createTask = async (taskData, userId, options = {}) => {
     if (!options.skipActivityLog) {
       await recordActivity({
         action: 'task.created',
-        actionLabel: 'יצירת עבודה',
+        actionLabel: 'יצירת פרויקט',
         targetType: 'task',
         targetId: docRef.id,
         targetLabel: newTask.title || newTask.jobNumber || '',
         targetUserId: userId,
-        details: `נוצרה עבודה חדשה ${newTask.jobNumber || ''}`.trim(),
+        details: `נוצר פרויקט חדש ${newTask.jobNumber || ''}`.trim(),
         metadata: { jobNumber, status: newTask.status || '' }
       });
     }
@@ -724,7 +727,7 @@ export const updateTask = async (taskId, updatedData) => {
         : '';
       await recordActivity({
         action: isStatusOnly ? 'task.status_changed' : 'task.updated',
-        actionLabel: isStatusOnly ? 'שינוי סטטוס' : 'עדכון עבודה',
+        actionLabel: isStatusOnly ? 'שינוי סטטוס' : 'עדכון פרויקט',
         targetType: 'task',
         targetId: taskId,
         targetLabel: docSnap.exists() ? (docSnap.data().title || docSnap.data().jobNumber || '') : '',
@@ -768,7 +771,7 @@ export const deleteTask = async (taskId) => {
       targetId: taskId,
       targetLabel: taskData.title || taskData.jobNumber || '',
       targetUserId: taskData.userId || '',
-      details: 'העבודה הועברה לפח האשפה ל-30 יום',
+      details: 'הפרויקט הועבר לפח האשפה ל-30 יום',
       metadata: { expiresAt: expiresAt.toISOString() }
     });
     return true;
@@ -790,12 +793,12 @@ export const restoreTask = async (taskId) => {
     });
     await recordActivity({
       action: 'task.restored',
-      actionLabel: 'שחזור עבודה',
+      actionLabel: 'שחזור פרויקט',
       targetType: 'task',
       targetId: taskId,
       targetLabel: taskData.title || taskData.jobNumber || '',
       targetUserId: taskData.userId || '',
-      details: 'העבודה שוחזרה מפח האשפה',
+      details: 'הפרויקט שוחזר מפח האשפה',
       metadata: {}
     });
     return true;
@@ -825,7 +828,7 @@ export const permanentlyDeleteTask = async (taskId) => {
       targetId: taskId,
       targetLabel: taskData.title || taskData.jobNumber || '',
       targetUserId: taskData.userId || '',
-      details: 'העבודה והמידע המשויך נמחקו לצמיתות',
+      details: 'הפרויקט והמידע המשויך נמחקו לצמיתות',
       metadata: {}
     });
     return true;
@@ -889,7 +892,7 @@ export const autoArchiveInactiveTasks = async (userId, inactiveDays = DEFAULT_AU
       targetId: task.id,
       targetLabel: task.title || task.jobNumber || '',
       targetUserId: task.userId || userId,
-      details: `העבודה הועברה לארכיון לאחר ${days} ימים ללא עדכון`,
+      details: `הפרויקט הועבר לארכיון לאחר ${days} ימים ללא עדכון`,
       metadata: {
         previousStatus: task.status || '',
         archivedAfterDays: days,
@@ -924,6 +927,16 @@ export const saveGlobalSettings = async (settingsData, userId, options = {}) => 
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, userId);
     await setDoc(docRef, { ...settingsData, organizationId: userId });
+    if (settingsData.appVersion) {
+      try {
+        await updateDoc(doc(db, 'organizations', userId), {
+          appVersion: settingsData.appVersion,
+          updatedAt: new Date().toISOString()
+        });
+      } catch {
+        // Compatibility registry or fallback
+      }
+    }
     if (!options.skipActivityLog) {
       await recordActivity({
         action: 'settings.updated',
@@ -1497,11 +1510,22 @@ export const getOrganizations = async () => {
     [DEFAULT_ORGANIZATION_ID, {
       id: DEFAULT_ORGANIZATION_ID,
       name: DEFAULT_ORGANIZATION_NAME,
-      active: true
+      active: true,
+      appVersion: DEFAULT_APP_VERSION
     }]
   ]);
-  registryOrganizations.forEach(organization => organizationsById.set(organization.id, organization));
-  collectionOrganizations.forEach(organization => organizationsById.set(organization.id, organization));
+  registryOrganizations.forEach(organization => {
+    organizationsById.set(organization.id, {
+      appVersion: DEFAULT_APP_VERSION,
+      ...organization
+    });
+  });
+  collectionOrganizations.forEach(organization => {
+    organizationsById.set(organization.id, {
+      appVersion: DEFAULT_APP_VERSION,
+      ...organization
+    });
+  });
 
   const organizations = [...organizationsById.values()];
   for (const organization of organizations) {
@@ -1516,7 +1540,7 @@ export const getOrganizations = async () => {
   return organizations.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
 };
 
-export const createOrganization = async (name) => {
+export const createOrganization = async (name, options = {}) => {
   assertSystemManagerSession();
   const normalizedName = String(name || '').trim();
   if (!normalizedName) throw new Error('יש להזין שם ארגון');
@@ -1525,10 +1549,15 @@ export const createOrganization = async (name) => {
     id: organizationRef.id,
     name: normalizedName,
     active: true,
+    appVersion: options.appVersion || DEFAULT_APP_VERSION,
     createdAt: new Date().toISOString()
   };
   try {
     await setDoc(organizationRef, organization);
+    await setDoc(doc(db, 'settings', organization.id), {
+      appVersion: organization.appVersion,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
   } catch (error) {
     console.warn('Saving organization in compatibility registry', error);
     const organizations = await getOrganizations();
@@ -1549,12 +1578,24 @@ export const updateOrganization = async (organizationId, updates = {}) => {
   if (Object.prototype.hasOwnProperty.call(updates, 'active')) {
     allowedUpdates.active = Boolean(updates.active);
   }
+  if (Object.prototype.hasOwnProperty.call(updates, 'appVersion')) {
+    const validVersions = Object.values(APP_VERSIONS);
+    if (validVersions.includes(updates.appVersion)) {
+      allowedUpdates.appVersion = updates.appVersion;
+    }
+  }
   if (Object.keys(allowedUpdates).length === 0) return true;
   try {
     await updateDoc(doc(db, 'organizations', organizationId), {
       ...allowedUpdates,
       updatedAt: new Date().toISOString()
     });
+    if (allowedUpdates.appVersion) {
+      await setDoc(doc(db, 'settings', organizationId), {
+        appVersion: allowedUpdates.appVersion,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
   } catch (error) {
     console.warn('Updating organization in compatibility registry', error);
     const organizations = await getOrganizations();

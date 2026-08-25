@@ -1,4 +1,6 @@
 import { useCallback, useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
+import { getBoardStatusConfig } from '../utils/boardStatusHelper';
+import { getFeatureFlags } from '../utils/featureFlags';
 
 const AdminDetailsModal = lazy(() => import('../components/AdminDetailsModal'));
 import StatusPicker from '../components/StatusPicker';
@@ -8,6 +10,7 @@ const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
 const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
 const SORT_MODES = new Set(['manual', 'updatedAt', 'status', 'title', 'contactPerson']);
 const COMPLETED_SUBTASK_VISIBILITY_MS = 3000;
+const PRESET_BOARD_ICONS = ['📁', '📋', '🏷️', '🚀', '🎨', '📦', '⚡', '🎯', '📊', '⭐️', '✨', '💼', '📌', '🛠️', '🖨️'];
 let storageApiPromise = null;
 
 const loadStorageApi = () => {
@@ -124,14 +127,27 @@ const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
 
 export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, organizationId, autoOpenTaskId, onClearAutoOpen }) {
   const {
-    statuses: STATUSES = [],
-    statusColors: STATUS_CLASSES = {},
     autoArchiveInactiveDays = 45
   } = settings || {};
   const [tasks, setTasks] = useState([]);
   const [trashedTasks, setTrashedTasks] = useState([]);
   const [workspaceView, setWorkspaceView] = useState('active');
   const [restoringTaskId, setRestoringTaskId] = useState(null);
+
+  // Status configuration for currently active workspace/board
+  const currentBoardStatusConfig = useMemo(() => (
+    getBoardStatusConfig(settings, workspaceView)
+  ), [settings, workspaceView]);
+  const STATUSES = currentBoardStatusConfig.statuses;
+  const STATUS_CLASSES = currentBoardStatusConfig.statusColors;
+
+  // Custom Boards State
+  const customBoards = useMemo(() => (Array.isArray(settings?.boards) ? settings.boards : []).filter(b => b && b.id !== 'active'), [settings?.boards]);
+  const [isAddBoardModalOpen, setIsAddBoardModalOpen] = useState(false);
+  const [newBoardName, setNewBoardName] = useState('');
+  const [newBoardIcon, setNewBoardIcon] = useState('📁');
+  const [editingBoard, setEditingBoard] = useState(null);
+  const [activeBoardMenuId, setActiveBoardMenuId] = useState(null);
 
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,6 +157,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [savingStatusIds, setSavingStatusIds] = useState(() => new Set());
   const [recentlyCompletedSubtaskKeys, setRecentlyCompletedSubtaskKeys] = useState(() => new Set());
   const [showCompletedThisWeekSubtasks, setShowCompletedThisWeekSubtasks] = useState(false);
+
+  // Reset status filter when switching boards
+  useEffect(() => {
+    setStatusFilter('');
+  }, [workspaceView]);
   const statusChangeSeq = useRef({});
   const autoArchiveRunKey = useRef('');
   const completedSubtaskTimers = useRef({});
@@ -186,6 +207,113 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       completedSubtaskTimers.current = {};
     };
   }, []);
+
+  // Close board dropdown menus when clicking elsewhere
+  useEffect(() => {
+    const handleDocClick = () => setActiveBoardMenuId(null);
+    if (activeBoardMenuId) {
+      window.addEventListener('click', handleDocClick);
+    }
+    return () => window.removeEventListener('click', handleDocClick);
+  }, [activeBoardMenuId]);
+
+  const handleAddBoard = async (e) => {
+    e?.preventDefault();
+    const nameTrimmed = newBoardName.trim();
+    if (!nameTrimmed) return;
+
+    const newBoard = {
+      id: 'board_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+      name: nameTrimmed,
+      icon: newBoardIcon || '📁',
+      createdAt: new Date().toISOString()
+    };
+
+    const currentBoards = Array.isArray(settings?.boards) ? settings.boards : [];
+    const updatedBoards = [...currentBoards.filter(b => b && b.id !== newBoard.id && b.id !== 'active'), newBoard];
+
+    try {
+      await onSaveSettings({
+        ...settings,
+        boards: updatedBoards
+      });
+      setNewBoardName('');
+      setNewBoardIcon('📁');
+      setIsAddBoardModalOpen(false);
+      setWorkspaceView(newBoard.id);
+    } catch (err) {
+      console.error('Failed to create new board', err);
+      alert('שגיאה ביצירת הלוח. נסי שוב.');
+    }
+  };
+
+  const handleSaveEditedBoard = async (e) => {
+    e?.preventDefault();
+    if (!editingBoard || !editingBoard.name.trim()) return;
+
+    if (editingBoard.id === 'active') {
+      try {
+        await onSaveSettings({
+          ...settings,
+          boardTitle: editingBoard.name.trim(),
+          boardIcon: editingBoard.icon || '📋'
+        });
+        setEditingBoard(null);
+      } catch (err) {
+        console.error('Failed to update default board', err);
+        alert('שגיאה בעדכון הלוח. נסי שוב.');
+      }
+      return;
+    }
+
+    const currentBoards = Array.isArray(settings?.boards) ? settings.boards : [];
+    const updatedBoards = currentBoards.map(b => (b.id === editingBoard.id ? { ...b, name: editingBoard.name.trim(), icon: editingBoard.icon || '📁' } : b));
+
+    try {
+      await onSaveSettings({
+        ...settings,
+        boards: updatedBoards
+      });
+      setEditingBoard(null);
+    } catch (err) {
+      console.error('Failed to update board', err);
+      alert('שגיאה בעדכון הלוח. נסי שוב.');
+    }
+  };
+
+  const handleDeleteBoard = async (boardId) => {
+    const currentBoards = Array.isArray(settings?.boards) ? settings.boards : [];
+    const targetBoard = currentBoards.find(b => b.id === boardId);
+    if (!targetBoard) return;
+
+    const defaultBoardName = settings?.boardTitle || 'פרויקטים פעילים';
+    if (!window.confirm(`האם את בטוחה שברצונך למחוק את הלוח "${targetBoard.name}"?\nכל הפרויקטים בלוח זה יועברו אוטומטית ללוח "${defaultBoardName}".`)) {
+      return;
+    }
+
+    try {
+      const tasksOnBoard = tasks.filter(t => t.boardId === boardId);
+      if (tasksOnBoard.length > 0) {
+        const { updateTask } = await getStorageApi();
+        await Promise.all(tasksOnBoard.map(t => updateTask(t.id, { boardId: 'active' })));
+        setTasks(prev => prev.map(t => t.boardId === boardId ? { ...t, boardId: 'active' } : t));
+      }
+
+      const updatedBoards = currentBoards.filter(b => b.id !== boardId);
+      await onSaveSettings({
+        ...settings,
+        boards: updatedBoards
+      });
+
+      setActiveBoardMenuId(null);
+      if (workspaceView === boardId) {
+        setWorkspaceView('active');
+      }
+    } catch (err) {
+      console.error('Failed to delete board', err);
+      alert('שגיאה במחיקת הלוח. נסי שוב.');
+    }
+  };
 
   const loadTasks = useCallback(async () => {
     const { getTasks } = await getStorageApi();
@@ -260,6 +388,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       if (urlTaskId) {
         const taskToOpen = fetchedTasks.find(t => t.id === urlTaskId);
         if (taskToOpen) {
+          if (taskToOpen.boardId && taskToOpen.boardId !== 'active') {
+            setWorkspaceView(taskToOpen.boardId);
+          } else {
+            setWorkspaceView('active');
+          }
           setViewingTask(taskToOpen);
         }
       }
@@ -273,6 +406,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       const taskToOpen = tasks.find(t => t.id === autoOpenTaskId);
       if (taskToOpen) {
         queueMicrotask(() => {
+          if (taskToOpen.boardId && taskToOpen.boardId !== 'active') {
+            setWorkspaceView(taskToOpen.boardId);
+          } else {
+            setWorkspaceView('active');
+          }
           setViewingTask(taskToOpen);
           if (onClearAutoOpen) onClearAutoOpen();
         });
@@ -280,9 +418,34 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     }
   }, [autoOpenTaskId, tasks, onClearAutoOpen]);
 
+  // Tasks in the currently active board view
+  const currentBoardTasks = useMemo(() => {
+    if (workspaceView === 'trash') return [];
+    if (workspaceView === 'active') {
+      return tasks.filter(t => !t.boardId || t.boardId === 'active');
+    }
+    return tasks.filter(t => t.boardId === workspaceView);
+  }, [tasks, workspaceView]);
+
+  const activeBoardTasksCount = useMemo(() => (
+    tasks.filter(t => !t.boardId || t.boardId === 'active').length
+  ), [tasks]);
+
+  const flags = getFeatureFlags(settings);
+
+  const defaultBoardName = settings?.boardTitle || (flags.isLegacy ? 'עבודות פעילות' : 'פרויקטים פעילים');
+  const defaultBoardIcon = settings?.boardIcon || (flags.isLegacy ? '📁' : '📋');
+
+  const currentBoardName = useMemo(() => {
+    if (workspaceView === 'trash') return '🗑️ פח אשפה';
+    if (workspaceView === 'active') return `${defaultBoardIcon} ${defaultBoardName}`;
+    const custom = customBoards.find(b => b.id === workspaceView);
+    return custom ? `${custom.icon ? custom.icon + ' ' : ''}${custom.name}` : `${defaultBoardIcon} ${defaultBoardName}`;
+  }, [workspaceView, defaultBoardName, defaultBoardIcon, customBoards]);
+
   // Filter and sort tasks whenever data or controls change
   const filteredTasks = useMemo(() => {
-    let result = [...tasks];
+    let result = [...currentBoardTasks];
 
     // Search query filter ( title, contactPerson )
     if (searchQuery.trim()) {
@@ -318,15 +481,15 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     }
 
     return result;
-  }, [tasks, searchQuery, statusFilter, sortMode, sortDirection, STATUSES]);
+  }, [currentBoardTasks, searchQuery, statusFilter, sortMode, sortDirection, STATUSES]);
 
   const statusCounts = useMemo(() => {
     const counts = new Map();
-    tasks.forEach(task => {
+    currentBoardTasks.forEach(task => {
       counts.set(task.status, (counts.get(task.status) || 0) + 1);
     });
     return counts;
-  }, [tasks]);
+  }, [currentBoardTasks]);
 
   const contactsByName = useMemo(() => {
     const map = new Map();
@@ -338,7 +501,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   }, [contacts]);
 
   const allProjectSubtasks = useMemo(() => {
-    return tasks
+    return currentBoardTasks
       .flatMap(task => normalizeProjectSubtasks(task).map(subtask => ({
         ...subtask,
         taskId: task.id,
@@ -494,20 +657,25 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   };
 
   const handleSaveTask = async (taskData) => {
-    if (viewingTask) {
-      // Edit mode
-      const { updateTask, getTasks } = await getStorageApi();
-      await updateTask(viewingTask.id, taskData);
-      const allTasks = await getTasks(userId);
-      const updated = allTasks.find(t => t.id === viewingTask.id);
-      setViewingTask(updated || null);
-    } else {
-      // Create mode
-      const { createTask } = await getStorageApi();
-      await createTask(taskData, userId);
-      setIsCreateOpen(false);
+    try {
+      if (viewingTask) {
+        // Edit mode
+        const { updateTask, getTasks } = await getStorageApi();
+        await updateTask(viewingTask.id, taskData);
+        const allTasks = await getTasks(userId);
+        const updated = allTasks.find(t => t.id === viewingTask.id);
+        setViewingTask(updated || null);
+      } else {
+        // Create mode
+        const { createTask } = await getStorageApi();
+        await createTask(taskData, userId);
+        setIsCreateOpen(false);
+      }
+      await loadTasks();
+    } catch (err) {
+      console.error('Error saving task:', err);
+      alert('שגיאה בשמירת הפרויקט: ' + (err?.message || 'אנא נסי שוב'));
     }
-    await loadTasks();
   };
 
   const handleCellClick = (task, e) => {
@@ -553,7 +721,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
     // Validation
     if (field === 'title' && !trimmedVal) {
-      alert('שם העבודה הוא שדה חובה');
+      alert('שם הפרויקט הוא שדה חובה');
       return;
     }
 
@@ -656,38 +824,176 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       {/* Upper Actions Panel */}
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>{settings?.boardTitle || 'לוח עבודות'}</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>{currentBoardName}</h2>
         </div>
-        {workspaceView === 'active' && <button
-          className="btn btn-primary"
-          onClick={() => {
-            setViewingTask(null);
-            setStartInEditMode(false);
-            setIsCreateOpen(true);
-          }}
-        >
-          ➕ עבודה חדשה
-        </button>}
+        {workspaceView !== 'trash' && (
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              setViewingTask(null);
+              setStartInEditMode(false);
+              setIsCreateOpen(true);
+            }}
+          >
+            ➕ {flags.terms.createItem}
+          </button>
+        )}
       </div>
 
-      <div className="workspace-view-switcher" role="tablist" aria-label="בחירת תצוגת פרויקטים">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={workspaceView === 'active'}
-          className={`workspace-view-button ${workspaceView === 'active' ? 'active' : ''}`}
-          onClick={() => setWorkspaceView('active')}
-        >
-          📋 פרויקטים פעילים <span>{tasks.length}</span>
-        </button>
+      <div className="workspace-view-switcher" role="tablist" aria-label={`בחירת תצוגת ${flags.terms.items}`}>
+        <div className="workspace-boards-tabs-group">
+          {/* Default Active Board */}
+          <div className="workspace-board-tab-item">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={workspaceView === 'active'}
+              className={`workspace-view-button ${workspaceView === 'active' ? 'active' : ''}`}
+              onClick={() => setWorkspaceView('active')}
+            >
+              <span className="workspace-tab-label">{defaultBoardIcon} {defaultBoardName}</span>
+              <span className="workspace-view-count">{activeBoardTasksCount}</span>
+              {flags.enableCustomBoards && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="workspace-board-settings-trigger"
+                  title="אפשרויות לוח"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveBoardMenuId(activeBoardMenuId === 'active' ? null : 'active');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setActiveBoardMenuId(activeBoardMenuId === 'active' ? null : 'active');
+                    }
+                  }}
+                >
+                  ⚙️
+                </span>
+              )}
+            </button>
+
+            {flags.enableCustomBoards && activeBoardMenuId === 'active' && (
+              <div className="workspace-board-dropdown" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="workspace-board-dropdown-item"
+                  onClick={() => {
+                    setActiveBoardMenuId(null);
+                    setEditingBoard({
+                      id: 'active',
+                      name: defaultBoardName,
+                      icon: defaultBoardIcon
+                    });
+                  }}
+                >
+                  ✏️ עריכת לוח
+                </button>
+                <button
+                  type="button"
+                  className="workspace-board-dropdown-item"
+                  onClick={() => {
+                    setActiveBoardMenuId(null);
+                    onNavigate('settings');
+                  }}
+                >
+                  🔄 ניהול סטטוסים
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Custom Boards (v2 only) */}
+          {flags.enableCustomBoards && customBoards.map(board => {
+            const count = tasks.filter(t => t.boardId === board.id).length;
+            const isActive = workspaceView === board.id;
+            return (
+              <div key={board.id} className="workspace-board-tab-item">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`workspace-view-button ${isActive ? 'active' : ''}`}
+                  onClick={() => setWorkspaceView(board.id)}
+                >
+                  <span className="workspace-tab-label">{board.icon || '📁'} {board.name}</span>
+                  <span className="workspace-view-count">{count}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="workspace-board-settings-trigger"
+                    title="אפשרויות לוח"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveBoardMenuId(activeBoardMenuId === board.id ? null : board.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setActiveBoardMenuId(activeBoardMenuId === board.id ? null : board.id);
+                      }
+                    }}
+                  >
+                    ⚙️
+                  </span>
+                </button>
+
+                {activeBoardMenuId === board.id && (
+                  <div className="workspace-board-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="workspace-board-dropdown-item"
+                      onClick={() => {
+                        setActiveBoardMenuId(null);
+                        setEditingBoard({ ...board });
+                      }}
+                    >
+                      ✏️ עריכת שם ואייקון
+                    </button>
+                    <button
+                      type="button"
+                      className="workspace-board-dropdown-item danger"
+                      onClick={() => handleDeleteBoard(board.id)}
+                    >
+                      🗑️ מחיקת לוח
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Add Board Button (v2 only) */}
+          {flags.enableCustomBoards && (
+            <button
+              type="button"
+              className="workspace-add-board-button"
+              onClick={() => {
+                setNewBoardName('');
+                setNewBoardIcon('📁');
+                setIsAddBoardModalOpen(true);
+              }}
+              title="יצירת לוח חדש"
+            >
+              ➕ לוח חדש
+            </button>
+          )}
+        </div>
+
+        {/* Trash Tab - Always pinned at the far end */}
         <button
           type="button"
           role="tab"
           aria-selected={workspaceView === 'trash'}
-          className={`workspace-view-button ${workspaceView === 'trash' ? 'active' : ''}`}
+          className={`workspace-view-button workspace-view-trash-button ${workspaceView === 'trash' ? 'active' : ''}`}
           onClick={() => setWorkspaceView('trash')}
         >
-          🗑️ פח אשפה <span>{trashedTasks.length}</span>
+          <span className="workspace-tab-label">🗑️ פח אשפה</span>
+          <span className="workspace-view-count">{trashedTasks.length}</span>
         </button>
       </div>
 
@@ -696,7 +1002,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           <div className="trash-panel-header">
             <div>
               <h3 id="trash-title">פח אשפה</h3>
-              <p>פרויקטים שנמחקו נשמרים כאן למשך 30 יום וניתנים לשחזור.</p>
+              <p>{flags.terms.items} שנמחקו נשמרים כאן למשך 30 יום וניתנים לשחזור.</p>
             </div>
           </div>
 
@@ -704,7 +1010,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             <div className="empty-state">
               <div className="empty-state-icon">🗑️</div>
               <div className="empty-state-title">פח האשפה ריק</div>
-              <div className="empty-state-text">פרויקטים שתמחקי יופיעו כאן למשך 30 יום.</div>
+              <div className="empty-state-text">{flags.terms.items} שתמחקי יופיעו כאן למשך 30 יום.</div>
             </div>
           ) : (
             <div className="trash-list">
@@ -715,7 +1021,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     <div className="trash-item-main">
                       <h4>{task.title}</h4>
                       <div className="trash-item-meta">
-                        <span>{task.jobNumber || 'ללא מספר עבודה'}</span>
+                        <span>{task.jobNumber || `ללא מספר ${flags.terms.item}`}</span>
                         <span>נמחק ב־{formatDate(task.deletedAt)}</span>
                         <span className={daysRemaining <= 3 ? 'trash-expiry urgent' : 'trash-expiry'}>
                           {daysRemaining === 0 ? 'יימחק לצמיתות היום' : `יימחק לצמיתות בעוד ${daysRemaining} ימים`}
@@ -728,7 +1034,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                       disabled={restoringTaskId === task.id}
                       onClick={() => handleRestoreTask(task.id)}
                     >
-                      {restoringTaskId === task.id ? 'משחזר...' : '↩ שחזור פרויקט'}
+                      {restoringTaskId === task.id ? 'משחזר...' : `↩ שחזור ${flags.terms.item}`}
                     </button>
                   </article>
                 );
@@ -792,7 +1098,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               <option value="manual">סדר קבוע</option>
               <option value="updatedAt">עודכן לאחרונה</option>
               <option value="status">לפי סטטוס</option>
-              <option value="title">שם עבודה</option>
+              <option value="title">שם ה{flags.terms.item}</option>
               <option value="contactPerson">איש קשר אצל הספק</option>
             </select>
           </div>
@@ -801,7 +1107,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         {/* Filter Summary and Clear Trigger */}
         <div className="filter-summary" style={{ marginTop: '16px' }}>
           <div>
-            מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> עבודות בסך הכל
+            מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> {flags.terms.items} בסך הכל
           </div>
           {(searchQuery || statusFilter || sortMode !== 'manual') && (
             <button
@@ -853,7 +1159,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           <div className="dashboard-subtasks-empty">
             {allProjectSubtasks.length > 0
               ? 'כל המשימות בפרויקטים סומנו כבוצעו.'
-              : 'הוסיפי משימות מתוך אזור הערות ועדכוני עבודה בפרויקט, והן יופיעו כאן.'}
+              : 'הוסיפי משימות מתוך אזור הערות ועדכוני פרויקט, והן יופיעו כאן.'}
           </div>
         ) : (
           <div className="dashboard-subtasks-list">
@@ -898,8 +1204,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       {tasks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📂</div>
-          <div className="empty-state-title">אין עבודות במערכת עדיין</div>
-          <div className="empty-state-text">לחצי על הכפתור למטה כדי ליצור את עבודת הגרפיקה הראשונה במערכת!</div>
+          <div className="empty-state-title">אין פרויקטים במערכת עדיין</div>
+          <div className="empty-state-text">לחצי על הכפתור למטה כדי ליצור את פרויקט הגרפיקה הראשון במערכת!</div>
           <button
             className="btn btn-primary"
             style={{ marginTop: '16px' }}
@@ -909,13 +1215,13 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               setIsCreateOpen(true);
             }}
           >
-            ➕ יצירת העבודה הראשונה
+            ➕ יצירת הפרויקט הראשון
           </button>
         </div>
       ) : filteredTasks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🔍</div>
-          <div className="empty-state-title">לא נמצאו עבודות מתאימות</div>
+          <div className="empty-state-title">לא נמצאו פרויקטים מתאימים</div>
           <div className="empty-state-text">נסו לשנות או לאפס את תנאי הסינון כדי לראות את שאר המשימות.</div>
           <button
             className="btn btn-secondary"
@@ -935,7 +1241,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             <table className="task-table">
               <thead>
                 <tr>
-                  {renderSortableHeader('title', 'שם העבודה')}
+                  {renderSortableHeader('title', 'שם הפרויקט')}
                   {renderSortableHeader('contactPerson', 'איש קשר אצל הספק')}
                   <th>טלפון</th>
                   <th>אימייל</th>
@@ -1053,20 +1359,25 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         )}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                          <StatusPicker
-                            currentStatus={task.status}
-                            statuses={STATUSES}
-                            statusColors={STATUS_CLASSES}
-                            onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
-                            disabled={savingStatusIds.has(task.id)}
-                          />
-                          {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
-                            <div className="task-completed-date-badge">
-                              הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
+                        {(() => {
+                          const taskStatusConfig = getBoardStatusConfig(settings, task.boardId);
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                              <StatusPicker
+                                currentStatus={task.status}
+                                statuses={taskStatusConfig.statuses}
+                                statusColors={taskStatusConfig.statusColors}
+                                onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                                disabled={savingStatusIds.has(task.id)}
+                              />
+                              {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                                <div className="task-completed-date-badge">
+                                  הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          );
+                        })()}
                       </td>
                       <td>{formatDate(task.updatedAt)}</td>
                       <td>
@@ -1113,6 +1424,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
               const phone = contact ? contact.phone : '';
               const email = task.supplierContactEmail || (contact ? contact.email : '');
+              const taskStatusConfig = getBoardStatusConfig(settings, task.boardId);
 
               return (
                 <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
@@ -1128,8 +1440,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                       <StatusPicker
                         currentStatus={task.status}
-                        statuses={STATUSES}
-                        statusColors={STATUS_CLASSES}
+                        statuses={taskStatusConfig.statuses}
+                        statusColors={taskStatusConfig.statusColors}
                         onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
                         disabled={savingStatusIds.has(task.id)}
                       />
@@ -1209,6 +1521,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             contacts={contacts}
             onSaveSettings={onSaveSettings}
             startInEditMode={startInEditMode}
+            initialBoardId={workspaceView === 'trash' ? 'active' : workspaceView}
             onClose={() => {
               setViewingTask(null);
               setIsCreateOpen(false);
@@ -1225,28 +1538,133 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         </Suspense>
       )}
 
+      {/* Modal for adding a new board */}
+      {isAddBoardModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAddBoardModalOpen(false)}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">✨ יצירת לוח פרויקטים חדש</h3>
+              <button type="button" className="modal-close" onClick={() => setIsAddBoardModalOpen(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleAddBoard}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">שם הלוח *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="לדוגמה: דפוס ומדבקות, סניף צפון..."
+                    value={newBoardName}
+                    onChange={e => setNewBoardName(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">אייקון לוח</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {PRESET_BOARD_ICONS.map(icon => (
+                      <button
+                        key={icon}
+                        type="button"
+                        className={`btn ${newBoardIcon === icon ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '6px 10px', fontSize: '1.1rem', minWidth: '38px' }}
+                        onClick={() => setNewBoardIcon(icon)}
+                      >
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsAddBoardModalOpen(false)}>
+                  ביטול
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={!newBoardName.trim()}>
+                  צור לוח
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for editing an existing board */}
+      {editingBoard && (
+        <div className="modal-overlay" onClick={() => setEditingBoard(null)}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ עריכת לוח</h3>
+              <button type="button" className="modal-close" onClick={() => setEditingBoard(null)}>&times;</button>
+            </div>
+            <form onSubmit={handleSaveEditedBoard}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">שם הלוח *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={editingBoard.name}
+                    onChange={e => setEditingBoard({ ...editingBoard, name: e.target.value })}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">אייקון לוח</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {PRESET_BOARD_ICONS.map(icon => (
+                      <button
+                        key={icon}
+                        type="button"
+                        className={`btn ${editingBoard.icon === icon ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '6px 10px', fontSize: '1.1rem', minWidth: '38px' }}
+                        onClick={() => setEditingBoard({ ...editingBoard, icon })}
+                      >
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setEditingBoard(null)}>
+                  ביטול
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={!editingBoard.name.trim()}>
+                  שמור שינויים
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Custom Delete Confirmation Modal */}
       {deletingTaskId && (
         <div className="modal-overlay" onClick={() => setDeletingTaskId(null)}>
           <div className="modal-content confirm-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">מחיקת עבודה</h3>
+              <h3 className="modal-title">{flags.terms.deleteConfirmTitle}</h3>
               <button className="modal-close" onClick={() => setDeletingTaskId(null)}>&times;</button>
             </div>
             <div className="modal-body">
-              <p>האם את בטוחה שברצונך למחוק את העבודה הזו?</p>
+              <p>{flags.terms.deleteConfirmBody}</p>
               <p style={{ marginTop: '8px', color: 'var(--text-muted)', fontWeight: '600' }}>
-                הפרויקט יועבר לפח האשפה למשך 30 יום. בתקופה זו יהיה אפשר לשחזר אותו יחד עם ההערות והתגובות.
+                {flags.terms.deleteConfirmSubtext}
               </p>
             </div>
             <div className="modal-footer">
               <button
+                type="button"
                 className="btn btn-secondary"
                 onClick={() => setDeletingTaskId(null)}
               >
                 ביטול
               </button>
               <button
+                type="button"
                 className="btn btn-danger"
                 style={{ backgroundColor: 'var(--color-needs-revision)', color: 'white' }}
                 onClick={() => handleDeleteTask(deletingTaskId)}

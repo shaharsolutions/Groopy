@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NEW_TASK_FIELD_DEFINITIONS, NEW_TASK_FIELD_STYLES, normalizeNewTaskFields } from '../data/taskFieldConfig';
+import { APP_VERSIONS, DEFAULT_APP_VERSION, getFeatureFlags } from '../utils/featureFlags';
 
 const PRESET_COLORS = [
   { value: 'badge-new', label: 'כחול עדין', previewClass: 'badge-new' },
@@ -15,6 +16,7 @@ const PRESET_COLORS = [
 ];
 
 const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
+const PRESET_BOARD_ICONS = ['📁', '📋', '🏷️', '🚀', '🎨', '📦', '⚡', '🎯', '📊', '⭐️', '✨', '💼', '📌', '🛠️', '🖨️'];
 
 export default function SettingsPage({ settings, organizationName, onSaveSettings, onBack }) {
   const [localSettings, setLocalSettings] = useState(JSON.parse(JSON.stringify(settings)));
@@ -24,6 +26,13 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   // Inputs for adding status
   const [newStatusName, setNewStatusName] = useState('');
   const [newStatusColor, setNewStatusColor] = useState('badge-new');
+
+  // Inputs for boards
+  const [newBoardName, setNewBoardName] = useState('');
+  const [newBoardIcon, setNewBoardIcon] = useState('📁');
+  const [editingBoardId, setEditingBoardId] = useState(null);
+  const [editingBoardName, setEditingBoardName] = useState('');
+  const [editingBoardIcon, setEditingBoardIcon] = useState('📁');
 
   // Editing state for status names
   const [editingIndex, setEditingIndex] = useState(null);
@@ -62,53 +71,113 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
     }
   };
 
+  const flags = getFeatureFlags(localSettings);
+
+  // Board selected for status management
+  const [selectedStatusBoardId, setSelectedStatusBoardId] = useState('active');
+
+  const defaultBoardName = localSettings.boardTitle || (flags.isLegacy ? 'עבודות פעילות' : 'פרויקטים פעילים');
+  const defaultBoardIcon = localSettings.boardIcon || (flags.isLegacy ? '📁' : '📋');
+
+  const availableBoardsForStatuses = [
+    { id: 'active', name: `${defaultBoardName} (ברירת מחדל)`, icon: defaultBoardIcon },
+    ...(localSettings.boards || []).filter(b => b && b.id !== 'active')
+  ];
+
+  const isDefaultBoard = selectedStatusBoardId === 'active';
+  const selectedBoardObj = (localSettings.boards || []).find(b => b && b.id === selectedStatusBoardId);
+  const hasCustomStatuses = !isDefaultBoard && Array.isArray(selectedBoardObj?.statuses) && selectedBoardObj.statuses.length > 0;
+
+  const currentBoardStatuses = isDefaultBoard
+    ? (localSettings.statuses || [])
+    : hasCustomStatuses
+      ? selectedBoardObj.statuses
+      : (localSettings.statuses || []);
+
+  const currentBoardStatusColors = isDefaultBoard
+    ? (localSettings.statusColors || {})
+    : hasCustomStatuses
+      ? { ...(localSettings.statusColors || {}), ...(selectedBoardObj.statusColors || {}) }
+      : (localSettings.statusColors || {});
+
+  const currentBoardDefaultStatus = isDefaultBoard
+    ? (localSettings.defaultStatus || currentBoardStatuses[0] || 'חדש')
+    : hasCustomStatuses
+      ? (selectedBoardObj.defaultStatus || currentBoardStatuses[0] || 'חדש')
+      : (localSettings.defaultStatus || 'חדש');
+
   // Status Handlers
   const handleAddStatus = (e) => {
     e.preventDefault();
     const nameTrimmed = newStatusName.trim();
     if (!nameTrimmed) return;
 
-    if ((localSettings.statuses || []).includes(nameTrimmed)) {
+    if (currentBoardStatuses.includes(nameTrimmed)) {
       showMsg('סטטוס זה כבר קיים ברשימה', 'danger');
       return;
     }
 
-    const updatedStatuses = [...(localSettings.statuses || []), nameTrimmed];
+    const updatedStatuses = [...currentBoardStatuses, nameTrimmed];
     const updatedColors = {
-      ...(localSettings.statusColors || {}),
+      ...currentBoardStatusColors,
       [nameTrimmed]: newStatusColor
     };
 
-    setLocalSettings({
-      ...localSettings,
-      statuses: updatedStatuses,
-      statusColors: updatedColors
-    });
+    if (isDefaultBoard) {
+      setLocalSettings({
+        ...localSettings,
+        statuses: updatedStatuses,
+        statusColors: updatedColors
+      });
+    } else {
+      const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+      setLocalSettings({
+        ...localSettings,
+        boards: existingBoards.map(b => (b.id === selectedStatusBoardId ? {
+          ...b,
+          statuses: updatedStatuses,
+          statusColors: updatedColors,
+          defaultStatus: b.defaultStatus || updatedStatuses[0]
+        } : b))
+      });
+    }
     setNewStatusName('');
-    showMsg(`הסטטוס "${nameTrimmed}" נוסף לרשימה הזמנית. יש ללחוץ על "שמירת הגדרות" בסיום.`);
+    showMsg(`הסטטוס "${nameTrimmed}" נוסף לרשימה הזמנית.`);
   };
 
   const handleRemoveStatus = (statusToRemove) => {
-    const statuses = localSettings.statuses || [];
-    if (statuses.length <= 1) {
-      showMsg('חייב להישאר לפחות סטטוס אחד במערכת', 'danger');
+    if (currentBoardStatuses.length <= 1) {
+      showMsg('חייב להישאר לפחות סטטוס אחד בלוח', 'danger');
       return;
     }
 
-    if (localSettings.defaultStatus === statusToRemove) {
-      showMsg('לא ניתן למחוק את הסטטוס המוגדר כברירת מחדל. שנה את ברירת המחדל תחילה.', 'danger');
+    if (currentBoardDefaultStatus === statusToRemove) {
+      showMsg('לא ניתן למחוק את הסטטוס המוגדר כברירת מחדל. שנו את ברירת המחדל תחילה.', 'danger');
       return;
     }
 
-    const updatedStatuses = statuses.filter(s => s !== statusToRemove);
-    const updatedColors = { ...(localSettings.statusColors || {}) };
+    const updatedStatuses = currentBoardStatuses.filter(s => s !== statusToRemove);
+    const updatedColors = { ...currentBoardStatusColors };
     delete updatedColors[statusToRemove];
 
-    setLocalSettings({
-      ...localSettings,
-      statuses: updatedStatuses,
-      statusColors: updatedColors
-    });
+    if (isDefaultBoard) {
+      setLocalSettings({
+        ...localSettings,
+        statuses: updatedStatuses,
+        statusColors: updatedColors
+      });
+    } else {
+      const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+      setLocalSettings({
+        ...localSettings,
+        boards: existingBoards.map(b => (b.id === selectedStatusBoardId ? {
+          ...b,
+          statuses: updatedStatuses,
+          statusColors: updatedColors,
+          defaultStatus: b.defaultStatus === statusToRemove ? updatedStatuses[0] : b.defaultStatus
+        } : b))
+      });
+    }
     showMsg(`הסטטוס "${statusToRemove}" הוסר מהרשימה הזמנית.`);
   };
 
@@ -118,7 +187,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   };
 
   const saveEditedStatusName = (index) => {
-    const oldValue = localSettings.statuses[index];
+    const oldValue = currentBoardStatuses[index];
     const newValue = editingValue.trim();
     if (!newValue) return;
 
@@ -127,42 +196,181 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
       return;
     }
 
-    if (localSettings.statuses.includes(newValue)) {
+    if (currentBoardStatuses.includes(newValue)) {
       showMsg('סטטוס זה כבר קיים ברשימה', 'danger');
       return;
     }
 
-    const updatedStatuses = [...localSettings.statuses];
+    const updatedStatuses = [...currentBoardStatuses];
     updatedStatuses[index] = newValue;
 
-    const updatedColors = { ...(localSettings.statusColors || {}) };
+    const updatedColors = { ...currentBoardStatusColors };
     const colorClass = updatedColors[oldValue] || 'badge-frozen';
     delete updatedColors[oldValue];
     updatedColors[newValue] = colorClass;
 
-    let updatedDefault = localSettings.defaultStatus;
-    if (localSettings.defaultStatus === oldValue) {
-      updatedDefault = newValue;
+    if (isDefaultBoard) {
+      let updatedDefault = localSettings.defaultStatus;
+      if (localSettings.defaultStatus === oldValue) {
+        updatedDefault = newValue;
+      }
+      setLocalSettings({
+        ...localSettings,
+        statuses: updatedStatuses,
+        statusColors: updatedColors,
+        defaultStatus: updatedDefault
+      });
+    } else {
+      const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+      setLocalSettings({
+        ...localSettings,
+        boards: existingBoards.map(b => (b.id === selectedStatusBoardId ? {
+          ...b,
+          statuses: updatedStatuses,
+          statusColors: updatedColors,
+          defaultStatus: b.defaultStatus === oldValue ? newValue : b.defaultStatus
+        } : b))
+      });
     }
-
-    setLocalSettings({
-      ...localSettings,
-      statuses: updatedStatuses,
-      statusColors: updatedColors,
-      defaultStatus: updatedDefault
-    });
     setEditingIndex(null);
     showMsg(`שם הסטטוס "${oldValue}" שונה ל-"${newValue}"`);
   };
 
   const handleColorChange = (statusName, newColor) => {
+    const updatedColors = {
+      ...currentBoardStatusColors,
+      [statusName]: newColor
+    };
+
+    if (isDefaultBoard) {
+      setLocalSettings({
+        ...localSettings,
+        statusColors: updatedColors
+      });
+    } else {
+      const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+      setLocalSettings({
+        ...localSettings,
+        boards: existingBoards.map(b => (b.id === selectedStatusBoardId ? {
+          ...b,
+          statuses: currentBoardStatuses,
+          statusColors: updatedColors
+        } : b))
+      });
+    }
+  };
+
+  const handleDefaultStatusChange = (newDefault) => {
+    if (isDefaultBoard) {
+      setLocalSettings({
+        ...localSettings,
+        defaultStatus: newDefault
+      });
+    } else {
+      const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+      setLocalSettings({
+        ...localSettings,
+        boards: existingBoards.map(b => (b.id === selectedStatusBoardId ? {
+          ...b,
+          statuses: currentBoardStatuses,
+          defaultStatus: newDefault
+        } : b))
+      });
+    }
+  };
+
+  const handleToggleCustomStatusesForBoard = (enable) => {
+    if (isDefaultBoard) return;
+    const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+    if (enable) {
+      setLocalSettings({
+        ...localSettings,
+        boards: existingBoards.map(b => (b.id === selectedStatusBoardId ? {
+          ...b,
+          statuses: [...(localSettings.statuses || ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'])],
+          statusColors: { ...(localSettings.statusColors || {}) },
+          defaultStatus: localSettings.defaultStatus || 'חדש'
+        } : b))
+      });
+      showMsg('הופעלה התאמת סטטוסים ייחודיים ללוח זה.');
+    } else {
+      setLocalSettings({
+        ...localSettings,
+        boards: existingBoards.map(b => {
+          if (b.id !== selectedStatusBoardId) return b;
+          const { statuses: _s, statusColors: _sc, defaultStatus: _ds, ...rest } = b;
+          return rest;
+        })
+      });
+      showMsg('הלוח הוחזר לשימוש בסטטוסים של לוח ברירת המחדל.');
+    }
+  };
+
+  // Boards Handlers
+  const handleAddBoard = (e) => {
+    e.preventDefault();
+    const nameTrimmed = newBoardName.trim();
+    if (!nameTrimmed) return;
+
+    const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+    if (existingBoards.some(b => b.name === nameTrimmed) || nameTrimmed === 'פרויקטים פעילים') {
+      showMsg('לוח בשם זה כבר קיים במערכת', 'danger');
+      return;
+    }
+
+    const newBoard = {
+      id: 'board_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+      name: nameTrimmed,
+      icon: newBoardIcon || '📁',
+      createdAt: new Date().toISOString()
+    };
+
     setLocalSettings({
       ...localSettings,
-      statusColors: {
-        ...(localSettings.statusColors || {}),
-        [statusName]: newColor
-      }
+      boards: [...existingBoards.filter(b => b && b.id !== 'active'), newBoard]
     });
+    setNewBoardName('');
+    showMsg(`הלוח "${nameTrimmed}" נוסף לרשימה הזמנית. יש ללחוץ על "שמירת הגדרות" בסיום.`);
+  };
+
+  const handleRemoveBoard = (boardId) => {
+    const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+    const targetBoard = existingBoards.find(b => b.id === boardId);
+    setLocalSettings({
+      ...localSettings,
+      boards: existingBoards.filter(b => b.id !== boardId)
+    });
+    showMsg(`הלוח "${targetBoard?.name || ''}" הוסר מהרשימה הזמנית.`);
+  };
+
+  const startEditingBoard = (board) => {
+    setEditingBoardId(board.id);
+    setEditingBoardName(board.name);
+    setEditingBoardIcon(board.icon || '📁');
+  };
+
+  const saveEditedBoard = (boardId) => {
+    const nameTrimmed = editingBoardName.trim();
+    if (!nameTrimmed) return;
+
+    if (boardId === 'active') {
+      setLocalSettings({
+        ...localSettings,
+        boardTitle: nameTrimmed,
+        boardIcon: editingBoardIcon || '📋'
+      });
+      setEditingBoardId(null);
+      showMsg('פרטי לוח ברירת המחדל עודכנו. יש ללחוץ על "שמירת הגדרות" לשמירה קבועה.');
+      return;
+    }
+
+    const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+    setLocalSettings({
+      ...localSettings,
+      boards: existingBoards.map(b => (b.id === boardId ? { ...b, name: nameTrimmed, icon: editingBoardIcon || '📁' } : b))
+    });
+    setEditingBoardId(null);
+    showMsg('פרטי הלוח עודכנו ברשימה הזמנית.');
   };
 
   const handleTaskFieldToggle = (fieldKey, enabled) => {
@@ -221,7 +429,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
           <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>⚙️ הגדרות מערכת</h2>
           {organizationName && (
             <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              שדות והעדפות עבודה עבור ארגון {organizationName}
+              שדות והעדפות פרויקטים עבור ארגון {organizationName}
             </p>
           )}
         </div>
@@ -255,11 +463,85 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
       {/* Settings Sections */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
+        {/* Section 0: Organization App Version / Feature Flags */}
+        <div className="filter-panel" style={{ border: flags.isV2 ? '1px solid #bfdbfe' : '1px solid #fde68a', background: flags.isV2 ? '#f8faff' : '#fffbeb' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
+            <h4 className="detail-section-title" style={{ margin: 0 }}>
+              🚀 גרסת מערכת לארגון (Feature Flags)
+            </h4>
+            <span style={{
+              padding: '4px 10px',
+              borderRadius: '999px',
+              fontWeight: '800',
+              fontSize: '0.8rem',
+              background: flags.isV2 ? '#dbeafe' : '#fef3c7',
+              color: flags.isV2 ? '#1e40af' : '#92400e'
+            }}>
+              {flags.isV2 ? '✨ גרסה 2 (חדשה)' : '🏛️ גרסה קלאסית (Legacy)'}
+            </span>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '14px' }}>
+            קביעת גרסת המערכת והפיצ'רים שיוצגו לכלל משתמשי הארגון. ארגוני Legacy רואים את הממשק הקלאסי (לוח יחיד, מינוח עבודות).
+          </p>
+
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: '#ffffff',
+              border: `2px solid ${flags.isV2 ? 'var(--primary)' : 'var(--border)'}`,
+              cursor: 'pointer',
+              flex: 1,
+              minWidth: '220px'
+            }}>
+              <input
+                type="radio"
+                name="orgAppVersion"
+                value={APP_VERSIONS.V2}
+                checked={flags.isV2}
+                onChange={() => setLocalSettings({ ...localSettings, appVersion: APP_VERSIONS.V2 })}
+              />
+              <div>
+                <strong style={{ display: 'block', fontSize: '0.88rem', color: '#1e293b' }}>✨ גרסה חדשה (v2)</strong>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>לוחות פרויקטים מרובים, עיצוב מודרני ומינוח פרויקטים</span>
+              </div>
+            </label>
+
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: '#ffffff',
+              border: `2px solid ${flags.isLegacy ? '#d97706' : 'var(--border)'}`,
+              cursor: 'pointer',
+              flex: 1,
+              minWidth: '220px'
+            }}>
+              <input
+                type="radio"
+                name="orgAppVersion"
+                value={APP_VERSIONS.LEGACY}
+                checked={flags.isLegacy}
+                onChange={() => setLocalSettings({ ...localSettings, appVersion: APP_VERSIONS.LEGACY })}
+              />
+              <div>
+                <strong style={{ display: 'block', fontSize: '0.88rem', color: '#1e293b' }}>🏛️ גרסה קלאסית (Legacy)</strong>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>לוח יחיד, ממשק קלאסי ומינוח עבודות</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
         {/* Section 1: Dashboard Details */}
         <div className="filter-panel">
           <h4 className="detail-section-title">🖥️ נראות הלוח</h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-            הגדרת מאפייני הכותרת והתצוגה הכלליים של לוח העבודה.
+            הגדרת מאפייני הכותרת והתצוגה הכלליים של לוח ה{flags.terms.items}.
           </p>
 
           <div className="form-group" style={{ maxWidth: '500px' }}>
@@ -280,10 +562,10 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                 onChange={(e) => setLocalSettings({ ...localSettings, hideWeeklyHours: e.target.checked })}
                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
-              <span>הסתרת שעות עבודה בפרויקט</span>
+              <span>הסתרת שעות עבודה ב{flags.terms.item}</span>
             </label>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '4px 0 0 26px' }}>
-              כאשר מסומן, כרטיס "שעות עבודה בפרויקט" לא יופיע בפרטי המשימה וכפתור "סיכום שעות" יוסתר.
+              כאשר מסומן, כרטיס "שעות עבודה" לא יופיע בפרטי ה{flags.terms.item} וכפתור "סיכום שעות" יוסתר.
             </p>
           </div>
 
@@ -293,7 +575,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
         <div className="filter-panel">
           <h4 className="detail-section-title">🗄️ ארכוב אוטומטי</h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-            הגדרת מספר הימים ללא שינוי או עדכון בפרויקט, שלאחריהם הוא יעבור אוטומטית לארכיון.
+            הגדרת מספר הימים ללא שינוי או עדכון ב{flags.terms.item}, שלאחריהם הוא יעבור אוטומטית לארכיון.
           </p>
 
           <div className="form-group" style={{ maxWidth: '320px' }}>
@@ -313,7 +595,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
         </div>
 
         <div className="filter-panel">
-          <h4 className="detail-section-title">🧩 שדות עבודה חדשה</h4>
+          <h4 className="detail-section-title">🧩 שדות {flags.terms.item} חדש</h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
             התאמת שם, סגנון, אפשרויות וברירת מחדל של השדות שיופיעו לכל משתמשי הארגון.
           </p>
@@ -412,10 +694,93 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
 
         {/* Section 3: Statuses List Management */}
         <div className="filter-panel">
-          <h4 className="detail-section-title">🔄 ניהול סטטוסים וצבעי אינדיקציה</h4>
+          <h4 id="status-section-title" className="detail-section-title">🔄 ניהול סטטוסים וצבעי אינדיקציה</h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-            הוספה, הסרה, שינוי שם ובחירת צבע עבור שלבי העבודה השונים (טורים בלוח).
+            הוספה, הסרה, שינוי שם ובחירת צבע עבור שלבי הפרויקט. ניתן להגדיר סטטוסים שונים ונפרדים לכל לוח.
           </p>
+
+          {/* Board selector for status editing - only when custom boards enabled */}
+          {flags.enableCustomBoards && (
+            <div style={{ marginBottom: '16px' }}>
+              <label className="form-label" style={{ fontSize: '0.85rem', marginBottom: '8px' }}>בחירת לוח להגדרת סטטוסים:</label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {availableBoardsForStatuses.map(b => {
+                  const isSelected = selectedStatusBoardId === b.id;
+                  const isCustomBoardWithCustomStatuses = b.id !== 'active' && Array.isArray(b.statuses) && b.statuses.length > 0;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{
+                        padding: '7px 14px',
+                        fontSize: '0.85rem',
+                        fontWeight: isSelected ? '700' : '500',
+                        borderRadius: '8px'
+                      }}
+                      onClick={() => {
+                        setSelectedStatusBoardId(b.id);
+                        setEditingIndex(null);
+                      }}
+                    >
+                      {b.icon ? `${b.icon} ` : ''}{b.name}
+                      {isCustomBoardWithCustomStatuses && (
+                        <span style={{ marginInlineStart: '6px', fontSize: '0.72rem', opacity: 0.85, padding: '1px 5px', borderRadius: '4px', background: isSelected ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.08)' }}>
+                          מותאם אישית
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Statuses Info / Toggle banner for non-default boards */}
+          {!isDefaultBoard && (
+            <div style={{
+              padding: '12px 16px',
+              marginBottom: '16px',
+              borderRadius: 'var(--radius-md)',
+              background: hasCustomStatuses ? '#f0fdf4' : '#f8fafc',
+              border: `1px solid ${hasCustomStatuses ? '#bbf7d0' : 'var(--border)'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div>
+                <strong style={{ display: 'block', fontSize: '0.85rem', color: hasCustomStatuses ? '#166534' : '#334155' }}>
+                  {hasCustomStatuses ? '✨ לוח זה מוגדר עם סטטוסים מותאמים אישית' : 'ℹ️ לוח זה משתמש כרגע בסטטוסים של לוח ברירת המחדל'}
+                </strong>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  {hasCustomStatuses
+                    ? 'שינויים ברשימה זו ישפיעו אך ורק על לוח זה.'
+                    : 'באפשרותך להגדיר סטטוסים ייחודיים עבור לוח זה או להמשיך להשתמש בסטטוסי המערכת.'}
+                </span>
+              </div>
+              {hasCustomStatuses ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '5px 10px' }}
+                  onClick={() => handleToggleCustomStatusesForBoard(false)}
+                >
+                  ↩ איפוס וחזרה לסטטוסים גלובליים
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.8rem', padding: '5px 10px' }}
+                  onClick={() => handleToggleCustomStatusesForBoard(true)}
+                >
+                  ⚙️ התאם אישית סטטוסים ללוח זה
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="table-container" style={{ marginBottom: '20px', overflowX: 'auto' }}>
             <table className="task-table" style={{ fontSize: '0.85rem' }}>
@@ -427,16 +792,16 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                 </tr>
               </thead>
               <tbody>
-                {statuses.length === 0 ? (
+                {currentBoardStatuses.length === 0 ? (
                   <tr>
                     <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px' }}>
-                      אין סטטוסים מוגדרים.
+                      אין סטטוסים מוגדרים ללוח זה.
                     </td>
                   </tr>
                 ) : (
-                  statuses.map((st, index) => {
+                  currentBoardStatuses.map((st, index) => {
                     const isEditing = editingIndex === index;
-                    const currentColor = (localSettings.statusColors || {})[st] || 'badge-frozen';
+                    const currentColor = currentBoardStatusColors[st] || 'badge-frozen';
 
                     return (
                       <tr key={index}>
@@ -521,10 +886,11 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
           {/* Add Status Form */}
           <form onSubmit={handleAddStatus} className="form-grid-2col" style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>שם סטטוס חדש</label>
+              <label className="form-label" style={{ fontSize: '0.8rem' }}>שם סטטוס חדש ללוח נבחר</label>
               <input
                 type="text"
                 className="form-control"
+                placeholder="לדוגמה: בדיקות QA, מוכן לייצור..."
                 value={newStatusName}
                 onChange={(e) => setNewStatusName(e.target.value)}
               />
@@ -543,7 +909,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                     </option>
                   ))}
                 </select>
-                <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} disabled={saving}>
+                <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} disabled={saving || !newStatusName.trim()}>
                   ➕ הוספה
                 </button>
               </div>
@@ -553,29 +919,281 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
 
         {/* Section 4: Default Workflow Settings */}
         <div className="filter-panel">
-          <h4 className="detail-section-title">⚙️ סטטוס ברירת מחדל</h4>
+          <h4 className="detail-section-title">
+            ⚙️ סטטוס ברירת מחדל {flags.enableCustomBoards ? (isDefaultBoard ? `(${defaultBoardName})` : `(${selectedBoardObj?.name || ''})`) : ''}
+          </h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '12px' }}>
-            הסטטוס שיוקצה אוטומטית לכל משימה/פרויקט חדש שנוצר במערכת.
+            הסטטוס שיוקצה אוטומטית לכל {flags.terms.item} חדש שנוצר{flags.enableCustomBoards ? ' בלוח הנבחר' : ''}.
           </p>
           <div className="form-group" style={{ maxWidth: '350px' }}>
             <select
               className="form-control"
-              value={localSettings.defaultStatus || 'חדש'}
-              onChange={(e) => setLocalSettings({ ...localSettings, defaultStatus: e.target.value })}
+              value={currentBoardDefaultStatus}
+              onChange={(e) => handleDefaultStatusChange(e.target.value)}
             >
-              {statuses.map(st => (
+              {currentBoardStatuses.map(st => (
                 <option key={st} value={st}>{st}</option>
               ))}
             </select>
           </div>
         </div>
 
+        {/* Section 5: Boards Management (v2 only) */}
+        {flags.enableCustomBoards && (
+          <div className="filter-panel">
+            <h4 className="detail-section-title">📋 {flags.terms.boardManagement} במערכת</h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              ניהול הלוחות המוצגים בסרגל הראשי. לוח "{defaultBoardName}" הוא לוח ברירת המחדל.
+            </p>
+
+            <div className="table-container" style={{ marginBottom: '20px' }}>
+              <table className="task-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '80px' }}>אייקון</th>
+                    <th>שם הלוח</th>
+                    <th style={{ width: '180px' }}>סוג וסטטוסים</th>
+                    <th style={{ width: '170px' }}>פעולות</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Default Board */}
+                  <tr>
+                    <td style={{ fontSize: '1.2rem', textAlign: 'center' }}>
+                      {editingBoardId === 'active' ? (
+                        <select
+                          className="form-control"
+                          style={{ padding: '2px 4px', fontSize: '1rem', width: '60px' }}
+                          value={editingBoardIcon}
+                          onChange={e => setEditingBoardIcon(e.target.value)}
+                        >
+                          {PRESET_BOARD_ICONS.map(ic => (
+                            <option key={ic} value={ic}>{ic}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        defaultBoardIcon
+                      )}
+                    </td>
+                    <td style={{ fontWeight: '700' }}>
+                      {editingBoardId === 'active' ? (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={editingBoardName}
+                            onChange={e => setEditingBoardName(e.target.value)}
+                            autoFocus
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') saveEditedBoard('active');
+                              if (e.key === 'Escape') setEditingBoardId(null);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                            onClick={() => saveEditedBoard('active')}
+                          >
+                            שמור
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                            onClick={() => setEditingBoardId(null)}
+                          >
+                            ביטול
+                          </button>
+                        </div>
+                      ) : (
+                        defaultBoardName
+                      )}
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '999px', background: '#dbeafe', color: '#1e40af', fontWeight: '700' }}>
+                        ברירת מחדל ראשית
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {editingBoardId !== 'active' && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: '0.78rem' }}
+                            onClick={() => startEditingBoard({ id: 'active', name: defaultBoardName, icon: defaultBoardIcon })}
+                          >
+                            ✏️ עריכה
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: '0.78rem' }}
+                          onClick={() => {
+                            setSelectedStatusBoardId('active');
+                            const el = document.getElementById('status-section-title');
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                        >
+                          🔄 סטטוסים
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Custom Boards */}
+                  {(localSettings.boards || []).filter(b => b && b.id !== 'active').map(board => {
+                    const isEditing = editingBoardId === board.id;
+                    const isCustomStatus = Array.isArray(board.statuses) && board.statuses.length > 0;
+                    return (
+                      <tr key={board.id}>
+                        <td style={{ fontSize: '1.2rem', textAlign: 'center' }}>
+                          {isEditing ? (
+                            <select
+                              className="form-control"
+                              style={{ padding: '2px 4px', fontSize: '1rem', width: '60px' }}
+                              value={editingBoardIcon}
+                              onChange={e => setEditingBoardIcon(e.target.value)}
+                            >
+                              {PRESET_BOARD_ICONS.map(ic => (
+                                <option key={ic} value={ic}>{ic}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            board.icon || '📁'
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                className="form-control"
+                                value={editingBoardName}
+                                onChange={e => setEditingBoardName(e.target.value)}
+                                autoFocus
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveEditedBoard(board.id);
+                                  if (e.key === 'Escape') setEditingBoardId(null);
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                onClick={() => saveEditedBoard(board.id)}
+                              >
+                                שמור
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                onClick={() => setEditingBoardId(null)}
+                              >
+                                ביטול
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontWeight: '600' }}>{board.name}</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#475569', fontWeight: '600' }}>
+                              לוח מותאם אישית
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: isCustomStatus ? '#166534' : 'var(--text-muted)', fontWeight: isCustomStatus ? '700' : '500' }}>
+                              {isCustomStatus ? `✨ סטטוסים ייחודיים (${board.statuses.length})` : '🌐 סטטוסים גלובליים'}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          {!isEditing && (
+                            <div className="actions-cell">
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-icon"
+                                style={{ padding: '4px' }}
+                                title="עריכת סטטוסי לוח"
+                                onClick={() => {
+                                  setSelectedStatusBoardId(board.id);
+                                  const el = document.getElementById('status-section-title');
+                                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                              >
+                                🔄
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-icon"
+                                style={{ padding: '4px' }}
+                                title="עריכת לוח"
+                                onClick={() => startEditingBoard(board)}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-danger btn-icon"
+                                style={{ padding: '4px' }}
+                                title="מחיקת לוח"
+                                onClick={() => handleRemoveBoard(board.id)}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Add Board Form */}
+            <form onSubmit={handleAddBoard} className="form-grid-2col" style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>שם לוח חדש</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="לדוגמה: דפוס, מיתוג, סניף צפון..."
+                  value={newBoardName}
+                  onChange={e => setNewBoardName(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>אייקון לוח</label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <select
+                    className="form-control"
+                    value={newBoardIcon}
+                    onChange={e => setNewBoardIcon(e.target.value)}
+                    style={{ width: '80px', fontSize: '1.1rem' }}
+                  >
+                    {PRESET_BOARD_ICONS.map(ic => (
+                      <option key={ic} value={ic}>{ic}</option>
+                    ))}
+                  </select>
+                  <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} disabled={saving || !newBoardName.trim()}>
+                    ➕ הוספת לוח
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
+
       </div>
 
       {/* Floating Save Panel at the bottom */}
       <div className="filter-panel flex-between" style={{ marginTop: '24px', backgroundColor: '#f8fafc' }}>
         <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          שמירת ההגדרות תעדכן את טופס העבודה והלוח עבור כלל משתמשי הארגון באופן מיידי.
+          שמירת ההגדרות תעדכן את טופס ה{flags.terms.item} והלוח עבור כלל משתמשי הארגון באופן מיידי.
         </span>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn btn-secondary" onClick={onBack} disabled={saving}>

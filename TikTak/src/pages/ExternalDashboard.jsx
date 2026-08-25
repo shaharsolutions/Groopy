@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import { getBoardStatusConfig } from '../utils/boardStatusHelper';
+import { getFeatureFlags } from '../utils/featureFlags';
 const ExternalDetailsModal = lazy(() => import('../components/ExternalDetailsModal'));
 import PlanogramIndicator from '../components/PlanogramIndicator';
 
@@ -37,6 +39,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {}
   } = settings || {};
+  const flags = getFeatureFlags(settings);
   const [tasks, setTasks] = useState([]);
   
   // Search, Filter and Sort state
@@ -200,7 +203,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
       <main className="dashboard-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', padding: '24px 0' }}>
         <Suspense fallback={
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh', color: 'var(--text-muted)', fontFamily: 'Rubik, sans-serif' }}>
-            טוען פרטי עבודה...
+            טוען פרטי {flags.terms.item}...
           </div>
         }>
           <ExternalDetailsModal 
@@ -223,7 +226,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>מצב צפייה לשותפים</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          צפייה בלבד בסטטוס עבודות גרפיקה ובקבצים המצורפים.
+          צפייה בלבד בסטטוס {flags.terms.items} ובקבצים המצורפים.
         </p>
       </div>
 
@@ -254,7 +257,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
       {/* Filter and Search Panel */}
       <div className="filter-panel">
         <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label" style={{ fontSize: '0.8rem' }}>חיפוש משימה</label>
+          <label className="form-label" style={{ fontSize: '0.8rem' }}>חיפוש {flags.terms.item}</label>
           <input 
             type="text" 
             className="form-control" 
@@ -266,7 +269,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
         {/* Filter Summary and Clear Trigger */}
         <div className="filter-summary">
           <div>
-            מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> עבודות בסך הכל
+            מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> {flags.terms.items} בסך הכל
           </div>
           {(searchQuery || statusFilter || sortMode !== 'default') && (
             <button 
@@ -291,13 +294,13 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
       {tasks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📂</div>
-          <div className="empty-state-title">אין עבודות במערכת</div>
-          <div className="empty-state-text">מנהלת המערכת טרם הזינה עבודות עיצוב. אנא בדוק מאוחר יותר.</div>
+          <div className="empty-state-title">אין {flags.terms.items} במערכת</div>
+          <div className="empty-state-text">מנהלת המערכת טרם הזינה {flags.terms.items}. אנא בדוק מאוחר יותר.</div>
         </div>
       ) : filteredTasks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🔍</div>
-          <div className="empty-state-title">לא נמצאו עבודות פומביות מתאימות</div>
+          <div className="empty-state-title">לא נמצאו {flags.terms.items} מתאימים</div>
           <div className="empty-state-text">אנא ודא שהחיפוש נכון, או נקה את שורת החיפוש.</div>
           <button 
             className="btn btn-secondary" 
@@ -314,78 +317,86 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
             <table className="task-table">
               <thead>
                 <tr>
-                  {renderSortableHeader('title', 'שם העבודה')}
+                  {renderSortableHeader('title', `שם ה${flags.terms.item}`)}
                   {renderSortableHeader('contactPerson', 'איש קשר ספק')}
                   {renderSortableHeader('status', 'סטטוס')}
                   <th>פעולות</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTasks.map(task => (
-                  <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                    <td style={{ fontWeight: '600' }}>
-                      <span className="task-title-with-indicator">
-                        <span>{task.title}</span>
-                        {task.planogramFile && <PlanogramIndicator />}
-                      </span>
-                    </td>
-                    <td>{(task.contactPerson || task.supplierContactName) || '-'}</td>
-                    <td>
-                      <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
-                        {task.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button 
-                        className="btn btn-secondary btn-icon"
-                        title="צפייה בפרטי העבודה"
-                        onClick={() => setViewingTask(task)}
-                      >
-                        👁️ צפייה בפרטים
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredTasks.map(task => {
+                  const taskConfig = getBoardStatusConfig(settings, task.boardId);
+                  const colorClass = taskConfig.statusColors[task.status] || '';
+                  return (
+                    <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
+                      <td style={{ fontWeight: '600' }}>
+                        <span className="task-title-with-indicator">
+                          <span>{task.title}</span>
+                          {task.planogramFile && <PlanogramIndicator />}
+                        </span>
+                      </td>
+                      <td>{(task.contactPerson || task.supplierContactName) || '-'}</td>
+                      <td>
+                        <span className={`badge ${colorClass}`}>
+                          {task.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button 
+                          className="btn btn-secondary btn-icon" 
+                          title={`צפייה בפרטי ה${flags.terms.item}`}
+                          onClick={() => setViewingTask(task)}
+                        >
+                          👁️ צפייה בפרטים
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Mobile Cards View */}
           <div className="mobile-cards-grid">
-            {filteredTasks.map(task => (
-              <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
-                <div className="task-card-header">
-                  <div>
-                    <h4 className="task-card-title">
-                      <span className="task-title-with-indicator">
-                        <span>{task.title}</span>
-                        {task.planogramFile && <PlanogramIndicator compact />}
-                      </span>
-                    </h4>
+            {filteredTasks.map(task => {
+              const taskConfig = getBoardStatusConfig(settings, task.boardId);
+              const colorClass = taskConfig.statusColors[task.status] || '';
+              return (
+                <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
+                  <div className="task-card-header">
+                    <div>
+                      <h4 className="task-card-title">
+                        <span className="task-title-with-indicator">
+                          <span>{task.title}</span>
+                          {task.planogramFile && <PlanogramIndicator compact />}
+                        </span>
+                      </h4>
+                    </div>
+                    <span className={`badge ${colorClass}`}>
+                      {task.status}
+                    </span>
                   </div>
-                  <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
-                    {task.status}
-                  </span>
-                </div>
-                
-                <div className="task-card-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">איש קשר ספק</span>
-                    <span className="meta-value">{(task.contactPerson || task.supplierContactName) || '-'}</span>
+                  
+                  <div className="task-card-meta">
+                    <div className="meta-item">
+                      <span className="meta-label">איש קשר ספק</span>
+                      <span className="meta-value">{(task.contactPerson || task.supplierContactName) || '-'}</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="task-card-actions">
-                  <button 
-                    className="btn btn-primary" 
-                    style={{ flex: 1, padding: '10px' }}
-                    onClick={() => setViewingTask(task)}
-                  >
-                    👁️ צפייה בפרטים
-                  </button>
+                  <div className="task-card-actions">
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 1, padding: '10px' }}
+                      onClick={() => setViewingTask(task)}
+                    >
+                      👁️ צפייה בפרטים
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

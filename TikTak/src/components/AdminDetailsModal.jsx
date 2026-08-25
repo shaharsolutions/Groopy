@@ -5,6 +5,8 @@ const PdfPreviewModal = React.lazy(() => import('./PdfPreviewModal'));
 import PlanogramFileCard from './PlanogramFileCard';
 import PlanogramIndicator from './PlanogramIndicator';
 import { normalizeNewTaskFields } from '../data/taskFieldConfig';
+import { getBoardStatusConfig } from '../utils/boardStatusHelper';
+import { getFeatureFlags } from '../utils/featureFlags';
 
 function getSundayOfWeek(date) {
   const d = new Date(date);
@@ -99,21 +101,28 @@ export default function AdminDetailsModal({
   onTaskUpdated,
   onStatusChange,
   startInEditMode = false,
+  initialBoardId = 'active',
   userId,
   organizationId
 }) {
+  const isCreateMode = !task;
+  const [createBoardId, setCreateBoardId] = useState(task?.boardId || initialBoardId || 'active');
+
+  const targetBoardId = isCreateMode ? (createBoardId || 'active') : (task?.boardId || 'active');
+  const boardStatusConfig = React.useMemo(() => (
+    getBoardStatusConfig(settings, targetBoardId)
+  ), [settings, targetBoardId]);
+
+  const STATUSES = boardStatusConfig.statuses;
+  const STATUS_CLASSES = boardStatusConfig.statusColors;
+  const DEFAULT_STATUS = boardStatusConfig.defaultStatus;
+
   const {
-    statuses: STATUSES = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק'],
     workTypes: WORK_TYPES = ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
-    defaultStatus: DEFAULT_STATUS = 'חדש',
-    statusColors: STATUS_CLASSES = {
-      'חדש': 'badge-new',
-      'בטיפול': 'badge-in-progress',
-      'נשלח לספק': 'badge-waiting-approval',
-      'אושר לספק': 'badge-approved'
-    },
     hideWeeklyHours = false
   } = settings || {};
+
+  const flags = getFeatureFlags(settings);
 
   const newTaskFields = normalizeNewTaskFields(settings?.newTaskFields);
   const isNewTaskFieldEnabled = (fieldKey) => newTaskFields[fieldKey]?.enabled !== false;
@@ -133,7 +142,15 @@ export default function AdminDetailsModal({
   const defaultImagesStatus = newTaskFields.imagesStatus.defaultValue || 'אין';
   const defaultStandardsInstituteRequired = newTaskFields.standardsInstituteRequired.defaultValue || 'לא';
 
-  const isCreateMode = !task;
+  const availableBoards = React.useMemo(() => {
+    const defaultBoard = {
+      id: 'active',
+      name: settings?.boardTitle || (flags.isLegacy ? 'עבודות פעילות' : 'פרויקטים פעילים'),
+      icon: settings?.boardIcon || (flags.isLegacy ? '📁' : '📋')
+    };
+    const customBoards = (settings?.boards || []).filter(b => b && b.id !== 'active');
+    return [defaultBoard, ...customBoards];
+  }, [settings?.boards, settings?.boardTitle, settings?.boardIcon, flags.isLegacy]);
 
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -270,6 +287,14 @@ export default function AdminDetailsModal({
   const [createAttachments, setCreateAttachments] = useState([]);
   const [createPlanogramFile, setCreatePlanogramFile] = useState(null);
 
+  const handleSelectCreateBoard = (bId) => {
+    setCreateBoardId(bId);
+    const targetConfig = getBoardStatusConfig(settings, bId);
+    if (!targetConfig.statuses.includes(createStatus)) {
+      setCreateStatus(targetConfig.defaultStatus);
+    }
+  };
+
   // Common upload/error states for files
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -351,13 +376,14 @@ export default function AdminDetailsModal({
         setCreateAttachments([]);
         setCreatePlanogramFile(null);
         setCreateInternalNotes('');
+        setCreateBoardId(initialBoardId || 'active');
         setErrors({});
       });
     }
     return () => {
       cancelled = true;
     };
-  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, WORK_TYPES, startEditingField, defaultDiecutsStatus, defaultImagesStatus, defaultStandardsInstituteRequired]);
+  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, WORK_TYPES, startEditingField, defaultDiecutsStatus, defaultImagesStatus, defaultStandardsInstituteRequired, initialBoardId]);
 
   // Sync hours state with active Sunday week
   useEffect(() => {
@@ -438,7 +464,7 @@ export default function AdminDetailsModal({
   const handleSaveField = async (fieldKey, value) => {
     const trimmedVal = typeof value === 'string' ? value.trim() : value;
     if (fieldKey === 'title' && !trimmedVal) {
-      alert('שם העבודה הוא שדה חובה');
+      alert('שם הפרויקט הוא שדה חובה');
       return false;
     }
 
@@ -1036,7 +1062,7 @@ export default function AdminDetailsModal({
 
     const formErrors = {};
     if (!createTitle.trim()) {
-      formErrors.title = 'שדה שם העבודה הוא חובה';
+      formErrors.title = 'שדה שם הפרויקט הוא חובה';
     }
 
     if (isNewTaskFieldEnabled('supplierContactEmail') && createSupplierContactEmail.trim()) {
@@ -1056,6 +1082,7 @@ export default function AdminDetailsModal({
       workType: createWorkType,
       supplierName: '',
       status: createStatus,
+      boardId: createBoardId || 'active',
       ...(isNewTaskFieldEnabled('contactPerson') ? { contactPerson: createContactPerson.trim() } : {}),
       ...(isNewTaskFieldEnabled('supplierContactEmail') ? { supplierContactEmail: createSupplierContactEmail.trim() } : {}),
       ...(isNewTaskFieldEnabled('diecutsStatus') ? { diecutsStatus: createDiecutsStatus } : {}),
@@ -1097,10 +1124,10 @@ export default function AdminDetailsModal({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal-content"
+        className={`modal-content ${isCreateMode ? 'create-project-modal' : ''}`}
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: isCreateMode ? '820px' : '1000px',
+          maxWidth: isCreateMode ? '580px' : '1000px',
           transition: 'max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       >
@@ -1109,7 +1136,7 @@ export default function AdminDetailsModal({
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <h3 className="modal-title" style={{ width: '100%' }}>
               {isCreateMode ? (
-                'יצירת עבודה חדשה'
+                `✨ ${flags.terms.createItem}`
               ) : activeEditField === 'title' ? (
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', paddingLeft: '40px' }}>
                   <input
@@ -1132,7 +1159,7 @@ export default function AdminDetailsModal({
                   <span
                     className="hover-editable-inline"
                     onClick={() => startEditingField('title', task.title)}
-                    title="לחצי לעריכת שם העבודה"
+                    title={`לחצי לעריכת שם ה${flags.terms.item}`}
                   >
                     {task.title} ✏️
                   </span>
@@ -1159,7 +1186,7 @@ export default function AdminDetailsModal({
                   borderColor: '#1e4620',
                   fontWeight: '600'
                 }}
-                title="העתק קישור שיתוף ישיר לפרויקט זה"
+                title={`העתק קישור שיתוף ישיר ל${flags.terms.item} זה`}
               >
                 {copiedLink ? '✔️ הועתק!' : '🔗 העתקת קישור לשיתוף'}
               </button>
@@ -1176,13 +1203,15 @@ export default function AdminDetailsModal({
               handleSubmitCreate(e);
             }
           }}>
-            <div className="modal-body" style={{ maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
+            <div className="modal-body" style={{ maxHeight: 'calc(85vh - 110px)', overflowY: 'auto' }}>
 
+              {/* 1. שם הפרויקט */}
               <div className="form-group">
-                <label className="form-label">שם העבודה *</label>
+                <label className="form-label">שם ה{flags.terms.item} *</label>
                 <input
                   type="text"
                   className="form-control"
+                  placeholder="לדוגמה: אריזת שוקולד 100 גרם"
                   value={createTitle}
                   autoFocus
                   onChange={(e) => {
@@ -1193,30 +1222,52 @@ export default function AdminDetailsModal({
                 {errors.title && <span className="form-error">{errors.title}</span>}
               </div>
 
+              {/* 2. תיאור ופרטים נוספים */}
               <div className="form-group">
                 <label className="form-label">תיאור ופרטים נוספים</label>
                 <textarea
                   className="form-control"
-                  rows="3"
+                  rows="2"
+                  placeholder={`פרטי ה${flags.terms.item}, דגשים והנחיות...`}
                   value={createDescription}
                   onChange={(e) => setCreateDescription(e.target.value)}
                 />
               </div>
 
+              {/* 3. לוח */}
+              {flags.enableCustomBoards && availableBoards.length > 1 && (
+                <div className="form-group">
+                  <label className="form-label">{flags.terms.boards}</label>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    {availableBoards.map(b => {
+                      const isSelected = (createBoardId || 'active') === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '0.82rem',
+                            fontWeight: isSelected ? '700' : '500',
+                            borderRadius: '8px',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onClick={() => handleSelectCreateBoard(b.id)}
+                        >
+                          {b.icon ? `${b.icon} ` : '📋 '}{b.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-
+              {/* 4. סטטוס */}
               {isNewTaskFieldEnabled('status') && (
-              <div className="form-row">
                 <div className="form-group" style={getNewTaskFieldStyle('status')}>
                   <label className="form-label">{getNewTaskFieldLabel('status')}</label>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
-                      gap: '8px',
-                      marginTop: '4px'
-                    }}
-                  >
+                  <div className="status-chips-container">
                     {(STATUSES.includes(createStatus) ? STATUSES : [...STATUSES, createStatus]).map(st => {
                       const colorClass = STATUS_CLASSES[st] || 'badge-frozen';
                       const isActive = st === createStatus;
@@ -1224,33 +1275,32 @@ export default function AdminDetailsModal({
                         <button
                           key={st}
                           type="button"
-                          className={`badge ${colorClass}`}
-                          style={{
-                            padding: '8px 10px',
-                            fontSize: '0.75rem',
-                            textAlign: 'center',
-                            cursor: 'pointer',
-                            width: '100%',
-                            border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
-                            opacity: isActive ? 1 : 0.5,
-                            transform: isActive ? 'scale(1.03)' : 'none',
-                            boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
-                            fontWeight: isActive ? '700' : '500',
-                            transition: 'all 0.15s ease'
-                          }}
+                          className={`status-chip-btn ${colorClass} ${isActive ? 'active' : ''}`}
                           onClick={() => setCreateStatus(st)}
                         >
+                          {isActive && <span style={{ fontSize: '0.75rem' }}>✓</span>}
                           {st}
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              </div>
               )}
 
+              {/* 5. הערות פנימיות */}
+              <div className="form-group">
+                <label className="form-label">הערות פנימיות</label>
+                <textarea
+                  className="form-control"
+                  rows="2"
+                  placeholder="הערות לצוות הפנימי (לא יוצגו לספקים חיצוניים)..."
+                  value={createInternalNotes}
+                  onChange={(e) => setCreateInternalNotes(e.target.value)}
+                />
+              </div>
+
+              {/* שדות מוגדרים נוספים (אם מופעלים) */}
               {isNewTaskFieldEnabled('contactPerson') && (
-              <div className="form-row">
                 <div className="form-group" style={getNewTaskFieldStyle('contactPerson')}>
                   <label className="form-label">{getNewTaskFieldLabel('contactPerson')}</label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1287,216 +1337,207 @@ export default function AdminDetailsModal({
                     })}
                   </datalist>
                 </div>
-              </div>
               )}
 
               {(isNewTaskFieldEnabled('supplierContactEmail') || isNewTaskFieldEnabled('standardsInstituteRequired')) && (
-              <div className="form-row">
-                {isNewTaskFieldEnabled('supplierContactEmail') && (
-                <div className="form-group" style={getNewTaskFieldStyle('supplierContactEmail')}>
-                  <label className="form-label">{getNewTaskFieldLabel('supplierContactEmail')}</label>
-                  <input
-                    type="text"
-                    className="form-control text-left direction-ltr"
-                    value={createSupplierContactEmail}
-                    onChange={(e) => {
-                      setCreateSupplierContactEmail(e.target.value);
-                      if (errors.supplierContactEmail) setErrors({...errors, supplierContactEmail: null});
-                    }}
-                  />
-                  {errors.supplierContactEmail && <span className="form-error">{errors.supplierContactEmail}</span>}
-                </div>
-                )}
+                <div className="form-row">
+                  {isNewTaskFieldEnabled('supplierContactEmail') && (
+                    <div className="form-group" style={{ ...getNewTaskFieldStyle('supplierContactEmail'), flex: 1 }}>
+                      <label className="form-label">{getNewTaskFieldLabel('supplierContactEmail')}</label>
+                      <input
+                        type="text"
+                        className="form-control text-left direction-ltr"
+                        value={createSupplierContactEmail}
+                        onChange={(e) => {
+                          setCreateSupplierContactEmail(e.target.value);
+                          if (errors.supplierContactEmail) setErrors({...errors, supplierContactEmail: null});
+                        }}
+                      />
+                      {errors.supplierContactEmail && <span className="form-error">{errors.supplierContactEmail}</span>}
+                    </div>
+                  )}
 
-                {isNewTaskFieldEnabled('standardsInstituteRequired') && (
-                <div className="form-group" style={getNewTaskFieldStyle('standardsInstituteRequired')}>
-                  <label className="form-label">{getNewTaskFieldLabel('standardsInstituteRequired')}</label>
-                  <select
-                    className="form-control"
-                    value={createStandardsInstituteRequired}
-                    onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
-                  >
-                    {getNewTaskFieldOptions('standardsInstituteRequired').map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
+                  {isNewTaskFieldEnabled('standardsInstituteRequired') && (
+                    <div className="form-group" style={{ ...getNewTaskFieldStyle('standardsInstituteRequired'), flex: 1 }}>
+                      <label className="form-label">{getNewTaskFieldLabel('standardsInstituteRequired')}</label>
+                      <select
+                        className="form-control"
+                        value={createStandardsInstituteRequired}
+                        onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
+                      >
+                        {getNewTaskFieldOptions('standardsInstituteRequired').map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
-                )}
-              </div>
               )}
 
               {(isNewTaskFieldEnabled('diecutsStatus') || isNewTaskFieldEnabled('imagesStatus')) && (
-              <div className="form-row">
-                {isNewTaskFieldEnabled('diecutsStatus') && (
-                <div className="form-group" style={getNewTaskFieldStyle('diecutsStatus')}>
-                  <label className="form-label">{getNewTaskFieldLabel('diecutsStatus')}</label>
-                  <select
-                    className="form-control"
-                    value={createDiecutsStatus}
-                    onChange={(e) => setCreateDiecutsStatus(e.target.value)}
-                  >
-                    {getNewTaskFieldOptions('diecutsStatus').map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </div>
-                )}
+                <div className="form-row">
+                  {isNewTaskFieldEnabled('diecutsStatus') && (
+                    <div className="form-group" style={{ ...getNewTaskFieldStyle('diecutsStatus'), flex: 1 }}>
+                      <label className="form-label">{getNewTaskFieldLabel('diecutsStatus')}</label>
+                      <select
+                        className="form-control"
+                        value={createDiecutsStatus}
+                        onChange={(e) => setCreateDiecutsStatus(e.target.value)}
+                      >
+                        {getNewTaskFieldOptions('diecutsStatus').map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                {isNewTaskFieldEnabled('imagesStatus') && (
-                <div className="form-group" style={getNewTaskFieldStyle('imagesStatus')}>
-                  <label className="form-label">{getNewTaskFieldLabel('imagesStatus')}</label>
-                  <select
-                    className="form-control"
-                    value={createImagesStatus}
-                    onChange={(e) => setCreateImagesStatus(e.target.value)}
-                  >
-                    {getNewTaskFieldOptions('imagesStatus').map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
+                  {isNewTaskFieldEnabled('imagesStatus') && (
+                    <div className="form-group" style={{ ...getNewTaskFieldStyle('imagesStatus'), flex: 1 }}>
+                      <label className="form-label">{getNewTaskFieldLabel('imagesStatus')}</label>
+                      <select
+                        className="form-control"
+                        value={createImagesStatus}
+                        onChange={(e) => setCreateImagesStatus(e.target.value)}
+                      >
+                        {getNewTaskFieldOptions('imagesStatus').map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
-                )}
-              </div>
               )}
 
               {/* הזמנת עבודה (קבצים מצורפים) */}
               {isNewTaskFieldEnabled('workOrderFiles') && (
-              <div className="form-group" style={getNewTaskFieldStyle('workOrderFiles')}>
-                <label className="form-label">
-                  {getNewTaskFieldLabel('workOrderFiles')}
-                </label>
+                <div className="form-group" style={getNewTaskFieldStyle('workOrderFiles')}>
+                  <label className="form-label">
+                    {getNewTaskFieldLabel('workOrderFiles')}
+                  </label>
 
-                <div
-                  className={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
-                  onDragEnter={handleDrag}
-                  onDragOver={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDrop={handleDrop}
-                  onClick={() => document.getElementById('modal-task-file-input-create').click()}
-                >
-                  <div className="file-upload-icon">📁</div>
-                  <div className="file-upload-text">
-                    <strong>גררי לכאן קבצים</strong> או לחצי לבחירה מהמחשב
-                  </div>
-                  <div className="file-upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>
-                    עד 15MB לקובץ
-                  </div>
-                  <input
-                    type="file"
-                    id="modal-task-file-input-create"
-                    multiple
-                    className="file-upload-input"
-                    onChange={handleFileChangeCreateMode}
-                  />
-                </div>
-
-                {uploading && (
-                  <div style={{ marginTop: '10px', textAlign: 'center', color: 'var(--primary)' }}>
-                    <span>🔄 מעלה קובץ {currentUploadIndex} מתוך {totalUploadCount} ({uploadProgress}%)</span>
-                    <div style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'var(--border-color, #e2e8f0)',
-                      borderRadius: '3px',
-                      marginTop: '6px',
-                      overflow: 'hidden'
-                    }}>
-                      <div style={{
-                        width: `${uploadProgress}%`,
-                        height: '100%',
-                        backgroundColor: 'var(--primary)',
-                        transition: 'width 0.2s ease-in-out'
-                      }} />
+                  <div
+                    className={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
+                    style={{ padding: '14px' }}
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    onClick={() => document.getElementById('modal-task-file-input-create').click()}
+                  >
+                    <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>📁</div>
+                    <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
+                      <strong>גררי לכאן קבצים</strong> או לחצי לבחירה מהמחשב
                     </div>
+                    <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
+                      עד 15MB לקובץ
+                    </div>
+                    <input
+                      type="file"
+                      id="modal-task-file-input-create"
+                      multiple
+                      className="file-upload-input"
+                      onChange={handleFileChangeCreateMode}
+                    />
                   </div>
-                )}
 
-                {uploadError && (
-                  <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '6px' }}>
-                    {uploadError}
-                  </div>
-                )}
+                  {uploading && (
+                    <div style={{ marginTop: '10px', textAlign: 'center', color: 'var(--primary)' }}>
+                      <span>🔄 מעלה קובץ {currentUploadIndex} מתוך {totalUploadCount} ({uploadProgress}%)</span>
+                      <div style={{
+                        width: '100%',
+                        height: '6px',
+                        backgroundColor: 'var(--border-color, #e2e8f0)',
+                        borderRadius: '3px',
+                        marginTop: '6px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${uploadProgress}%`,
+                          height: '100%',
+                          backgroundColor: 'var(--primary)',
+                          transition: 'width 0.2s ease-in-out'
+                        }} />
+                      </div>
+                    </div>
+                  )}
 
-                {createAttachments.length > 0 && (
-                  <div className="attachments-list" style={{ marginTop: '12px' }}>
-                    {createAttachments.map((file, idx) => {
-                      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-                      return (
-                        <div key={idx} className="attachment-row">
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="attachment-info"
-                            title="צפייה בקובץ"
-                          >
-                            <span className="attachment-icon">{isImage ? '🖼️' : '📄'}</span>
-                            <span style={{ direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {file.name}
-                            </span>
-                          </a>
-                          <button
-                            type="button"
-                            className="attachment-delete-btn"
-                            onClick={() => handleDeleteAttachmentCreateMode(idx)}
-                            title="הסר קובץ"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                  {uploadError && (
+                    <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '6px' }}>
+                      {uploadError}
+                    </div>
+                  )}
+
+                  {createAttachments.length > 0 && (
+                    <div className="attachments-list" style={{ marginTop: '10px' }}>
+                      {createAttachments.map((file, idx) => {
+                        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                        return (
+                          <div key={idx} className="attachment-row" style={{ padding: '6px 10px' }}>
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="attachment-info"
+                              title="צפייה בקובץ"
+                            >
+                              <span className="attachment-icon">{isImage ? '🖼️' : '📄'}</span>
+                              <span style={{ direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {file.name}
+                              </span>
+                            </a>
+                            <button
+                              type="button"
+                              className="attachment-delete-btn"
+                              onClick={() => handleDeleteAttachmentCreateMode(idx)}
+                              title="הסר קובץ"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* פלנוגרמה Upload */}
               {isNewTaskFieldEnabled('planogramFile') && (
-              <div className="form-group" style={getNewTaskFieldStyle('planogramFile')}>
-                <label className="form-label">{getNewTaskFieldLabel('planogramFile')}</label>
-                {createPlanogramFile ? (
-                  <PlanogramFileCard file={createPlanogramFile} onDelete={handlePlanogramDeleteCreate} deleteLabel="הסרה" />
-                ) : (
-                  <div
-                    className={`file-upload-zone planogram-upload-zone ${planogramDragActive ? 'drag-active' : ''} ${uploadingPlanogram ? 'is-uploading' : ''}`}
-                    onDragEnter={handlePlanogramDragCreate}
-                    onDragOver={handlePlanogramDragCreate}
-                    onDragLeave={handlePlanogramDragCreate}
-                    onDrop={handlePlanogramDropCreate}
-                  >
-                    <div className="file-upload-icon">🗂️</div>
-                    <div className="file-upload-text">
-                      <strong>{uploadingPlanogram ? 'מעלה פלנוגרמה...' : 'גררי לכאן פלנוגרמה'}</strong> או לחצי לבחירה מהמחשב
+                <div className="form-group" style={getNewTaskFieldStyle('planogramFile')}>
+                  <label className="form-label">{getNewTaskFieldLabel('planogramFile')}</label>
+                  {createPlanogramFile ? (
+                    <PlanogramFileCard file={createPlanogramFile} onDelete={handlePlanogramDeleteCreate} deleteLabel="הסרה" />
+                  ) : (
+                    <div
+                      className={`file-upload-zone planogram-upload-zone ${planogramDragActive ? 'drag-active' : ''} ${uploadingPlanogram ? 'is-uploading' : ''}`}
+                      style={{ padding: '14px' }}
+                      onDragEnter={handlePlanogramDragCreate}
+                      onDragOver={handlePlanogramDragCreate}
+                      onDragLeave={handlePlanogramDragCreate}
+                      onDrop={handlePlanogramDropCreate}
+                    >
+                      <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>🗂️</div>
+                      <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
+                        <strong>{uploadingPlanogram ? 'מעלה פלנוגרמה...' : 'גררי לכאן פלנוגרמה'}</strong> או לחצי לבחירה מהמחשב
+                      </div>
+                      <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
+                        תמונה או PDF, עד 15MB
+                      </div>
+                      <input
+                        type="file"
+                        id="planogram-upload-create-input"
+                        accept="image/*,.pdf,application/pdf"
+                        className="file-upload-input"
+                        onChange={handlePlanogramUploadCreate}
+                        disabled={uploadingPlanogram}
+                      />
                     </div>
-                    <div className="file-upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--text-muted, #718096)' }}>
-                      תמונה או PDF, עד 15MB
-                    </div>
-                    <input
-                      type="file"
-                      id="planogram-upload-create-input"
-                      accept="image/*,.pdf,application/pdf"
-                      className="file-upload-input"
-                      onChange={handlePlanogramUploadCreate}
-                      disabled={uploadingPlanogram}
-                    />
-                  </div>
-                )}
-                {uploadErrorPlanogram && (
-                  <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '6px' }}>{uploadErrorPlanogram}</div>
-                )}
-              </div>
+                  )}
+                  {uploadErrorPlanogram && (
+                    <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '6px' }}>{uploadErrorPlanogram}</div>
+                  )}
+                </div>
               )}
-
-              <div className="form-group">
-                <label className="form-label">הערות פנימיות</label>
-                <textarea
-                  className="form-control"
-                  rows="2"
-                  value={createInternalNotes}
-                  onChange={(e) => setCreateInternalNotes(e.target.value)}
-                />
-              </div>
 
             </div>
 
@@ -1505,7 +1546,7 @@ export default function AdminDetailsModal({
                 ביטול
               </button>
               <button type="submit" className="btn btn-primary" disabled={uploading || uploadingPlanogram}>
-                יצירת עבודה
+                {flags.terms.createItemButton}
               </button>
             </div>
           </form>
@@ -1518,15 +1559,15 @@ export default function AdminDetailsModal({
                 {/* Main View Area (Left Column) */}
                 <div className="details-main">
 
-                  {/* AREA 1: פרטי עבודה */}
+                  {/* AREA 1: פרטי פרויקט / עבודה */}
                   <div className="details-section-card">
-                    <h4 className="detail-section-title">📁 פרטי עבודה</h4>
+                    <h4 className="detail-section-title">📁 {flags.terms.itemDetails}</h4>
 
 
 
                     {/* Field: Description */}
                     <div style={{ marginBottom: '16px' }}>
-                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '4px', display: 'block', fontSize: '0.85rem' }}>תיאור העבודה</label>
+                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '4px', display: 'block', fontSize: '0.85rem' }}>תיאור ה{flags.terms.item}</label>
                       {activeEditField === 'description' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
                           <textarea
@@ -1551,7 +1592,7 @@ export default function AdminDetailsModal({
                           {task.description ? (
                             task.description
                           ) : (
-                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט לעבודה זו. לחצי להוספת תיאור.</p>
+                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט ל{flags.terms.item} זה. לחצי להוספת תיאור.</p>
                           )}
                         </div>
                       )}
@@ -1817,9 +1858,9 @@ export default function AdminDetailsModal({
                     </div>
                   )}
 
-                  {/* AREA 5: הערות ועדכוני עבודה */}
+                  {/* AREA 5: הערות ועדכוני פרויקט */}
                   <div className="comments-section">
-                    <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
+                    <h4 className="detail-section-title">💬 הערות ועדכוני פרויקט ({comments.length})</h4>
 
                     {(() => {
                       const subtasks = subtasksDraft;
@@ -2189,9 +2230,42 @@ export default function AdminDetailsModal({
                   <div className="details-section-card">
                     <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 חומרים ואישורים</h4>
 
+                    {/* Board Selector */}
+                    {flags.enableCustomBoards && availableBoards.length > 1 && (
+                      <div className="sidebar-row" style={{ display: 'block', marginBottom: '16px' }}>
+                        <span className="sidebar-label" style={{ display: 'block', marginBottom: '6px' }}>{flags.terms.boards}</span>
+                        <select
+                          className="form-control"
+                          style={{ padding: '6px 10px', fontSize: '0.85rem', fontWeight: '600' }}
+                          value={task?.boardId || 'active'}
+                          onChange={async (e) => {
+                            const newBoardId = e.target.value;
+                            try {
+                              const targetConfig = getBoardStatusConfig(settings, newBoardId);
+                              const updates = { boardId: newBoardId, updatedAt: new Date().toISOString() };
+                              if (!targetConfig.statuses.includes(task.status)) {
+                                updates.status = targetConfig.defaultStatus;
+                              }
+                              await updateTask(task.id, updates);
+                              if (onTaskUpdated) onTaskUpdated(task.id, updates);
+                            } catch (err) {
+                              console.error('Failed to change board', err);
+                              alert('שגיאה בהעברת הלוח. נסי שוב.');
+                            }
+                          }}
+                        >
+                          {availableBoards.map(b => (
+                            <option key={b.id} value={b.id}>
+                              {b.icon ? `${b.icon} ` : '📋 '}{b.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     {/* Status Picker (Grid) */}
                     <div className="sidebar-row" style={{ display: 'block', marginBottom: '16px' }}>
-                      <span className="sidebar-label" style={{ display: 'block', marginBottom: '6px' }}>סטטוס עבודה</span>
+                      <span className="sidebar-label" style={{ display: 'block', marginBottom: '6px' }}>סטטוס ה{flags.terms.item}</span>
                       <div
                         style={{
                           display: 'grid',
@@ -2359,7 +2433,7 @@ export default function AdminDetailsModal({
                 className="btn btn-danger"
                 onClick={() => onDelete(task.id)}
               >
-                🗑️ מחיקת עבודה
+                🗑️ מחיקת {flags.terms.item}
               </button>
 
               <button type="button" className="btn btn-secondary" onClick={onClose}>

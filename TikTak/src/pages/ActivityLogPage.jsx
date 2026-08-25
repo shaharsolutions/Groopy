@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getActivityLogs, getAllUsers, getNameMap } from '../utils/storage';
-
-const TARGET_TYPE_LABELS = {
-  task: 'עבודה',
-  comment: 'תגובה',
-  settings: 'הגדרות',
-  supplier: 'ספק',
-  contact: 'איש קשר',
-  user: 'משתמש'
-};
+import { getFeatureFlags } from '../utils/featureFlags';
 
 const formatDateTime = (isoString) => {
   if (!isoString) return 'לא ידוע';
@@ -32,7 +24,17 @@ const getDateOnly = (isoString) => {
   return date.toISOString().slice(0, 10);
 };
 
-export default function ActivityLogPage({ currentUserId, currentUserEmail, organizationId, isSystemAdmin, onBack, initialSearchQuery, onClearSearchQuery }) {
+export default function ActivityLogPage({ currentUserId, currentUserEmail, organizationId, isSystemAdmin, onBack, initialSearchQuery, onClearSearchQuery, settings }) {
+  const flags = getFeatureFlags(settings);
+  const targetTypeLabels = useMemo(() => ({
+    task: flags.terms.item,
+    comment: 'תגובה',
+    settings: 'הגדרות',
+    supplier: 'ספק',
+    contact: 'איש קשר',
+    user: 'משתמש'
+  }), [flags.terms.item]);
+
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,9 +94,9 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
 
           // Translate system field names
           const FIELD_TRANSLATIONS = {
-            title: 'שם עבודה',
+            title: `שם ${flags.terms.item}`,
             description: 'תיאור',
-            workType: 'סוג עבודה',
+            workType: `סוג ${flags.terms.item}`,
             storeName: 'חנות',
             supplierName: 'ספק',
             contactPerson: 'איש קשר',
@@ -213,11 +215,11 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
         log.actionLabel,
         log.targetLabel,
         log.details,
-        TARGET_TYPE_LABELS[log.targetType]
+        targetTypeLabels[log.targetType]
       ].join(' ').toLowerCase();
       return haystack.includes(search);
     });
-  }, [logs, filters]);
+  }, [logs, filters, targetTypeLabels]);
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
 
@@ -345,7 +347,7 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
           >
             <option value="">כל האזורים</option>
             {uniqueTargetTypes.map(type => (
-              <option key={type} value={type}>{TARGET_TYPE_LABELS[type] || type}</option>
+              <option key={type} value={type}>{targetTypeLabels[type] || type}</option>
             ))}
           </select>
         </div>
@@ -411,7 +413,7 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
                   <td>{formatDateTime(log.createdAt)}</td>
                   {isSystemAdmin && <td>{log.actorEmail || userEmailByUid.get(log.actorUid) || log.actorUid}</td>}
                   <td><span className="activity-action-pill">{log.actionLabel || log.action}</span></td>
-                  <td>{TARGET_TYPE_LABELS[log.targetType] || log.targetType || '-'}</td>
+                  <td>{targetTypeLabels[log.targetType] || log.targetType || '-'}</td>
                   <td>
                     <div className="activity-target-label">{log.targetLabel || '-'}</div>
                   </td>

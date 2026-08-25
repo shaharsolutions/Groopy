@@ -3,6 +3,7 @@ import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Header from './components/Header';
 import { DEFAULT_NEW_TASK_FIELDS } from './data/taskFieldConfig';
+import { getFeatureFlags, DEFAULT_APP_VERSION } from './utils/featureFlags';
 
 // Lazy loading pages for better initial load performance
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -86,7 +87,9 @@ export default function App() {
     },
     newTaskFields: DEFAULT_NEW_TASK_FIELDS,
     hideWeeklyHours: false,
-    autoArchiveInactiveDays: 45
+    autoArchiveInactiveDays: 45,
+    boards: [],
+    appVersion: DEFAULT_APP_VERSION
   });
 
   const [suppliers, setSuppliers] = useState([]);
@@ -263,9 +266,11 @@ export default function App() {
         setSettings(prev => ({
           ...prev,
           ...dbSettings,
+          appVersion: dbSettings.appVersion || DEFAULT_APP_VERSION,
           statuses: dbSettings.statuses || defaultStatuses,
           statusColors: dbSettings.statusColors || defaultStatusColors,
           defaultStatus: dbSettings.defaultStatus || 'חדש',
+          boards: Array.isArray(dbSettings.boards) ? dbSettings.boards : [],
           autoArchiveInactiveDays: Number.isFinite(Number(dbSettings.autoArchiveInactiveDays))
             ? Number(dbSettings.autoArchiveInactiveDays)
             : 45
@@ -273,11 +278,13 @@ export default function App() {
       } else {
         setSettings(prev => ({
           ...prev,
+          appVersion: DEFAULT_APP_VERSION,
           statuses: defaultStatuses,
           statusColors: defaultStatusColors,
           defaultStatus: 'חדש',
           hideWeeklyHours: false,
-          autoArchiveInactiveDays: 45
+          autoArchiveInactiveDays: 45,
+          boards: []
         }));
       }
     }, (err) => {
@@ -463,6 +470,8 @@ export default function App() {
     );
   }
 
+  const flags = getFeatureFlags(settings);
+
   return (
     <div className="app-container">
       {(impersonatedUserId || organizationManagementMode) && (
@@ -481,7 +490,7 @@ export default function App() {
         }}>
           <span>
             {organizationManagementMode
-              ? <>⚙️ עריכת הגדרות העבודה של ארגון <strong>{effectiveOrganizationName}</strong></>
+              ? <>⚙️ עריכת {flags.terms.workSettings} של ארגון <strong>{effectiveOrganizationName}</strong></>
               : <>👁️ צפייה בארגון <strong>{effectiveOrganizationName}</strong> דרך המשתמש/ת {impersonatedUserEmail}</>}
           </span>
           <button
@@ -559,6 +568,7 @@ export default function App() {
               onBack={() => setCurrentView('dashboard')}
               autoOpenSupplierId={autoOpenSupplierId}
               autoOpenContactId={autoOpenContactId}
+              settings={settings}
               onClearAutoOpen={() => {
                 setAutoOpenSupplierId(null);
                 setAutoOpenContactId(null);
@@ -573,6 +583,7 @@ export default function App() {
               onBack={() => setCurrentView('dashboard')}
               initialSearchQuery={searchQueryForActivity}
               onClearSearchQuery={() => setSearchQueryForActivity(null)}
+              settings={settings}
             />
           ) : (
             <AdminDashboard
@@ -604,6 +615,7 @@ export default function App() {
             userId={effectiveUserId}
             userRole={userRole}
             onNavigate={handleSearchNavigate}
+            settings={settings}
           />
         </Suspense>
       )}

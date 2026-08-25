@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { APP_VERSIONS, DEFAULT_APP_VERSION, getFeatureFlags } from '../utils/featureFlags';
 
 let storageApiPromise = null;
 
@@ -18,7 +19,7 @@ const adminActions = [
     view: 'settings',
     icon: '⚙️',
     title: 'הגדרות מערכת',
-    description: 'ניהול סטטוסים, סוגי עבודה והעדפות מערכת'
+    description: 'ניהול סטטוסים, סוגי פרויקטים והעדפות מערכת'
   },
   {
     view: 'suppliers_contacts',
@@ -171,6 +172,24 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     } catch (err) {
       console.error('Failed to update organization status', err);
       setError('עדכון סטטוס הארגון נכשל.');
+    } finally {
+      setSavingOrganization('');
+    }
+  };
+
+  const handleToggleOrganizationVersion = async (organization) => {
+    const currentVersion = organization.appVersion || DEFAULT_APP_VERSION;
+    const nextVersion = currentVersion === APP_VERSIONS.LEGACY ? APP_VERSIONS.V2 : APP_VERSIONS.LEGACY;
+    try {
+      setSavingOrganization(`version:${organization.id}`);
+      const { updateOrganization } = await loadStorageApi();
+      await updateOrganization(organization.id, { appVersion: nextVersion });
+      setOrganizations(current => current.map(item => (
+        item.id === organization.id ? { ...item, appVersion: nextVersion } : item
+      )));
+    } catch (err) {
+      console.error('Failed to update organization version', err);
+      setError('עדכון גרסת הארגון נכשל.');
     } finally {
       setSavingOrganization('');
     }
@@ -424,6 +443,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
             {organizationSummaries.map(organization => {
               const isActive = organization.active !== false;
               const isEditing = editingOrganizationId === organization.id;
+              const orgFlags = getFeatureFlags(organization);
               return (
                 <article key={organization.id} style={{
                   border: `1px solid ${isActive ? '#c7d2fe' : '#e2e8f0'}`,
@@ -450,9 +470,33 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       ) : (
                         <>
                           <strong style={{ display: 'block', color: '#0f172a', fontSize: '1.08rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{organization.name}</strong>
-                          <span style={{ display: 'inline-block', marginTop: '7px', padding: '4px 8px', borderRadius: '999px', background: isActive ? '#dcfce7' : '#e2e8f0', color: isActive ? '#166534' : '#475569', fontSize: '0.77rem', fontWeight: '800' }}>
-                            {isActive ? 'ארגון פעיל' : 'ארגון לא פעיל'}
-                          </span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginTop: '7px' }}>
+                            <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '999px', background: isActive ? '#dcfce7' : '#e2e8f0', color: isActive ? '#166534' : '#475569', fontSize: '0.77rem', fontWeight: '800' }}>
+                              {isActive ? 'ארגון פעיל' : 'ארגון לא פעיל'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleOrganizationVersion(organization)}
+                              disabled={savingOrganization === `version:${organization.id}`}
+                              title="לחצי להחלפת גרסת המערכת עבור ארגון זה"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '4px 8px',
+                                borderRadius: '999px',
+                                background: orgFlags.isV2 ? '#eff6ff' : '#fef3c7',
+                                color: orgFlags.isV2 ? '#1d4ed8' : '#b45309',
+                                border: orgFlags.isV2 ? '1px solid #bfdbfe' : '1px solid #fde68a',
+                                fontSize: '0.77rem',
+                                fontWeight: '800',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {orgFlags.isV2 ? '✨ גרסה 2 (חדשה)' : '🏛️ Legacy (קלאסית)'}
+                              <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>⇄</span>
+                            </button>
+                          </div>
                         </>
                       )}
                     </div>
@@ -464,7 +508,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', margin: '16px 0' }}>
                     {[
                       ['משתמשים', organization.memberCount],
-                      ['פרויקטים', organization.projectCount],
+                      [orgFlags.terms.items, organization.projectCount],
                       ['פעילים', organization.activeProjectCount]
                     ].map(([label, value]) => (
                       <div key={label} style={{ padding: '9px', borderRadius: '9px', background: '#f8fafc', textAlign: 'center', border: '1px solid #e2e8f0' }}>
@@ -492,7 +536,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                         onClick={() => onManageOrganization?.(organization.id, organization.name)}
                         style={{ padding: '6px 10px', fontSize: '0.8rem' }}
                       >
-                        ⚙️ הגדרות עבודה
+                        ⚙️ {orgFlags.terms.workSettings}
                       </button>
                       {organization.id === 'groopy' ? (
                         <span style={{ color: '#4338ca', fontSize: '0.78rem', fontWeight: '800' }}>ארגון ברירת מחדל</span>

@@ -1,5 +1,7 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { getCommentsForTask, addComment, getContacts } from '../utils/storage';
+import { getBoardStatusConfig } from '../utils/boardStatusHelper';
+import { getFeatureFlags } from '../utils/featureFlags';
 const ExcelPreviewModal = lazy(() => import('./ExcelPreviewModal'));
 const PdfPreviewModal = lazy(() => import('./PdfPreviewModal'));
 import PlanogramFileCard from './PlanogramFileCard';
@@ -114,10 +116,15 @@ function getMonthlySummary(weeklyHoursObj) {
 }
 
 export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false, userId }) {
+  const boardStatusConfig = useMemo(() => (
+    getBoardStatusConfig(settings, task?.boardId)
+  ), [settings, task?.boardId]);
+  const STATUS_CLASSES = boardStatusConfig.statusColors;
+
   const {
-    statusColors: STATUS_CLASSES = {},
     hideWeeklyHours = false
   } = settings || {};
+  const flags = getFeatureFlags(settings);
   const [comments, setComments] = useState([]);
   const commentAuthorName = 'משתמש/ת חיצוני/ת';
   const [commentText, setCommentText] = useState('');
@@ -275,7 +282,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 borderColor: '#1e4620',
                 fontWeight: '600'
               }}
-              title="העתק קישור שיתוף ישיר לפרויקט זה"
+              title={`העתק קישור שיתוף ישיר ל${flags.terms.item} זה`}
             >
               {copiedLink ? '✔️ הועתק!' : '🔗 העתקת קישור לשיתוף'}
             </button>
@@ -289,19 +296,19 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
             {/* Main Content Area (Left Column) */}
             <div className="details-main">
 
-              {/* AREA 1: פרטי עבודה */}
+              {/* AREA 1: פרטי פרויקט / עבודה */}
               <div className="details-section-card">
-                <h4 className="detail-section-title">📁 פרטי עבודה</h4>
+                <h4 className="detail-section-title">📁 {flags.terms.itemDetails}</h4>
 
                 {/* Description */}
                 <div style={{ marginBottom: '16px' }}>
-                  <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px', display: 'block', fontSize: '0.85rem' }}>תיאור העבודה</label>
+                  <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px', display: 'block', fontSize: '0.85rem' }}>תיאור ה{flags.terms.item}</label>
                   {task.description ? (
                     <div className="description-box" style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', minHeight: '60px', backgroundColor: '#fdfdfd' }}>
                       {task.description}
                     </div>
                   ) : (
-                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט לעבודה זו.</p>
+                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט ל{flags.terms.item} זה.</p>
                   )}
                 </div>
 
@@ -383,10 +390,10 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 </div>
               </div>
 
-              {/* שעות עבודה בפרויקט */}
+              {/* שעות עבודה */}
               {!hideWeeklyHours && (
                 <div className="details-section-card">
-                  <h4 className="detail-section-title">🕒 שעות עבודה בפרויקט</h4>
+                  <h4 className="detail-section-title">🕒 שעות עבודה ב{flags.terms.item}</h4>
 
                   {/* week navigation panel */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
@@ -485,9 +492,9 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                 </div>
               )}
 
-              {/* AREA 5: הערות ועדכוני עבודה */}
+              {/* AREA 5: הערות ועדכוני פרויקט */}
               <div className="comments-section">
-                <h4 className="detail-section-title">💬 הערות ועדכוני עבודה ({comments.length})</h4>
+                <h4 className="detail-section-title">💬 הערות ועדכוני פרויקט ({comments.length})</h4>
 
                 {comments.length === 0 ? (
                   <div className="empty-state" style={{ padding: '24px' }}>
@@ -630,7 +637,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
 
                 {/* Status */}
                 <div className="sidebar-row">
-                  <span className="sidebar-label">סטטוס עבודה</span>
+                  <span className="sidebar-label">סטטוס ה{flags.terms.item}</span>
                   <div style={{ marginTop: '4px' }}>
                     <span className={`badge ${STATUS_CLASSES[task.status] || ''}`}>
                       {task.status}

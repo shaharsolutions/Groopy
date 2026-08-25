@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { getFeatureFlags } from '../utils/featureFlags';
 
 let storageApiPromise = null;
 
@@ -16,8 +17,6 @@ const getInitials = (name = '') => {
   return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 };
 
-const getTaskLabel = (task = {}) => task.title || task.jobNumber || 'פרויקט ללא שם';
-
 const buildLastProjectMap = (tasks, fieldName) => {
   const map = new Map();
 
@@ -34,19 +33,22 @@ const buildLastProjectMap = (tasks, fieldName) => {
   return map;
 };
 
-const renderLastProject = (project) => {
-  if (!project) {
-    return <span className="muted-text">אין שיוך</span>;
-  }
+export default function SuppliersContactsPage({ suppliers = [], contacts = [], userId, onBack, autoOpenSupplierId, autoOpenContactId, onClearAutoOpen, settings }) {
+  const flags = getFeatureFlags(settings);
+  const getTaskLabel = (task = {}) => task.title || task.jobNumber || `${flags.terms.item} ללא שם`;
 
-  return (
-    <span className="directory-project-chip" title={getTaskLabel(project)}>
-      <span className="directory-project-chip-title">{getTaskLabel(project)}</span>
-    </span>
-  );
-};
+  const renderLastProject = (project) => {
+    if (!project) {
+      return <span className="muted-text">אין שיוך</span>;
+    }
 
-export default function SuppliersContactsPage({ suppliers = [], contacts = [], userId, onBack, autoOpenSupplierId, autoOpenContactId, onClearAutoOpen }) {
+    return (
+      <span className="directory-project-chip" title={getTaskLabel(project)}>
+        <span className="directory-project-chip-title">{getTaskLabel(project)}</span>
+      </span>
+    );
+  };
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [supplierSearch, setSupplierSearch] = useState('');
@@ -490,7 +492,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
           <div className="directory-panel-header">
             <div>
               <h3>ספקים</h3>
-              <p>רשימת הספקים לביצוע עבודות והפקות.</p>
+              <p>רשימת הספקים לביצוע {flags.terms.items} והפקות.</p>
             </div>
             <span className="directory-count">{filteredSuppliers.length} מתוך {suppliers.length}</span>
           </div>
@@ -527,7 +529,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                 <tr>
                   <th>שם הספק</th>
                   <th>איש קשר</th>
-                  <th>פרויקט אחרון</th>
+                  <th>{flags.terms.item} אחרון</th>
                   <th>תקשורת</th>
                   <th>פעולות</th>
                 </tr>
@@ -560,7 +562,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                           </div>
                         </td>
                         <td data-label="איש קשר">{supplier.contactPerson || <span className="muted-text">לא הוגדר</span>}</td>
-                        <td data-label="פרויקט אחרון">{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
+                        <td data-label={`${flags.terms.item} אחרון`}>{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
                         <td data-label="תקשורת">
                           <div className="directory-contact-lines">
                             {supplier.phone ? <a className="directory-phone-link direction-ltr" href={`tel:${supplier.phone.replace(/\s+/g, '')}`}>{supplier.phone}</a> : null}
@@ -629,7 +631,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
               <thead>
                 <tr>
                   <th>שם</th>
-                  <th>פרויקט אחרון</th>
+                  <th>{flags.terms.item} אחרון</th>
                   <th>טלפון</th>
                   <th>אימייל</th>
                   <th>פעולות</th>
@@ -657,7 +659,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                             )}
                           </div>
                         </td>
-                        <td data-label="פרויקט אחרון">{renderLastProject(lastContactProjects.get(normalizeSearch(contact.name)))}</td>
+                        <td data-label={`${flags.terms.item} אחרון`}>{renderLastProject(lastContactProjects.get(normalizeSearch(contact.name)))}</td>
                         <td data-label="טלפון">
                           {isEditing ? (
                             <input type="text" className="form-control direction-ltr text-left directory-inline-input" value={editingContact.phone} onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })} />

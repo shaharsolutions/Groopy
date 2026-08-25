@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { getFeatureFlags } from '../utils/featureFlags';
 
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const searchDataCache = new Map();
@@ -13,7 +14,8 @@ const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-export default function SearchModal({ isOpen, onClose, userId, userRole, onNavigate }) {
+export default function SearchModal({ isOpen, onClose, userId, userRole, onNavigate, settings }) {
+  const flags = getFeatureFlags(settings);
   const [query, setQuery] = useState('');
   const [tasks, setTasks] = useState([]);
   const [comments, setComments] = useState([]);
@@ -160,7 +162,7 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
       (c.authorName && c.authorName.toLowerCase().includes(term))
     ).map(c => ({
       ...c,
-      projectTitle: taskMap.get(c.jobId) || 'פרויקט ללא שם'
+      projectTitle: taskMap.get(c.jobId) || `${flags.terms.item} ללא שם`
     }));
 
     if (!isAdmin) {
@@ -197,7 +199,7 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
       suppliers: matchedSuppliers,
       contacts: matchedContacts
     };
-  }, [query, tasks, comments, suppliers, contacts, isAdmin]);
+  }, [query, tasks, comments, suppliers, contacts, isAdmin, flags.terms.item]);
 
   const hasAnyResults = 
     results.tasks.length > 0 || 
@@ -219,7 +221,7 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
           <input
             ref={inputRef}
             type="text"
-            placeholder="חיפוש משימות, הערות, ספקים, אנשי קשר..."
+            placeholder={`חיפוש ${flags.terms.items}, הערות, ספקים, אנשי קשר...`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -242,7 +244,7 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
             <div className="search-empty-state">
               <span style={{ fontSize: '3rem' }}>🔍</span>
               <h3>חיפוש גלובלי מהיר</h3>
-              <p>הקלידו מילת חיפוש כלשהי כדי לאתר פרויקטים, תגובות, אנשי קשר וספקים בדאטהבייס.</p>
+              <p>הקלידו מילת חיפוש כלשהי כדי לאתר {flags.terms.items}, תגובות, אנשי קשר וספקים בדאטהבייס.</p>
             </div>
           ) : !hasAnyResults ? (
             <div className="search-empty-state">
@@ -256,7 +258,7 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
               {results.tasks.length > 0 && (
                 <div className="search-category-section">
                   <h4 className="search-category-title">
-                    📋 משימות ועבודות ({results.tasks.length})
+                    📋 {flags.terms.items} ({results.tasks.length})
                   </h4>
                   {results.tasks.map(task => (
                     <div 

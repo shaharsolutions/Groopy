@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getFeatureFlags } from '../utils/featureFlags';
 
 const SUMMARY_CACHE_TTL_MS = 60 * 1000;
 const summaryCache = new Map();
@@ -109,6 +110,8 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
   const [summaryData, setSummaryData] = useState({});
   const [expandedMonths, setExpandedMonths] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const flags = getFeatureFlags(settings);
 
   const toggleMonth = (key) => {
     setExpandedMonths(prev => ({
@@ -386,7 +389,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
               ) : (
                 <div>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
-                    ריכוז שעות העבודה המדווחות בכל הפרויקטים בסיכום לפי חודש:
+                    ריכוז שעות העבודה המדווחות בכל ה{flags.terms.itemsDefinite} בסיכום לפי חודש:
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {Object.keys(summaryData).sort().map(key => {
@@ -437,7 +440,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
                                   className="hours-summary-project-row"
                                   onClick={() => handleOpenProject(project.taskId)}
                                   disabled={!project.taskId || !onOpenTask}
-                                  aria-label={`פתיחת כרטיס הפרויקט ${project.title}`}
+                                  aria-label={`פתיחת כרטיס ${flags.terms.itemDefinite} ${project.title}`}
                                   style={{ 
                                     display: 'flex', 
                                     justifyContent: 'space-between',

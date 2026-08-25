@@ -118,7 +118,8 @@ service cloud.firestore {
         'contactPerson', 'importManager', 'status', 'priority', 'deadline',
         'driveLink', 'jobNumber', 'createdAt', 'updatedAt', 'attachments', 'subtasks',
         'supplierContactEmail', 'diecutsStatus', 'imagesStatus', 'standardsInstituteRequired',
-        'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId', 'organizationId', 'weeklyHours'
+        'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId', 'organizationId', 'weeklyHours',
+        'boardId'
       ];
 
       let requiredFields = [
@@ -151,7 +152,8 @@ service cloud.firestore {
              (!('standardsInstituteRequired' in data) || data.standardsInstituteRequired is string) &&
              (!('planogramFile' in data) || data.planogramFile == null || data.planogramFile is map) &&
              (!('workOrderFiles' in data) || data.workOrderFiles is list) &&
-             (!('weeklyHours' in data) || data.weeklyHours is map);
+             (!('weeklyHours' in data) || data.weeklyHours is map) &&
+             (!('boardId' in data) || (data.boardId is string && data.boardId.size() <= 100));
     }
 
     function isValidComment(data) {

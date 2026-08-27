@@ -2,9 +2,10 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { getCommentsForTask, addComment, deleteComment, updateTask, getPrivateNotes, uploadFileToStorage, addContact, updateContact, addSupplier, updateSupplier, getOrCreateOrganizationShareToken } from '../utils/storage';
 const ExcelPreviewModal = React.lazy(() => import('./ExcelPreviewModal'));
 const PdfPreviewModal = React.lazy(() => import('./PdfPreviewModal'));
+const ImagePreviewModal = React.lazy(() => import('./ImagePreviewModal'));
 import PlanogramFileCard from './PlanogramFileCard';
 import PlanogramIndicator from './PlanogramIndicator';
-import { normalizeNewTaskFields } from '../data/taskFieldConfig';
+import { normalizeNewTaskFields, getAllTaskFieldDefinitions } from '../data/taskFieldConfig';
 import { getBoardStatusConfig } from '../utils/boardStatusHelper';
 import { getFeatureFlags } from '../utils/featureFlags';
 
@@ -118,14 +119,43 @@ export default function AdminDetailsModal({
   const DEFAULT_STATUS = boardStatusConfig.defaultStatus;
 
   const {
-    workTypes: WORK_TYPES = ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
     hideWeeklyHours = false
   } = settings || {};
 
   const flags = getFeatureFlags(settings);
 
-  const newTaskFields = normalizeNewTaskFields(settings?.newTaskFields);
-  const isNewTaskFieldEnabled = (fieldKey) => newTaskFields[fieldKey]?.enabled !== false;
+  const newTaskFields = React.useMemo(() => normalizeNewTaskFields(settings?.newTaskFields), [settings?.newTaskFields]);
+  const allFieldDefinitions = React.useMemo(() => getAllTaskFieldDefinitions(settings?.newTaskFields, {
+    taskFieldOrder: settings?.taskFieldOrder
+  }), [settings?.newTaskFields, settings?.taskFieldOrder]);
+  const customFieldDefinitions = React.useMemo(() => allFieldDefinitions.filter(f => f.isCustom), [allFieldDefinitions]);
+
+  const isNewTaskFieldEnabled = (fieldKey) => Boolean(newTaskFields[fieldKey] && newTaskFields[fieldKey].enabled !== false && !newTaskFields[fieldKey].deleted);
+  const isFieldExcludedForTask = React.useCallback((fieldKey) => {
+    if (!flags.enableFieldExclusion) return false;
+    return Array.isArray(task?.excludedFields) && task.excludedFields.includes(fieldKey);
+  }, [flags.enableFieldExclusion, task?.excludedFields]);
+
+  const isFieldVisibleForTask = React.useCallback((fieldKey) => {
+    if (isFieldExcludedForTask(fieldKey)) return false;
+    // Always show if task has existing data to prevent hiding previous version data
+    if (task) {
+      if (fieldKey === 'contactPerson' && (task.contactPerson || task.supplierContactName)) return true;
+      if (fieldKey === 'supplierContactEmail' && (task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail)) return true;
+      if (fieldKey === 'planogramFile' && (task.planogramFile || task.planogram)) return true;
+      if (fieldKey === 'workOrderFiles' && (task.workOrderFile || (Array.isArray(task.workOrderFiles) ? task.workOrderFiles.length > 0 : Array.isArray(task.attachments) && task.attachments.length > 0))) return true;
+    }
+    return isNewTaskFieldEnabled(fieldKey);
+  }, [isFieldExcludedForTask, isNewTaskFieldEnabled, task]);
+
+  const excludedFieldsList = React.useMemo(() => {
+    if (!flags.enableFieldExclusion || !task || !Array.isArray(task.excludedFields) || task.excludedFields.length === 0) return [];
+    return task.excludedFields.map(key => {
+      const fieldDef = allFieldDefinitions.find(f => f.key === key) || { key, label: key };
+      return { key, label: fieldDef.label || key };
+    });
+  }, [flags.enableFieldExclusion, task, allFieldDefinitions]);
+
   const getNewTaskFieldLabel = (fieldKey) => newTaskFields[fieldKey]?.label || fieldKey;
   const getNewTaskFieldOptions = (fieldKey) => newTaskFields[fieldKey]?.options || [];
   const getNewTaskFieldStyle = (fieldKey) => {
@@ -138,9 +168,12 @@ export default function AdminDetailsModal({
     }
     return undefined;
   };
-  const defaultDiecutsStatus = newTaskFields.diecutsStatus.defaultValue || 'אין';
-  const defaultImagesStatus = newTaskFields.imagesStatus.defaultValue || 'אין';
-  const defaultStandardsInstituteRequired = newTaskFields.standardsInstituteRequired.defaultValue || 'לא';
+
+  const defaultContactPerson = newTaskFields.contactPerson?.defaultValue || '';
+  const defaultSupplierContactEmail = newTaskFields.supplierContactEmail?.defaultValue || '';
+  const defaultDiecutsStatus = newTaskFields.diecutsStatus?.defaultValue || 'אין';
+  const defaultImagesStatus = newTaskFields.imagesStatus?.defaultValue || 'אין';
+  const defaultStandardsInstituteRequired = newTaskFields.standardsInstituteRequired?.defaultValue || 'לא';
 
   const availableBoards = React.useMemo(() => {
     const defaultBoard = {
@@ -156,6 +189,50 @@ export default function AdminDetailsModal({
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [excelPreviewFile, setExcelPreviewFile] = useState(null);
   const [pdfPreviewFile, setPdfPreviewFile] = useState(null);
+  const [imagePreviewFile, setImagePreviewFile] = useState(null);
+  const [isReplacingPlanogram, setIsReplacingPlanogram] = useState(false);
+
+  const handlePreviewFile = (file) => {
+    if (!file || !file.url) return;
+    const fileName = file.name || '';
+    if (/\.pdf$/i.test(fileName)) {
+      setPdfPreviewFile({ url: file.url, name: fileName });
+    } else if (/\.(xlsx|xls)$/i.test(fileName)) {
+      setExcelPreviewFile({ url: file.url, name: fileName });
+    } else if (/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(fileName)) {
+      setImagePreviewFile({ url: file.url, name: fileName });
+    } else {
+      window.open(file.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleDownloadFile = async (file, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!file || !file.url) return;
+    try {
+      const response = await fetch(file.url);
+      if (!response.ok) throw new Error(`Download failed with status ${response.status}`);
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = file.name || 'file';
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Failed to download file', error);
+      const fallbackLink = document.createElement('a');
+      fallbackLink.href = file.url;
+      fallbackLink.download = file.name || 'file';
+      fallbackLink.target = '_blank';
+      fallbackLink.rel = 'noopener noreferrer';
+      fallbackLink.click();
+    }
+  };
 
   const handleCopyTaskLink = async () => {
     if (!task) return;
@@ -186,6 +263,7 @@ export default function AdminDetailsModal({
   const [comments, setComments] = useState([]);
   const [commentToDelete, setCommentToDelete] = useState(null);
   const [showPlanogramDeleteConfirm, setShowPlanogramDeleteConfirm] = useState(false);
+  const [fieldToExclude, setFieldToExclude] = useState(null); // { key, label }
   const commentAuthorName = 'מנהל/ת תיקתק';
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
@@ -209,8 +287,13 @@ export default function AdminDetailsModal({
   const handleOpenContactCard = (contactName) => {
     if (!contactName) return;
     setActiveCardEditField(null);
-    const contact = CONTACTS.find(c => c.name === contactName);
-    const contactObj = contact || { name: contactName };
+    const contact = CONTACTS.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === contactName.trim().toLowerCase());
+    const contactObj = contact || {
+      name: contactName,
+      phone: task?.phone || task?.contactPhone || task?.supplierContactPhone || '',
+      email: task?.supplierContactEmail || task?.contactEmail || task?.email || task?.supplierEmail || '',
+      role: task?.contactRole || ''
+    };
     setActiveInfoCard({
       type: 'contact',
       title: `📇 כרטיס איש קשר: ${contactObj.name}`,
@@ -272,13 +355,13 @@ export default function AdminDetailsModal({
   const [editContactPerson, setEditContactPerson] = useState('');
   const [editSupplierContactEmail, setEditSupplierContactEmail] = useState('');
   const [editInternalNotes, setEditInternalNotes] = useState('');
+  const [editCustomValue, setEditCustomValue] = useState('');
 
   // States for CREATE mode (full form)
   const [createTitle, setCreateTitle] = useState('');
   const [createDescription, setCreateDescription] = useState('');
-  const [createWorkType, setCreateWorkType] = useState(WORK_TYPES[0] || 'אריזה');
-  const [createContactPerson, setCreateContactPerson] = useState('');
-  const [createSupplierContactEmail, setCreateSupplierContactEmail] = useState('');
+  const [createContactPerson, setCreateContactPerson] = useState(defaultContactPerson);
+  const [createSupplierContactEmail, setCreateSupplierContactEmail] = useState(defaultSupplierContactEmail);
   const [createDiecutsStatus, setCreateDiecutsStatus] = useState(defaultDiecutsStatus);
   const [createImagesStatus, setCreateImagesStatus] = useState(defaultImagesStatus);
   const [createStandardsInstituteRequired, setCreateStandardsInstituteRequired] = useState(defaultStandardsInstituteRequired);
@@ -286,6 +369,13 @@ export default function AdminDetailsModal({
   const [createInternalNotes, setCreateInternalNotes] = useState('');
   const [createAttachments, setCreateAttachments] = useState([]);
   const [createPlanogramFile, setCreatePlanogramFile] = useState(null);
+  const [createCustomFields, setCreateCustomFields] = useState(() => {
+    const initial = {};
+    customFieldDefinitions.forEach(f => {
+      initial[f.key] = f.defaultValue ?? '';
+    });
+    return initial;
+  });
 
   const handleSelectCreateBoard = (bId) => {
     setCreateBoardId(bId);
@@ -333,6 +423,7 @@ export default function AdminDetailsModal({
     if (fieldKey === 'contactPerson') setEditContactPerson(value || '');
     if (fieldKey === 'supplierContactEmail') setEditSupplierContactEmail(value || '');
     if (fieldKey === 'internalNotes') setEditInternalNotes(value || '');
+    setEditCustomValue(value !== undefined ? value : '');
   }, []);
 
   // Sync with task updates
@@ -366,9 +457,8 @@ export default function AdminDetailsModal({
         // Seed default creation form
         setCreateTitle('');
         setCreateDescription('');
-        setCreateWorkType(WORK_TYPES[0] || 'אריזה');
-        setCreateContactPerson('');
-        setCreateSupplierContactEmail('');
+        setCreateContactPerson(defaultContactPerson);
+        setCreateSupplierContactEmail(defaultSupplierContactEmail);
         setCreateDiecutsStatus(defaultDiecutsStatus);
         setCreateImagesStatus(defaultImagesStatus);
         setCreateStandardsInstituteRequired(defaultStandardsInstituteRequired);
@@ -376,6 +466,11 @@ export default function AdminDetailsModal({
         setCreateAttachments([]);
         setCreatePlanogramFile(null);
         setCreateInternalNotes('');
+        const initialCustom = {};
+        customFieldDefinitions.forEach(f => {
+          initialCustom[f.key] = f.defaultValue ?? '';
+        });
+        setCreateCustomFields(initialCustom);
         setCreateBoardId(initialBoardId || 'active');
         setErrors({});
       });
@@ -383,7 +478,7 @@ export default function AdminDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, WORK_TYPES, startEditingField, defaultDiecutsStatus, defaultImagesStatus, defaultStandardsInstituteRequired, initialBoardId]);
+  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, startEditingField, defaultDiecutsStatus, defaultImagesStatus, defaultStandardsInstituteRequired, defaultContactPerson, defaultSupplierContactEmail, initialBoardId, customFieldDefinitions]);
 
   // Sync hours state with active Sunday week
   useEffect(() => {
@@ -495,6 +590,71 @@ export default function AdminDetailsModal({
       console.error(`Failed to save ${fieldKey}`, err);
       alert('השינוי לא נשמר. בדקי את החיבור ונסי שוב.');
       return false;
+    }
+  };
+
+  const handleSaveCustomField = async (fieldKey, value) => {
+    if (!task) return false;
+    try {
+      const updatedCustomFields = {
+        ...(task.customFields || {}),
+        [fieldKey]: value
+      };
+      await updateTask(task.id, { customFields: updatedCustomFields });
+      if (onTaskUpdated) {
+        onTaskUpdated(task.id, {
+          customFields: updatedCustomFields,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      setActiveEditField(null);
+      return true;
+    } catch (err) {
+      console.error(`Failed to save custom field ${fieldKey}`, err);
+      alert('השינוי לא נשמר. בדקי את החיבור ונסי שוב.');
+      return false;
+    }
+  };
+
+  const handleExcludeFieldFromTask = (fieldKey, fieldLabel) => {
+    setFieldToExclude({ key: fieldKey, label: fieldLabel });
+  };
+
+  const confirmExcludeFieldFromTask = async () => {
+    if (!task || !fieldToExclude) return;
+    const { key: fieldKey } = fieldToExclude;
+    const currentExcluded = Array.isArray(task.excludedFields) ? task.excludedFields : [];
+    const newExcluded = [...new Set([...currentExcluded, fieldKey])];
+    try {
+      await updateTask(task.id, { excludedFields: newExcluded });
+      if (onTaskUpdated) {
+        onTaskUpdated(task.id, {
+          excludedFields: newExcluded,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      setFieldToExclude(null);
+    } catch (err) {
+      console.error('Failed to exclude field from task', err);
+      alert('שגיאה בהסרת השדה מפרויקט זה.');
+    }
+  };
+
+  const handleRestoreFieldToTask = async (fieldKey) => {
+    if (!task) return;
+    const currentExcluded = Array.isArray(task.excludedFields) ? task.excludedFields : [];
+    const newExcluded = currentExcluded.filter(k => k !== fieldKey);
+    try {
+      await updateTask(task.id, { excludedFields: newExcluded });
+      if (onTaskUpdated) {
+        onTaskUpdated(task.id, {
+          excludedFields: newExcluded,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } catch (err) {
+      console.error('Failed to restore field to task', err);
+      alert('שגיאה בהחזרת השדה לפרויקט.');
     }
   };
 
@@ -892,8 +1052,8 @@ export default function AdminDetailsModal({
       return;
     }
 
-    if (!/\.(jpg|jpeg|png|webp|gif|pdf)$/i.test(file.name)) {
-      alert('אנא בחרי קובץ תמונה או PDF');
+    if (!/\.(jpg|jpeg|png|webp|gif|svg|pdf|xlsx|xls)$/i.test(file.name)) {
+      alert('אנא בחרי קובץ תמונה, PDF או Excel');
       e.target.value = '';
       return;
     }
@@ -902,13 +1062,42 @@ export default function AdminDetailsModal({
     try {
       const result = await uploadFileToStorage(file, 'planograms', () => {});
       await updateTask(task.id, { planogramFile: result });
+      if (onTaskUpdated) onTaskUpdated(task.id, { planogramFile: result });
       e.target.value = '';
       onRefresh();
     } catch (err) {
       console.error(err);
-      alert('שגיאה בהעלאת הפלנוגרמה');
+      alert('שגיאה בהעלאת הקובץ');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handlePlanogramReplaceView = async (file) => {
+    if (!file) return;
+
+    const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
+    if (file.size > MAX_SIZE) {
+      alert('גודל הקובץ עולה על המותר (מקסימום 15MB)');
+      return;
+    }
+
+    if (!/\.(jpg|jpeg|png|webp|gif|svg|pdf|xlsx|xls)$/i.test(file.name)) {
+      alert('אנא בחרי קובץ תמונה, PDF או Excel');
+      return;
+    }
+
+    setIsReplacingPlanogram(true);
+    try {
+      const result = await uploadFileToStorage(file, 'planograms', () => {});
+      await updateTask(task.id, { planogramFile: result });
+      if (onTaskUpdated) onTaskUpdated(task.id, { planogramFile: result });
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to replace planogram file', err);
+      alert('שגיאה בעדכון הקובץ');
+    } finally {
+      setIsReplacingPlanogram(false);
     }
   };
 
@@ -1003,8 +1192,8 @@ export default function AdminDetailsModal({
       return;
     }
 
-    if (!/\.(jpg|jpeg|png|webp|gif|pdf)$/i.test(file.name)) {
-      setUploadErrorPlanogram('אנא בחרי קובץ תמונה או PDF');
+    if (!/\.(jpg|jpeg|png|webp|gif|svg|pdf|xlsx|xls)$/i.test(file.name)) {
+      setUploadErrorPlanogram('אנא בחרי קובץ תמונה, PDF או Excel');
       return;
     }
 
@@ -1079,7 +1268,6 @@ export default function AdminDetailsModal({
     const taskData = {
       title: createTitle.trim(),
       description: createDescription.trim(),
-      workType: createWorkType,
       supplierName: '',
       status: createStatus,
       boardId: createBoardId || 'active',
@@ -1091,6 +1279,7 @@ export default function AdminDetailsModal({
       ...(isNewTaskFieldEnabled('workOrderFiles') ? { workOrderFiles: createAttachments } : {}),
       ...(isNewTaskFieldEnabled('planogramFile') ? { planogramFile: createPlanogramFile } : {}),
       internalNotes: createInternalNotes.trim(),
+      customFields: createCustomFields,
       weeklyHours: {
         sunday: 0,
         monday: 0,
@@ -1163,7 +1352,7 @@ export default function AdminDetailsModal({
                   >
                     {task.title} ✏️
                   </span>
-                  {task.planogramFile && <PlanogramIndicator />}
+                  {(task.planogramFile || task.planogram) && <PlanogramIndicator />}
                 </span>
               )}
             </h3>
@@ -1223,16 +1412,18 @@ export default function AdminDetailsModal({
               </div>
 
               {/* 2. תיאור ופרטים נוספים */}
-              <div className="form-group">
-                <label className="form-label">תיאור ופרטים נוספים</label>
-                <textarea
-                  className="form-control"
-                  rows="2"
-                  placeholder={`פרטי ה${flags.terms.item}, דגשים והנחיות...`}
-                  value={createDescription}
-                  onChange={(e) => setCreateDescription(e.target.value)}
-                />
-              </div>
+              {isNewTaskFieldEnabled('description') && (
+                <div className="form-group" style={getNewTaskFieldStyle('description')}>
+                  <label className="form-label">{getNewTaskFieldLabel('description')}</label>
+                  <textarea
+                    className="form-control"
+                    rows="2"
+                    placeholder={`פרטי ה${flags.terms.item}, דגשים והנחיות...`}
+                    value={createDescription}
+                    onChange={(e) => setCreateDescription(e.target.value)}
+                  />
+                </div>
+              )}
 
               {/* 3. לוח */}
               {flags.enableCustomBoards && availableBoards.length > 1 && (
@@ -1288,16 +1479,18 @@ export default function AdminDetailsModal({
               )}
 
               {/* 5. הערות פנימיות */}
-              <div className="form-group">
-                <label className="form-label">הערות פנימיות</label>
-                <textarea
-                  className="form-control"
-                  rows="2"
-                  placeholder="הערות לצוות הפנימי (לא יוצגו לספקים חיצוניים)..."
-                  value={createInternalNotes}
-                  onChange={(e) => setCreateInternalNotes(e.target.value)}
-                />
-              </div>
+              {isNewTaskFieldEnabled('internalNotes') && (
+                <div className="form-group" style={getNewTaskFieldStyle('internalNotes')}>
+                  <label className="form-label">{getNewTaskFieldLabel('internalNotes')}</label>
+                  <textarea
+                    className="form-control"
+                    rows="2"
+                    placeholder="הערות לצוות הפנימי (לא יוצגו לספקים חיצוניים)..."
+                    value={createInternalNotes}
+                    onChange={(e) => setCreateInternalNotes(e.target.value)}
+                  />
+                </div>
+              )}
 
               {/* שדות מוגדרים נוספים (אם מופעלים) */}
               {isNewTaskFieldEnabled('contactPerson') && (
@@ -1325,10 +1518,13 @@ export default function AdminDetailsModal({
                     )}
                   </div>
                   <datalist id="contacts-list-modal">
-                    {CONTACTS.map(c => {
-                      const name = typeof c === 'string' ? c : c.name;
-                      const role = typeof c === 'string' ? '' : c.role;
-                      const phone = typeof c === 'string' ? '' : c.phone;
+                    {Array.from(new Set([
+                      ...getNewTaskFieldOptions('contactPerson'),
+                      ...CONTACTS.map(c => typeof c === 'string' ? c : c.name)
+                    ])).map(name => {
+                      const contactObj = CONTACTS.find(c => (typeof c === 'string' ? c : c.name) === name);
+                      const role = contactObj && typeof contactObj !== 'string' ? contactObj.role : '';
+                      const phone = contactObj && typeof contactObj !== 'string' ? contactObj.phone : '';
                       return (
                         <option key={name} value={name}>
                           {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
@@ -1348,11 +1544,19 @@ export default function AdminDetailsModal({
                         type="text"
                         className="form-control text-left direction-ltr"
                         value={createSupplierContactEmail}
+                        list="supplier-emails-list-modal"
                         onChange={(e) => {
                           setCreateSupplierContactEmail(e.target.value);
                           if (errors.supplierContactEmail) setErrors({...errors, supplierContactEmail: null});
                         }}
                       />
+                      {getNewTaskFieldOptions('supplierContactEmail').length > 0 && (
+                        <datalist id="supplier-emails-list-modal">
+                          {getNewTaskFieldOptions('supplierContactEmail').map(email => (
+                            <option key={email} value={email}>{email}</option>
+                          ))}
+                        </datalist>
+                      )}
                       {errors.supplierContactEmail && <span className="form-error">{errors.supplierContactEmail}</span>}
                     </div>
                   )}
@@ -1408,7 +1612,7 @@ export default function AdminDetailsModal({
                 </div>
               )}
 
-              {/* הזמנת עבודה (קבצים מצורפים) */}
+              {/* הזמנת עבודה */}
               {isNewTaskFieldEnabled('workOrderFiles') && (
                 <div className="form-group" style={getNewTaskFieldStyle('workOrderFiles')}>
                   <label className="form-label">
@@ -1426,7 +1630,7 @@ export default function AdminDetailsModal({
                   >
                     <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>📁</div>
                     <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
-                      <strong>גררי לכאן קבצים</strong> או לחצי לבחירה מהמחשב
+                      <strong>{uploading ? 'מעלה קובץ...' : 'גררי לכאן קבצי הזמנת עבודה'}</strong> או לחצי לבחירה מהמחשב
                     </div>
                     <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
                       עד 15MB לקובץ
@@ -1470,29 +1674,56 @@ export default function AdminDetailsModal({
                   {createAttachments.length > 0 && (
                     <div className="attachments-list" style={{ marginTop: '10px' }}>
                       {createAttachments.map((file, idx) => {
-                        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                        const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
+                        const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+                        const isPdf = /\.pdf$/i.test(file.name);
                         return (
-                          <div key={idx} className="attachment-row" style={{ padding: '6px 10px' }}>
+                          <div key={idx} className="attachment-row" style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                             <a
                               href={file.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="attachment-info"
-                              title="צפייה בקובץ"
+                              title="צפייה בקובץ מתוך המערכת"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handlePreviewFile(file);
+                              }}
+                              style={{ flex: 1, minWidth: 0 }}
                             >
-                              <span className="attachment-icon">{isImage ? '🖼️' : '📄'}</span>
+                              <span className="attachment-icon">{isImage ? '🖼️' : isExcel ? '📊' : isPdf ? '📄' : '📎'}</span>
                               <span style={{ direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {file.name}
                               </span>
                             </a>
-                            <button
-                              type="button"
-                              className="attachment-delete-btn"
-                              onClick={() => handleDeleteAttachmentCreateMode(idx)}
-                              title="הסר קובץ"
-                            >
-                              🗑️
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '2px 6px', fontSize: '0.75rem', height: '26px' }}
+                                onClick={() => handlePreviewFile(file)}
+                                title="צפייה"
+                              >
+                                👁️
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                style={{ padding: '2px 6px', fontSize: '0.75rem', height: '26px' }}
+                                onClick={(e) => handleDownloadFile(file, e)}
+                                title="הורדה"
+                              >
+                                📥
+                              </button>
+                              <button
+                                type="button"
+                                className="attachment-delete-btn"
+                                onClick={() => handleDeleteAttachmentCreateMode(idx)}
+                                title="הסר קובץ"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -1506,7 +1737,15 @@ export default function AdminDetailsModal({
                 <div className="form-group" style={getNewTaskFieldStyle('planogramFile')}>
                   <label className="form-label">{getNewTaskFieldLabel('planogramFile')}</label>
                   {createPlanogramFile ? (
-                    <PlanogramFileCard file={createPlanogramFile} onDelete={handlePlanogramDeleteCreate} deleteLabel="הסרה" />
+                    <PlanogramFileCard 
+                      file={createPlanogramFile} 
+                      onPreview={handlePreviewFile}
+                      onReplace={uploadPlanogramCreateFile}
+                      onDelete={handlePlanogramDeleteCreate} 
+                      deleteLabel="הסרה"
+                      downloadLabel="הורדה"
+                      isReplacing={uploadingPlanogram}
+                    />
                   ) : (
                     <div
                       className={`file-upload-zone planogram-upload-zone ${planogramDragActive ? 'drag-active' : ''} ${uploadingPlanogram ? 'is-uploading' : ''}`}
@@ -1515,18 +1754,19 @@ export default function AdminDetailsModal({
                       onDragOver={handlePlanogramDragCreate}
                       onDragLeave={handlePlanogramDragCreate}
                       onDrop={handlePlanogramDropCreate}
+                      onClick={() => document.getElementById('planogram-upload-create-input').click()}
                     >
                       <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>🗂️</div>
                       <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
-                        <strong>{uploadingPlanogram ? 'מעלה פלנוגרמה...' : 'גררי לכאן פלנוגרמה'}</strong> או לחצי לבחירה מהמחשב
+                        <strong>{uploadingPlanogram ? 'מעלה קובץ...' : 'גררי לכאן פלנוגרמה'}</strong> או לחצי לבחירה מהמחשב
                       </div>
                       <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
-                        תמונה או PDF, עד 15MB
+                        תמונה, PDF או Excel, עד 15MB
                       </div>
                       <input
                         type="file"
                         id="planogram-upload-create-input"
-                        accept="image/*,.pdf,application/pdf"
+                        accept="image/*,.pdf,application/pdf,.xlsx,.xls"
                         className="file-upload-input"
                         onChange={handlePlanogramUploadCreate}
                         disabled={uploadingPlanogram}
@@ -1538,6 +1778,63 @@ export default function AdminDetailsModal({
                   )}
                 </div>
               )}
+
+              {/* שדות מותאמים אישית ביצירת פרויקט */}
+              {customFieldDefinitions.filter(f => isNewTaskFieldEnabled(f.key)).map(f => (
+                <div key={f.key} className="form-group" style={getNewTaskFieldStyle(f.key)}>
+                  <label className="form-label">{f.label}</label>
+                  {f.type === 'select' ? (
+                    <select
+                      className="form-control"
+                      value={createCustomFields[f.key] ?? (f.defaultValue || '')}
+                      onChange={(e) => setCreateCustomFields({ ...createCustomFields, [f.key]: e.target.value })}
+                    >
+                      <option value="">(ללא בחירה)</option>
+                      {(f.options || []).map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : f.type === 'textarea' ? (
+                    <textarea
+                      className="form-control"
+                      rows="2"
+                      value={createCustomFields[f.key] ?? (f.defaultValue || '')}
+                      onChange={(e) => setCreateCustomFields({ ...createCustomFields, [f.key]: e.target.value })}
+                    />
+                  ) : f.type === 'checkbox' ? (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '6px' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(createCustomFields[f.key] ?? (f.defaultValue === 'true' || f.defaultValue === true))}
+                        onChange={(e) => setCreateCustomFields({ ...createCustomFields, [f.key]: e.target.checked })}
+                        style={{ width: '18px', height: '18px' }}
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ) : f.type === 'number' ? (
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={createCustomFields[f.key] ?? (f.defaultValue || '')}
+                      onChange={(e) => setCreateCustomFields({ ...createCustomFields, [f.key]: e.target.value })}
+                    />
+                  ) : f.type === 'date' ? (
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={createCustomFields[f.key] ?? (f.defaultValue || '')}
+                      onChange={(e) => setCreateCustomFields({ ...createCustomFields, [f.key]: e.target.value })}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={createCustomFields[f.key] ?? (f.defaultValue || '')}
+                      onChange={(e) => setCreateCustomFields({ ...createCustomFields, [f.key]: e.target.value })}
+                    />
+                  )}
+                </div>
+              ))}
 
             </div>
 
@@ -1560,206 +1857,293 @@ export default function AdminDetailsModal({
                 <div className="details-main">
 
                   {/* AREA 1: פרטי פרויקט / עבודה */}
-                  <div className="details-section-card">
-                    <h4 className="detail-section-title">📁 {flags.terms.itemDetails}</h4>
+                  {(isFieldVisibleForTask('description') || isFieldVisibleForTask('internalNotes')) && (
+                    <div className="details-section-card">
+                      <h4 className="detail-section-title">📁 {flags.terms.itemDetails}</h4>
 
-
-
-                    {/* Field: Description */}
-                    <div style={{ marginBottom: '16px' }}>
-                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '4px', display: 'block', fontSize: '0.85rem' }}>תיאור ה{flags.terms.item}</label>
-                      {activeEditField === 'description' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                          <textarea
-                            className="form-control"
-                            rows="4"
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            onBlur={(e) => handleAutoSaveBlur(e, 'description', editDescription)}
-                            autoFocus
-                          />
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button type="button" data-inline-edit-action="true" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('description', editDescription)}>שמירה ✔️</button>
-                            <button type="button" data-inline-edit-action="true" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          className="description-box hover-editable"
-                          onClick={() => startEditingField('description', task.description)}
-                          title="לחצי לעריכת תיאור"
-                        >
-                          {task.description ? (
-                            task.description
-                          ) : (
-                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין תיאור מפורט ל{flags.terms.item} זה. לחצי להוספת תיאור.</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Field: Internal Notes */}
-                    <div>
-                      <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', display: 'block', fontSize: '0.85rem', marginBottom: '4px' }}>🔒 הערות פנימיות</label>
-                      {activeEditField === 'internalNotes' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                          <textarea
-                            className="form-control"
-                            rows="3"
-                            value={editInternalNotes}
-                            onChange={(e) => setEditInternalNotes(e.target.value)}
-                            onBlur={(e) => handleAutoSaveBlur(e, 'internalNotes', editInternalNotes)}
-                            autoFocus
-                          />
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button type="button" data-inline-edit-action="true" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('internalNotes', editInternalNotes)}>שמירה ✔️</button>
-                            <button type="button" data-inline-edit-action="true" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          className="description-box hover-editable"
-                          style={{ backgroundColor: 'var(--secondary-light)', borderColor: 'var(--border)' }}
-                          onClick={() => startEditingField('internalNotes', internalNotes)}
-                          title="לחצי לעריכת הערות פנימיות"
-                        >
-                          {internalNotes ? (
-                            internalNotes
-                          ) : (
-                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין הערות פנימיות. לחצי להוספת הערות.</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
-                  <div className="details-section-card">
-                    <h4 className="detail-section-title">📋 הזמנת עבודה ופלנוגרמה</h4>
-                    <div className="work-order-planogram-grid">
-
-                      {/* הזמנת עבודה */}
-                      <div className="work-order-column">
-                        <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
-                          הזמנת עבודה (קבצים מצורפים)
-                        </label>
-
-                        {(() => {
-                          const filesList = task.workOrderFiles || task.attachments || [];
-                          return filesList.length > 0 ? (
-                            <div className="attachments-list" style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '12px' }}>
-                              {filesList.map((file, idx) => {
-                                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-                                const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-                                const isPdf = /\.pdf$/i.test(file.name);
-                                return (
-                                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                                    <a
-                                      href={file.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="attachment-info"
-                                      style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}
-                                      title={file.name}
-                                      onClick={(e) => {
-                                        if (isExcel) {
-                                          e.preventDefault();
-                                          setExcelPreviewFile({ url: file.url, name: file.name });
-                                        } else if (isPdf) {
-                                          e.preventDefault();
-                                          setPdfPreviewFile({ url: file.url, name: file.name });
-                                        }
-                                      }}
-                                    >
-                                      <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
-                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block' }}>
-                                        {file.name}
-                                      </span>
-                                    </a>
-                                    <button
-                                      type="button"
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px' }}
-                                      onClick={() => handleDeleteAttachmentDirectly(idx)}
-                                      title="מחיקת קובץ"
-                                    >
-                                      🗑️
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', marginBottom: '12px' }}>
-                              אין קבצים מצורפים
-                            </div>
-                          );
-                        })()}
-
-                        {/* Add file inline */}
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                            <button
-                              type="button"
-                              className="comment-attachment-btn"
-                              style={{ padding: '6px 10px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                              onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
-                              disabled={uploading}
-                            >
-                              {uploading
-                                ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%`
-                                : '📎 הוספת קובץ'}
-                            </button>
-                            {!uploading && (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 15MB)</span>
+                      {/* Field: Description */}
+                      {isFieldVisibleForTask('description') && (
+                        <div style={{ marginBottom: isFieldVisibleForTask('internalNotes') ? '16px' : '0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
+                              {getNewTaskFieldLabel('description')}
+                            </label>
+                            {flags.enableFieldExclusion && (
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                                title={`הסרת ${getNewTaskFieldLabel('description')} מפרויקט זה`}
+                                onClick={() => handleExcludeFieldFromTask('description', getNewTaskFieldLabel('description'))}
+                              >
+                                🗑️ הסרת שדה
+                              </button>
                             )}
                           </div>
-                          <input
-                            type="file"
-                            id="view-attachment-file-input-inline"
-                            multiple
-                            style={{ display: 'none' }}
-                            onChange={handleUploadFilesDirectly}
-                          />
-                          {uploadError && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{uploadError}</div>}
-                        </div>
-                      </div>
-
-                      {/* פלנוגרמה */}
-                      <div className="planogram-column">
-                        <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
-                          פלנוגרמה
-                        </label>
-
-                        {task.planogramFile ? (
-                          <PlanogramFileCard file={task.planogramFile} onDelete={handlePlanogramDeleteView} />
-                        ) : (
-                          <div
-                            className="planogram-preview-container"
-                            style={{ height: '140px', margin: 0, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center', alignItems: 'center' }}
-                          >
-                            <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא הועלתה פלנוגרמה</span>
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                              onClick={() => document.getElementById('planogram-upload-view-input').click()}
-                              disabled={uploading}
+                          {activeEditField === 'description' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                              <textarea
+                                className="form-control"
+                                rows="4"
+                                value={editDescription}
+                                onChange={(e) => setEditDescription(e.target.value)}
+                                onBlur={(e) => handleAutoSaveBlur(e, 'description', editDescription)}
+                                autoFocus
+                              />
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button type="button" data-inline-edit-action="true" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('description', editDescription)}>שמירה ✔️</button>
+                                <button type="button" data-inline-edit-action="true" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className="description-box hover-editable"
+                              onClick={() => startEditingField('description', task.description)}
+                              title="לחצי לעריכת תיאור"
                             >
-                              העלאת פלנוגרמה
-                            </button>
-                            <input
-                              type="file"
-                              id="planogram-upload-view-input"
-                              accept="image/*,.pdf,application/pdf"
-                              style={{ display: 'none' }}
-                              onChange={handlePlanogramUploadView}
-                            />
+                              {task.description ? (
+                                task.description
+                              ) : (
+                                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                                  {flags.terms?.noDescription || (flags.isLegacy ? 'אין פירוט מדויק לעבודה זו. לחצי להוספת תיאור.' : 'אין פירוט מדויק לפרויקט זה. לחצי להוספת תיאור.')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Field: Internal Notes */}
+                      {isFieldVisibleForTask('internalNotes') && (
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', margin: 0, fontSize: '0.85rem' }}>
+                              🔒 {getNewTaskFieldLabel('internalNotes')}
+                            </label>
+                            {flags.enableFieldExclusion && (
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                                title={`הסרת ${getNewTaskFieldLabel('internalNotes')} מפרויקט זה`}
+                                onClick={() => handleExcludeFieldFromTask('internalNotes', getNewTaskFieldLabel('internalNotes'))}
+                              >
+                                🗑️ הסרת שדה
+                              </button>
+                            )}
+                          </div>
+                          {activeEditField === 'internalNotes' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                              <textarea
+                                className="form-control"
+                                rows="3"
+                                value={editInternalNotes}
+                                onChange={(e) => setEditInternalNotes(e.target.value)}
+                                onBlur={(e) => handleAutoSaveBlur(e, 'internalNotes', editInternalNotes)}
+                                autoFocus
+                              />
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button type="button" data-inline-edit-action="true" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => handleSaveField('internalNotes', editInternalNotes)}>שמירה ✔️</button>
+                                <button type="button" data-inline-edit-action="true" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={handleCancelField}>ביטול ❌</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className="description-box hover-editable"
+                              style={{ backgroundColor: 'var(--secondary-light)', borderColor: 'var(--border)' }}
+                              onClick={() => startEditingField('internalNotes', internalNotes)}
+                              title="לחצי לעריכת הערות פנימיות"
+                            >
+                              {internalNotes ? (
+                                internalNotes
+                              ) : (
+                                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין הערות פנימיות. לחצי להוספת הערות.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
+                  {(isFieldVisibleForTask('workOrderFiles') || isFieldVisibleForTask('planogramFile')) && (
+                    <div className="details-section-card">
+                      <h4 className="detail-section-title">📋 {flags.terms.filesSectionTitle || 'הזמנת עבודה ופלנוגרמה'}</h4>
+                      <div className="work-order-planogram-grid">
+
+                        {/* הזמנת עבודה */}
+                        {isFieldVisibleForTask('workOrderFiles') && (
+                          <div className="work-order-column">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
+                                {getNewTaskFieldLabel('workOrderFiles')}
+                              </label>
+                              {flags.enableFieldExclusion && (
+                                <button
+                                  type="button"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                                  title={`הסרת ${getNewTaskFieldLabel('workOrderFiles')} מפרויקט זה`}
+                                  onClick={() => handleExcludeFieldFromTask('workOrderFiles', getNewTaskFieldLabel('workOrderFiles'))}
+                                >
+                                  🗑️ הסרת שדה
+                                </button>
+                              )}
+                            </div>
+
+                            {(() => {
+                              const filesList = (Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 0)
+                                ? task.workOrderFiles
+                                : (task.workOrderFile ? [task.workOrderFile] : (Array.isArray(task.attachments) ? task.attachments : []));
+
+                              return filesList.length > 0 ? (
+                                <div className="attachments-list" style={{ maxHeight: '160px', overflowY: 'auto', marginBottom: '12px' }}>
+                                  {filesList.map((file, idx) => {
+                                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                                    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+                                    const isPdf = /\.pdf$/i.test(file.name);
+                                    return (
+                                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                                        <div
+                                          className="attachment-info"
+                                          style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                                          title={file.name}
+                                          onClick={() => handlePreviewFile(file)}
+                                        >
+                                          <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block', fontWeight: '500' }}>
+                                            {file.name}
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                          <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            onClick={() => handlePreviewFile(file)}
+                                            title="צפייה בקובץ מתוך המערכת"
+                                          >
+                                            👁️ צפייה
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn btn-primary"
+                                            style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            onClick={(e) => handleDownloadFile(file, e)}
+                                            title="הורדת הקובץ למחשב"
+                                          >
+                                            📥 הורדה
+                                          </button>
+                                          <button
+                                            type="button"
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px 4px' }}
+                                            onClick={() => handleDeleteAttachmentDirectly(idx)}
+                                            title="מחיקת קובץ"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', marginBottom: '12px' }}>
+                                  אין קבצי הזמנת עבודה
+                                </div>
+                              );
+                            })()}
+
+                            {/* Add file inline */}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                <button
+                                  type="button"
+                                  className="comment-attachment-btn"
+                                  style={{ padding: '6px 10px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
+                                  disabled={uploading}
+                                >
+                                  {uploading
+                                    ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%`
+                                    : '📎 הוספת קובץ'}
+                                </button>
+                                {!uploading && (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 15MB)</span>
+                                )}
+                              </div>
+                              <input
+                                type="file"
+                                id="view-attachment-file-input-inline"
+                                multiple
+                                style={{ display: 'none' }}
+                                onChange={handleUploadFilesDirectly}
+                              />
+                              {uploadError && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{uploadError}</div>}
+                            </div>
                           </div>
                         )}
-                      </div>
 
+                        {/* פלנוגרמה */}
+                        {isFieldVisibleForTask('planogramFile') && (
+                          <div className="planogram-column">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
+                                {getNewTaskFieldLabel('planogramFile')}
+                              </label>
+                              {flags.enableFieldExclusion && (
+                                <button
+                                  type="button"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                                  title={`הסרת ${getNewTaskFieldLabel('planogramFile')} מפרויקט זה`}
+                                  onClick={() => handleExcludeFieldFromTask('planogramFile', getNewTaskFieldLabel('planogramFile'))}
+                                >
+                                  🗑️ הסרת שדה
+                                </button>
+                              )}
+                            </div>
+
+                            {(() => {
+                              const currentPlanogram = task.planogramFile || task.planogram;
+                              return currentPlanogram ? (
+                                <PlanogramFileCard 
+                                  file={currentPlanogram} 
+                                  onPreview={handlePreviewFile}
+                                  onReplace={handlePlanogramReplaceView}
+                                  onDelete={handlePlanogramDeleteView}
+                                  isReplacing={isReplacingPlanogram}
+                                  deleteLabel="מחיקה"
+                                  downloadLabel="הורדה"
+                                />
+                              ) : (
+                                <div
+                                  className="planogram-preview-container"
+                                  style={{ height: '140px', margin: 0, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center', alignItems: 'center' }}
+                                >
+                                  <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא הועלה קובץ</span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                                    onClick={() => document.getElementById('planogram-upload-view-input').click()}
+                                    disabled={uploading || isReplacingPlanogram}
+                                  >
+                                    העלאת קובץ
+                                  </button>
+                                  <input
+                                    type="file"
+                                    id="planogram-upload-view-input"
+                                    accept="image/*,.pdf,application/pdf,.xlsx,.xls"
+                                    style={{ display: 'none' }}
+                                    onChange={handlePlanogramUploadView}
+                                  />
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* שעות עבודה בפרויקט */}
                   {!hideWeeklyHours && (
@@ -2092,143 +2476,219 @@ export default function AdminDetailsModal({
                 <div className="details-sidebar">
 
                   {/* AREA 2: ספק ואיש קשר */}
-                  <div className="details-section-card">
-                    <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>📇 ספק ואיש קשר</h4>
+                  {(isFieldVisibleForTask('contactPerson') || isFieldVisibleForTask('supplierContactEmail')) && (
+                    <div className="details-section-card">
+                      <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>📇 ספק ואיש קשר</h4>
 
-                    {/* Supplier Contact Person */}
-                    <div className="sidebar-row">
-                      <span className="sidebar-label">איש קשר אצל הספק</span>
-                      {activeEditField === 'contactPerson' ? (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                          <input
-                            type="text"
-                            className="form-control"
-                            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                            value={editContactPerson}
-                            onChange={(e) => setEditContactPerson(e.target.value)}
-                            onBlur={(e) => handleAutoSaveBlur(e, 'contactPerson', editContactPerson)}
-                            list="contacts-list-inline"
-                            autoFocus
-                          />
-                          <datalist id="contacts-list-inline">
-                            {CONTACTS.map(c => {
-                              const name = typeof c === 'string' ? c : c.name;
-                              const role = typeof c === 'string' ? '' : c.role;
-                              const phone = typeof c === 'string' ? '' : c.phone;
-                              return (
-                                <option key={name} value={name}>
-                                  {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
-                                </option>
-                              );
-                            })}
-                          </datalist>
-                          <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
-                          <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span
-                              className="sidebar-value hover-editable-inline"
-                              onClick={() => startEditingField('contactPerson', task.contactPerson)}
-                              title="לחצי לעריכת איש קשר ספק"
-                            >
-                              {task.contactPerson || 'לחצי להוספה...'} ✏️
-                            </span>
-                            {task.contactPerson && (
+                      {/* Supplier Contact Person */}
+                      {isFieldVisibleForTask('contactPerson') && (
+                        <div className="sidebar-row">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                            <span className="sidebar-label">{getNewTaskFieldLabel('contactPerson')}</span>
+                            {flags.enableFieldExclusion && (
                               <button
                                 type="button"
-                                className="btn btn-secondary btn-icon"
-                                style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                title="פרטי כרטיס איש קשר"
-                                onClick={() => handleOpenContactCard(task.contactPerson)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                                title={`הסרת ${getNewTaskFieldLabel('contactPerson')} מפרויקט זה`}
+                                onClick={() => handleExcludeFieldFromTask('contactPerson', getNewTaskFieldLabel('contactPerson'))}
                               >
-                                ℹ️
+                                🗑️
                               </button>
                             )}
                           </div>
-                          {task.contactPerson && (() => {
-                            const cObj = CONTACTS.find(c => c.name && c.name.trim().toLowerCase() === task.contactPerson.trim().toLowerCase());
-                            const phone = cObj ? cObj.phone : '';
-                            if (!phone) return null;
+                          {activeEditField === 'contactPerson' ? (
+                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                              <input
+                                type="text"
+                                className="form-control"
+                                style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                                value={editContactPerson}
+                                onChange={(e) => setEditContactPerson(e.target.value)}
+                                onBlur={(e) => handleAutoSaveBlur(e, 'contactPerson', editContactPerson)}
+                                list="contacts-list-inline"
+                                autoFocus
+                              />
+                              <datalist id="contacts-list-inline">
+                                {Array.from(new Set([
+                                  ...getNewTaskFieldOptions('contactPerson'),
+                                  ...CONTACTS.map(c => typeof c === 'string' ? c : c.name)
+                                ])).map(name => {
+                                  const contactObj = CONTACTS.find(c => (typeof c === 'string' ? c : c.name) === name);
+                                  const role = contactObj && typeof contactObj !== 'string' ? contactObj.role : '';
+                                  const phone = contactObj && typeof contactObj !== 'string' ? contactObj.phone : '';
+                                  return (
+                                    <option key={name} value={name}>
+                                      {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
+                                    </option>
+                                  );
+                                })}
+                              </datalist>
+                              <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
+                              <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                            </div>
+                          ) : (() => {
+                            const currentContactPerson = task.contactPerson || task.supplierContactName;
+                            const cObj = currentContactPerson ? CONTACTS.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
+                            const phone = cObj?.phone || task.phone || task.contactPhone || task.supplierContactPhone || '';
+                            const role = cObj?.role || task.contactRole || '';
+                            const wechat = cObj?.wechat || task.wechat || '';
+                            const address = cObj?.address || '';
                             return (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                <span>📞</span>
-                                <a
-                                  href={`tel:${phone.replace(/\s+/g, '')}`}
-                                  className="directory-phone-link direction-ltr"
-                                  style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span
+                                    className="sidebar-value hover-editable-inline"
+                                    onClick={() => startEditingField('contactPerson', currentContactPerson)}
+                                    title={`לחצי לעריכת ${getNewTaskFieldLabel('contactPerson')}`}
+                                    style={{ fontWeight: currentContactPerson ? '600' : 'normal' }}
+                                  >
+                                    {currentContactPerson || 'לחצי להוספה...'} ✏️
+                                  </span>
+                                  {currentContactPerson && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary btn-icon"
+                                      style={{ padding: '2px 6px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                      title="פרטי כרטיס איש קשר"
+                                      onClick={() => handleOpenContactCard(currentContactPerson)}
+                                    >
+                                      📇 כרטיס
+                                    </button>
+                                  )}
+                                </div>
+                                {role && (
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    <span>💼 {role}</span>
+                                  </div>
+                                )}
+                                {phone && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                    <span>📞</span>
+                                    <a
+                                      href={`tel:${phone.replace(/\s+/g, '')}`}
+                                      className="directory-phone-link direction-ltr"
+                                      style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '500' }}
+                                    >
+                                      {phone}
+                                    </a>
+                                    <a
+                                      href={`https://wa.me/${phone.replace(/[^0-9]/g, '')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="שליחת הודעת WhatsApp"
+                                      style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366', marginRight: '4px' }}
+                                    >
+                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
+                                      </svg>
+                                    </a>
+                                  </div>
+                                )}
+                                {wechat && (
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    <span>💬 WeChat: {wechat}</span>
+                                  </div>
+                                )}
+                                {address && (
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    <span>📍 {address}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Supplier Contact Email */}
+                      {isFieldVisibleForTask('supplierContactEmail') && (
+                        <div className="sidebar-row">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                            <span className="sidebar-label">{getNewTaskFieldLabel('supplierContactEmail')}</span>
+                            {flags.enableFieldExclusion && (
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                                title={`הסרת ${getNewTaskFieldLabel('supplierContactEmail')} מפרויקט זה`}
+                                onClick={() => handleExcludeFieldFromTask('supplierContactEmail', getNewTaskFieldLabel('supplierContactEmail'))}
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                          {activeEditField === 'supplierContactEmail' ? (
+                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                              <input
+                                type="text"
+                                className="form-control text-left direction-ltr"
+                                style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                                value={editSupplierContactEmail}
+                                list="supplier-emails-list-inline"
+                                onChange={(e) => setEditSupplierContactEmail(e.target.value)}
+                                onBlur={(e) => handleAutoSaveBlur(e, 'supplierContactEmail', editSupplierContactEmail)}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveField('supplierContactEmail', editSupplierContactEmail);
+                                }}
+                              />
+                              {getNewTaskFieldOptions('supplierContactEmail').length > 0 && (
+                                <datalist id="supplier-emails-list-inline">
+                                  {getNewTaskFieldOptions('supplierContactEmail').map(email => (
+                                    <option key={email} value={email}>{email}</option>
+                                  ))}
+                                </datalist>
+                              )}
+                              <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactEmail', editSupplierContactEmail)}>✔️</button>
+                              <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                            </div>
+                          ) : (() => {
+                            const currentContactPerson = task.contactPerson || task.supplierContactName;
+                            const cObj = currentContactPerson ? CONTACTS.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
+                            const currentContactEmail = task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail || (cObj ? cObj.email : '');
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
+                                <span
+                                  className="sidebar-value hover-editable-inline"
+                                  onClick={() => startEditingField('supplierContactEmail', currentContactEmail)}
+                                  title={`לחצי לעריכת ${getNewTaskFieldLabel('supplierContactEmail')}`}
+                                  style={{
+                                    color: currentContactEmail ? 'var(--primary)' : 'var(--text-muted)',
+                                    whiteSpace: 'nowrap',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
                                 >
-                                  {phone}
-                                </a>
+                                  <span style={{
+                                    textDecoration: currentContactEmail ? 'underline' : 'none',
+                                    direction: currentContactEmail ? 'ltr' : 'rtl'
+                                  }}>
+                                    {currentContactEmail || 'לחצי להוספה...'}
+                                  </span>
+                                  ✏️
+                                </span>
+                                {currentContactEmail && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-icon"
+                                    style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                                    title={copiedEmail ? "הועתק!" : "העתק אימייל"}
+                                    onClick={() => handleCopyEmail(currentContactEmail)}
+                                  >
+                                    {copiedEmail ? '✔️' : '📋'}
+                                  </button>
+                                )}
                               </div>
                             );
                           })()}
                         </div>
                       )}
                     </div>
-
-                    {/* Supplier Contact Email */}
-                    <div className="sidebar-row">
-                      <span className="sidebar-label">מייל איש קשר ספק</span>
-                      {activeEditField === 'supplierContactEmail' ? (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                          <input
-                            type="text"
-                            className="form-control text-left direction-ltr"
-                            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                            value={editSupplierContactEmail}
-                            onChange={(e) => setEditSupplierContactEmail(e.target.value)}
-                            onBlur={(e) => handleAutoSaveBlur(e, 'supplierContactEmail', editSupplierContactEmail)}
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveField('supplierContactEmail', editSupplierContactEmail);
-                            }}
-                          />
-                          <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactEmail', editSupplierContactEmail)}>✔️</button>
-                          <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
-                          <span
-                            className="sidebar-value hover-editable-inline"
-                            onClick={() => startEditingField('supplierContactEmail', task.supplierContactEmail)}
-                            title="לחצי לעריכת מייל איש קשר ספק"
-                            style={{
-                              color: task.supplierContactEmail ? 'var(--primary)' : 'var(--text-muted)',
-                              whiteSpace: 'nowrap',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <span style={{
-                              textDecoration: task.supplierContactEmail ? 'underline' : 'none',
-                              direction: task.supplierContactEmail ? 'ltr' : 'rtl'
-                            }}>
-                              {task.supplierContactEmail || 'לחצי להוספה...'}
-                            </span>
-                            ✏️
-                          </span>
-                          {task.supplierContactEmail && (
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-icon"
-                              style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                              title={copiedEmail ? "הועתק!" : "העתק אימייל"}
-                              onClick={() => handleCopyEmail(task.supplierContactEmail)}
-                            >
-                              {copiedEmail ? '✔️' : '📋'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  )}
 
                   {/* AREA 3: חומרים ואישורים */}
                   <div className="details-section-card">
-                    <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 חומרים ואישורים</h4>
+                    <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 שלב ואישורים</h4>
 
                     {/* Board Selector */}
                     {flags.enableCustomBoards && availableBoards.length > 1 && (
@@ -2264,158 +2724,348 @@ export default function AdminDetailsModal({
                     )}
 
                     {/* Status Picker (Grid) */}
-                    <div className="sidebar-row" style={{ display: 'block', marginBottom: '16px' }}>
-                      <span className="sidebar-label" style={{ display: 'block', marginBottom: '6px' }}>סטטוס ה{flags.terms.item}</span>
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
-                          gap: '6px'
-                        }}
-                      >
-                        {(STATUSES.includes(quickStatus) ? STATUSES : [...STATUSES, quickStatus]).map(st => {
-                          const colorClass = STATUS_CLASSES[st] || 'badge-frozen';
-                          const isActive = st === quickStatus;
-                          return (
-                            <button
-                              key={st}
-                              type="button"
-                              disabled={savingStatus}
-                              className={`badge ${colorClass}`}
-                              style={{
-                                padding: '6px 8px',
-                                fontSize: '0.75rem',
-                                textAlign: 'center',
-                                cursor: savingStatus ? 'wait' : 'pointer',
-                                width: '100%',
-                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
-                                opacity: isActive ? 1 : 0.45,
-                                transform: isActive ? 'scale(1.02)' : 'none',
-                                fontWeight: isActive ? '700' : '500',
-                                transition: 'all 0.15s ease'
-                              }}
-                              onClick={() => handleStatusChange(st)}
-                            >
-                              {st}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {(quickStatus === 'אושר לספק' || quickStatus === 'ארכיון' || task?.completedAt) && (
-                        <div className="task-completed-date-badge" style={{ marginTop: '8px', textAlign: 'center' }}>
-                          הושלם ב-{formatDate(task?.completedAt || task?.updatedAt)}
+                    {isFieldVisibleForTask('status') && (
+                      <div className="sidebar-row" style={{ display: 'block', marginBottom: '16px' }}>
+                        <span className="sidebar-label" style={{ display: 'block', marginBottom: '6px' }}>{getNewTaskFieldLabel('status')}</span>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: '6px'
+                          }}
+                        >
+                          {(STATUSES.includes(quickStatus) ? STATUSES : [...STATUSES, quickStatus]).map(st => {
+                            const colorClass = STATUS_CLASSES[st] || 'badge-frozen';
+                            const isActive = st === quickStatus;
+                            return (
+                              <button
+                                key={st}
+                                type="button"
+                                disabled={savingStatus}
+                                className={`badge ${colorClass}`}
+                                style={{
+                                  padding: '6px 8px',
+                                  fontSize: '0.75rem',
+                                  textAlign: 'center',
+                                  cursor: savingStatus ? 'wait' : 'pointer',
+                                  width: '100%',
+                                  border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                  opacity: isActive ? 1 : 0.45,
+                                  transform: isActive ? 'scale(1.02)' : 'none',
+                                  fontWeight: isActive ? '700' : '500',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onClick={() => handleStatusChange(st)}
+                              >
+                                {st}
+                              </button>
+                            );
+                          })}
                         </div>
-                      )}
-                    </div>
+                        {(quickStatus === 'אושר לספק' || quickStatus === 'ארכיון' || task?.completedAt) && (
+                          <div className="task-completed-date-badge" style={{ marginTop: '8px', textAlign: 'center' }}>
+                            הושלם ב-{formatDate(task?.completedAt || task?.updatedAt)}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Diecuts Status */}
-                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                      <span className="sidebar-label">דייקאטים</span>
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-                        {[
-                          { val: 'אין', label: 'אין', class: 'badge-needs-revision' },
-                          { val: 'חלקי', label: 'חלקי', class: 'badge-in-progress' },
-                          { val: 'יש', label: 'יש', class: 'badge-approved' }
-                        ].map(item => {
-                          const isActive = (task.diecutsStatus || 'אין') === item.val;
-                          return (
+                    {isFieldVisibleForTask('diecutsStatus') && (
+                      <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <span className="sidebar-label">{getNewTaskFieldLabel('diecutsStatus')}</span>
+                          {flags.enableFieldExclusion && (
                             <button
-                              key={item.val}
                               type="button"
-                              className={`badge ${item.class}`}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '0.75rem',
-                                cursor: 'pointer',
-                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
-                                opacity: isActive ? 1 : 0.4,
-                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                                fontWeight: isActive ? '700' : '500',
-                                transition: 'all 0.15s ease',
-                                borderRadius: '12px'
-                              }}
-                              onClick={() => handleSaveField('diecutsStatus', item.val)}
-                              title={`שינוי דייקאטים ל-${item.label}`}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                              title={`הסרת ${getNewTaskFieldLabel('diecutsStatus')} מפרויקט זה`}
+                              onClick={() => handleExcludeFieldFromTask('diecutsStatus', getNewTaskFieldLabel('diecutsStatus'))}
                             >
-                              {item.label}
+                              🗑️
                             </button>
-                          );
-                        })}
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          {(getNewTaskFieldOptions('diecutsStatus').length > 0 ? getNewTaskFieldOptions('diecutsStatus') : ['אין', 'חלקי', 'יש']).map(val => {
+                            const isActive = (task.diecutsStatus || defaultDiecutsStatus) === val;
+                            const badgeClass = val === 'יש' || val === 'כן' ? 'badge-approved' : val === 'חלקי' ? 'badge-in-progress' : 'badge-needs-revision';
+                            return (
+                              <button
+                                key={val}
+                                type="button"
+                                className={`badge ${badgeClass}`}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer',
+                                  border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                  opacity: isActive ? 1 : 0.4,
+                                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                  fontWeight: isActive ? '700' : '500',
+                                  transition: 'all 0.15s ease',
+                                  borderRadius: '12px'
+                                }}
+                                onClick={() => handleSaveField('diecutsStatus', val)}
+                                title={`שינוי ${getNewTaskFieldLabel('diecutsStatus')} ל-${val}`}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Images Status */}
-                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                      <span className="sidebar-label">תמונות</span>
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-                        {[
-                          { val: 'אין', label: 'אין', class: 'badge-needs-revision' },
-                          { val: 'חלקי', label: 'חלקי', class: 'badge-in-progress' },
-                          { val: 'יש', label: 'יש', class: 'badge-approved' }
-                        ].map(item => {
-                          const isActive = (task.imagesStatus || 'אין') === item.val;
-                          return (
+                    {isFieldVisibleForTask('imagesStatus') && (
+                      <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <span className="sidebar-label">{getNewTaskFieldLabel('imagesStatus')}</span>
+                          {flags.enableFieldExclusion && (
                             <button
-                              key={item.val}
                               type="button"
-                              className={`badge ${item.class}`}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '0.75rem',
-                                cursor: 'pointer',
-                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
-                                opacity: isActive ? 1 : 0.4,
-                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                                fontWeight: isActive ? '700' : '500',
-                                transition: 'all 0.15s ease',
-                                borderRadius: '12px'
-                              }}
-                              onClick={() => handleSaveField('imagesStatus', item.val)}
-                              title={`שינוי תמונות ל-${item.label}`}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                              title={`הסרת ${getNewTaskFieldLabel('imagesStatus')} מפרויקט זה`}
+                              onClick={() => handleExcludeFieldFromTask('imagesStatus', getNewTaskFieldLabel('imagesStatus'))}
                             >
-                              {item.label}
+                              🗑️
                             </button>
-                          );
-                        })}
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          {(getNewTaskFieldOptions('imagesStatus').length > 0 ? getNewTaskFieldOptions('imagesStatus') : ['אין', 'חלקי', 'יש']).map(val => {
+                            const isActive = (task.imagesStatus || defaultImagesStatus) === val;
+                            const badgeClass = val === 'יש' || val === 'כן' ? 'badge-approved' : val === 'חלקי' ? 'badge-in-progress' : 'badge-needs-revision';
+                            return (
+                              <button
+                                key={val}
+                                type="button"
+                                className={`badge ${badgeClass}`}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer',
+                                  border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                  opacity: isActive ? 1 : 0.4,
+                                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                  fontWeight: isActive ? '700' : '500',
+                                  transition: 'all 0.15s ease',
+                                  borderRadius: '12px'
+                                }}
+                                onClick={() => handleSaveField('imagesStatus', val)}
+                                title={`שינוי ${getNewTaskFieldLabel('imagesStatus')} ל-${val}`}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Standards Institute Required */}
-                    <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                      <span className="sidebar-label">דרישות מכון תקנים</span>
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-                        {[
-                          { val: 'לא', label: 'לא', class: 'badge-frozen' },
-                          { val: 'כן', label: 'כן', class: 'badge-waiting-approval' }
-                        ].map(item => {
-                          const isActive = (task.standardsInstituteRequired || 'לא') === item.val;
-                          return (
+                    {isFieldVisibleForTask('standardsInstituteRequired') && (
+                      <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <span className="sidebar-label">{getNewTaskFieldLabel('standardsInstituteRequired')}</span>
+                          {flags.enableFieldExclusion && (
                             <button
-                              key={item.val}
                               type="button"
-                              className={`badge ${item.class}`}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '0.75rem',
-                                cursor: 'pointer',
-                                border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
-                                opacity: isActive ? 1 : 0.4,
-                                transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                                fontWeight: isActive ? '700' : '500',
-                                transition: 'all 0.15s ease',
-                                borderRadius: '12px'
-                              }}
-                              onClick={() => handleSaveField('standardsInstituteRequired', item.val)}
-                              title={`שינוי מכון תקנים ל-${item.label}`}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                              title={`הסרת ${getNewTaskFieldLabel('standardsInstituteRequired')} מפרויקט זה`}
+                              onClick={() => handleExcludeFieldFromTask('standardsInstituteRequired', getNewTaskFieldLabel('standardsInstituteRequired'))}
                             >
-                              {item.label}
+                              🗑️
                             </button>
-                          );
-                        })}
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          {(getNewTaskFieldOptions('standardsInstituteRequired').length > 0 ? getNewTaskFieldOptions('standardsInstituteRequired') : ['לא', 'כן']).map(val => {
+                            const isActive = (task.standardsInstituteRequired || defaultStandardsInstituteRequired) === val;
+                            const badgeClass = val === 'כן' || val === 'יש' ? 'badge-waiting-approval' : 'badge-frozen';
+                            return (
+                              <button
+                                key={val}
+                                type="button"
+                                className={`badge ${badgeClass}`}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer',
+                                  border: isActive ? '2px solid var(--primary)' : '1px solid transparent',
+                                  opacity: isActive ? 1 : 0.4,
+                                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                  fontWeight: isActive ? '700' : '500',
+                                  transition: 'all 0.15s ease',
+                                  borderRadius: '12px'
+                                }}
+                                onClick={() => handleSaveField('standardsInstituteRequired', val)}
+                                title={`שינוי ${getNewTaskFieldLabel('standardsInstituteRequired')} ל-${val}`}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                   </div>
+
+                  {/* AREA: שדות נוספים / מותאמים */}
+                  {customFieldDefinitions.some(f => isFieldVisibleForTask(f.key)) && (
+                    <div className="details-section-card">
+                      <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>✨ שדות נוספים</h4>
+                      {customFieldDefinitions.filter(f => isFieldVisibleForTask(f.key)).map(f => {
+                        const val = task.customFields?.[f.key] ?? task[f.key] ?? '';
+                        const isEditing = activeEditField === f.key;
+
+                        return (
+                          <div key={f.key} className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                              <span className="sidebar-label">{f.label}</span>
+                              {flags.enableFieldExclusion && (
+                                <button
+                                  type="button"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
+                                  title={`הסרת שדה ${f.label} מפרויקט זה`}
+                                  onClick={() => handleExcludeFieldFromTask(f.key, f.label)}
+                                >
+                                  🗑️
+                                </button>
+                              )}
+                            </div>
+
+                            {isEditing ? (
+                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                                {f.type === 'select' ? (
+                                  <select
+                                    className="form-control"
+                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                    value={editCustomValue}
+                                    onChange={(e) => setEditCustomValue(e.target.value)}
+                                    autoFocus
+                                  >
+                                    <option value="">(ללא בחירה)</option>
+                                    {(f.options || []).map(opt => (
+                                      <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                  </select>
+                                ) : f.type === 'checkbox' ? (
+                                  <select
+                                    className="form-control"
+                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                    value={String(editCustomValue)}
+                                    onChange={(e) => setEditCustomValue(e.target.value === 'true')}
+                                    autoFocus
+                                  >
+                                    <option value="true">כן (מסומן)</option>
+                                    <option value="false">לא (לא מסומן)</option>
+                                  </select>
+                                ) : f.type === 'number' ? (
+                                  <input
+                                    type="number"
+                                    className="form-control"
+                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                    value={editCustomValue}
+                                    onChange={(e) => setEditCustomValue(e.target.value)}
+                                    autoFocus
+                                  />
+                                ) : f.type === 'date' ? (
+                                  <input
+                                    type="date"
+                                    className="form-control"
+                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                    value={editCustomValue}
+                                    onChange={(e) => setEditCustomValue(e.target.value)}
+                                    autoFocus
+                                  />
+                                ) : f.type === 'textarea' ? (
+                                  <textarea
+                                    className="form-control"
+                                    rows="2"
+                                    style={{ fontSize: '0.8rem' }}
+                                    value={editCustomValue}
+                                    onChange={(e) => setEditCustomValue(e.target.value)}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                    value={editCustomValue}
+                                    onChange={(e) => setEditCustomValue(e.target.value)}
+                                    autoFocus
+                                  />
+                                )}
+                                <button
+                                  type="button"
+                                  data-inline-edit-action="true"
+                                  className="btn btn-primary btn-icon"
+                                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                  onClick={() => handleSaveCustomField(f.key, editCustomValue)}
+                                >
+                                  ✔️
+                                </button>
+                                <button
+                                  type="button"
+                                  data-inline-edit-action="true"
+                                  className="btn btn-secondary btn-icon"
+                                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                  onClick={handleCancelField}
+                                >
+                                  ❌
+                                </button>
+                              </div>
+                            ) : (
+                              <span
+                                className="sidebar-value hover-editable-inline"
+                                onClick={() => {
+                                  setEditCustomValue(val);
+                                  startEditingField(f.key, val);
+                                }}
+                                title={`לחצי לעריכת ${f.label}`}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                {f.type === 'checkbox'
+                                  ? (val === true || val === 'true' ? '✅ כן' : '❌ לא')
+                                  : (val ? String(val) : 'לחצי להוספה...')
+                                } ✏️
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* AREA: החזרת שדות שהוסרו מפרויקט זה */}
+                  {flags.enableFieldExclusion && excludedFieldsList.length > 0 && (
+                    <div className="details-section-card" style={{ backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1' }}>
+                      <h4 className="detail-section-title" style={{ fontSize: '0.85rem', marginBottom: '8px', color: '#475569' }}>
+                        ➕ שדות שהוסרו מפרויקט זה ({excludedFieldsList.length})
+                      </h4>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                        לחצי על שדה כדי להחזיר אותו לתצוגת פרויקט זה:
+                      </p>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {excludedFieldsList.map(field => (
+                          <button
+                            key={field.key}
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '4px', borderRadius: '14px' }}
+                            onClick={() => handleRestoreFieldToTask(field.key)}
+                            title={`החזרת שדה ${field.label} לפרויקט זה`}
+                          >
+                            ➕ {field.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="sidebar-row" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
                     <span>נוצר: {formatDate(task.createdAt)}</span>
@@ -2597,6 +3247,39 @@ export default function AdminDetailsModal({
         </div>
       )}
 
+      {/* Field Exclusion Confirmation Modal */}
+      {fieldToExclude && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setFieldToExclude(null)}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '420px', textAlign: 'center', padding: '24px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🗑️</div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '10px' }}>הסרת שדה מפרויקט זה</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5, fontSize: '0.9rem' }}>
+              האם את/ה בטוח/ה שברצונך להסיר את השדה <strong style={{ color: '#1e293b' }}>"{fieldToExclude.label}"</strong> מפרויקט זה?
+              <br />
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>השדה יוסר מתצוגת פרויקט זה בלבד. תוכל/י להחזיר אותו בכל עת מתחתית הכרטיס.</span>
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setFieldToExclude(null)}
+                style={{ flex: 1 }}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={confirmExcludeFieldFromTask}
+                style={{ flex: 1 }}
+              >
+                הסר שדה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Excel Preview Modal */}
       <React.Suspense fallback={null}>
         <ExcelPreviewModal
@@ -2614,6 +3297,16 @@ export default function AdminDetailsModal({
           onClose={() => setPdfPreviewFile(null)}
           fileUrl={pdfPreviewFile?.url}
           fileName={pdfPreviewFile?.name}
+        />
+      </React.Suspense>
+
+      {/* Image Preview Modal */}
+      <React.Suspense fallback={null}>
+        <ImagePreviewModal
+          isOpen={!!imagePreviewFile}
+          onClose={() => setImagePreviewFile(null)}
+          fileUrl={imagePreviewFile?.url}
+          fileName={imagePreviewFile?.name}
         />
       </React.Suspense>
     </div>

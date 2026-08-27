@@ -19,7 +19,11 @@ export const DEFAULT_APP_VERSION = APP_VERSIONS.V2;
  * @returns {object} Feature flag booleans and terms dictionary.
  */
 export function getFeatureFlags(settingsOrOrg) {
-  const version = settingsOrOrg?.appVersion || settingsOrOrg?.version || DEFAULT_APP_VERSION;
+  const version = settingsOrOrg?.appVersion || settingsOrOrg?.version || (
+    (settingsOrOrg?.organizationId === 'groopy' || settingsOrOrg?.id === 'groopy')
+      ? APP_VERSIONS.LEGACY
+      : DEFAULT_APP_VERSION
+  );
   const isLegacy = version === APP_VERSIONS.LEGACY;
 
   return {
@@ -31,6 +35,7 @@ export function getFeatureFlags(settingsOrOrg) {
     enableCustomBoards: !isLegacy,
     enableCompactCreateModal: !isLegacy,
     useProjectTerminology: !isLegacy,
+    enableFieldExclusion: !isLegacy,
 
     // Centralized Terminology
     terms: isLegacy ? {
@@ -52,7 +57,8 @@ export function getFeatureFlags(settingsOrOrg) {
       projectSettings: 'הגדרות עבודה',
       boardManagement: 'ניהול לוחות',
       searchItemPlaceholder: 'חיפוש עבודה...',
-      noDescription: 'אין תיאור מפורט לעבודה זו. לחצי להוספת תיאור.',
+      noDescription: 'אין פירוט מדויק לעבודה זו. לחצי להוספת תיאור.',
+      noDescriptionViewer: 'אין פירוט מדויק לעבודה זו.',
       deleteConfirmTitle: 'מחיקת עבודה',
       deleteConfirmBody: 'האם את בטוחה שברצונך למחוק את העבודה הזו?',
       deleteConfirmSubtext: 'העבודה תועבר לפח האשפה למשך 30 יום. בתקופה זו יהיה אפשר לשחזר אותה יחד עם ההערות והתגובות.',
@@ -60,7 +66,10 @@ export function getFeatureFlags(settingsOrOrg) {
       updatedActivity: 'עודכנו פרטי עבודה',
       deletedActivity: 'העבודה הועברה לפח האשפה',
       restoredActivity: 'העבודה שוחזרה מפח האשפה',
-      archivedActivity: 'העבודה הועברה לארכיון'
+      archivedActivity: 'העבודה הועברה לארכיון',
+      workOrderRubric: 'הזמנת עבודה',
+      planogramRubric: 'פלנוגרמה',
+      filesSectionTitle: 'הזמנת עבודה ופלנוגרמה'
     } : {
       item: 'פרויקט',
       itemDefinite: 'הפרויקט',
@@ -80,7 +89,8 @@ export function getFeatureFlags(settingsOrOrg) {
       projectSettings: 'הגדרות פרויקטים',
       boardManagement: 'לוחות פרויקטים',
       searchItemPlaceholder: 'חיפוש פרויקט...',
-      noDescription: 'אין תיאור מפורט לפרויקט זה. לחצי להוספת תיאור.',
+      noDescription: 'אין פירוט מדויק לפרויקט זה. לחצי להוספת תיאור.',
+      noDescriptionViewer: 'אין פירוט מדויק לפרויקט זה.',
       deleteConfirmTitle: 'מחיקת פרויקט',
       deleteConfirmBody: 'האם את בטוחה שברצונך למחוק את הפרויקט הזה?',
       deleteConfirmSubtext: 'הפרויקט יועבר לפח האשפה למשך 30 יום. בתקופה זו יהיה אפשר לשחזר אותו יחד עם ההערות והתגובות.',
@@ -88,7 +98,10 @@ export function getFeatureFlags(settingsOrOrg) {
       updatedActivity: 'עודכנו פרטי פרויקט',
       deletedActivity: 'הפרויקט הועבר לפח האשפה',
       restoredActivity: 'הפרויקט שוחזר מפח האשפה',
-      archivedActivity: 'הפרויקט הועבר לארכיון'
+      archivedActivity: 'הפרויקט הועבר לארכיון',
+      workOrderRubric: 'הזמנת עבודה',
+      planogramRubric: 'פלנוגרמה',
+      filesSectionTitle: 'הזמנת עבודה ופלנוגרמה'
     }
   };
 }

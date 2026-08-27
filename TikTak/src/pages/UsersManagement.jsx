@@ -19,7 +19,7 @@ const adminActions = [
     view: 'settings',
     icon: '⚙️',
     title: 'הגדרות מערכת',
-    description: 'ניהול סטטוסים, סוגי פרויקטים והעדפות מערכת'
+    description: 'ניהול סטטוסים, לוחות והעדפות מערכת'
   },
   {
     view: 'suppliers_contacts',
@@ -47,6 +47,55 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [relativeNow, setRelativeNow] = useState(0);
+
+  // User Deletion States
+  const [userPendingDelete, setUserPendingDelete] = useState(null);
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [actionNotice, setActionNotice] = useState(null);
+
+  const handleStartDeleteUser = (user) => {
+    setUserPendingDelete(user);
+    setDeleteConfirmationInput('');
+    setError('');
+  };
+
+  const handleCancelDeleteUser = () => {
+    if (isDeletingUser) return;
+    setUserPendingDelete(null);
+    setDeleteConfirmationInput('');
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!userPendingDelete || isDeletingUser) return;
+    try {
+      setIsDeletingUser(true);
+      setError('');
+      const { deleteUser } = await loadStorageApi();
+      await deleteUser(userPendingDelete.uid);
+
+      const deletedEmail = userPendingDelete.email || userPendingDelete.uid;
+      setUsers(current => current.filter(u => u.uid !== userPendingDelete.uid));
+      setUsageStats(current => {
+        const next = { ...current };
+        delete next[userPendingDelete.uid];
+        return next;
+      });
+
+      setUserPendingDelete(null);
+      setDeleteConfirmationInput('');
+      setActionNotice({
+        type: 'success',
+        message: `המשתמש ${deletedEmail} וכל נתוניו נמחקו לצמיתות מהמערכת.`
+      });
+      setTimeout(() => setActionNotice(null), 6000);
+    } catch (err) {
+      console.error('Failed to delete user', err);
+      setError(err?.message || 'מחיקת המשתמש נכשלה. אנא נסו שוב.');
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchUsers() {
@@ -618,6 +667,30 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           />
         </div>
 
+        {actionNotice && (
+          <div style={{
+            backgroundColor: actionNotice.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            color: actionNotice.type === 'success' ? '#166534' : '#991b1b',
+            border: `1px solid ${actionNotice.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+            padding: '14px 18px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            fontWeight: '600',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>{actionNotice.message}</span>
+            <button
+              type="button"
+              onClick={() => setActionNotice(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: 'inherit' }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {error && (
           <div style={{
             backgroundColor: 'var(--priority-urgent-bg)',
@@ -657,11 +730,11 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
             }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '33%' }}>משתמש</th>
+                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '30%' }}>משתמש</th>
                   <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700' }}>ארגון</th>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '28%' }}>עומס פרויקטים</th>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '27%' }}>פעילות ושימוש</th>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '600', textAlign: 'center' }}>פעולות</th>
+                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '25%' }}>עומס פרויקטים</th>
+                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '25%' }}>פעילות ושימוש</th>
+                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '600', textAlign: 'center', width: '20%' }}>פעולות</th>
                 </tr>
               </thead>
               <tbody>
@@ -784,27 +857,62 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       </td>
                       <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                         {user.email !== 'shaharsolutions@gmail.com' ? (
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => onImpersonate(
-                              user.uid,
-                              user.email,
-                              user.organizationId || 'groopy',
-                              organizationById[user.organizationId || 'groopy']?.name || 'Groopy'
-                            )}
-                            style={{
-                              backgroundColor: '#eff6ff',
-                              color: '#1d4ed8',
-                              borderColor: '#3b82f6',
-                              fontWeight: '600',
-                              padding: '6px 14px',
-                              fontSize: '0.9rem'
-                            }}
-                          >
-                            👁️ להתחזות ולערוך
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => onImpersonate(
+                                user.uid,
+                                user.email,
+                                user.organizationId || 'groopy',
+                                organizationById[user.organizationId || 'groopy']?.name || 'Groopy'
+                              )}
+                              style={{
+                                backgroundColor: '#eff6ff',
+                                color: '#1d4ed8',
+                                borderColor: '#3b82f6',
+                                fontWeight: '600',
+                                padding: '6px 12px',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              👁️ להתחזות ולערוך
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStartDeleteUser(user)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                backgroundColor: '#fff1f2',
+                                color: '#e11d48',
+                                border: '1px solid #fecdd3',
+                                borderRadius: '6px',
+                                fontWeight: '600',
+                                padding: '6px 12px',
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                fontFamily: 'inherit'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#ffe4e6';
+                                e.currentTarget.style.borderColor = '#fda4af';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#fff1f2';
+                                e.currentTarget.style.borderColor = '#fecdd3';
+                              }}
+                              title="מחיקת משתמש לצמיתות מהמערכת"
+                            >
+                              🗑️ מחק משתמש
+                            </button>
+                          </div>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>אין אפשרות להתחזות לעצמך</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>
+                            חשבון מנהל ראשי
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -815,6 +923,200 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           </div>
         )}
       </div>
+
+      {/* Prominent Delete Confirmation Modal */}
+      {userPendingDelete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.72)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000,
+          padding: '20px',
+          direction: 'rtl'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            maxWidth: '540px',
+            width: '100%',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            border: '2px solid #fda4af',
+            overflow: 'hidden',
+            fontFamily: 'Rubik, sans-serif'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)',
+              padding: '20px 24px',
+              borderBottom: '1px solid #fecdd3',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px'
+            }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                background: '#dc2626',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.5rem',
+                flexShrink: 0,
+                boxShadow: '0 4px 10px rgba(220, 38, 38, 0.3)'
+              }}>
+                ⚠️
+              </div>
+              <div>
+                <h3 style={{ margin: 0, color: '#991b1b', fontSize: '1.28rem', fontWeight: '800' }}>
+                  מחיקת משתמש לצמיתות מהמערכת
+                </h3>
+                <p style={{ margin: '4px 0 0', color: '#b91c1c', fontSize: '0.88rem' }}>
+                  פעולה זו תמחק את כל נתוני המשתמש והיא בלתי הפיכה!
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              {/* User summary card */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '18px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <span style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: '#e0e7ff',
+                    color: '#3730a3',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: '800',
+                    fontSize: '0.9rem'
+                  }}>
+                    {getInitials(userPendingDelete.email)}
+                  </span>
+                  <div>
+                    <strong style={{ display: 'block', color: '#0f172a', fontSize: '1.05rem' }}>
+                      {userPendingDelete.email || 'ללא אימייל'}
+                    </strong>
+                    <span style={{ color: '#64748b', fontSize: '0.84rem' }}>
+                      ארגון: {organizationById[userPendingDelete.organizationId || 'groopy']?.name || 'Groopy'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {renderMetricPill('פרויקטים שיימחקו', formatNumber(usageStats[userPendingDelete.uid]?.projectCount || 0), '#dc2626')}
+                  {renderMetricPill('פעולות מתועדות', formatNumber(usageStats[userPendingDelete.uid]?.activityCount || 0), '#7c2d12')}
+                  {renderMetricPill('שעות עבודה', formatNumber(usageStats[userPendingDelete.uid]?.weeklyHoursTotal || 0), '#6d28d9')}
+                </div>
+              </div>
+
+              {/* Warning Alert Box */}
+              <div style={{
+                background: '#fff5f5',
+                border: '1px solid #fed7d7',
+                borderRadius: '10px',
+                padding: '14px 16px',
+                marginBottom: '20px',
+                color: '#9b2c2c',
+                fontSize: '0.9rem',
+                lineHeight: 1.55
+              }}>
+                <strong>🚨 שים/י לב:</strong>
+                <ul style={{ margin: '6px 0 0', paddingRight: '20px' }}>
+                  <li>חשבון המשתמש יימחק לחלוטין ממאגר המערכת.</li>
+                  <li>כל הפרויקטים, המשימות, ההערות, התגובות, הספקים ואנשי הקשר של המשתמש יימחקו <strong>לצמיתות</strong>.</li>
+                  <li>לא ניתן יהיה לשחזר את הנתונים לאחר ביצוע הפעולה.</li>
+                </ul>
+              </div>
+
+              {/* Confirmation Input Field */}
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontWeight: '700', color: '#1e293b', fontSize: '0.92rem', marginBottom: '8px' }}>
+                  לאישור המחיקה, נא להקליד את המילה <span style={{ color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>מחק</span> בשדה הבא:
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={deleteConfirmationInput}
+                  onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+                  placeholder="הקלד/י 'מחק' כאן..."
+                  disabled={isDeletingUser}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    border: `2px solid ${deleteConfirmationInput.trim() === 'מחק' ? '#dc2626' : '#cbd5e1'}`,
+                    fontSize: '1rem',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    backgroundColor: deleteConfirmationInput.trim() === 'מחק' ? '#fff1f2' : '#ffffff',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              background: '#f8fafc',
+              padding: '16px 24px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCancelDeleteUser}
+                disabled={isDeletingUser}
+                style={{ minWidth: '100px', padding: '10px 18px', fontWeight: '600' }}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteUser}
+                disabled={deleteConfirmationInput.trim() !== 'מחק' || isDeletingUser}
+                style={{
+                  minWidth: '180px',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  background: deleteConfirmationInput.trim() === 'מחק' && !isDeletingUser ? '#dc2626' : '#fca5a5',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: '700',
+                  fontSize: '0.95rem',
+                  cursor: deleteConfirmationInput.trim() === 'מחק' && !isDeletingUser ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s',
+                  boxShadow: deleteConfirmationInput.trim() === 'מחק' && !isDeletingUser ? '0 4px 12px rgba(220, 38, 38, 0.35)' : 'none',
+                  fontFamily: 'inherit'
+                }}
+              >
+                {isDeletingUser ? '⏳ מוחק משתמש ונתונים...' : '🗑️ כן, מחק משתמש לצמיתות'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

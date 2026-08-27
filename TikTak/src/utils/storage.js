@@ -24,7 +24,7 @@ import {
   where
 } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
-import { INITIAL_TASKS, INITIAL_COMMENTS } from '../data/mockData';
+import { INITIAL_TASKS } from '../data/mockData';
 import { APP_VERSIONS, DEFAULT_APP_VERSION } from './featureFlags';
 
 const assertSystemManagerSession = () => {
@@ -211,14 +211,14 @@ const FIELD_LABELS = {
   priority: 'עדיפות',
   deadline: 'דדליין',
   driveLink: 'קישור דרייב',
-  supplierContactEmail: 'אימייל ספק',
+  supplierContactEmail: 'אימייל איש קשר',
   diecutsStatus: 'דייקאטים',
   imagesStatus: 'תמונות',
   standardsInstituteRequired: 'דרישות מכון תקנים',
   planogramFile: 'פלנוגרמה',
-  workOrderFiles: 'קבצים',
+  workOrderFiles: 'הזמנת עבודה',
   subtasks: 'תתי משימות',
-  attachments: 'קבצים מצורפים',
+  attachments: 'הזמנת עבודה (קבצים מצורפים)',
   boardId: 'לוח',
   internalNotes: 'הערות פנימיות',
   weeklyHours: 'שעות עבודה'
@@ -295,57 +295,9 @@ const isSystemWorkUpdateComment = (comment = {}) => {
   );
 };
 
-// Seed the database for a specific user if their tasks are empty
-export const seedUserDatabaseIfEmpty = async (userId) => {
-  if (!userId) return false;
-
-  try {
-    const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
-    const taskQuerySnapshot = await getDocs(q);
-
-    if (taskQuerySnapshot.empty) {
-      console.log(`User ${userId} database is empty. Seeding initial tasks...`);
-
-      // Seed tasks with custom IDs but mapped to this user
-      for (const task of INITIAL_TASKS) {
-        const { id, internalNotes, ...taskWithoutPrivate } = task;
-        const newTaskId = `${userId}-${id}`;
-        const newTaskData = {
-          ...taskWithoutPrivate,
-          userId,
-          organizationId: currentOrganizationId(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        await setDoc(doc(db, TASKS_COLLECTION, newTaskId), newTaskData);
-        if (internalNotes) {
-          await setDoc(doc(db, 'taskPrivateNotes', newTaskId), { notes: internalNotes, userId, organizationId: currentOrganizationId() });
-        }
-      }
-
-      console.log(`Seeding initial comments for user ${userId}...`);
-      // Seed comments associated with the new tasks
-      for (const comment of INITIAL_COMMENTS) {
-        const { id, jobId, ...commentWithoutId } = comment;
-        const newTaskId = `${userId}-${jobId}`;
-        const newCommentId = `${userId}-${id}`;
-        await setDoc(doc(db, COMMENTS_COLLECTION, newCommentId), {
-          ...commentWithoutId,
-          jobId: newTaskId,
-          userId,
-          organizationId: currentOrganizationId(),
-          createdAt: new Date().toISOString()
-        });
-      }
-
-      console.log(`User ${userId} seeding completed successfully.`);
-      return true;
-    }
-    return false;
-  } catch (e) {
-    console.error(`Error seeding database for user ${userId}:`, e);
-    return false;
-  }
+// Seed the database for a specific user if their tasks are empty (disabled to prevent reviving deleted demo tasks)
+export const seedUserDatabaseIfEmpty = async () => {
+  return false;
 };
 
 // Generate the next Job Number (e.g. GP-1004) based on existing tasks in Firestore
@@ -606,7 +558,10 @@ export const getPrivateNotes = async (taskId, userId) => {
     const docSnap = await getDoc(docRef);
     if (docSnap.exists() && (
       docSnap.data().organizationId === userId ||
-      docSnap.data().userId === getLegacyOwnerId(userId)
+      docSnap.data().userId === getLegacyOwnerId(userId) ||
+      docSnap.data().userId === userId ||
+      docSnap.data().organizationId === currentOrganizationId() ||
+      docSnap.data().userId === auth.currentUser?.uid
     )) {
       return docSnap.data().notes || '';
     }
@@ -687,10 +642,14 @@ export const updateTask = async (taskId, updatedData) => {
     }
 
     const docSnap = await getDoc(docRef);
-    const userId = docSnap.exists() ? (docSnap.data().organizationId || docSnap.data().userId) : null;
+    const targetUserId = auth.currentUser?.uid || (docSnap.exists() ? (docSnap.data().userId || docSnap.data().organizationId) : null);
 
-    if (internalNotes !== undefined && userId) {
-      await setDoc(doc(db, 'taskPrivateNotes', taskId), { notes: internalNotes, userId, organizationId: currentOrganizationId() });
+    if (internalNotes !== undefined && targetUserId) {
+      await setDoc(doc(db, 'taskPrivateNotes', taskId), {
+        notes: internalNotes,
+        userId: targetUserId,
+        organizationId: currentOrganizationId()
+      });
     }
 
     const shouldSyncDirectory =
@@ -731,7 +690,7 @@ export const updateTask = async (taskId, updatedData) => {
         targetType: 'task',
         targetId: taskId,
         targetLabel: docSnap.exists() ? (docSnap.data().title || docSnap.data().jobNumber || '') : '',
-        targetUserId: userId || beforeData.userId || '',
+        targetUserId: targetUserId || beforeData.userId || '',
         details: isStatusOnly
           ? `סטטוס עודכן מ-${beforeData.status || 'לא ידוע'} ל-${taskWithoutPrivate.status}`
           : subtaskCompletionDetails
@@ -846,6 +805,15 @@ export const purgeExpiredTasks = async (userId) => {
   const expiredTasks = trashedTasks.filter(task => Date.parse(task.expiresAt) <= now);
   await Promise.all(expiredTasks.map(task => permanentlyDeleteTask(task.id)));
   return expiredTasks.length;
+};
+
+export const emptyTrash = async (userId) => {
+  if (!userId) return 0;
+  assertSystemManagerSession();
+  const trashedTasks = await getTrashedTasks(userId);
+  if (trashedTasks.length === 0) return 0;
+  await Promise.all(trashedTasks.map(task => permanentlyDeleteTask(task.id)));
+  return trashedTasks.length;
 };
 
 export const autoArchiveInactiveTasks = async (userId, inactiveDays = DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS) => {
@@ -1612,6 +1580,96 @@ export const assignUserToOrganization = async (userId, organizationId) => {
   assertSystemManagerSession();
   if (!userId || !organizationId) throw new Error('חסרים פרטי משתמש או ארגון');
   await updateDoc(doc(db, 'users', userId), { organizationId });
+  return true;
+};
+
+export const deleteUser = async (userId) => {
+  assertSystemManagerSession();
+  const actor = getCurrentActor();
+  if (!actor?.isSystemAdmin) {
+    throw new Error('רק מנהל המערכת מורשה למחוק משתמשים');
+  }
+  if (!userId) {
+    throw new Error('חסר מזהה משתמש');
+  }
+
+  // Safety check: Never delete the main system administrator
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  const userData = userSnap.exists() ? userSnap.data() : {};
+  const userEmail = userData.email || '';
+
+  if (userEmail === SYSTEM_ADMIN_EMAIL || userId === auth.currentUser?.uid) {
+    throw new Error('לא ניתן למחוק את חשבון מנהל המערכת הראשי');
+  }
+
+  // 1. Delete all tasks owned by the user, their comments, and private notes
+  const tasksQuery = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
+  const tasksSnap = await getDocs(tasksQuery);
+  for (const taskDoc of tasksSnap.docs) {
+    const taskId = taskDoc.id;
+    await deleteDoc(doc(db, TASKS_COLLECTION, taskId));
+    try {
+      await deleteDoc(doc(db, 'taskPrivateNotes', taskId));
+    } catch (e) {
+      console.warn(`Failed to delete private notes for task ${taskId}:`, e);
+    }
+    const commentsQuery = query(collection(db, COMMENTS_COLLECTION), where('jobId', '==', taskId));
+    const commentsSnap = await getDocs(commentsQuery);
+    for (const commentDoc of commentsSnap.docs) {
+      await deleteDoc(doc(db, COMMENTS_COLLECTION, commentDoc.id));
+    }
+  }
+
+  // 2. Delete any comments created by this user on other tasks
+  const userCommentsQuery = query(collection(db, COMMENTS_COLLECTION), where('userId', '==', userId));
+  const userCommentsSnap = await getDocs(userCommentsQuery);
+  for (const commentDoc of userCommentsSnap.docs) {
+    await deleteDoc(doc(db, COMMENTS_COLLECTION, commentDoc.id));
+  }
+
+  // 3. Delete suppliers and contacts created by this user
+  const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
+  const suppliersSnap = await getDocs(suppliersQuery);
+  for (const supplierDoc of suppliersSnap.docs) {
+    await deleteDoc(doc(db, 'suppliers', supplierDoc.id));
+  }
+
+  const contactsQuery = query(collection(db, 'contacts'), where('userId', '==', userId));
+  const contactsSnap = await getDocs(contactsQuery);
+  for (const contactDoc of contactsSnap.docs) {
+    await deleteDoc(doc(db, 'contacts', contactDoc.id));
+  }
+
+  // 4. Delete user-specific settings and viewerSessions if any
+  try {
+    await deleteDoc(doc(db, SETTINGS_COLLECTION, userId));
+  } catch (e) {
+    console.warn(`Failed to delete settings for user ${userId}:`, e);
+  }
+
+  try {
+    await deleteDoc(doc(db, 'viewerSessions', userId));
+  } catch (e) {
+    console.warn(`Failed to delete viewer session for user ${userId}:`, e);
+  }
+
+  // 5. Delete the user record from 'users'
+  await deleteDoc(userRef);
+
+  // 6. Record in activity log
+  await recordActivity({
+    action: 'user.deleted',
+    actionLabel: 'מחיקת משתמש',
+    targetType: 'user',
+    targetId: userId,
+    targetLabel: userEmail || userId,
+    targetUserId: userId,
+    organizationId: userData.organizationId || DEFAULT_ORGANIZATION_ID,
+    details: `משתמש "${userEmail || userId}" וכל הנתונים המשויכים נמחקו לצמיתות מהמערכת`,
+    metadata: { userEmail }
+  });
+
   return true;
 };
 

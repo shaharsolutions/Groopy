@@ -1,6 +1,12 @@
 import { useState } from 'react';
-import { NEW_TASK_FIELD_DEFINITIONS, NEW_TASK_FIELD_STYLES, normalizeNewTaskFields } from '../data/taskFieldConfig';
-import { APP_VERSIONS, DEFAULT_APP_VERSION, getFeatureFlags } from '../utils/featureFlags';
+import {
+  FIELD_TYPES,
+  NEW_TASK_FIELD_STYLES,
+  normalizeNewTaskFields,
+  createCustomFieldConfig,
+  getAllTaskFieldDefinitions
+} from '../data/taskFieldConfig';
+import { APP_VERSIONS, getFeatureFlags } from '../utils/featureFlags';
 
 const PRESET_COLORS = [
   { value: 'badge-new', label: 'כחול עדין', previewClass: 'badge-new' },
@@ -37,11 +43,25 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   // Editing state for status names
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingValue, setEditingValue] = useState('');
-  const [taskFieldOptionDrafts, setTaskFieldOptionDrafts] = useState(() => Object.fromEntries(
-    NEW_TASK_FIELD_DEFINITIONS
-      .filter(field => field.options)
-      .map(field => [field.key, normalizeNewTaskFields(settings.newTaskFields)[field.key].options.join(', ')])
-  ));
+  const [taskFieldOptionDrafts, setTaskFieldOptionDrafts] = useState(() => {
+    const fields = normalizeNewTaskFields(settings?.newTaskFields, { includeDeleted: true });
+    return Object.fromEntries(
+      Object.entries(fields)
+        .filter(([, field]) => field.options)
+        .map(([key, field]) => [key, (field.options || []).join(', ')])
+    );
+  });
+
+  // Modal state for adding a new custom field
+  const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState('text');
+  const [newFieldStyle, setNewFieldStyle] = useState('standard');
+  const [newFieldOptions, setNewFieldOptions] = useState('');
+  const [newFieldDefaultValue, setNewFieldDefaultValue] = useState('');
+
+  // Modal state for deleting a field
+  const [fieldToDelete, setFieldToDelete] = useState(null);
 
   const showMsg = (text, type = 'success') => {
     setMessage({ text, type });
@@ -59,7 +79,8 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
     try {
       await onSaveSettings({
         ...localSettings,
-        newTaskFields: normalizeNewTaskFields(localSettings.newTaskFields),
+        taskFieldOrder: localSettings.taskFieldOrder || [],
+        newTaskFields: normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true }),
         autoArchiveInactiveDays: Math.floor(autoArchiveDays)
       });
       showMsg('ההגדרות נשמרו בהצלחה בשרת!', 'success');
@@ -298,8 +319,11 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
         ...localSettings,
         boards: existingBoards.map(b => {
           if (b.id !== selectedStatusBoardId) return b;
-          const { statuses: _s, statusColors: _sc, defaultStatus: _ds, ...rest } = b;
-          return rest;
+          const updated = { ...b };
+          delete updated.statuses;
+          delete updated.statusColors;
+          delete updated.defaultStatus;
+          return updated;
         })
       });
       showMsg('הלוח הוחזר לשימוש בסטטוסים של לוח ברירת המחדל.');
@@ -374,7 +398,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   };
 
   const handleTaskFieldToggle = (fieldKey, enabled) => {
-    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true });
     setLocalSettings({
       ...localSettings,
       newTaskFields: {
@@ -385,7 +409,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   };
 
   const handleTaskFieldDefaultChange = (fieldKey, defaultValue) => {
-    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true });
     setLocalSettings({
       ...localSettings,
       newTaskFields: {
@@ -396,7 +420,7 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   };
 
   const handleTaskFieldConfigChange = (fieldKey, patch) => {
-    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true });
     setLocalSettings({
       ...localSettings,
       newTaskFields: {
@@ -409,16 +433,136 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   const handleTaskFieldOptionsChange = (fieldKey, value) => {
     setTaskFieldOptionDrafts(current => ({ ...current, [fieldKey]: value }));
     const options = value.split(',').map(option => option.trim()).filter(Boolean);
-    if (options.length === 0) return;
-    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields);
-    const currentDefault = normalizedFields[fieldKey].defaultValue;
+    const normalizedFields = normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true });
+    const currentDefault = normalizedFields[fieldKey]?.defaultValue;
     handleTaskFieldConfigChange(fieldKey, {
       options,
-      defaultValue: options.includes(currentDefault) ? currentDefault : options[0]
+      defaultValue: options.includes(currentDefault) ? currentDefault : (options[0] || '')
     });
   };
 
-  const statuses = localSettings.statuses || [];
+  const activeTaskFields = getAllTaskFieldDefinitions(localSettings.newTaskFields, {
+    taskFieldOrder: localSettings.taskFieldOrder
+  });
+
+  const handleMoveFieldUp = (index) => {
+    if (index <= 0) return;
+    const currentOrder = activeTaskFields.map(f => f.key);
+    const temp = currentOrder[index - 1];
+    currentOrder[index - 1] = currentOrder[index];
+    currentOrder[index] = temp;
+    setLocalSettings(prev => ({
+      ...prev,
+      taskFieldOrder: currentOrder
+    }));
+  };
+
+  const handleMoveFieldDown = (index) => {
+    if (index >= activeTaskFields.length - 1) return;
+    const currentOrder = activeTaskFields.map(f => f.key);
+    const temp = currentOrder[index + 1];
+    currentOrder[index + 1] = currentOrder[index];
+    currentOrder[index] = temp;
+    setLocalSettings(prev => ({
+      ...prev,
+      taskFieldOrder: currentOrder
+    }));
+  };
+
+  const handleAddNewCustomField = (e) => {
+    e?.preventDefault();
+    if (!newFieldLabel.trim()) {
+      showMsg('יש להזין שם עבור השדה החדש', 'danger');
+      return;
+    }
+    const options = newFieldType === 'select'
+      ? newFieldOptions.split(',').map(o => o.trim()).filter(Boolean)
+      : [];
+    const customField = createCustomFieldConfig({
+      label: newFieldLabel.trim(),
+      type: newFieldType,
+      style: newFieldStyle,
+      options,
+      defaultValue: newFieldDefaultValue
+    });
+    const currentFields = normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true });
+    const currentOrder = localSettings.taskFieldOrder && Array.isArray(localSettings.taskFieldOrder)
+      ? [...localSettings.taskFieldOrder, customField.key]
+      : [...activeTaskFields.map(f => f.key), customField.key];
+
+    setLocalSettings({
+      ...localSettings,
+      taskFieldOrder: currentOrder,
+      newTaskFields: {
+        ...currentFields,
+        [customField.key]: customField
+      }
+    });
+    if (options.length > 0) {
+      setTaskFieldOptionDrafts(curr => ({
+        ...curr,
+        [customField.key]: options.join(', ')
+      }));
+    }
+    setIsAddFieldModalOpen(false);
+    setNewFieldLabel('');
+    setNewFieldType('text');
+    setNewFieldStyle('standard');
+    setNewFieldOptions('');
+    setNewFieldDefaultValue('');
+    showMsg(`השדה "${customField.label}" נוסף בהצלחה לרשימת השדות.`);
+  };
+
+  const handleDeleteTaskField = (fieldKey, fieldLabel) => {
+    setFieldToDelete({ key: fieldKey, label: fieldLabel });
+  };
+
+  const confirmDeleteTaskField = () => {
+    if (!fieldToDelete) return;
+    const { key: fieldKey, label: fieldLabel } = fieldToDelete;
+    const currentFields = { ...normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true }) };
+    if (currentFields[fieldKey]) {
+      currentFields[fieldKey] = {
+        ...currentFields[fieldKey],
+        deleted: true,
+        enabled: false
+      };
+    } else {
+      currentFields[fieldKey] = {
+        key: fieldKey,
+        label: fieldLabel,
+        deleted: true,
+        enabled: false
+      };
+    }
+    setLocalSettings({
+      ...localSettings,
+      newTaskFields: currentFields
+    });
+    setFieldToDelete(null);
+    showMsg(`השדה "${fieldLabel}" נמחק מהגדרות הארגון.`);
+  };
+
+  const handleRestoreTaskField = (fieldKey, fieldLabel) => {
+    const currentFields = { ...normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true }) };
+    if (currentFields[fieldKey]) {
+      currentFields[fieldKey] = {
+        ...currentFields[fieldKey],
+        deleted: false,
+        enabled: true
+      };
+    }
+    const currentOrder = localSettings.taskFieldOrder && Array.isArray(localSettings.taskFieldOrder)
+      ? [...localSettings.taskFieldOrder, fieldKey]
+      : [...activeTaskFields.map(f => f.key), fieldKey];
+
+    setLocalSettings({
+      ...localSettings,
+      taskFieldOrder: currentOrder,
+      newTaskFields: currentFields
+    });
+    showMsg(`השדה "${fieldLabel}" שוחזר בהצלחה להגדרות הארגון.`);
+  };
 
   return (
     <main className="dashboard-container" style={{ maxWidth: '950px', padding: '24px' }}>
@@ -595,41 +739,103 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
         </div>
 
         <div className="filter-panel">
-          <h4 className="detail-section-title">🧩 שדות {flags.terms.item} חדש</h4>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
-            התאמת שם, סגנון, אפשרויות וברירת מחדל של השדות שיופיעו לכל משתמשי הארגון.
-          </p>
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {NEW_TASK_FIELD_DEFINITIONS.map(field => {
-              const config = normalizeNewTaskFields(localSettings.newTaskFields)[field.key];
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h4 className="detail-section-title" style={{ margin: 0 }}>🧩 שדות {flags.terms.item} בארגון</h4>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0' }}>
+                התאמת שם, סוג, סגנון, אפשרויות וברירת מחדל של השדות שיווצרו בפרויקטים, והוספת שדות חדשים לארגון.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.88rem' }}
+              onClick={() => setIsAddFieldModalOpen(true)}
+            >
+              ➕ הוספת שדה חדש לארגון
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {activeTaskFields.map((field, index) => {
+              const config = normalizeNewTaskFields(localSettings.newTaskFields)[field.key] || field;
+              const isCustom = field.isCustom || config.isCustom;
+              const hasOptions = config.type === 'select' || field.options !== undefined || Array.isArray(config.options);
+
               return (
                 <div key={field.key} style={{
                   display: 'grid',
                   gap: '12px',
-                  padding: '13px 14px',
-                  border: '1px solid var(--border)',
+                  padding: '14px 16px',
+                  border: isCustom ? '1px solid #c7d2fe' : '1px solid var(--border)',
                   borderRadius: '10px',
-                  background: config.enabled ? '#ffffff' : '#f8fafc'
+                  background: !config.enabled ? '#f8fafc' : isCustom ? '#fcfdff' : '#ffffff'
                 }}>
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={config.enabled !== false}
-                      onChange={(event) => handleTaskFieldToggle(field.key, event.target.checked)}
-                      style={{ width: '18px', height: '18px', marginTop: '2px' }}
-                    />
-                    <span>
-                      <strong style={{ display: 'block', color: '#1e293b' }}>{field.label}</strong>
-                      {field.description && (
-                        <span style={{ display: 'block', color: '#64748b', fontSize: '0.8rem', marginTop: '3px' }}>{field.description}</span>
-                      )}
-                    </span>
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={config.enabled !== false}
+                        onChange={(event) => handleTaskFieldToggle(field.key, event.target.checked)}
+                        style={{ width: '18px', height: '18px', margin: 0 }}
+                      />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 'bold' }}>#{index + 1}</span>
+                        <strong style={{ color: '#1e293b', fontSize: '0.95rem' }}>{config.label || field.label}</strong>
+                        {isCustom && (
+                          <span style={{ fontSize: '0.75rem', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                            ✨ שדה מותאם
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.75rem', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px' }}>
+                          סוג: {FIELD_TYPES.find(t => t.value === config.type)?.label || 'טקסט'}
+                        </span>
+                      </span>
+                    </label>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={index === 0}
+                        style={{ padding: '4px 8px', fontSize: '0.8rem', opacity: index === 0 ? 0.35 : 1, minWidth: '32px' }}
+                        onClick={() => handleMoveFieldUp(index)}
+                        title="העבר שדה למעלה"
+                      >
+                        ⬆️
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={index === activeTaskFields.length - 1}
+                        style={{ padding: '4px 8px', fontSize: '0.8rem', opacity: index === activeTaskFields.length - 1 ? 0.35 : 1, minWidth: '32px' }}
+                        onClick={() => handleMoveFieldDown(index)}
+                        title="העבר שדה למטה"
+                      >
+                        ⬇️
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => handleDeleteTaskField(field.key, config.label || field.label)}
+                        title={`מחיקת השדה "${config.label || field.label}" מהארגון`}
+                      >
+                        🗑️ מחיקת שדה
+                      </button>
+                    </div>
+                  </div>
+
+                  {field.description && !isCustom && (
+                    <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '-4px' }}>
+                      {field.description}
+                    </div>
+                  )}
 
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                    gap: '10px',
+                    gap: '12px',
                     alignItems: 'end',
                     opacity: config.enabled === false ? 0.55 : 1
                   }}>
@@ -644,6 +850,29 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                       />
                     </label>
 
+                    {isCustom && (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        סוג השדה
+                        <select
+                          className="form-control"
+                          value={config.type || 'text'}
+                          onChange={(event) => {
+                            const newType = event.target.value;
+                            handleTaskFieldConfigChange(field.key, {
+                              type: newType,
+                              ...(newType !== 'select' ? { options: [] } : {})
+                            });
+                          }}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                        >
+                          {FIELD_TYPES.map(type => (
+                            <option key={type.value} value={type.value}>{type.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
                     <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
                       סגנון תצוגה
                       <select
@@ -657,12 +886,12 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                       </select>
                     </label>
 
-                    {field.options && (
+                    {hasOptions && (
                       <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
                         אפשרויות בחירה
                         <input
                           className="form-control"
-                          value={taskFieldOptionDrafts[field.key] ?? (config.options || field.options).join(', ')}
+                          value={taskFieldOptionDrafts[field.key] ?? (config.options || field.options || []).join(', ')}
                           onChange={(event) => handleTaskFieldOptionsChange(field.key, event.target.value)}
                           disabled={config.enabled === false}
                           style={{ marginTop: '5px' }}
@@ -671,24 +900,122 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                       </label>
                     )}
 
-                    {field.options && (
+                    {config.type === 'select' ? (
                       <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
                         ברירת מחדל
                         <select
                           className="form-control"
-                          value={config.defaultValue}
+                          value={config.defaultValue || ''}
                           onChange={(event) => handleTaskFieldDefaultChange(field.key, event.target.value)}
                           disabled={config.enabled === false}
                           style={{ marginTop: '5px' }}
                         >
-                          {(config.options || field.options).map(option => <option key={option} value={option}>{option}</option>)}
+                          <option value="">(ללא ברירת מחדל)</option>
+                          {(config.options || field.options || []).map(option => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
                         </select>
+                      </label>
+                    ) : config.type === 'checkbox' ? (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        ברירת מחדל
+                        <select
+                          className="form-control"
+                          value={String(config.defaultValue ?? '')}
+                          onChange={(event) => handleTaskFieldDefaultChange(field.key, event.target.value)}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                        >
+                          <option value="">ללא / כבוי</option>
+                          <option value="true">מסומן (כן)</option>
+                          <option value="false">לא מסומן (לא)</option>
+                        </select>
+                      </label>
+                    ) : config.type === 'number' ? (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        ברירת מחדל
+                        <input
+                          type="number"
+                          className="form-control"
+                          value={config.defaultValue || ''}
+                          onChange={(event) => handleTaskFieldDefaultChange(field.key, event.target.value)}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                        />
+                      </label>
+                    ) : config.type === 'date' ? (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        ברירת מחדל
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={config.defaultValue || ''}
+                          onChange={(event) => handleTaskFieldDefaultChange(field.key, event.target.value)}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                        />
+                      </label>
+                    ) : config.type === 'textarea' ? (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        ברירת מחדל (אופציונלי)
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={config.defaultValue || ''}
+                          onChange={(event) => handleTaskFieldDefaultChange(field.key, event.target.value)}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                          placeholder="טקסט ברירת מחדל..."
+                        />
+                      </label>
+                    ) : (
+                      <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
+                        ברירת מחדל (אופציונלי)
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={config.defaultValue || ''}
+                          onChange={(event) => handleTaskFieldDefaultChange(field.key, event.target.value)}
+                          disabled={config.enabled === false}
+                          style={{ marginTop: '5px' }}
+                          placeholder="ערך ברירת מחדל..."
+                        />
                       </label>
                     )}
                   </div>
                 </div>
               );
             })}
+
+            {/* שדות שנמחקו מהארגון (אפשרות שחזור) */}
+            {(() => {
+              const deletedFields = getAllTaskFieldDefinitions(localSettings.newTaskFields, { includeDeleted: true }).filter(f => f.deleted);
+              if (deletedFields.length === 0) return null;
+              return (
+                <div style={{ marginTop: '16px', padding: '16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '10px' }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: '700', color: '#475569', margin: '0 0 8px' }}>
+                    ➕ שדות שנמחקו מהארגון ({deletedFields.length})
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 12px' }}>
+                    לחצו על שדה כדי לשחזר אותו בחזרה לרשימת השדות הפעילים בארגון:
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {deletedFields.map(df => (
+                      <button
+                        key={df.key}
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 12px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '14px' }}
+                        onClick={() => handleRestoreTaskField(df.key, df.label)}
+                        title={`שחזור השדה "${df.label}" לארגון`}
+                      >
+                        ➕ {df.label} {df.isCustom ? '(מותאם)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -1204,6 +1531,167 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
           </button>
         </div>
       </div>
+
+      {/* Modal: Add New Custom Field */}
+      {isAddFieldModalOpen && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">➕ הוספת שדה {flags.terms.item} חדש לארגון</h3>
+              <button type="button" className="close-btn" onClick={() => setIsAddFieldModalOpen(false)}>×</button>
+            </div>
+            <form onSubmit={handleAddNewCustomField}>
+              <div className="modal-body" style={{ display: 'grid', gap: '14px', padding: '20px' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: '700' }}>שם השדה (תווית) *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="לדוגמה: ברקוד, מחלקה, תאריך יעד, הערות ספק..."
+                    value={newFieldLabel}
+                    onChange={(e) => setNewFieldLabel(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: '700' }}>סוג השדה</label>
+                  <select
+                    className="form-control"
+                    value={newFieldType}
+                    onChange={(e) => {
+                      setNewFieldType(e.target.value);
+                      if (e.target.value !== 'select') setNewFieldOptions('');
+                    }}
+                  >
+                    {FIELD_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {newFieldType === 'select' && (
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: '700' }}>אפשרויות בחירה (מופרדות בפסיקים) *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="לדוגמה: אופציה 1, אופציה 2, אופציה 3"
+                      value={newFieldOptions}
+                      onChange={(e) => setNewFieldOptions(e.target.value)}
+                    />
+                    <small style={{ color: 'var(--text-muted)' }}>הזינו את הערכים מופרדים בפסיק (,)</small>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: '700' }}>סגנון תצוגה</label>
+                  <select
+                    className="form-control"
+                    value={newFieldStyle}
+                    onChange={(e) => setNewFieldStyle(e.target.value)}
+                  >
+                    {NEW_TASK_FIELD_STYLES.map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: '700' }}>ערך ברירת מחדל (אופציונלי)</label>
+                  {newFieldType === 'select' ? (
+                    <select
+                      className="form-control"
+                      value={newFieldDefaultValue}
+                      onChange={(e) => setNewFieldDefaultValue(e.target.value)}
+                    >
+                      <option value="">(ללא ברירת מחדל)</option>
+                      {newFieldOptions.split(',').map(o => o.trim()).filter(Boolean).map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : newFieldType === 'checkbox' ? (
+                    <select
+                      className="form-control"
+                      value={newFieldDefaultValue}
+                      onChange={(e) => setNewFieldDefaultValue(e.target.value)}
+                    >
+                      <option value="">ללא / כבוי</option>
+                      <option value="true">מסומן (כן)</option>
+                      <option value="false">לא מסומן (לא)</option>
+                    </select>
+                  ) : newFieldType === 'number' ? (
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={newFieldDefaultValue}
+                      onChange={(e) => setNewFieldDefaultValue(e.target.value)}
+                    />
+                  ) : newFieldType === 'date' ? (
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={newFieldDefaultValue}
+                      onChange={(e) => setNewFieldDefaultValue(e.target.value)}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="ערך ברירת מחדל..."
+                      value={newFieldDefaultValue}
+                      onChange={(e) => setNewFieldDefaultValue(e.target.value)}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ justifyContent: 'flex-end', gap: '10px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsAddFieldModalOpen(false)}>
+                  ביטול
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  ➕ הוספת שדה
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for confirming task field deletion from organization */}
+      {fieldToDelete && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setFieldToDelete(null)}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '420px', textAlign: 'center', padding: '24px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🗑️</div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '10px' }}>מחיקת שדה מהארגון</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5, fontSize: '0.9rem' }}>
+              האם את/ה בטוח/ה שברצונך למחוק את השדה <strong style={{ color: '#1e293b' }}>"{fieldToDelete.label}"</strong> מהגדרות הארגון?
+              <br />
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>השדה לא יופיע עוד בפרויקטים חדשים או קיימים. תוכל/י לשחזר אותו בכל עת מתחתית הרשימה.</span>
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setFieldToDelete(null)}
+                style={{ flex: 1 }}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={confirmDeleteTaskField}
+                style={{ flex: 1 }}
+              >
+                מחק שדה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </main>
   );

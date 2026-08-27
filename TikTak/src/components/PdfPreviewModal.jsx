@@ -1,5 +1,36 @@
+import { useState } from 'react';
+
 export default function PdfPreviewModal({ isOpen, onClose, fileUrl, fileName }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
   if (!isOpen || !fileUrl) return null;
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) throw new Error(`Download failed with status ${response.status}`);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = fileName || 'document.pdf';
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Failed to download PDF', error);
+      const fallbackLink = document.createElement('a');
+      fallbackLink.href = fileUrl;
+      fallbackLink.download = fileName || 'document.pdf';
+      fallbackLink.target = '_blank';
+      fallbackLink.rel = 'noopener noreferrer';
+      fallbackLink.click();
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <div className="modal-overlay" style={{ zIndex: 1100 }}>
@@ -37,6 +68,23 @@ export default function PdfPreviewModal({ isOpen, onClose, fileUrl, fileName }) 
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button 
+              type="button"
+              className="btn btn-primary"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              style={{ 
+                padding: '6px 12px', 
+                fontSize: '0.8rem', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                height: '34px'
+              }}
+              title="הורדת ה-PDF למחשב"
+            >
+              {isDownloading ? 'מוריד...' : '📥 הורדה'}
+            </button>
             <a 
               href={fileUrl} 
               target="_blank"
@@ -51,9 +99,9 @@ export default function PdfPreviewModal({ isOpen, onClose, fileUrl, fileName }) 
                 textDecoration: 'none',
                 height: '34px'
               }}
-              title="פתיחה בחלון חדש / הורדה"
+              title="פתיחה בחלון חדש"
             >
-              📥 פתיחה בחלון חדש
+              🔗 פתיחה בחלון חדש
             </a>
             <button className="modal-close" onClick={onClose} style={{ width: '34px', height: '34px' }}>
               &times;

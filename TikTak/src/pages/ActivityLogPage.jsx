@@ -105,14 +105,14 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
             priority: 'עדיפות',
             deadline: 'דדליין',
             driveLink: 'קישור דרייב',
-            supplierContactEmail: 'אימייל ספק',
+            supplierContactEmail: 'אימייל איש קשר',
             diecutsStatus: 'סטטוס שטנצים',
             imagesStatus: 'סטטוס תמונות',
             standardsInstituteRequired: 'מכון תקנים',
             planogramFile: 'פלנוגרמה',
-            workOrderFiles: 'קבצים',
+            workOrderFiles: 'הזמנת עבודה',
             subtasks: 'תתי משימות',
-            attachments: 'קבצים מצורפים',
+            attachments: 'הזמנת עבודה (קבצים מצורפים)',
             internalNotes: 'הערות פנימיות',
             updatedAt: 'עודכן ב',
             createdAt: 'נוצר ב',
@@ -195,8 +195,8 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
 
   const uniqueTargetTypes = useMemo(() => {
     return Array.from(new Set(logs.map(log => log.targetType).filter(Boolean)))
-      .sort((a, b) => (TARGET_TYPE_LABELS[a] || a).localeCompare(TARGET_TYPE_LABELS[b] || b, 'he'));
-  }, [logs]);
+      .sort((a, b) => (targetTypeLabels[a] || a).localeCompare(targetTypeLabels[b] || b, 'he'));
+  }, [logs, targetTypeLabels]);
 
   const filteredLogs = useMemo(() => {
     const search = filters.search.trim().toLowerCase();

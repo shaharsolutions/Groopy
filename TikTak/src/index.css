@@ -4023,11 +4023,20 @@ select.badge:focus, select.priority-badge:focus {
   background: var(--surface);
 }
 
+.trash-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
 .trash-panel-header h3,
 .trash-item h4 { margin: 0; }
 
 .trash-panel-header p {
-  margin: 5px 0 20px;
+  margin: 5px 0 0;
   color: var(--text-muted);
   font-size: 0.9rem;
 }
@@ -4043,6 +4052,18 @@ select.badge:focus, select.priority-badge:focus {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--background);
+}
+
+.trash-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.trash-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .trash-item-meta {
@@ -4063,7 +4084,10 @@ select.badge:focus, select.priority-badge:focus {
   .workspace-view-button { flex: 1; justify-content: center; }
   .workspace-view-trash-button { margin-inline-start: 0 !important; width: 100%; justify-content: center; }
   .trash-panel { padding: 14px; }
+  .trash-panel-header { flex-direction: column; align-items: stretch; }
   .trash-item { align-items: stretch; flex-direction: column; }
+  .trash-item-actions { width: 100%; flex-direction: column; }
+  .trash-item-actions .btn { width: 100%; justify-content: center; }
 }
 
 /* Global Search Modal Styles */

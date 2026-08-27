@@ -41,6 +41,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
   } = settings || {};
   const flags = getFeatureFlags(settings);
   const [tasks, setTasks] = useState([]);
+  const [contacts, setContacts] = useState([]);
   
   // Search, Filter and Sort state
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,10 +56,14 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
     let cancelled = false;
 
     const initTasks = async () => {
-      const { getTasks } = await loadStorageApi();
-      const fetchedTasks = await getTasks(userId);
+      const { getTasks, getContacts } = await loadStorageApi();
+      const [fetchedTasks, fetchedContacts] = await Promise.all([
+        getTasks(userId),
+        getContacts(userId)
+      ]);
       if (cancelled) return;
-      setTasks(fetchedTasks);
+      setTasks(fetchedTasks || []);
+      setContacts(fetchedContacts || []);
       
       const params = new URLSearchParams(window.location.search);
       const urlTaskId = params.get('taskId');
@@ -318,7 +323,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
               <thead>
                 <tr>
                   {renderSortableHeader('title', `שם ה${flags.terms.item}`)}
-                  {renderSortableHeader('contactPerson', 'איש קשר ספק')}
+                  {renderSortableHeader('contactPerson', 'איש קשר')}
                   {renderSortableHeader('status', 'סטטוס')}
                   <th>פעולות</th>
                 </tr>
@@ -327,12 +332,13 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
                 {filteredTasks.map(task => {
                   const taskConfig = getBoardStatusConfig(settings, task.boardId);
                   const colorClass = taskConfig.statusColors[task.status] || '';
+                  const currentPlanogram = task.planogramFile || task.planogram;
                   return (
                     <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
                       <td style={{ fontWeight: '600' }}>
                         <span className="task-title-with-indicator">
                           <span>{task.title}</span>
-                          {task.planogramFile && <PlanogramIndicator />}
+                          {currentPlanogram && <PlanogramIndicator />}
                         </span>
                       </td>
                       <td>{(task.contactPerson || task.supplierContactName) || '-'}</td>
@@ -362,6 +368,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
             {filteredTasks.map(task => {
               const taskConfig = getBoardStatusConfig(settings, task.boardId);
               const colorClass = taskConfig.statusColors[task.status] || '';
+              const currentPlanogram = task.planogramFile || task.planogram;
               return (
                 <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
                   <div className="task-card-header">
@@ -369,7 +376,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
                       <h4 className="task-card-title">
                         <span className="task-title-with-indicator">
                           <span>{task.title}</span>
-                          {task.planogramFile && <PlanogramIndicator compact />}
+                          {currentPlanogram && <PlanogramIndicator compact />}
                         </span>
                       </h4>
                     </div>
@@ -380,9 +387,35 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
                   
                   <div className="task-card-meta">
                     <div className="meta-item">
-                      <span className="meta-label">איש קשר ספק</span>
+                      <span className="meta-label">איש קשר</span>
                       <span className="meta-value">{(task.contactPerson || task.supplierContactName) || '-'}</span>
                     </div>
+                    {(() => {
+                      const currentContactPerson = task.contactPerson || task.supplierContactName;
+                      const cObj = currentContactPerson ? contacts.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
+                      const phone = cObj?.phone || task.phone || task.contactPhone || task.supplierContactPhone || '';
+                      const email = task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail || (cObj ? cObj.email : '');
+                      return (
+                        <>
+                          {phone && (
+                            <div className="meta-item">
+                              <span className="meta-label">טלפון</span>
+                              <span className="meta-value">
+                                <a className="directory-phone-link direction-ltr" href={`tel:${phone.replace(/\s+/g, '')}`} onClick={(e) => e.stopPropagation()}>{phone}</a>
+                              </span>
+                            </div>
+                          )}
+                          {email && (
+                            <div className="meta-item">
+                              <span className="meta-label">אימייל</span>
+                              <span className="meta-value">
+                                <a className="direction-ltr mobile-email-link" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>{email}</a>
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <div className="task-card-actions">
@@ -407,6 +440,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
           <ExternalDetailsModal 
             task={viewingTask}
             settings={settings}
+            contacts={contacts}
             onClose={() => {
               setViewingTask(null);
             }}

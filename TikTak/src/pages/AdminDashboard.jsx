@@ -1,6 +1,7 @@
 import { useCallback, useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import { getBoardStatusConfig } from '../utils/boardStatusHelper';
 import { getFeatureFlags } from '../utils/featureFlags';
+import { normalizeNewTaskFields } from '../data/taskFieldConfig';
 
 const AdminDetailsModal = lazy(() => import('../components/AdminDetailsModal'));
 import StatusPicker from '../components/StatusPicker';
@@ -125,7 +126,7 @@ const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
   return [...mergedTasks, ...newTasks];
 };
 
-export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, organizationId, autoOpenTaskId, onClearAutoOpen }) {
+export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, organizationId, autoOpenTaskId, onClearAutoOpen, onNavigate }) {
   const {
     autoArchiveInactiveDays = 45
   } = settings || {};
@@ -133,6 +134,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [trashedTasks, setTrashedTasks] = useState([]);
   const [workspaceView, setWorkspaceView] = useState('active');
   const [restoringTaskId, setRestoringTaskId] = useState(null);
+  const [permanentlyDeletingTaskId, setPermanentlyDeletingTaskId] = useState(null);
+  const [permanentDeleteTask, setPermanentDeleteTask] = useState(null);
+  const [isEmptyTrashConfirmOpen, setIsEmptyTrashConfirmOpen] = useState(false);
+  const [isPurgingAllTrash, setIsPurgingAllTrash] = useState(false);
 
   // Status configuration for currently active workspace/board
   const currentBoardStatusConfig = useMemo(() => (
@@ -140,6 +145,9 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   ), [settings, workspaceView]);
   const STATUSES = currentBoardStatusConfig.statuses;
   const STATUS_CLASSES = currentBoardStatusConfig.statusColors;
+
+  const newTaskFields = useMemo(() => normalizeNewTaskFields(settings?.newTaskFields), [settings?.newTaskFields]);
+  const contactPersonLabel = newTaskFields.contactPerson?.label || 'איש קשר';
 
   // Custom Boards State
   const customBoards = useMemo(() => (Array.isArray(settings?.boards) ? settings.boards : []).filter(b => b && b.id !== 'active'), [settings?.boards]);
@@ -183,23 +191,25 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [editValue, setEditValue] = useState('');
   const [isSavingCell, setIsSavingCell] = useState(false);
 
-  // Close delete confirmation modal on Escape key press
+  // Close delete confirmation modals on Escape key press
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         // Only close if no detail modal is active (detail modal has its own escape listener)
         if (!viewingTask && !isCreateOpen) {
-          setDeletingTaskId(null);
+          if (deletingTaskId) setDeletingTaskId(null);
+          if (permanentDeleteTask && !permanentlyDeletingTaskId) setPermanentDeleteTask(null);
+          if (isEmptyTrashConfirmOpen && !isPurgingAllTrash) setIsEmptyTrashConfirmOpen(false);
         }
       }
     };
-    if (deletingTaskId) {
+    if (deletingTaskId || permanentDeleteTask || isEmptyTrashConfirmOpen) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [deletingTaskId, viewingTask, isCreateOpen]);
+  }, [deletingTaskId, permanentDeleteTask, isEmptyTrashConfirmOpen, permanentlyDeletingTaskId, isPurgingAllTrash, viewingTask, isCreateOpen]);
 
   useEffect(() => {
     return () => {
@@ -450,10 +460,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     // Search query filter ( title, contactPerson )
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter(t =>
-        (t.title && t.title.toLowerCase().includes(q)) ||
-        (t.contactPerson && t.contactPerson.toLowerCase().includes(q))
-      );
+      result = result.filter(t => {
+        const contact = t.contactPerson || t.supplierContactName || '';
+        return (t.title && t.title.toLowerCase().includes(q)) ||
+          (contact && contact.toLowerCase().includes(q));
+      });
     }
 
     // Status filter
@@ -804,6 +815,36 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     }
   };
 
+  const handlePermanentlyDeleteTask = async (taskId) => {
+    setPermanentlyDeletingTaskId(taskId);
+    try {
+      const { permanentlyDeleteTask } = await getStorageApi();
+      await permanentlyDeleteTask(taskId);
+      setPermanentDeleteTask(null);
+      await loadTrash();
+    } catch (err) {
+      console.error('Failed to permanently delete task', err);
+      alert('שגיאה במחיקת הפרויקט לצמיתות. נסי שוב בעוד רגע.');
+    } finally {
+      setPermanentlyDeletingTaskId(null);
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    setIsPurgingAllTrash(true);
+    try {
+      const { emptyTrash } = await getStorageApi();
+      await emptyTrash(userId);
+      setIsEmptyTrashConfirmOpen(false);
+      await loadTrash();
+    } catch (err) {
+      console.error('Failed to empty trash', err);
+      alert('שגיאה בריקון פח האשפה. נסי שוב בעוד רגע.');
+    } finally {
+      setIsPurgingAllTrash(false);
+    }
+  };
+
   const formatDate = (isoString) => {
     if (!isoString) return '-';
     try {
@@ -1002,8 +1043,19 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           <div className="trash-panel-header">
             <div>
               <h3 id="trash-title">פח אשפה</h3>
-              <p>{flags.terms.items} שנמחקו נשמרים כאן למשך 30 יום וניתנים לשחזור.</p>
+              <p>{flags.terms.items} שנמחקו נשמרים כאן למשך 30 יום וניתנים לשחזור או למחיקה לצמיתות.</p>
             </div>
+            {trashedTasks.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                style={{ backgroundColor: 'transparent', border: '1px solid var(--color-needs-revision)', color: 'var(--color-needs-revision)' }}
+                disabled={isPurgingAllTrash || Boolean(permanentlyDeletingTaskId) || Boolean(restoringTaskId)}
+                onClick={() => setIsEmptyTrashConfirmOpen(true)}
+              >
+                {isPurgingAllTrash ? 'מרוקן פח...' : '🗑️ ריקון פח האשפה'}
+              </button>
+            )}
           </div>
 
           {trashedTasks.length === 0 ? (
@@ -1016,6 +1068,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             <div className="trash-list">
               {trashedTasks.map(task => {
                 const daysRemaining = task.daysRemaining;
+                const isBusy = restoringTaskId === task.id || permanentlyDeletingTaskId === task.id || isPurgingAllTrash;
                 return (
                   <article className="trash-item" key={task.id}>
                     <div className="trash-item-main">
@@ -1028,14 +1081,24 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         </span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={restoringTaskId === task.id}
-                      onClick={() => handleRestoreTask(task.id)}
-                    >
-                      {restoringTaskId === task.id ? 'משחזר...' : `↩ שחזור ${flags.terms.item}`}
-                    </button>
+                    <div className="trash-item-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={isBusy}
+                        onClick={() => handleRestoreTask(task.id)}
+                      >
+                        {restoringTaskId === task.id ? 'משחזר...' : `↩ שחזור ${flags.terms.item}`}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        disabled={isBusy}
+                        onClick={() => setPermanentDeleteTask(task)}
+                      >
+                        {permanentlyDeletingTaskId === task.id ? 'מוחק...' : '🗑️ מחיקה לצמיתות'}
+                      </button>
+                    </div>
                   </article>
                 );
               })}
@@ -1099,7 +1162,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               <option value="updatedAt">עודכן לאחרונה</option>
               <option value="status">לפי סטטוס</option>
               <option value="title">שם ה{flags.terms.item}</option>
-              <option value="contactPerson">איש קשר אצל הספק</option>
+              <option value="contactPerson">{contactPersonLabel}</option>
             </select>
           </div>
         </div>
@@ -1242,7 +1305,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               <thead>
                 <tr>
                   {renderSortableHeader('title', 'שם הפרויקט')}
-                  {renderSortableHeader('contactPerson', 'איש קשר אצל הספק')}
+                  {renderSortableHeader('contactPerson', contactPersonLabel)}
                   <th>טלפון</th>
                   <th>אימייל</th>
                   {renderSortableHeader('status', 'סטטוס')}
@@ -1252,9 +1315,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               </thead>
               <tbody>
                 {filteredTasks.map(task => {
-                  const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
+                  const currentContactPerson = task.contactPerson || task.supplierContactName || '';
+                  const currentPlanogram = task.planogramFile || task.planogram;
+                  const contact = contactsByName.get(currentContactPerson.trim().toLowerCase());
                   const phone = contact ? contact.phone : '';
-                  const email = task.supplierContactEmail || (contact ? contact.email : '');
+                  const email = task.supplierContactEmail || task.contactEmail || task.email || (contact ? contact.email : '');
 
                   return (
                     <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
@@ -1263,7 +1328,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                       >
                         <span className="task-title-with-indicator">
                           <span>{task.title}</span>
-                          {task.planogramFile && <PlanogramIndicator />}
+                          {currentPlanogram && <PlanogramIndicator />}
                         </span>
                       </td>
                       <td
@@ -1271,7 +1336,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         onClick={(e) => {
                           if (editingCell.taskId === task.id && editingCell.field === 'contactPerson') return;
                           e.stopPropagation();
-                          startEditingCell(task.id, 'contactPerson', task.contactPerson);
+                          startEditingCell(task.id, 'contactPerson', currentContactPerson);
                         }}
                       >
                         {editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? (
@@ -1287,7 +1352,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                             disabled={isSavingCell}
                           />
                         ) : (
-                          task.contactPerson || '-'
+                          currentContactPerson || '-'
                         )}
                       </td>
                       <td
@@ -1295,7 +1360,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         onClick={(e) => {
                           if (editingCell.taskId === task.id && editingCell.field === 'phone') return;
                           e.stopPropagation();
-                          if (!task.contactPerson) {
+                          if (!currentContactPerson) {
                             alert('יש להגדיר איש קשר לפני עדכון מספר טלפון');
                             return;
                           }
@@ -1406,10 +1471,13 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           </div>
 
           <datalist id="contacts-list-table">
-            {contacts.map(c => {
-              const name = typeof c === 'string' ? c : c.name;
-              const role = typeof c === 'string' ? '' : c.role;
-              const phone = typeof c === 'string' ? '' : c.phone;
+            {Array.from(new Set([
+              ...(newTaskFields.contactPerson?.options || []),
+              ...contacts.map(c => typeof c === 'string' ? c : c.name)
+            ])).map(name => {
+              const contactObj = contacts.find(c => (typeof c === 'string' ? c : c.name) === name);
+              const role = contactObj && typeof contactObj !== 'string' ? contactObj.role : '';
+              const phone = contactObj && typeof contactObj !== 'string' ? contactObj.phone : '';
               return (
                 <option key={name} value={name}>
                   {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
@@ -1421,9 +1489,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           {/* Mobile Cards View */}
           <div className="mobile-cards-grid">
             {filteredTasks.map(task => {
-              const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
+              const currentContactPerson = task.contactPerson || task.supplierContactName || '';
+              const currentPlanogram = task.planogramFile || task.planogram;
+              const contact = contactsByName.get(currentContactPerson.trim().toLowerCase());
               const phone = contact ? contact.phone : '';
-              const email = task.supplierContactEmail || (contact ? contact.email : '');
+              const email = task.supplierContactEmail || task.contactEmail || task.email || (contact ? contact.email : '');
               const taskStatusConfig = getBoardStatusConfig(settings, task.boardId);
 
               return (
@@ -1433,7 +1503,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                       <h4 className="task-card-title">
                         <span className="task-title-with-indicator">
                           <span>{task.title}</span>
-                          {task.planogramFile && <PlanogramIndicator compact />}
+                          {currentPlanogram && <PlanogramIndicator compact />}
                         </span>
                       </h4>
                     </div>
@@ -1456,7 +1526,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   <div className="task-card-meta">
                     <div className="meta-item">
                       <span className="meta-label">איש קשר</span>
-                      <span className="meta-value">{task.contactPerson || '-'}</span>
+                      <span className="meta-value">{currentContactPerson || '-'}</span>
                     </div>
                     <div className="meta-item">
                       <span className="meta-label">עודכן ב</span>
@@ -1676,6 +1746,98 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         </div>
       )}
       </>
+      )}
+
+      {/* Permanent Delete Single Task Confirmation Modal */}
+      {permanentDeleteTask && (
+        <div className="modal-overlay" onClick={() => !permanentlyDeletingTaskId && setPermanentDeleteTask(null)}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">🗑️ מחיקת {flags.terms.item} לצמיתות</h3>
+              <button
+                type="button"
+                className="modal-close"
+                disabled={Boolean(permanentlyDeletingTaskId)}
+                onClick={() => setPermanentDeleteTask(null)}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>
+                האם את בטוחה שברצונך למחוק לצמיתות את ה{flags.terms.item} <strong>"{permanentDeleteTask.title || permanentDeleteTask.jobNumber}"</strong>?
+              </p>
+              <p style={{ marginTop: '10px', color: 'var(--color-needs-revision)', fontWeight: '600', fontSize: '0.88rem' }}>
+                ⚠️ פעולה זו היא סופית ובלתי הפיכה! ה{flags.terms.item}, הקבצים וההערות יימחקו לחלוטין ללא אפשרות שחזור.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={Boolean(permanentlyDeletingTaskId)}
+                onClick={() => setPermanentDeleteTask(null)}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                style={{ backgroundColor: 'var(--color-needs-revision)', color: 'white' }}
+                disabled={Boolean(permanentlyDeletingTaskId)}
+                onClick={() => handlePermanentlyDeleteTask(permanentDeleteTask.id)}
+              >
+                {permanentlyDeletingTaskId ? 'מוחק לצמיתות...' : 'מחק לצמיתות'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty Entire Trash Confirmation Modal */}
+      {isEmptyTrashConfirmOpen && (
+        <div className="modal-overlay" onClick={() => !isPurgingAllTrash && setIsEmptyTrashConfirmOpen(false)}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">🗑️ ריקון פח האשפה</h3>
+              <button
+                type="button"
+                className="modal-close"
+                disabled={isPurgingAllTrash}
+                onClick={() => setIsEmptyTrashConfirmOpen(false)}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>
+                האם את בטוחה שברצונך למחוק לצמיתות את כל ה{flags.terms.items} שבפח האשפה (<strong>{trashedTasks.length} {flags.terms.items}</strong>)?
+              </p>
+              <p style={{ marginTop: '10px', color: 'var(--color-needs-revision)', fontWeight: '600', fontSize: '0.88rem' }}>
+                ⚠️ פעולה זו תמחק לצמיתות את כל ה{flags.terms.items} והמידע המשויך אליהם ללא אפשרות שחזור!
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={isPurgingAllTrash}
+                onClick={() => setIsEmptyTrashConfirmOpen(false)}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                style={{ backgroundColor: 'var(--color-needs-revision)', color: 'white' }}
+                disabled={isPurgingAllTrash}
+                onClick={handleEmptyTrash}
+              >
+                {isPurgingAllTrash ? 'מרוקן פח...' : 'ריקון כל הפח עכשיו'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

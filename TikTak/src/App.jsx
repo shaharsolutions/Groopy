@@ -75,7 +75,6 @@ export default function App() {
 
   // Dynamic application settings
   const [settings, setSettings] = useState({
-    workTypes: ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
     statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
     defaultStatus: 'חדש',
     statusColors: {
@@ -86,6 +85,7 @@ export default function App() {
       'ארכיון': 'badge-archive'
     },
     newTaskFields: DEFAULT_NEW_TASK_FIELDS,
+    taskFieldOrder: [],
     hideWeeklyHours: false,
     autoArchiveInactiveDays: 45,
     boards: [],
@@ -110,7 +110,7 @@ export default function App() {
         if (isSharedLink) {
           // Shared link viewer mode
           try {
-            const { authorizeViewerSession, resolveShortShareLink } = await import('./utils/storage');
+            const { authorizeViewerSession, resolveShortShareLink, setActiveOrganizationContext } = await import('./utils/storage');
             let resolvedUserId = targetUserId;
             let resolvedOrganizationId = targetOrganizationId;
             let resolvedToken = viewerToken;
@@ -131,19 +131,23 @@ export default function App() {
             }
 
             await authorizeViewerSession(resolvedOrganizationId, resolvedToken, resolvedUserId);
+            setActiveOrganizationContext(resolvedOrganizationId);
             setUserRole('external');
             setIsLoggedIn(true);
             setUserId(resolvedUserId);
             setOrganizationId(resolvedOrganizationId);
+            setInitializing(false);
           } catch (viewerError) {
             console.error('Viewer authorization failed', viewerError);
             setError('קישור השיתוף אינו תקין. יש לבקש קישור חדש ממנהל/ת הארגון.');
+            setInitializing(false);
           }
         } else if (user.isAnonymous) {
           // Anonymous login but no viewer query parameter -> show Login screen
           setIsLoggedIn(false);
           setUserRole('external');
           setUserId(null);
+          setInitializing(false);
         } else {
           // Logged in manager mode (Google or Email/Password authenticated)
           setUserRole('admin');
@@ -188,7 +192,6 @@ export default function App() {
               const userSettings = await storageApi.getGlobalSettings(resolvedOrgId);
               if (!userSettings && user.email === 'shaharsolutions@gmail.com') {
                 const defaultSettings = {
-                  workTypes: ['אריזה', 'מדבקה', 'קטלוג', 'לוגו', 'תיקון קובץ', 'קובץ להדפסה', 'אחר'],
                   statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
                   defaultStatus: 'חדש',
                   statusColors: {
@@ -205,7 +208,6 @@ export default function App() {
                 await storageApi.saveGlobalSettings(defaultSettings, resolvedOrgId, { skipActivityLog: true });
               }
               await storageApi.removeDefaultSuppliersAndContacts(user.uid);
-              await storageApi.seedUserDatabaseIfEmpty(user.uid);
             } catch (bgError) {
               console.error("Background initialization error", bgError);
             }
@@ -294,30 +296,30 @@ export default function App() {
       // Listen to suppliers real-time from Firestore
       const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', effectiveUserId));
       unsubscribeSuppliers = onSnapshot(suppliersQuery, (snapshot) => {
-      const sups = [];
-      snapshot.forEach(docSnap => {
-        sups.push({ id: docSnap.id, ...docSnap.data() });
+        const sups = [];
+        snapshot.forEach(docSnap => {
+          sups.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        // Sort alphabetically by name
+        sups.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+        setSuppliers(sups);
+      }, (err) => {
+        console.error("Suppliers real-time listener error:", err);
       });
-      // Sort alphabetically by name
-      sups.sort((a, b) => a.name.localeCompare(b.name, 'he'));
-      setSuppliers(sups);
-    }, (err) => {
-      console.error("Suppliers real-time listener error:", err);
-    });
 
       // Listen to contacts real-time from Firestore
       const contactsQuery = query(collection(db, 'contacts'), where('userId', '==', effectiveUserId));
       unsubscribeContacts = onSnapshot(contactsQuery, (snapshot) => {
-      const conts = [];
-      snapshot.forEach(docSnap => {
-        conts.push({ id: docSnap.id, ...docSnap.data() });
+        const conts = [];
+        snapshot.forEach(docSnap => {
+          conts.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        // Sort alphabetically by name
+        conts.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+        setContacts(conts);
+      }, (err) => {
+        console.error("Contacts real-time listener error:", err);
       });
-      // Sort alphabetically by name
-      conts.sort((a, b) => a.name.localeCompare(b.name, 'he'));
-      setContacts(conts);
-    }, (err) => {
-      console.error("Contacts real-time listener error:", err);
-    });
     };
 
     attachDirectoryListeners().catch((err) => {

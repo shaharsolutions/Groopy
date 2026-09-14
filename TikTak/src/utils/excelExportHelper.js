@@ -3,7 +3,7 @@
  * 
  * Exports all user projects, comments, subtasks, files & documents,
  * suppliers, contacts, and system settings to a comprehensive multi-sheet Excel (.xlsx) file.
- * All file and folder links strictly start with https:// or http:// and are fully clickable hyperlinks.
+ * All file and folder links (work order, planogram, Drive, comments) are fully clickable hyperlinks.
  */
 
 import * as XLSX from 'xlsx';
@@ -17,72 +17,112 @@ import { getAllTaskFieldDefinitions } from '../data/taskFieldConfig';
 import { getFeatureFlags } from './featureFlags';
 
 /**
- * Ensures a URL starts with http:// or https://
+ * Creates a native clickable hyperlink cell for SheetJS supporting both formulas and relationships
  */
-export const ensureAbsoluteUrl = (url) => {
-  if (!url || typeof url !== 'string') return '';
-  const trimmed = url.trim();
-  if (!trimmed) return '';
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed;
+const createHyperlinkCell = (url, label) => {
+  if (!url || typeof url !== 'string') {
+    return label || '';
   }
-  if (trimmed.startsWith('//')) {
-    return `https:${trimmed}`;
+  const match = url.match(/https?:\/\/[^\s"'<>\)]+/i);
+  if (!match) {
+    return label || url;
   }
-  return `https://${trimmed}`;
-};
-
-/**
- * Creates a native clickable hyperlink cell for SheetJS.
- * The link value and target strictly start with https:// or http://.
- */
-export const createHyperlinkCell = (url, fallbackText = '') => {
-  const cleanUrl = ensureAbsoluteUrl(url);
-  if (!cleanUrl) {
-    return fallbackText ? String(fallbackText).trim() : '';
-  }
+  const cleanUrl = match[0].trim();
+  const cleanLabel = label ? String(label).trim() : cleanUrl;
+  const escapedUrl = cleanUrl.replace(/"/g, '""');
+  const escapedLabel = cleanLabel.replace(/"/g, '""');
   return {
     t: 's',
-    v: cleanUrl,
+    v: cleanLabel,
+    f: `HYPERLINK("${escapedUrl}", "${escapedLabel}")`,
     l: {
       Target: cleanUrl,
-      Tooltip: cleanUrl
+      Tooltip: cleanLabel
     }
   };
 };
 
 /**
- * Normalizes files data into an array of { name, url }
+ * Robustly normalizes any file data (single string, multiline text, array, object, JSON)
+ * into a clean array of { name, url } where url is guaranteed to be a valid URL starting with https:// or http://.
  */
-export const normalizeFileList = (filesData) => {
-  if (!filesData) return [];
-  const rawList = Array.isArray(filesData) ? filesData : [filesData];
-  const result = [];
-  rawList.forEach((item) => {
-    if (!item) return;
-    if (typeof item === 'string') {
-      const trimmed = item.trim();
-      if (trimmed) {
+const extractAllFiles = (input) => {
+  if (!input) return [];
+  if (Array.isArray(input)) {
+    return input.flatMap(extractAllFiles);
+  }
+  if (typeof input === 'object') {
+    const rawUrl = input.url || input.downloadURL || input.link || '';
+    const rawName = input.name || input.fileName || '';
+    if (rawUrl) {
+      const match = String(rawUrl).match(/https?:\/\/[^\s"'<>\)]+/i);
+      const cleanUrl = match ? match[0].trim() : String(rawUrl).trim();
+      let cleanName = String(rawName || '').trim();
+      if (!cleanName) {
+        try {
+          const u = new URL(cleanUrl);
+          cleanName = decodeURIComponent(u.pathname.split('/').pop()) || 'קובץ';
+        } catch {
+          cleanName = 'קובץ';
+        }
+      }
+      return [{ name: cleanName, url: cleanUrl }];
+    }
+    return [];
+  }
+  if (typeof input === 'string') {
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return [];
+
+    // Try parsing as JSON first
+    if (trimmedInput.startsWith('[') || trimmedInput.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmedInput);
+        if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) {
+          return extractAllFiles(parsed);
+        }
+      } catch {}
+    }
+
+    // Split by newlines
+    const lines = trimmedInput.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+    const files = [];
+
+    lines.forEach((line) => {
+      const match = line.match(/https?:\/\/[^\s"'<>\)]+/i);
+      if (match) {
+        const url = match[0].trim();
+        let name = line.substring(0, match.index).replace(/[:\s\-_]+$/, '').trim();
+        if (!name) {
+          try {
+            const u = new URL(url);
+            name = decodeURIComponent(u.pathname.split('/').pop()) || 'קובץ';
+          } catch {
+            name = 'קובץ';
+          }
+        }
+        files.push({ name, url });
+      }
+    });
+
+    // Fallback: search for any URLs in the entire string if lines didn't catch it
+    if (files.length === 0) {
+      const urlRegex = /https?:\/\/[^\s"'<>\)]+/gi;
+      let m;
+      while ((m = urlRegex.exec(trimmedInput)) !== null) {
+        const url = m[0].trim();
         let name = 'קובץ';
         try {
-          const urlObj = new URL(ensureAbsoluteUrl(trimmed));
-          const pathname = urlObj.pathname;
-          name = decodeURIComponent(pathname.substring(pathname.lastIndexOf('/') + 1)) || 'קובץ';
-        } catch {
-          name = trimmed.length > 35 ? trimmed.substring(0, 32) + '...' : trimmed;
-        }
-        result.push({ name, url: ensureAbsoluteUrl(trimmed) });
-      }
-    } else if (typeof item === 'object') {
-      const rawUrl = item.url || item.downloadURL || item.link || '';
-      const url = ensureAbsoluteUrl(rawUrl);
-      const name = item.name || item.fileName || (url ? 'קובץ' : '');
-      if (url || name) {
-        result.push({ name, url });
+          const u = new URL(url);
+          name = decodeURIComponent(u.pathname.split('/').pop()) || 'קובץ';
+        } catch {}
+        files.push({ name, url });
       }
     }
-  });
-  return result;
+
+    return files;
+  }
+  return [];
 };
 
 /**
@@ -244,14 +284,12 @@ export const exportAllUserDataToExcel = async ({
     'תאריך יעד',
     'תיאור',
     'הערות פנימיות',
-    'קישור לדרייב (מתחיל ב-https://)',
+    'קישור לדרייב',
     'דרישות מכון תקנים',
     'דייקאטים',
     'תמונות',
-    'הזמנת עבודה (שם קובץ)',
-    'קישור להזמנת עבודה (מתחיל ב-https://)',
-    'פלנוגרמה (שם קובץ)',
-    'קישור לפלנוגרמה (מתחיל ב-https://)',
+    'הזמנת עבודה / מסמכים',
+    'פלנוגרמה',
     'תתי-משימות (סיכום)',
     'שעות שהושקעו',
     'כמות תגובות',
@@ -279,18 +317,70 @@ export const exportAllUserDataToExcel = async ({
       }
     }
 
-    // Drive Link - strictly starts with https://
-    const driveLinkCell = task.driveLink ? createHyperlinkCell(task.driveLink) : '';
+    // Drive Link - Clickable hyperlink
+    let driveLinkCell = '';
+    if (task.driveLink && typeof task.driveLink === 'string' && task.driveLink.trim().startsWith('http')) {
+      driveLinkCell = createHyperlinkCell(task.driveLink.trim(), '🔗 פתח Google Drive');
+    } else {
+      driveLinkCell = task.driveLink || '';
+    }
 
-    // Work order files - names and link strictly starting with https://
-    const woFiles = normalizeFileList(task.workOrderFiles || task.workOrderFile || task.attachments);
-    const woFileName = woFiles.map((f) => f.name).filter(Boolean).join(', ');
-    const woLinkCell = woFiles.length > 0 && woFiles[0].url ? createHyperlinkCell(woFiles[0].url) : '';
+    // Work order files - Extract and make clickable
+    const rawWoFiles = [
+      ...extractAllFiles(task.workOrderFiles),
+      ...extractAllFiles(task.workOrderFile),
+      ...extractAllFiles(task.attachments)
+    ];
+    const woFiles = [];
+    const seenWo = new Set();
+    rawWoFiles.forEach((f) => {
+      const key = f.url || f.name;
+      if (key && !seenWo.has(key)) {
+        seenWo.add(key);
+        woFiles.push(f);
+      }
+    });
 
-    // Planogram - name and link strictly starting with https://
-    const planoFiles = normalizeFileList(task.planogramFile || task.planogram);
-    const planoFileName = planoFiles.map((f) => f.name).filter(Boolean).join(', ');
-    const planoLinkCell = planoFiles.length > 0 && planoFiles[0].url ? createHyperlinkCell(planoFiles[0].url) : '';
+    let workOrderFilesCell = '';
+    if (woFiles.length === 1) {
+      workOrderFilesCell = woFiles[0].url
+        ? createHyperlinkCell(woFiles[0].url, `🔗 ${woFiles[0].name || 'פתח הזמנת עבודה'}`)
+        : (woFiles[0].name || '');
+    } else if (woFiles.length > 1) {
+      const primaryUrl = woFiles[0].url;
+      const label = `🔗 ${woFiles[0].name} (+${woFiles.length - 1} נוספים)`;
+      workOrderFilesCell = primaryUrl
+        ? createHyperlinkCell(primaryUrl, label)
+        : label;
+    }
+
+    // Planogram files - Extract and make clickable
+    const rawPlanoFiles = [
+      ...extractAllFiles(task.planogramFile),
+      ...extractAllFiles(task.planogram)
+    ];
+    const planoFiles = [];
+    const seenPlano = new Set();
+    rawPlanoFiles.forEach((f) => {
+      const key = f.url || f.name;
+      if (key && !seenPlano.has(key)) {
+        seenPlano.add(key);
+        planoFiles.push(f);
+      }
+    });
+
+    let planogramCell = '';
+    if (planoFiles.length === 1) {
+      planogramCell = planoFiles[0].url
+        ? createHyperlinkCell(planoFiles[0].url, `🔗 ${planoFiles[0].name || 'פתח פלנוגרמה'}`)
+        : (planoFiles[0].name || '');
+    } else if (planoFiles.length > 1) {
+      const primaryUrl = planoFiles[0].url;
+      const label = `🔗 ${planoFiles[0].name} (+${planoFiles.length - 1} נוספים)`;
+      planogramCell = primaryUrl
+        ? createHyperlinkCell(primaryUrl, label)
+        : label;
+    }
 
     const row = [
       task.jobNumber || '',
@@ -311,10 +401,8 @@ export const exportAllUserDataToExcel = async ({
       task.standardsInstituteRequired || 'לא',
       task.diecutsStatus || 'אין',
       task.imagesStatus || 'אין',
-      woFileName,
-      woLinkCell,
-      planoFileName,
-      planoLinkCell,
+      workOrderFilesCell,
+      planogramCell,
       formatSubtasksSummary(task.subtasks),
       hoursStr,
       taskComments.length,
@@ -344,15 +432,15 @@ export const exportAllUserDataToExcel = async ({
   autoFitColumns(wsProjects, projectRows, projectHeaders);
 
   // ---------------------------------------------------------------------------
-  // SHEET 2: תגובות והתכתבויות (Comments Sheet with Clickable Links)
+  // SHEET 2: תגובות והתכתבויות (Comments Sheet with Clickable Attachment Links)
   // ---------------------------------------------------------------------------
   const commentHeaders = [
     'מספר פרויקט',
     'שם הפרויקט',
     'כותב התגובה',
     'תוכן התגובה',
-    'קובץ מצורף (שם)',
-    'קישור לקובץ מצורף (מתחיל ב-https://)',
+    'קובץ מצורף',
+    'קישור לקובץ',
     'תאריך ושעה',
     'מזהה תגובה'
   ];
@@ -368,14 +456,23 @@ export const exportAllUserDataToExcel = async ({
 
   const commentRows = allComments.map((c) => {
     const parentTask = taskDetailsMap.get(c.jobId) || {};
-    const attachmentLinkCell = c.attachmentUrl ? createHyperlinkCell(c.attachmentUrl) : '';
+    const commentFiles = extractAllFiles(c.attachmentUrl || c.attachments);
+    const attachmentUrl = commentFiles[0]?.url || (c.attachmentUrl ? String(c.attachmentUrl).trim() : '');
+    const attachmentName = commentFiles[0]?.name || c.attachmentName || 'קובץ מצורף';
+
+    const attachmentCell = attachmentUrl
+      ? createHyperlinkCell(attachmentUrl, `🔗 ${attachmentName}`)
+      : (c.attachmentName || '');
+    const attachmentLinkCell = attachmentUrl
+      ? createHyperlinkCell(attachmentUrl, attachmentUrl)
+      : '';
 
     return [
       parentTask.jobNumber || c.jobId || '',
       parentTask.title || '',
       c.authorName || c.authorEmail || 'משתמש',
       c.text || '',
-      c.attachmentName || '',
+      attachmentCell,
       attachmentLinkCell,
       formatDateTime(c.createdAt),
       c.id || ''
@@ -418,7 +515,7 @@ export const exportAllUserDataToExcel = async ({
   autoFitColumns(wsSubtasks, subtaskRows, subtaskHeaders);
 
   // ---------------------------------------------------------------------------
-  // SHEET 4: קבצים ומסמכים (Dedicated Files & Documents with Clickable Links)
+  // SHEET 4: קבצים ומסמכים (Dedicated Files & Documents with Clickable Direct Links)
   // ---------------------------------------------------------------------------
   const fileHeaders = [
     'מספר פרויקט',
@@ -426,7 +523,8 @@ export const exportAllUserDataToExcel = async ({
     'לוח',
     'סוג מסמך',
     'שם הקובץ',
-    'קישור ישיר לקובץ (מתחיל ב-https://)'
+    'קישור לחיץ לפתיחה / הורדה',
+    'כתובת אינטרנט מלאה (URL)'
   ];
 
   const fileRows = [];
@@ -435,56 +533,97 @@ export const exportAllUserDataToExcel = async ({
     const boardTitle = getBoardName(task.boardId, settings, flags.isLegacy);
 
     // 1. Work order files
-    const woFiles = normalizeFileList(task.workOrderFiles || task.workOrderFile || task.attachments);
+    const woFiles = [
+      ...extractAllFiles(task.workOrderFiles),
+      ...extractAllFiles(task.workOrderFile),
+      ...extractAllFiles(task.attachments)
+    ];
+    const seenWoInSheet = new Set();
     woFiles.forEach((f, idx) => {
+      const key = f.url || f.name;
+      if (seenWoInSheet.has(key)) return;
+      seenWoInSheet.add(key);
+
       fileRows.push([
         task.jobNumber || '',
         task.title || '',
         boardTitle,
         woFiles.length > 1 ? `הזמנת עבודה (${idx + 1}/${woFiles.length})` : 'הזמנת עבודה',
         f.name || 'הזמנת עבודה',
-        f.url ? createHyperlinkCell(f.url) : 'אין קישור ישיר'
+        f.url ? createHyperlinkCell(f.url, `🔗 לחץ לפתיחת ${f.name || 'הקובץ'}`) : 'אין קישור ישיר',
+        f.url ? createHyperlinkCell(f.url, f.url) : ''
       ]);
     });
 
-    // 2. Planogram file
-    const planoFiles = normalizeFileList(task.planogramFile || task.planogram);
-    planoFiles.forEach((f) => {
+    // 2. Planogram files
+    const planoFiles = [
+      ...extractAllFiles(task.planogramFile),
+      ...extractAllFiles(task.planogram)
+    ];
+    const seenPlanoInSheet = new Set();
+    planoFiles.forEach((f, idx) => {
+      const key = f.url || f.name;
+      if (seenPlanoInSheet.has(key)) return;
+      seenPlanoInSheet.add(key);
+
       fileRows.push([
         task.jobNumber || '',
         task.title || '',
         boardTitle,
-        'פלנוגרמה',
+        planoFiles.length > 1 ? `פלנוגרמה (${idx + 1}/${planoFiles.length})` : 'פלנוגרמה',
         f.name || 'פלנוגרמה',
-        f.url ? createHyperlinkCell(f.url) : 'אין קישור ישיר'
+        f.url ? createHyperlinkCell(f.url, `🔗 לחץ לפתיחת ${f.name || 'הפלנוגרמה'}`) : 'אין קישור ישיר',
+        f.url ? createHyperlinkCell(f.url, f.url) : ''
       ]);
     });
 
     // 3. Drive links
-    if (task.driveLink && typeof task.driveLink === 'string' && task.driveLink.trim()) {
-      const driveUrl = task.driveLink.trim();
-      fileRows.push([
-        task.jobNumber || '',
-        task.title || '',
-        boardTitle,
-        'תיקיית Google Drive',
-        'תיקיית דרייב',
-        createHyperlinkCell(driveUrl)
-      ]);
+    if (task.driveLink && typeof task.driveLink === 'string') {
+      const driveMatch = task.driveLink.match(/https?:\/\/[^\s"'<>\)]+/i);
+      if (driveMatch) {
+        const driveUrl = driveMatch[0].trim();
+        fileRows.push([
+          task.jobNumber || '',
+          task.title || '',
+          boardTitle,
+          'תיקיית Google Drive',
+          'תיקיית דרייב',
+          createHyperlinkCell(driveUrl, '🔗 לחץ לפתיחת תיקיית Drive'),
+          createHyperlinkCell(driveUrl, driveUrl)
+        ]);
+      }
     }
 
     // 4. Comments attachments
     const taskComments = commentsByTaskId.get(task.id) || [];
     taskComments.forEach((c) => {
-      if (c.attachmentUrl) {
-        fileRows.push([
-          task.jobNumber || '',
-          task.title || '',
-          boardTitle,
-          'קובץ מצורף לתגובה',
-          c.attachmentName || 'קובץ תגובה',
-          createHyperlinkCell(c.attachmentUrl)
-        ]);
+      const commentFiles = extractAllFiles(c.attachmentUrl || c.attachments);
+      if (commentFiles.length > 0) {
+        commentFiles.forEach((f) => {
+          fileRows.push([
+            task.jobNumber || '',
+            task.title || '',
+            boardTitle,
+            'קובץ מצורף לתגובה',
+            f.name || c.attachmentName || 'קובץ תגובה',
+            f.url ? createHyperlinkCell(f.url, `🔗 לחץ לפתיחת ${f.name || c.attachmentName || 'הקובץ'}`) : 'אין קישור ישיר',
+            f.url ? createHyperlinkCell(f.url, f.url) : ''
+          ]);
+        });
+      } else if (c.attachmentUrl && typeof c.attachmentUrl === 'string') {
+        const match = c.attachmentUrl.match(/https?:\/\/[^\s"'<>\)]+/i);
+        if (match) {
+          const url = match[0].trim();
+          fileRows.push([
+            task.jobNumber || '',
+            task.title || '',
+            boardTitle,
+            'קובץ מצורף לתגובה',
+            c.attachmentName || 'קובץ תגובה',
+            createHyperlinkCell(url, `🔗 לחץ לפתיחת ${c.attachmentName || 'הקובץ'}`),
+            createHyperlinkCell(url, url)
+          ]);
+        }
       }
     });
   });

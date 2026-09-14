@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getFeatureFlags } from '../utils/featureFlags';
+import { isBoardSharedWithOrg, isBoardAccessibleToUser } from '../utils/boardStatusHelper';
 
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
 const searchDataCache = new Map();
@@ -14,7 +15,7 @@ const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-export default function SearchModal({ isOpen, onClose, userId, userRole, onNavigate, settings }) {
+export default function SearchModal({ isOpen, onClose, userId, organizationId, userRole, userEmail = '', isSystemAdmin = false, onNavigate, settings }) {
   const flags = getFeatureFlags(settings);
   const [query, setQuery] = useState('');
   const [tasks, setTasks] = useState([]);
@@ -31,7 +32,7 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
     if (!isOpen || !userId) return;
 
     const loadSearchData = async () => {
-      const cacheKey = `${userId}:${isAdmin ? 'admin' : 'viewer'}`;
+      const cacheKey = `${userId}:${organizationId || ''}:${isAdmin ? 'admin' : 'viewer'}`;
       const cached = searchDataCache.get(cacheKey);
       if (cached && Date.now() - cached.createdAt < SEARCH_CACHE_TTL_MS) {
         setTasks(cached.tasks);
@@ -51,13 +52,13 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
           getContacts
         } = await loadStorageApi();
         const promises = [
-          getTasks(userId),
-          getAllCommentsForUser(userId)
+          getTasks(userId, organizationId),
+          getAllCommentsForUser(userId, organizationId)
         ];
 
         if (isAdmin) {
-          promises.push(getSuppliers(userId));
-          promises.push(getContacts(userId));
+          promises.push(getSuppliers(userId, organizationId));
+          promises.push(getContacts(userId, organizationId));
         }
 
         const results = await Promise.all(promises);
@@ -86,7 +87,7 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
     };
 
     loadSearchData();
-  }, [isOpen, userId, isAdmin]);
+  }, [isOpen, userId, organizationId, isAdmin]);
 
   // Focus the input field when the modal opens
   useEffect(() => {
@@ -142,8 +143,28 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
     const term = query.trim().toLowerCase();
     if (!term) return { tasks: [], comments: [], suppliers: [], contacts: [] };
 
+    // Visible tasks according to board sharing and accessibility configuration
+    const visibleTasks = tasks.filter(t => {
+      const boardId = t.boardId || 'active';
+      const isAccessible = isBoardAccessibleToUser(boardId, {
+        userId,
+        userEmail,
+        settings,
+        tasks,
+        isSystemAdmin
+      });
+      if (!isAccessible) return false;
+      if (isBoardSharedWithOrg(settings, boardId)) return true;
+      const normalizedEmail = userEmail ? userEmail.trim().toLowerCase() : '';
+      return !t.userId || t.userId === userId || (normalizedEmail && (
+        (t.userEmail && t.userEmail.trim().toLowerCase() === normalizedEmail) ||
+        (t.creatorEmail && t.creatorEmail.trim().toLowerCase() === normalizedEmail) ||
+        (t.email && t.email.trim().toLowerCase() === normalizedEmail)
+      ));
+    });
+
     // 1. Filter Tasks
-    const matchedTasks = tasks.filter(t => 
+    const matchedTasks = visibleTasks.filter(t => 
       (t.title && t.title.toLowerCase().includes(term)) ||
       (t.jobNumber && t.jobNumber.toLowerCase().includes(term)) ||
       (t.contactPerson && t.contactPerson.toLowerCase().includes(term)) ||
@@ -153,13 +174,14 @@ export default function SearchModal({ isOpen, onClose, userId, userRole, onNavig
       (t.status && t.status.toLowerCase().includes(term))
     );
 
-    // Create a task map to lookup parent project names for comments
-    const taskMap = new Map(tasks.map(t => [t.id, t.title || t.jobNumber]));
+    // Create a task map to lookup parent project names for comments (only from visible tasks)
+    const taskMap = new Map(visibleTasks.map(t => [t.id, t.title || t.jobNumber]));
 
     // 2. Filter Comments
     const matchedComments = comments.filter(c => 
-      (c.text && c.text.toLowerCase().includes(term)) ||
-      (c.authorName && c.authorName.toLowerCase().includes(term))
+      taskMap.has(c.jobId) &&
+      ((c.text && c.text.toLowerCase().includes(term)) ||
+      (c.authorName && c.authorName.toLowerCase().includes(term)))
     ).map(c => ({
       ...c,
       projectTitle: taskMap.get(c.jobId) || `${flags.terms.item} ללא שם`

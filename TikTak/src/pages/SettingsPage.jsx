@@ -7,6 +7,8 @@ import {
   getAllTaskFieldDefinitions
 } from '../data/taskFieldConfig';
 import { APP_VERSIONS, getFeatureFlags } from '../utils/featureFlags';
+import { isBoardSharedWithOrg, isBoardAccessibleToUser, getOrderedBoards } from '../utils/boardStatusHelper';
+import { exportAllUserDataToExcel } from '../utils/excelExportHelper';
 
 const PRESET_COLORS = [
   { value: 'badge-new', label: 'כחול עדין', previewClass: 'badge-new' },
@@ -24,10 +26,23 @@ const PRESET_COLORS = [
 const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
 const PRESET_BOARD_ICONS = ['📁', '📋', '🏷️', '🚀', '🎨', '📦', '⚡', '🎯', '📊', '⭐️', '✨', '💼', '📌', '🛠️', '🖨️'];
 
-export default function SettingsPage({ settings, organizationName, onSaveSettings, onBack }) {
+export default function SettingsPage({
+  settings,
+  organizationName,
+  onSaveSettings,
+  onBack,
+  userId = '',
+  userEmail = '',
+  isSystemAdmin = false,
+  contacts = [],
+  organizationId = '',
+  suppliers = []
+}) {
   const [localSettings, setLocalSettings] = useState(JSON.parse(JSON.stringify(settings)));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportIncludeTrash, setExportIncludeTrash] = useState(true);
 
   // Inputs for adding status
   const [newStatusName, setNewStatusName] = useState('');
@@ -36,9 +51,15 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   // Inputs for boards
   const [newBoardName, setNewBoardName] = useState('');
   const [newBoardIcon, setNewBoardIcon] = useState('📁');
+  const [newBoardIsShared, setNewBoardIsShared] = useState(true);
+  const [newBoardSharedEmails, setNewBoardSharedEmails] = useState([]);
+  const [newBoardEmailInput, setNewBoardEmailInput] = useState('');
   const [editingBoardId, setEditingBoardId] = useState(null);
   const [editingBoardName, setEditingBoardName] = useState('');
   const [editingBoardIcon, setEditingBoardIcon] = useState('📁');
+  const [editingBoardIsShared, setEditingBoardIsShared] = useState(true);
+  const [editingBoardSharedEmails, setEditingBoardSharedEmails] = useState([]);
+  const [editingBoardEmailInput, setEditingBoardEmailInput] = useState('');
 
   // Editing state for status names
   const [editingIndex, setEditingIndex] = useState(null);
@@ -79,8 +100,9 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
     try {
       await onSaveSettings({
         ...localSettings,
+        boardOrder: localSettings.boardOrder || [],
         taskFieldOrder: localSettings.taskFieldOrder || [],
-        newTaskFields: normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true }),
+        newTaskFields: normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true, isLegacy: flags.isLegacy }),
         autoArchiveInactiveDays: Math.floor(autoArchiveDays)
       });
       showMsg('ההגדרות נשמרו בהצלחה בשרת!', 'success');
@@ -100,10 +122,21 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   const defaultBoardName = localSettings.boardTitle || (flags.isLegacy ? 'עבודות פעילות' : 'פרויקטים פעילים');
   const defaultBoardIcon = localSettings.boardIcon || (flags.isLegacy ? '📁' : '📋');
 
-  const availableBoardsForStatuses = [
-    { id: 'active', name: `${defaultBoardName} (ברירת מחדל)`, icon: defaultBoardIcon },
-    ...(localSettings.boards || []).filter(b => b && b.id !== 'active')
-  ];
+  const orderedBoards = getOrderedBoards(localSettings, {
+    isLegacy: flags.isLegacy,
+    userId,
+    userEmail,
+    isSystemAdmin
+  });
+
+  const contactsWithEmails = (Array.isArray(contacts) ? contacts : [])
+    .filter(c => c && typeof c === 'object' && c.email && typeof c.email === 'string' && c.email.trim());
+
+  const availableBoardsForStatuses = orderedBoards.map(b => ({
+    id: b.id,
+    name: b.id === 'active' ? `${b.name} (ברירת מחדל)` : b.name,
+    icon: b.icon
+  }));
 
   const isDefaultBoard = selectedStatusBoardId === 'active';
   const selectedBoardObj = (localSettings.boards || []).find(b => b && b.id === selectedStatusBoardId);
@@ -342,18 +375,33 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
       return;
     }
 
+    const normalizedSharedEmails = newBoardSharedEmails
+      .map(e => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+      .filter(Boolean);
+
     const newBoard = {
       id: 'board_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
       name: nameTrimmed,
       icon: newBoardIcon || '📁',
+      isSharedWithOrg: Boolean(newBoardIsShared),
+      createdBy: userId || '',
+      creatorEmail: userEmail || '',
+      sharedEmails: !newBoardIsShared ? normalizedSharedEmails : [],
+      sharedUserIds: [],
       createdAt: new Date().toISOString()
     };
 
+    const updatedBoardOrder = [...(localSettings.boardOrder || []).filter(id => id !== newBoard.id), newBoard.id];
+
     setLocalSettings({
       ...localSettings,
-      boards: [...existingBoards.filter(b => b && b.id !== 'active'), newBoard]
+      boards: [...existingBoards.filter(b => b && b.id !== 'active'), newBoard],
+      boardOrder: updatedBoardOrder
     });
     setNewBoardName('');
+    setNewBoardIsShared(true);
+    setNewBoardSharedEmails([]);
+    setNewBoardEmailInput('');
     showMsg(`הלוח "${nameTrimmed}" נוסף לרשימה הזמנית. יש ללחוץ על "שמירת הגדרות" בסיום.`);
   };
 
@@ -362,15 +410,68 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
     const targetBoard = existingBoards.find(b => b.id === boardId);
     setLocalSettings({
       ...localSettings,
-      boards: existingBoards.filter(b => b.id !== boardId)
+      boards: existingBoards.filter(b => b.id !== boardId),
+      boardOrder: (localSettings.boardOrder || []).filter(id => id !== boardId)
     });
     showMsg(`הלוח "${targetBoard?.name || ''}" הוסר מהרשימה הזמנית.`);
   };
 
+  const handleMoveBoardUp = (index) => {
+    if (index <= 0) return;
+    const currentOrder = orderedBoards.map(b => b.id);
+    const temp = currentOrder[index - 1];
+    currentOrder[index - 1] = currentOrder[index];
+    currentOrder[index] = temp;
+
+    const visibleIds = new Set(currentOrder);
+    const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+    const hiddenBoards = existingBoards.filter(b => b && !visibleIds.has(b.id));
+    const hiddenOrderIds = (localSettings.boardOrder || []).filter(id => !visibleIds.has(id));
+
+    const reorderedCustom = currentOrder
+      .filter(id => id !== 'active')
+      .map(id => existingBoards.find(b => b && b.id === id))
+      .filter(Boolean);
+
+    setLocalSettings(prev => ({
+      ...prev,
+      boardOrder: [...currentOrder, ...hiddenOrderIds],
+      boards: [...reorderedCustom, ...hiddenBoards]
+    }));
+  };
+
+  const handleMoveBoardDown = (index) => {
+    if (index >= orderedBoards.length - 1) return;
+    const currentOrder = orderedBoards.map(b => b.id);
+    const temp = currentOrder[index + 1];
+    currentOrder[index + 1] = currentOrder[index];
+    currentOrder[index] = temp;
+
+    const visibleIds = new Set(currentOrder);
+    const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
+    const hiddenBoards = existingBoards.filter(b => b && !visibleIds.has(b.id));
+    const hiddenOrderIds = (localSettings.boardOrder || []).filter(id => !visibleIds.has(id));
+
+    const reorderedCustom = currentOrder
+      .filter(id => id !== 'active')
+      .map(id => existingBoards.find(b => b && b.id === id))
+      .filter(Boolean);
+
+    setLocalSettings(prev => ({
+      ...prev,
+      boardOrder: [...currentOrder, ...hiddenOrderIds],
+      boards: [...reorderedCustom, ...hiddenBoards]
+    }));
+  };
+
   const startEditingBoard = (board) => {
+    const isDefault = board.id === 'active';
     setEditingBoardId(board.id);
     setEditingBoardName(board.name);
     setEditingBoardIcon(board.icon || '📁');
+    setEditingBoardIsShared(isDefault ? isBoardSharedWithOrg(localSettings, 'active') : isBoardSharedWithOrg(localSettings, board.id));
+    setEditingBoardSharedEmails(isDefault ? (Array.isArray(localSettings.activeBoardSharedEmails) ? localSettings.activeBoardSharedEmails : []) : (Array.isArray(board.sharedEmails) ? board.sharedEmails : []));
+    setEditingBoardEmailInput('');
   };
 
   const saveEditedBoard = (boardId) => {
@@ -381,9 +482,14 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
       setLocalSettings({
         ...localSettings,
         boardTitle: nameTrimmed,
-        boardIcon: editingBoardIcon || '📋'
+        boardIcon: editingBoardIcon || '📋',
+        activeBoardIsShared: editingBoardIsShared !== false,
+        activeBoardCreatedBy: editingBoardIsShared !== false ? '' : (localSettings.activeBoardCreatedBy || userId || ''),
+        activeBoardCreatorEmail: editingBoardIsShared !== false ? '' : (localSettings.activeBoardCreatorEmail || userEmail || ''),
+        activeBoardSharedEmails: editingBoardIsShared !== false ? [] : editingBoardSharedEmails
       });
       setEditingBoardId(null);
+      setEditingBoardEmailInput('');
       showMsg('פרטי לוח ברירת המחדל עודכנו. יש ללחוץ על "שמירת הגדרות" לשמירה קבועה.');
       return;
     }
@@ -391,9 +497,18 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
     const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
     setLocalSettings({
       ...localSettings,
-      boards: existingBoards.map(b => (b.id === boardId ? { ...b, name: nameTrimmed, icon: editingBoardIcon || '📁' } : b))
+      boards: existingBoards.map(b => (b.id === boardId ? {
+        ...b,
+        name: nameTrimmed,
+        icon: editingBoardIcon || '📁',
+        isSharedWithOrg: editingBoardIsShared !== false,
+        sharedEmails: editingBoardIsShared !== false ? [] : (Array.isArray(editingBoardSharedEmails) ? editingBoardSharedEmails : []),
+        createdBy: b.createdBy || userId || '',
+        creatorEmail: b.creatorEmail || userEmail || ''
+      } : b))
     });
     setEditingBoardId(null);
+    setEditingBoardEmailInput('');
     showMsg('פרטי הלוח עודכנו ברשימה הזמנית.');
   };
 
@@ -442,7 +557,8 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
   };
 
   const activeTaskFields = getAllTaskFieldDefinitions(localSettings.newTaskFields, {
-    taskFieldOrder: localSettings.taskFieldOrder
+    taskFieldOrder: localSettings.taskFieldOrder,
+    isLegacy: flags.isLegacy
   });
 
   const handleMoveFieldUp = (index) => {
@@ -564,6 +680,28 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
     showMsg(`השדה "${fieldLabel}" שוחזר בהצלחה להגדרות הארגון.`);
   };
 
+  const handleExportToExcel = async () => {
+    setIsExporting(true);
+    try {
+      const result = await exportAllUserDataToExcel({
+        userId,
+        organizationId,
+        organizationName,
+        userEmail,
+        settings: localSettings,
+        suppliers,
+        contacts,
+        includeTrash: exportIncludeTrash
+      });
+      showMsg(`קובץ האקסל "${result.filename}" הופק והורד בהצלחה! (סה"כ ${result.totalProjects} פרויקטים ו-${result.totalComments} תגובות)`, 'success');
+    } catch (err) {
+      console.error('Export to Excel failed:', err);
+      showMsg(`שגיאה בייצוא קובץ האקסל: ${err.message || 'אנא נסה שנית'}`, 'danger');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <main className="dashboard-container" style={{ maxWidth: '950px', padding: '24px' }}>
 
@@ -577,11 +715,23 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary" onClick={onBack} disabled={saving}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              const el = document.getElementById('excel-export-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            title="מעבר לאזור ייצוא כל הנתונים לאקסל"
+            style={{ borderColor: '#059669', color: '#047857', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            📊 ייצוא לאקסל
+          </button>
+          <button className="btn btn-secondary" onClick={onBack} disabled={saving || isExporting}>
             📋 חזרה ללוח המשימות
           </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || isExporting}>
             {saving ? '⏳ שומר...' : '💾 שמירת הגדרות'}
           </button>
         </div>
@@ -758,30 +908,38 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
 
           <div style={{ display: 'grid', gap: '12px' }}>
             {activeTaskFields.map((field, index) => {
-              const config = normalizeNewTaskFields(localSettings.newTaskFields)[field.key] || field;
+              const config = normalizeNewTaskFields(localSettings.newTaskFields, { isLegacy: flags.isLegacy })[field.key] || field;
               const isCustom = field.isCustom || config.isCustom;
               const hasOptions = config.type === 'select' || field.options !== undefined || Array.isArray(config.options);
+              const isLockedLegacy = flags.isLegacy && (field.key === 'workOrderFiles' || field.key === 'planogramFile');
 
               return (
                 <div key={field.key} style={{
                   display: 'grid',
                   gap: '12px',
                   padding: '14px 16px',
-                  border: isCustom ? '1px solid #c7d2fe' : '1px solid var(--border)',
+                  border: isCustom ? '1px solid #c7d2fe' : (isLockedLegacy ? '1px solid #fde68a' : '1px solid var(--border)'),
                   borderRadius: '10px',
-                  background: !config.enabled ? '#f8fafc' : isCustom ? '#fcfdff' : '#ffffff'
+                  background: isLockedLegacy ? '#fffdf7' : (!config.enabled ? '#f8fafc' : isCustom ? '#fcfdff' : '#ffffff')
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: isLockedLegacy ? 'default' : 'pointer', margin: 0 }}>
                       <input
                         type="checkbox"
-                        checked={config.enabled !== false}
-                        onChange={(event) => handleTaskFieldToggle(field.key, event.target.checked)}
-                        style={{ width: '18px', height: '18px', margin: 0 }}
+                        checked={isLockedLegacy ? true : config.enabled !== false}
+                        disabled={isLockedLegacy}
+                        onChange={(event) => !isLockedLegacy && handleTaskFieldToggle(field.key, event.target.checked)}
+                        style={{ width: '18px', height: '18px', margin: 0, cursor: isLockedLegacy ? 'not-allowed' : 'pointer' }}
+                        title={isLockedLegacy ? 'שדה קבוע בגרסת Legacy - לא ניתן לביטול' : undefined}
                       />
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 'bold' }}>#{index + 1}</span>
                         <strong style={{ color: '#1e293b', fontSize: '0.95rem' }}>{config.label || field.label}</strong>
+                        {isLockedLegacy && (
+                          <span style={{ fontSize: '0.75rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                            🏛️ שדה חובה ב-Legacy
+                          </span>
+                        )}
                         {isCustom && (
                           <span style={{ fontSize: '0.75rem', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
                             ✨ שדה מותאם
@@ -817,9 +975,10 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                       <button
                         type="button"
                         className="btn btn-danger"
-                        style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                        onClick={() => handleDeleteTaskField(field.key, config.label || field.label)}
-                        title={`מחיקת השדה "${config.label || field.label}" מהארגון`}
+                        disabled={isLockedLegacy}
+                        style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px', opacity: isLockedLegacy ? 0.35 : 1, cursor: isLockedLegacy ? 'not-allowed' : 'pointer' }}
+                        onClick={() => !isLockedLegacy && handleDeleteTaskField(field.key, config.label || field.label)}
+                        title={isLockedLegacy ? 'שדה זה קבוע בגרסת Legacy ולא ניתן למחיקה' : `מחיקת השדה "${config.label || field.label}" מהארגון`}
                       >
                         🗑️ מחיקת שדה
                       </button>
@@ -1277,105 +1436,48 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
               <table className="task-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '80px' }}>אייקון</th>
+                    <th style={{ width: '80px', textAlign: 'center' }}>סדר</th>
+                    <th style={{ width: '60px', textAlign: 'center' }}>אייקון</th>
                     <th>שם הלוח</th>
                     <th style={{ width: '180px' }}>סוג וסטטוסים</th>
-                    <th style={{ width: '170px' }}>פעולות</th>
+                    <th style={{ width: '150px' }}>פעולות</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Default Board */}
-                  <tr>
-                    <td style={{ fontSize: '1.2rem', textAlign: 'center' }}>
-                      {editingBoardId === 'active' ? (
-                        <select
-                          className="form-control"
-                          style={{ padding: '2px 4px', fontSize: '1rem', width: '60px' }}
-                          value={editingBoardIcon}
-                          onChange={e => setEditingBoardIcon(e.target.value)}
-                        >
-                          {PRESET_BOARD_ICONS.map(ic => (
-                            <option key={ic} value={ic}>{ic}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        defaultBoardIcon
-                      )}
-                    </td>
-                    <td style={{ fontWeight: '700' }}>
-                      {editingBoardId === 'active' ? (
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editingBoardName}
-                            onChange={e => setEditingBoardName(e.target.value)}
-                            autoFocus
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') saveEditedBoard('active');
-                              if (e.key === 'Escape') setEditingBoardId(null);
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                            onClick={() => saveEditedBoard('active')}
-                          >
-                            שמור
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                            onClick={() => setEditingBoardId(null)}
-                          >
-                            ביטול
-                          </button>
-                        </div>
-                      ) : (
-                        defaultBoardName
-                      )}
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '999px', background: '#dbeafe', color: '#1e40af', fontWeight: '700' }}>
-                        ברירת מחדל ראשית
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {editingBoardId !== 'active' && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ padding: '3px 8px', fontSize: '0.78rem' }}
-                            onClick={() => startEditingBoard({ id: 'active', name: defaultBoardName, icon: defaultBoardIcon })}
-                          >
-                            ✏️ עריכה
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          style={{ padding: '3px 8px', fontSize: '0.78rem' }}
-                          onClick={() => {
-                            setSelectedStatusBoardId('active');
-                            const el = document.getElementById('status-section-title');
-                            if (el) el.scrollIntoView({ behavior: 'smooth' });
-                          }}
-                        >
-                          🔄 סטטוסים
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Custom Boards */}
-                  {(localSettings.boards || []).filter(b => b && b.id !== 'active').map(board => {
+                  {orderedBoards.map((board, index) => {
+                    const isDefault = board.id === 'active';
                     const isEditing = editingBoardId === board.id;
-                    const isCustomStatus = Array.isArray(board.statuses) && board.statuses.length > 0;
+                    const isShared = isBoardSharedWithOrg(localSettings, board.id);
+                    const isCustomStatus = !isDefault && Array.isArray(board.statuses) && board.statuses.length > 0;
+                    const boardName = isDefault ? defaultBoardName : board.name;
+                    const boardIcon = isDefault ? defaultBoardIcon : (board.icon || '📁');
+
                     return (
                       <tr key={board.id}>
+                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-icon"
+                              style={{ padding: '3px 6px', fontSize: '0.75rem', opacity: index === 0 ? 0.35 : 1 }}
+                              disabled={index === 0}
+                              onClick={() => handleMoveBoardUp(index)}
+                              title="העבר לוח למעלה"
+                            >
+                              ⬆️
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-icon"
+                              style={{ padding: '3px 6px', fontSize: '0.75rem', opacity: index === orderedBoards.length - 1 ? 0.35 : 1 }}
+                              disabled={index === orderedBoards.length - 1}
+                              onClick={() => handleMoveBoardDown(index)}
+                              title="העבר לוח למטה"
+                            >
+                              ⬇️
+                            </button>
+                          </div>
+                        </td>
                         <td style={{ fontSize: '1.2rem', textAlign: 'center' }}>
                           {isEditing ? (
                             <select
@@ -1389,52 +1491,166 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                               ))}
                             </select>
                           ) : (
-                            board.icon || '📁'
+                            boardIcon
                           )}
                         </td>
-                        <td>
+                        <td style={{ fontWeight: isDefault ? '700' : '600' }}>
                           {isEditing ? (
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <input
-                                type="text"
-                                className="form-control"
-                                value={editingBoardName}
-                                onChange={e => setEditingBoardName(e.target.value)}
-                                autoFocus
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') saveEditedBoard(board.id);
-                                  if (e.key === 'Escape') setEditingBoardId(null);
-                                }}
-                              />
-                              <button
-                                type="button"
-                                className="btn btn-primary"
-                                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                                onClick={() => saveEditedBoard(board.id)}
-                              >
-                                שמור
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                                onClick={() => setEditingBoardId(null)}
-                              >
-                                ביטול
-                              </button>
-                            </div>
-                          ) : (
-                            <span style={{ fontWeight: '600' }}>{board.name}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  value={editingBoardName}
+                                  onChange={e => setEditingBoardName(e.target.value)}
+                                  autoFocus
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') saveEditedBoard(board.id);
+                                    if (e.key === 'Escape') setEditingBoardId(null);
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                  onClick={() => saveEditedBoard(board.id)}
+                                >
+                                  שמור
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                  onClick={() => setEditingBoardId(null)}
+                                >
+                                  ביטול
+                                </button>
+                              </div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={editingBoardIsShared}
+                                    onChange={e => setEditingBoardIsShared(e.target.checked)}
+                                    style={{ width: '15px', height: '15px' }}
+                                  />
+                                  <span>🌐 שתף פרויקטים בלוח זה עם כל חברי הארגון</span>
+                                </label>
+
+                                {!editingBoardIsShared && (
+                                  <div style={{
+                                    backgroundColor: '#fff',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '6px',
+                                    padding: '8px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px',
+                                    marginTop: '4px'
+                                  }}>
+                                    <div style={{ fontSize: '0.78rem', color: '#475569', fontWeight: '600' }}>
+                                      🔒 חברי צוות שותפים בלוח פרטי:
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                      <input
+                                        type="email"
+                                        className="form-control"
+                                        style={{ fontSize: '0.8rem', padding: '2px 6px' }}
+                                        placeholder="אימייל חבר/ת צוות..."
+                                        value={editingBoardEmailInput}
+                                        onChange={e => setEditingBoardEmailInput(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            const em = editingBoardEmailInput.trim().toLowerCase();
+                                            if (em && em.includes('@') && !editingBoardSharedEmails.some(x => x.toLowerCase() === em)) {
+                                              setEditingBoardSharedEmails([...editingBoardSharedEmails, em]);
+                                              setEditingBoardEmailInput('');
+                                            }
+                                          }
+                                        }}
+                                      />
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                                        onClick={() => {
+                                          const em = editingBoardEmailInput.trim().toLowerCase();
+                                          if (em && em.includes('@') && !editingBoardSharedEmails.some(x => x.toLowerCase() === em)) {
+                                            setEditingBoardSharedEmails([...editingBoardSharedEmails, em]);
+                                            setEditingBoardEmailInput('');
+                                          }
+                                        }}
+                                      >
+                                        ➕
+                                      </button>
+                                    </div>
+                                    {contactsWithEmails.length > 0 && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                        {contactsWithEmails.slice(0, 4).map(c => {
+                                          const em = (c.email || '').trim().toLowerCase();
+                                          if (!em || editingBoardSharedEmails.some(x => x.toLowerCase() === em)) return null;
+                                          return (
+                                            <button
+                                              key={c.id || em}
+                                              type="button"
+                                              className="btn btn-secondary"
+                                              style={{ padding: '1px 6px', fontSize: '0.7rem', borderRadius: '10px' }}
+                                              onClick={() => setEditingBoardSharedEmails([...editingBoardSharedEmails, em])}
+                                            >
+                                              + {c.name || em}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                    {editingBoardSharedEmails.length > 0 && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                        {editingBoardSharedEmails.map(em => (
+                                          <span
+                                            key={em}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              backgroundColor: '#e0e7ff',
+                                              color: '#3730a3',
+                                              padding: '2px 8px',
+                                              borderRadius: '12px',
+                                              fontSize: '0.75rem'
+                                            }}
+                                          >
+                                            {em}
+                                            <button
+                                              type="button"
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#4338ca' }}
+                                              onClick={() => setEditingBoardSharedEmails(editingBoardSharedEmails.filter(x => x !== em))}
+                                            >
+                                              &times;
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                            <span>{boardName} {isDefault ? '(ברירת מחדל)' : ''}</span>
                           )}
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#475569', fontWeight: '600' }}>
-                              לוח מותאם אישית
+                            <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '999px', background: isDefault ? '#dbeafe' : '#f1f5f9', color: isDefault ? '#1e40af' : '#475569', fontWeight: '700' }}>
+                              {isDefault ? 'ברירת מחדל ראשית' : 'לוח מותאם אישית'}
                             </span>
-                            <span style={{ fontSize: '0.72rem', color: isCustomStatus ? '#166534' : 'var(--text-muted)', fontWeight: isCustomStatus ? '700' : '500' }}>
-                              {isCustomStatus ? `✨ סטטוסים ייחודיים (${board.statuses.length})` : '🌐 סטטוסים גלובליים'}
+                            <span style={{ fontSize: '0.72rem', color: isShared ? '#1d4ed8' : '#64748b', fontWeight: '600' }}>
+                              {isShared ? '🌐 משותף עם הארגון' : '🔒 לוח פרטי'}
                             </span>
+                            {!isDefault && (
+                              <span style={{ fontSize: '0.72rem', color: isCustomStatus ? '#166534' : 'var(--text-muted)', fontWeight: isCustomStatus ? '700' : '500' }}>
+                                {isCustomStatus ? `✨ סטטוסים ייחודיים (${board.statuses?.length || 0})` : '🌐 סטטוסים גלובליים'}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td>
@@ -1458,19 +1674,21 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
                                 className="btn btn-secondary btn-icon"
                                 style={{ padding: '4px' }}
                                 title="עריכת לוח"
-                                onClick={() => startEditingBoard(board)}
+                                onClick={() => startEditingBoard({ id: board.id, name: boardName, icon: boardIcon })}
                               >
                                 ✏️
                               </button>
-                              <button
-                                type="button"
-                                className="btn btn-danger btn-icon"
-                                style={{ padding: '4px' }}
-                                title="מחיקת לוח"
-                                onClick={() => handleRemoveBoard(board.id)}
-                              >
-                                🗑️
-                              </button>
+                              {!isDefault && (
+                                <button
+                                  type="button"
+                                  className="btn btn-danger btn-icon"
+                                  style={{ padding: '4px' }}
+                                  title="מחיקת לוח"
+                                  onClick={() => handleRemoveBoard(board.id)}
+                                >
+                                  🗑️
+                                </button>
+                              )}
                             </div>
                           )}
                         </td>
@@ -1482,38 +1700,254 @@ export default function SettingsPage({ settings, organizationName, onSaveSetting
             </div>
 
             {/* Add Board Form */}
-            <form onSubmit={handleAddBoard} className="form-grid-2col" style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.8rem' }}>שם לוח חדש</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="לדוגמה: דפוס, מיתוג, סניף צפון..."
-                  value={newBoardName}
-                  onChange={e => setNewBoardName(e.target.value)}
-                />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.8rem' }}>אייקון לוח</label>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <select
+            <form onSubmit={handleAddBoard} style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-grid-2col" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>שם לוח חדש</label>
+                  <input
+                    type="text"
                     className="form-control"
-                    value={newBoardIcon}
-                    onChange={e => setNewBoardIcon(e.target.value)}
-                    style={{ width: '80px', fontSize: '1.1rem' }}
-                  >
-                    {PRESET_BOARD_ICONS.map(ic => (
-                      <option key={ic} value={ic}>{ic}</option>
-                    ))}
-                  </select>
-                  <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} disabled={saving || !newBoardName.trim()}>
-                    ➕ הוספת לוח
-                  </button>
+                    placeholder="לדוגמה: דפוס, מיתוג, סניף צפון..."
+                    value={newBoardName}
+                    onChange={e => setNewBoardName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>אייקון לוח</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <select
+                      className="form-control"
+                      value={newBoardIcon}
+                      onChange={e => setNewBoardIcon(e.target.value)}
+                      style={{ width: '80px', fontSize: '1.1rem' }}
+                    >
+                      {PRESET_BOARD_ICONS.map(ic => (
+                        <option key={ic} value={ic}>{ic}</option>
+                      ))}
+                    </select>
+                    <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} disabled={saving || !newBoardName.trim()}>
+                      ➕ הוספת לוח
+                    </button>
+                  </div>
                 </div>
               </div>
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={newBoardIsShared}
+                    onChange={e => setNewBoardIsShared(e.target.checked)}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span>🌐 שתף פרויקטים בלוח זה עם כל חברי הארגון</span>
+                </label>
+              </div>
+
+              {!newBoardIsShared && (
+                <div style={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  padding: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ fontSize: '0.82rem', color: '#475569', fontWeight: '600' }}>
+                    🔒 שיתוף חברי צוות בלוח פרטי:
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="email"
+                      className="form-control"
+                      style={{ fontSize: '0.82rem' }}
+                      placeholder="הזן אימייל חבר צוות..."
+                      value={newBoardEmailInput}
+                      onChange={e => setNewBoardEmailInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const em = newBoardEmailInput.trim().toLowerCase();
+                          if (em && em.includes('@') && !newBoardSharedEmails.some(x => x.toLowerCase() === em)) {
+                            setNewBoardSharedEmails([...newBoardSharedEmails, em]);
+                            setNewBoardEmailInput('');
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                      onClick={() => {
+                        const em = newBoardEmailInput.trim().toLowerCase();
+                        if (em && em.includes('@') && !newBoardSharedEmails.some(x => x.toLowerCase() === em)) {
+                          setNewBoardSharedEmails([...newBoardSharedEmails, em]);
+                          setNewBoardEmailInput('');
+                        }
+                      }}
+                    >
+                      ➕ הוסף
+                    </button>
+                  </div>
+                  {contactsWithEmails.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {contactsWithEmails.slice(0, 5).map(c => {
+                        const em = (c.email || '').trim().toLowerCase();
+                        if (!em || newBoardSharedEmails.some(x => x.toLowerCase() === em)) return null;
+                        return (
+                          <button
+                            key={c.id || em}
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px' }}
+                            onClick={() => setNewBoardSharedEmails([...newBoardSharedEmails, em])}
+                          >
+                            + {c.name || em}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {newBoardSharedEmails.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {newBoardSharedEmails.map(em => (
+                        <span
+                          key={em}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            backgroundColor: '#e0e7ff',
+                            color: '#3730a3',
+                            padding: '3px 10px',
+                            borderRadius: '16px',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          ✉️ {em}
+                          <button
+                            type="button"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#4338ca' }}
+                            onClick={() => setNewBoardSharedEmails(newBoardSharedEmails.filter(x => x !== em))}
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </form>
           </div>
         )}
+
+        {/* Section: Export User Content & Projects to Excel */}
+        <div
+          id="excel-export-section"
+          className="filter-panel"
+          style={{
+            border: '1px solid #bbf7d0',
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%)',
+            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.08)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '10px' }}>
+            <h4 className="detail-section-title" style={{ margin: 0, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>📥 ייצוא וגיבוי כל תוכן המשתמש לאקסל (Excel Export)</span>
+            </h4>
+            <span style={{
+              padding: '4px 12px',
+              borderRadius: '999px',
+              fontWeight: '700',
+              fontSize: '0.8rem',
+              background: '#dcfce7',
+              color: '#15803d',
+              border: '1px solid #86efac'
+            }}>
+              📊 חוברת עבודה רב-גיליונית (.xlsx)
+            </span>
+          </div>
+
+          <p style={{ color: '#334155', fontSize: '0.9rem', lineHeight: '1.6', marginBottom: '16px' }}>
+            ייצוא של כל הפרויקטים, המשימות, ההערות הפנימיות, התגובות, תתי-המשימות, אנשי הקשר והספקים של המשתמש והארגון לקובץ אקסל מסודר ונוח לקריאה ולגיבוי.
+          </p>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '10px',
+            marginBottom: '16px',
+            background: 'rgba(255, 255, 255, 0.9)',
+            padding: '14px',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0'
+          }}>
+            <div style={{ fontSize: '0.83rem', color: '#1e293b' }}>
+              <span style={{ display: 'block', fontWeight: '700', color: '#15803d' }}>📋 גיליון פרויקטים</span>
+              מספרי פרויקט, שמות, סטטוסים, ספקים, זמנים, הערות פנימיות ושדות מותאמים
+            </div>
+            <div style={{ fontSize: '0.83rem', color: '#1e293b' }}>
+              <span style={{ display: 'block', fontWeight: '700', color: '#15803d' }}>💬 גיליון תגובות</span>
+              כל ההודעות, התכתובות וקבצים מצורפים לתגובות בכל הפרויקטים
+            </div>
+            <div style={{ fontSize: '0.83rem', color: '#1e293b' }}>
+              <span style={{ display: 'block', fontWeight: '700', color: '#15803d' }}>✅ גיליון תתי-משימות</span>
+              מעקב ביצוע של כל תת-משימה, צ'קליסט וסטטוס השלמה
+            </div>
+            <div style={{ fontSize: '0.83rem', color: '#1e293b' }}>
+              <span style={{ display: 'block', fontWeight: '700', color: '#15803d' }}>👥 ספקים ואנשי קשר</span>
+              פרטי יצירת קשר, טלפונים, אימיילים והערות ספקים
+            </div>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+            paddingTop: '12px',
+            borderTop: '1px solid #cbd5e1'
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '600', color: '#1e293b' }}>
+              <input
+                type="checkbox"
+                checked={exportIncludeTrash}
+                onChange={(e) => setExportIncludeTrash(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#059669' }}
+                disabled={isExporting}
+              />
+              <span>כלול גם פרויקטים מסל המחזור (פרויקטים שנמחקו)</span>
+            </label>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleExportToExcel}
+              disabled={isExporting}
+              style={{
+                backgroundColor: '#059669',
+                borderColor: '#047857',
+                padding: '10px 22px',
+                fontSize: '0.95rem',
+                fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)',
+                cursor: isExporting ? 'wait' : 'pointer'
+              }}
+            >
+              {isExporting ? (
+                <>⏳ מפיק ומייצא קובץ אקסל... אנא המתן...</>
+              ) : (
+                <>📥 ייצא את כל הנתונים לקובץ Excel (.xlsx)</>
+              )}
+            </button>
+          </div>
+        </div>
 
       </div>
 

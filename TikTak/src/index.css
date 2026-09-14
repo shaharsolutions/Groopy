@@ -508,6 +508,28 @@ button, input, select, textarea {
   vertical-align: middle;
 }
 
+button.directory-project-chip {
+  cursor: pointer;
+  border: 1px solid #bfdbfe;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  text-align: right;
+  transition: all 0.15s ease-in-out;
+}
+
+button.directory-project-chip:hover {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.14);
+  transform: translateY(-1px);
+}
+
+button.directory-project-chip:active {
+  transform: translateY(0);
+}
+
 .directory-project-chip-label {
   display: none;
 }
@@ -1097,7 +1119,7 @@ button, input, select, textarea {
 /* Dashboard Layout */
 .dashboard-container {
   flex: 1;
-  padding: 24px;
+  padding: 24px 24px 96px 24px;
   max-width: 1400px;
   width: 100%;
   margin: 0 auto;
@@ -1128,8 +1150,17 @@ button, input, select, textarea {
 
 @media (max-width: 768px) {
   .dashboard-container {
-    padding: 16px;
+    padding: 16px 16px 96px 16px;
   }
+}
+
+@media (max-width: 480px) {
+  .dashboard-container {
+    padding: 12px 10px 88px 10px;
+  }
+}
+
+@media (max-width: 768px) {
 
   .flex-between {
     align-items: stretch;
@@ -2854,17 +2885,24 @@ select.badge:focus, select.priority-badge:focus {
   border: 1px solid #6ee7b7;
   border-radius: 9999px;
   padding: 2px 8px;
-  margin-inline-start: 6px;
+  margin-top: 3px;
+  margin-inline-start: 0;
   flex: 0 0 auto;
   white-space: nowrap;
   text-decoration: none !important;
   line-height: 1.2;
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  direction: rtl;
+  unicode-bidi: isolate;
 }
 
 .task-completed-date-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   font-size: 0.73rem;
   font-weight: 600;
   color: #064e3b;
@@ -2874,6 +2912,10 @@ select.badge:focus, select.priority-badge:focus {
   padding: 2px 8px;
   white-space: nowrap;
   margin-top: 4px;
+  direction: rtl;
+  unicode-bidi: isolate;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .completed-date-highlight {
@@ -2884,6 +2926,9 @@ select.badge:focus, select.priority-badge:focus {
   border-radius: 9999px;
   padding: 1px 6px;
   font-size: 0.75rem;
+  display: inline-block;
+  direction: rtl;
+  unicode-bidi: isolate;
 }
 
 .subtask-delete-btn {
@@ -3091,6 +3136,30 @@ select.badge:focus, select.priority-badge:focus {
   font-size: 0.75rem;
 }
 
+.dashboard-subtasks-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-subtasks-toggle-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.1);
+  font-size: 0.65rem;
+  margin-inline-start: 4px;
+  line-height: 1;
+}
+
+.dashboard-subtasks-toggle:hover .dashboard-subtasks-toggle-clear {
+  background: rgba(0, 0, 0, 0.18);
+}
+
 .dashboard-subtasks-empty {
   background-color: #f8fafc;
   border: 1px dashed var(--border);
@@ -3103,7 +3172,7 @@ select.badge:focus, select.priority-badge:focus {
 
 .dashboard-subtasks-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 10px;
   max-height: 260px;
   overflow-y: auto;
@@ -3131,10 +3200,11 @@ select.badge:focus, select.priority-badge:focus {
   align-items: center;
   gap: 9px;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
   color: var(--text);
   font-weight: 600;
   font-size: 0.9rem;
+  cursor: pointer;
 }
 
 .dashboard-subtask-main input {
@@ -3144,13 +3214,17 @@ select.badge:focus, select.priority-badge:focus {
   flex: 0 0 auto;
 }
 
-.dashboard-subtask-main span {
+.dashboard-subtask-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
 }
 
-.dashboard-subtask-item.completed .dashboard-subtask-main span {
+.dashboard-subtask-item.completed .dashboard-subtask-text {
   color: var(--text-muted);
   text-decoration: line-through;
 }
@@ -3160,20 +3234,140 @@ select.badge:focus, select.priority-badge:focus {
   background-color: var(--surface);
   color: var(--primary);
   border-radius: var(--radius-sm);
-  padding: 5px 8px;
-  font-size: 0.78rem;
+  padding: 4px 8px;
+  font-size: 0.76rem;
   font-weight: 700;
   cursor: pointer;
-  max-width: 150px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  flex-shrink: 1;
 }
 
 .dashboard-subtask-project:hover {
   border-color: var(--primary);
   background-color: var(--primary-light);
+}
+
+.dashboard-subtask-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.dashboard-subtask-board-badge {
+  border: 1px solid var(--border);
+  background-color: #f1f5f9;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.dashboard-subtask-board-badge:hover {
+  background-color: #e2e8f0;
+  color: var(--text);
+  border-color: #cbd5e1;
+}
+
+/* Open Tasks Mobile Responsiveness */
+@media (max-width: 768px) {
+  .dashboard-subtasks-overview {
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .dashboard-subtasks-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .dashboard-subtasks-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .dashboard-subtasks-toggle {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    min-height: 44px;
+    white-space: normal;
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .dashboard-subtasks-list {
+    grid-template-columns: 1fr;
+    max-height: 360px;
+    gap: 10px;
+  }
+
+  .dashboard-subtask-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .dashboard-subtask-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .dashboard-subtask-main input {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .dashboard-subtask-text {
+    font-size: 0.92rem;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+  }
+
+  .dashboard-subtask-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding-inline-start: 30px;
+    width: 100%;
+  }
+
+  .dashboard-subtask-board-badge,
+  .dashboard-subtask-project {
+    max-width: none;
+    font-size: 0.78rem;
+    padding: 5px 10px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: var(--radius-sm);
+  }
 }
 
 /* --- System Guided Tour Styles --- */
@@ -3601,6 +3795,8 @@ select.badge:focus, select.priority-badge:focus {
   gap: 8px;
   max-width: 100%;
   vertical-align: middle;
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 .task-title-with-indicator > span:first-child {
@@ -3609,6 +3805,34 @@ select.badge:focus, select.priority-badge:focus {
 
 .modal-title-with-indicator {
   flex-wrap: wrap;
+}
+
+.task-indicators-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.task-indicators-stack:empty {
+  display: none;
+}
+
+.task-indicators-stack .planogram-indicator,
+.task-indicators-stack .work-order-indicator {
+  min-height: 20px;
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.task-indicators-stack .planogram-indicator.compact,
+.task-indicators-stack .work-order-indicator.compact {
+  width: 20px;
+  min-height: 20px;
+  padding: 0;
 }
 
 .planogram-indicator {
@@ -3632,6 +3856,34 @@ select.badge:focus, select.priority-badge:focus {
 .planogram-indicator.compact {
   width: 24px;
   padding: 0;
+}
+
+.work-order-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid #2563eb;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.work-order-indicator.compact {
+  width: 24px;
+  padding: 0;
+}
+
+.work-order-indicator [aria-hidden="true"] {
+  font-size: 0.76rem;
+  line-height: 1;
 }
 
 /* Planogram Preview Container */
@@ -3842,6 +4094,50 @@ select.badge:focus, select.priority-badge:focus {
   position: relative;
   display: inline-flex;
   align-items: center;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.workspace-board-tab-item.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.97);
+  cursor: grabbing;
+}
+
+.workspace-board-tab-item.is-dragging .workspace-view-button {
+  cursor: grabbing;
+}
+
+.workspace-board-tab-item.is-drag-over .workspace-view-button {
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 9px;
+}
+
+.board-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.35;
+  cursor: grab;
+  transition: opacity 0.15s, transform 0.15s;
+  margin-inline-end: 2px;
+  user-select: none;
+}
+
+.workspace-view-button:hover .board-drag-handle {
+  opacity: 0.75;
+}
+
+.workspace-view-button.active .board-drag-handle {
+  color: white;
+  opacity: 0.65;
+}
+
+.workspace-view-button.active:hover .board-drag-handle {
+  opacity: 0.95;
 }
 
 .workspace-view-button {
@@ -3972,6 +4268,12 @@ select.badge:focus, select.priority-badge:focus {
   background: var(--priority-urgent-bg);
 }
 
+.workspace-board-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
 .workspace-add-board-button {
   display: inline-flex;
   align-items: center;
@@ -4079,10 +4381,47 @@ select.badge:focus, select.priority-badge:focus {
 .trash-expiry.urgent { color: var(--priority-urgent-text); }
 
 @media (max-width: 640px) {
-  .workspace-view-switcher { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
-  .workspace-boards-tabs-group { width: 100%; }
-  .workspace-view-button { flex: 1; justify-content: center; }
-  .workspace-view-trash-button { margin-inline-start: 0 !important; width: 100%; justify-content: center; }
+  .workspace-view-switcher {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .workspace-boards-tabs-group {
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding: 2px 2px 4px 2px;
+  }
+
+  .workspace-boards-tabs-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .workspace-board-tab-item {
+    flex: 0 0 auto;
+  }
+
+  .workspace-board-tab-item .workspace-view-button {
+    white-space: nowrap;
+    min-height: 38px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+  }
+
+  .workspace-view-trash-button {
+    margin-inline-start: 0 !important;
+    width: 100%;
+    justify-content: center;
+    min-height: 38px;
+  }
+
   .trash-panel { padding: 14px; }
   .trash-panel-header { flex-direction: column; align-items: stretch; }
   .trash-item { align-items: stretch; flex-direction: column; }
@@ -4276,3 +4615,153 @@ select.badge:focus, select.priority-badge:focus {
   white-space: nowrap;
   color: var(--text);
 }
+
+/* ==========================================================================
+   Floating Action Button (FAB) - Create Project
+   ========================================================================== */
+.floating-create-btn {
+  position: fixed;
+  bottom: 28px;
+  left: 28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(17, 72, 194, 0.35), 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 90;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.floating-create-btn:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 24px rgba(17, 72, 194, 0.45), 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.floating-create-btn:active {
+  transform: translateY(1px) scale(0.96);
+  background-color: hsl(var(--primary-hue), 85%, 32%);
+  box-shadow: 0 2px 8px rgba(17, 72, 194, 0.3), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.floating-create-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-light), 0 4px 16px rgba(17, 72, 194, 0.4);
+}
+
+.floating-create-btn-icon {
+  width: 26px;
+  height: 26px;
+  stroke: currentColor;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-create-btn:hover .floating-create-btn-icon {
+  transform: rotate(90deg);
+}
+
+/* Floating Action Button Tooltip */
+.floating-create-tooltip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 0;
+  background-color: #0f172a;
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  line-height: 1.4;
+  z-index: 100;
+}
+
+.floating-create-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 22px;
+  border: 6px solid transparent;
+  border-top-color: #0f172a;
+}
+
+.floating-create-btn:hover .floating-create-tooltip,
+.floating-create-btn:focus-visible .floating-create-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .floating-create-btn {
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    left: 20px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .floating-create-btn-icon {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (hover: none) {
+  .floating-create-tooltip {
+    display: none;
+  }
+}
+
+/* Auto-linked URLs within text */
+.auto-link {
+  color: var(--primary, #4361ee);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.auto-link:hover {
+  opacity: 0.8;
+  color: var(--primary-hover, #3a56d4);
+}
+
+.linkified-text {
+  word-break: break-word;
+}
+
+.linkified-text.inline {
+  display: inline;
+}
+
+.btn-link-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.btn-link-edit:hover {
+  background-color: var(--primary-light);
+}
+

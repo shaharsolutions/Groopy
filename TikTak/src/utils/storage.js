@@ -165,6 +165,25 @@ const getCommentAuthorName = (fallbackName = '') => {
   return fallbackName.trim();
 };
 
+let lastUserTouchTime = 0;
+export const touchUserActivity = async (user = auth.currentUser) => {
+  if (!user || user.isAnonymous) return;
+  const now = Date.now();
+  // Throttle updates to at most once every 2 minutes
+  if (now - lastUserTouchTime < 2 * 60 * 1000) return;
+  lastUserTouchTime = now;
+  try {
+    const userRef = doc(db, 'users', user.uid);
+    const nowIso = new Date(now).toISOString();
+    await setDoc(userRef, {
+      lastLogin: nowIso,
+      lastActiveAt: nowIso
+    }, { merge: true });
+  } catch (e) {
+    // Non-critical background update
+  }
+};
+
 const recordActivity = async ({
   action,
   actionLabel,
@@ -194,6 +213,7 @@ const recordActivity = async ({
       metadata,
       createdAt: now
     });
+    touchUserActivity(auth.currentUser);
   } catch (e) {
     console.warn('Activity log write failed', e);
   }
@@ -316,22 +336,17 @@ const generateNextJobNumber = (tasks) => {
 };
 
 export const normalizeTaskStatus = (status) => {
-  const mapping = {
-    'חדש': 'חדש',
-    'בטיפול': 'בטיפול',
-    'נשלח לספק': 'נשלח לספק',
-    'אושר לספק': 'אושר לספק',
-    'ארכיון': 'ארכיון',
+  if (typeof status !== 'string' || !status.trim()) {
+    return 'חדש';
+  }
+  const trimmed = status.trim();
+  const legacyMapping = {
     'ממתין למידע': 'בטיפול',
     'ממתין לספק בסין': 'נשלח לספק',
     'ממתין לאישור': 'בטיפול',
-    'נדרש תיקון': 'בטיפול',
-    'מאושר': 'אושר לספק',
-    'נשלח לייצור': 'אושר לספק',
-    'הושלם': 'אושר לספק',
-    'מוקפא': 'חדש'
+    'נדרש תיקון': 'בטיפול'
   };
-  return mapping[status] || 'חדש';
+  return legacyMapping[trimmed] || trimmed;
 };
 
 const getLegacyOwnerId = (scopeId) => {
@@ -339,29 +354,66 @@ const getLegacyOwnerId = (scopeId) => {
   return currentUser && !currentUser.isAnonymous ? currentUser.uid : scopeId;
 };
 
-export const getTasks = async (userId) => {
-  if (!userId) return [];
+export const getTasks = async (userId, organizationId = null) => {
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return [];
   try {
-    let querySnapshot;
-    const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
-    try {
-      // A page refresh must reflect the persisted server value, not a stale cache.
-      querySnapshot = await getDocsFromServer(q);
-    } catch (serverError) {
-      console.warn('Server task read failed, falling back to Firestore cache', serverError);
+    const tasksMap = new Map();
+
+    // 1. Primary: Fetch tasks for the organization
+    if (targetOrgId) {
       try {
-        querySnapshot = await getDocs(q);
-      } catch (organizationQueryError) {
-        console.warn('Organization task query is not available yet; loading legacy user tasks', organizationQueryError);
-        querySnapshot = null;
+        const qOrg = query(collection(db, TASKS_COLLECTION), where('organizationId', '==', targetOrgId));
+        let querySnapshot;
+        try {
+          querySnapshot = await getDocsFromServer(qOrg);
+        } catch {
+          querySnapshot = await getDocs(qOrg);
+        }
+        querySnapshot?.forEach((doc) => {
+          tasksMap.set(doc.id, {
+            id: doc.id,
+            ...doc.data()
+          });
+        });
+      } catch (orgQueryErr) {
+        console.warn('Organization task query failed, will rely on user query', orgQueryErr);
       }
     }
+
+    // 2. Legacy fallback/merge: Fetch any tasks by userId (catches legacy unmigrated tasks)
+    if (userId) {
+      try {
+        const qUser = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
+        let querySnapshot;
+        try {
+          querySnapshot = await getDocsFromServer(qUser);
+        } catch {
+          querySnapshot = await getDocs(qUser);
+        }
+        querySnapshot?.forEach((doc) => {
+          const data = doc.data();
+          if (!tasksMap.has(doc.id)) {
+            tasksMap.set(doc.id, {
+              id: doc.id,
+              ...data
+            });
+            // Auto-heal: If document is missing organizationId, associate it
+            if (!data.organizationId && targetOrgId) {
+              updateDoc(doc.ref, { organizationId: targetOrgId }).catch(() => {});
+            }
+          }
+        });
+      } catch (userQueryErr) {
+        console.warn('User task query failed', userQueryErr);
+      }
+    }
+
     const tasks = [];
-    querySnapshot?.forEach((doc) => {
-      const data = doc.data();
+    tasksMap.forEach((data, id) => {
       if (data.deletedAt) return;
       tasks.push({
-        id: doc.id,
+        id,
         ...data,
         status: normalizeTaskStatus(data.status)
       });
@@ -373,28 +425,52 @@ export const getTasks = async (userId) => {
   }
 };
 
-export const getTrashedTasks = async (userId) => {
-  if (!userId) return [];
+export const getTrashedTasks = async (userId, organizationId = null) => {
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return [];
   try {
-    let querySnapshot;
-    const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
-    try {
-      querySnapshot = await getDocsFromServer(q);
-    } catch (serverError) {
-      console.warn('Server trash read failed, falling back to Firestore cache', serverError);
+    const tasksMap = new Map();
+
+    if (targetOrgId) {
       try {
-        querySnapshot = await getDocs(q);
-      } catch (organizationQueryError) {
-        console.warn('Organization trash query is not available yet; loading legacy user trash', organizationQueryError);
-        querySnapshot = null;
+        const qOrg = query(collection(db, TASKS_COLLECTION), where('organizationId', '==', targetOrgId));
+        let querySnapshot;
+        try {
+          querySnapshot = await getDocsFromServer(qOrg);
+        } catch {
+          querySnapshot = await getDocs(qOrg);
+        }
+        querySnapshot?.forEach((taskDoc) => {
+          tasksMap.set(taskDoc.id, { id: taskDoc.id, ...taskDoc.data() });
+        });
+      } catch (orgErr) {
+        console.warn('Organization trash query failed', orgErr);
+      }
+    }
+
+    if (userId) {
+      try {
+        const qUser = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
+        let querySnapshot;
+        try {
+          querySnapshot = await getDocsFromServer(qUser);
+        } catch {
+          querySnapshot = await getDocs(qUser);
+        }
+        querySnapshot?.forEach((taskDoc) => {
+          if (!tasksMap.has(taskDoc.id)) {
+            tasksMap.set(taskDoc.id, { id: taskDoc.id, ...taskDoc.data() });
+          }
+        });
+      } catch (userErr) {
+        console.warn('User trash query failed', userErr);
       }
     }
 
     const tasks = [];
-    querySnapshot?.forEach((taskDoc) => {
-      const data = taskDoc.data();
+    tasksMap.forEach((data, id) => {
       if (!data.deletedAt) return;
-      tasks.push({ id: taskDoc.id, ...data, status: normalizeTaskStatus(data.status) });
+      tasks.push({ id, ...data, status: normalizeTaskStatus(data.status) });
     });
     return tasks.sort((a, b) => Date.parse(b.deletedAt) - Date.parse(a.deletedAt));
   } catch (e) {
@@ -403,24 +479,49 @@ export const getTrashedTasks = async (userId) => {
   }
 };
 
-export const getCommentsForTask = async (taskId, userId) => {
-  if (!userId) return [];
+export const getCommentsForTask = async (taskId, userId, organizationId = null) => {
+  if (!taskId) return [];
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
   try {
-    let q = query(
-      collection(db, COMMENTS_COLLECTION),
-      where("jobId", "==", taskId),
-      where("userId", "==", userId)
-    );
-    let querySnapshot;
-    try {
-      querySnapshot = await getDocs(q);
-    } catch (organizationQueryError) {
-      console.warn('Organization comments query is not available yet; loading legacy comments', organizationQueryError);
-      querySnapshot = null;
+    const commentsMap = new Map();
+
+    if (targetOrgId) {
+      try {
+        const qOrg = query(
+          collection(db, COMMENTS_COLLECTION),
+          where("jobId", "==", taskId),
+          where("organizationId", "==", targetOrgId)
+        );
+        const querySnapshot = await getDocs(qOrg);
+        querySnapshot.forEach((doc) => {
+          commentsMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      } catch (err) {
+        console.warn('Organization comments query failed', err);
+      }
     }
+
+    if (userId) {
+      try {
+        const qUser = query(
+          collection(db, COMMENTS_COLLECTION),
+          where("jobId", "==", taskId),
+          where("userId", "==", userId)
+        );
+        const querySnapshot = await getDocs(qUser);
+        querySnapshot.forEach((doc) => {
+          if (!commentsMap.has(doc.id)) {
+            commentsMap.set(doc.id, { id: doc.id, ...doc.data() });
+          }
+        });
+      } catch (err) {
+        console.warn('User comments query failed', err);
+      }
+    }
+
     const comments = [];
-    querySnapshot.forEach((doc) => {
-      comments.push({ id: doc.id, ...doc.data() });
+    commentsMap.forEach((comment) => {
+      comments.push(comment);
     });
     return comments
       .filter(comment => !isSystemWorkUpdateComment(comment))
@@ -431,34 +532,65 @@ export const getCommentsForTask = async (taskId, userId) => {
   }
 };
 
-export const getAllCommentsForUser = async (userId) => {
-  if (!userId) return [];
+export const getAllCommentsForUser = async (userId, organizationId = null) => {
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return [];
   try {
-    const q = query(
-      collection(db, COMMENTS_COLLECTION),
-      where("userId", "==", userId)
-    );
-    const querySnapshot = await getDocs(q);
+    const commentsMap = new Map();
+
+    if (targetOrgId) {
+      try {
+        const qOrg = query(
+          collection(db, COMMENTS_COLLECTION),
+          where("organizationId", "==", targetOrgId)
+        );
+        const snap = await getDocs(qOrg);
+        snap.forEach((doc) => {
+          commentsMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      } catch (err) {
+        console.warn('Organization all comments query failed', err);
+      }
+    }
+
+    if (userId) {
+      try {
+        const qUser = query(
+          collection(db, COMMENTS_COLLECTION),
+          where("userId", "==", userId)
+        );
+        const snap = await getDocs(qUser);
+        snap.forEach((doc) => {
+          if (!commentsMap.has(doc.id)) {
+            commentsMap.set(doc.id, { id: doc.id, ...doc.data() });
+          }
+        });
+      } catch (err) {
+        console.warn('User all comments query failed', err);
+      }
+    }
+
     const comments = [];
-    querySnapshot.forEach((doc) => {
-      comments.push({ id: doc.id, ...doc.data() });
+    commentsMap.forEach((comment) => {
+      comments.push(comment);
     });
     return comments.filter(comment => !isSystemWorkUpdateComment(comment));
   } catch (e) {
-    console.error(`Error fetching all comments for user ${userId}`, e);
+    console.error(`Error fetching all comments`, e);
     return [];
   }
 };
 
-export const addComment = async (jobId, authorName, text, attachmentUrl = null, attachmentName = null, userId) => {
+export const addComment = async (jobId, authorName, text, attachmentUrl = null, attachmentName = null, userId, organizationId = null) => {
   if (!userId) throw new Error("User ID is required to add a comment");
   try {
     const now = new Date().toISOString();
     const resolvedAuthorName = getCommentAuthorName(authorName);
+    const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
     const commentData = {
       jobId,
       userId,
-      organizationId: currentOrganizationId(),
+      organizationId: targetOrgId,
       authorName: resolvedAuthorName,
       text: text.trim(),
       createdAt: now
@@ -572,11 +704,57 @@ export const getPrivateNotes = async (taskId, userId) => {
   }
 };
 
+export const getAllPrivateNotesForUser = async (userId, organizationId = null) => {
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return new Map();
+  try {
+    const notesMap = new Map();
+
+    if (targetOrgId) {
+      try {
+        const qOrg = query(
+          collection(db, 'taskPrivateNotes'),
+          where('organizationId', '==', targetOrgId)
+        );
+        const snap = await getDocs(qOrg);
+        snap.forEach((docSnap) => {
+          notesMap.set(docSnap.id, docSnap.data()?.notes || '');
+        });
+      } catch (err) {
+        console.warn('Organization private notes query failed', err);
+      }
+    }
+
+    if (userId) {
+      try {
+        const qUser = query(
+          collection(db, 'taskPrivateNotes'),
+          where('userId', '==', userId)
+        );
+        const snap = await getDocs(qUser);
+        snap.forEach((docSnap) => {
+          if (!notesMap.has(docSnap.id)) {
+            notesMap.set(docSnap.id, docSnap.data()?.notes || '');
+          }
+        });
+      } catch (err) {
+        console.warn('User private notes query failed', err);
+      }
+    }
+
+    return notesMap;
+  } catch (e) {
+    console.error('Error fetching all private notes', e);
+    return new Map();
+  }
+};
+
 export const createTask = async (taskData, userId, options = {}) => {
   if (!userId) throw new Error("User ID is required to create a task");
   assertSystemManagerSession();
   try {
-    const tasks = await getTasks(userId);
+    const targetOrgId = options.organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+    const tasks = await getTasks(userId, targetOrgId);
     const jobNumber = generateNextJobNumber(tasks);
     const now = new Date().toISOString();
 
@@ -585,7 +763,7 @@ export const createTask = async (taskData, userId, options = {}) => {
     const newTask = {
       ...taskWithoutPrivate,
       userId,
-      organizationId: currentOrganizationId(),
+      organizationId: targetOrgId,
       jobNumber,
       createdAt: now,
       updatedAt: now
@@ -594,7 +772,7 @@ export const createTask = async (taskData, userId, options = {}) => {
     const docRef = await addDoc(collection(db, TASKS_COLLECTION), newTask);
 
     if (internalNotes) {
-      await setDoc(doc(db, 'taskPrivateNotes', docRef.id), { notes: internalNotes, userId, organizationId: currentOrganizationId() });
+      await setDoc(doc(db, 'taskPrivateNotes', docRef.id), { notes: internalNotes, userId, organizationId: targetOrgId });
     }
 
     // Auto-add supplier & contact to settings if new
@@ -797,55 +975,48 @@ export const permanentlyDeleteTask = async (taskId) => {
   }
 };
 
-export const purgeExpiredTasks = async (userId) => {
-  if (!userId) return 0;
+export const purgeExpiredTasks = async (userId, organizationId = null) => {
+  if (!userId && !organizationId) return 0;
   assertSystemManagerSession();
-  const trashedTasks = await getTrashedTasks(userId);
+  const trashedTasks = await getTrashedTasks(userId, organizationId);
   const now = Date.now();
   const expiredTasks = trashedTasks.filter(task => Date.parse(task.expiresAt) <= now);
   await Promise.all(expiredTasks.map(task => permanentlyDeleteTask(task.id)));
   return expiredTasks.length;
 };
 
-export const emptyTrash = async (userId) => {
-  if (!userId) return 0;
+export const emptyTrash = async (userId, organizationId = null) => {
+  if (!userId && !organizationId) return 0;
   assertSystemManagerSession();
-  const trashedTasks = await getTrashedTasks(userId);
+  const trashedTasks = await getTrashedTasks(userId, organizationId);
   if (trashedTasks.length === 0) return 0;
   await Promise.all(trashedTasks.map(task => permanentlyDeleteTask(task.id)));
   return trashedTasks.length;
 };
 
-export const autoArchiveInactiveTasks = async (userId, inactiveDays = DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS) => {
-  if (!userId) return 0;
+export const autoArchiveInactiveTasks = async (userId, organizationId = null, inactiveDays = DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS) => {
+  let resolvedOrgId = organizationId;
+  let resolvedDays = inactiveDays;
+  if (typeof organizationId === 'number') {
+    resolvedDays = organizationId;
+    resolvedOrgId = null;
+  }
+  const targetOrgId = resolvedOrgId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return 0;
   assertSystemManagerSession();
 
-  const parsedDays = Number(inactiveDays);
+  const parsedDays = Number(resolvedDays);
   const days = Number.isFinite(parsedDays) && parsedDays > 0
     ? Math.floor(parsedDays)
     : DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS;
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const q = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
-  let querySnapshot;
 
-  try {
-    querySnapshot = await getDocsFromServer(q);
-  } catch (serverError) {
-    console.warn('Server task read failed during auto archive, falling back to cache', serverError);
-    querySnapshot = await getDocs(q);
-  }
-
+  const allTasks = await getTasks(userId, targetOrgId);
   const now = new Date().toISOString();
-  const tasksToArchive = [];
-
-  querySnapshot.forEach((taskDoc) => {
-    const taskData = taskDoc.data();
-    if (taskData.deletedAt || taskData.status === ARCHIVE_STATUS) return;
-
-    const lastActivity = Date.parse(taskData.updatedAt || taskData.createdAt || '');
-    if (!Number.isFinite(lastActivity) || lastActivity > cutoff) return;
-
-    tasksToArchive.push({ id: taskDoc.id, ...taskData });
+  const tasksToArchive = allTasks.filter((task) => {
+    if (task.deletedAt || task.status === ARCHIVE_STATUS) return false;
+    const lastActivity = Date.parse(task.updatedAt || task.createdAt || '');
+    return Number.isFinite(lastActivity) && lastActivity <= cutoff;
   });
 
   for (const task of tasksToArchive) {
@@ -1183,8 +1354,9 @@ export const migrateSuppliersAndContacts = async (userId) => {
  */
 export const autoAddSupplierAndContactFromTask = async (taskData) => {
   try {
-    const userId = taskData.organizationId || taskData.userId;
-    if (!userId) return;
+    const userId = taskData.userId || auth.currentUser?.uid || '';
+    const organizationId = taskData.organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+    if (!userId && !organizationId) return;
 
     const supplierName = taskData.supplierName ? taskData.supplierName.trim() : '';
     const contactPerson = taskData.contactPerson ? taskData.contactPerson.trim() : '';
@@ -1192,12 +1364,9 @@ export const autoAddSupplierAndContactFromTask = async (taskData) => {
 
     if (!supplierName && !contactPerson) return;
 
-    // Fetch current suppliers and contacts for this user to check
-    const suppliersSnapshot = await getDocs(query(collection(db, 'suppliers'), where('userId', '==', userId)));
-    const suppliers = suppliersSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    const contactsSnapshot = await getDocs(query(collection(db, 'contacts'), where('userId', '==', userId)));
-    const contacts = contactsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Fetch current suppliers and contacts to check
+    const suppliers = await getSuppliers(userId, organizationId);
+    const contacts = await getContacts(userId, organizationId);
 
     // 1. Check Supplier
     if (supplierName) {
@@ -1316,16 +1485,26 @@ export const registerUserLogin = async (user) => {
   try {
     const userRef = doc(db, 'users', user.uid);
     const existingUser = await getDoc(userRef);
-    const organizationId = existingUser.exists()
-      ? (existingUser.data().organizationId || DEFAULT_ORGANIZATION_ID)
+    const existingData = existingUser.exists() ? existingUser.data() : null;
+    const organizationId = existingData
+      ? (existingData.organizationId || DEFAULT_ORGANIZATION_ID)
       : DEFAULT_ORGANIZATION_ID;
+
+    // Determine creation time from auth metadata or existing data
+    const authCreationTime = user.metadata?.creationTime
+      ? new Date(user.metadata.creationTime).toISOString()
+      : (user.metadata?.createdAt ? new Date(Number(user.metadata.createdAt)).toISOString() : null);
+
+    // Prefer auth creation time if available, or existing createdAt, or current time
+    const createdAt = existingData?.createdAt || authCreationTime || new Date().toISOString();
 
     await setDoc(userRef, {
       uid: user.uid,
       email: user.email,
       lastLogin: new Date().toISOString(),
       displayName: user.displayName || '',
-      organizationId
+      organizationId,
+      createdAt
     }, { merge: true });
     if (organizationId === DEFAULT_ORGANIZATION_ID) {
       const defaultOrganizationRef = doc(db, 'organizations', DEFAULT_ORGANIZATION_ID);
@@ -1391,7 +1570,7 @@ export const migrateUserDataToOrganization = async (userId, organizationId = DEF
   for (const collectionName of collectionsToMigrate) {
     const legacySnapshot = await getDocs(query(collection(db, collectionName), where('userId', '==', userId)));
     for (const legacyDoc of legacySnapshot.docs) {
-      if (legacyDoc.data().organizationId) continue;
+      if (legacyDoc.data().organizationId === organizationId) continue;
       await updateDoc(doc(db, collectionName, legacyDoc.id), { organizationId });
       migratedCount += 1;
     }
@@ -1402,7 +1581,7 @@ export const migrateUserDataToOrganization = async (userId, organizationId = DEF
     where('actorUid', '==', userId)
   ));
   for (const activityDoc of legacyActivitySnapshot.docs) {
-    if (activityDoc.data().organizationId) continue;
+    if (activityDoc.data().organizationId === organizationId) continue;
     await updateDoc(doc(db, ACTIVITY_LOGS_COLLECTION, activityDoc.id), { organizationId });
     migratedCount += 1;
   }
@@ -1678,7 +1857,12 @@ export const getAllUsers = async () => {
     const snapshot = await getDocs(collection(db, 'users'));
     const users = [];
     snapshot.forEach(docSnap => {
-      users.push(docSnap.data());
+      const data = docSnap.data();
+      users.push({
+        id: docSnap.id,
+        uid: docSnap.id,
+        ...data
+      });
     });
     return users;
   } catch (e) {
@@ -1720,7 +1904,9 @@ export const getUserManagementStats = async () => {
           weeklyHoursTotal: 0,
           lastProjectUpdatedAt: '',
           activityCount: 0,
-          lastActivityAt: ''
+          lastActivityAt: '',
+          earliestTaskAt: '',
+          firstActivityAt: ''
         };
       }
       return statsByUser[userId];
@@ -1733,7 +1919,8 @@ export const getUserManagementStats = async () => {
       if (!stats) return;
 
       const normalizedStatus = normalizeTaskStatus(task.status);
-      const updatedAt = task.updatedAt || task.createdAt || task.deadline || '';
+      const updatedAt = task.updatedAt || task.createdAt || '';
+      const createdAt = task.createdAt || task.updatedAt || '';
 
       stats.projectCount += 1;
       if (normalizedStatus === ARCHIVE_STATUS) {
@@ -1745,16 +1932,49 @@ export const getUserManagementStats = async () => {
       if (parseDateValue(updatedAt) > parseDateValue(stats.lastProjectUpdatedAt)) {
         stats.lastProjectUpdatedAt = updatedAt;
       }
+      if (parseDateValue(updatedAt) > parseDateValue(stats.lastActivityAt)) {
+        stats.lastActivityAt = updatedAt;
+      }
+      if (createdAt) {
+        const createdTs = parseDateValue(createdAt);
+        const earliestTs = parseDateValue(stats.earliestTaskAt);
+        if (createdTs > 0 && (!earliestTs || createdTs < earliestTs)) {
+          stats.earliestTaskAt = createdAt;
+        }
+      }
     });
 
     activitySnapshot.forEach((docSnap) => {
       const activity = docSnap.data();
       const stats = ensureStats(activity.actorUid);
-      if (!stats) return;
+      if (stats) {
+        stats.activityCount += 1;
+        if (parseDateValue(activity.createdAt) > parseDateValue(stats.lastActivityAt)) {
+          stats.lastActivityAt = activity.createdAt;
+        }
+        if (activity.createdAt) {
+          const actTs = parseDateValue(activity.createdAt);
+          const earliestActTs = parseDateValue(stats.firstActivityAt);
+          if (actTs > 0 && (!earliestActTs || actTs < earliestActTs)) {
+            stats.firstActivityAt = activity.createdAt;
+          }
+        }
+      }
 
-      stats.activityCount += 1;
-      if (parseDateValue(activity.createdAt) > parseDateValue(stats.lastActivityAt)) {
-        stats.lastActivityAt = activity.createdAt;
+      if (activity.targetUserId && activity.targetUserId !== activity.actorUid) {
+        const targetStats = ensureStats(activity.targetUserId);
+        if (targetStats) {
+          if (parseDateValue(activity.createdAt) > parseDateValue(targetStats.lastActivityAt)) {
+            targetStats.lastActivityAt = activity.createdAt;
+          }
+          if (activity.createdAt) {
+            const actTs = parseDateValue(activity.createdAt);
+            const earliestActTs = parseDateValue(targetStats.firstActivityAt);
+            if (actTs > 0 && (!earliestActTs || actTs < earliestActTs)) {
+              targetStats.firstActivityAt = activity.createdAt;
+            }
+          }
+        }
       }
     });
 
@@ -1762,6 +1982,55 @@ export const getUserManagementStats = async () => {
   } catch (e) {
     console.error("Error fetching user management stats:", e);
     throw e;
+  }
+};
+
+export const getUserJoinDateIso = (user, stats = {}) => {
+  // 1. Explicit user document fields
+  const userDirectDates = [
+    user?.createdAt,
+    user?.creationTime,
+    user?.registeredAt,
+    user?.joinedAt
+  ].map(dateStr => {
+    const ts = parseDateValue(dateStr);
+    return { ts, dateStr };
+  }).filter(item => item.ts > 0);
+
+  if (userDirectDates.length > 0) {
+    userDirectDates.sort((a, b) => a.ts - b.ts);
+    return userDirectDates[0].dateStr;
+  }
+
+  // 2. Earliest timestamp from system activity / tasks / logins
+  const fallbackDates = [
+    stats?.earliestTaskAt,
+    stats?.firstActivityAt,
+    user?.firstLogin,
+    user?.lastLogin,
+    user?.lastActiveAt,
+    stats?.lastProjectUpdatedAt,
+    stats?.lastActivityAt
+  ].map(dateStr => {
+    const ts = parseDateValue(dateStr);
+    return { ts, dateStr };
+  }).filter(item => item.ts > 0);
+
+  if (fallbackDates.length > 0) {
+    fallbackDates.sort((a, b) => a.ts - b.ts);
+    return fallbackDates[0].dateStr;
+  }
+
+  return '';
+};
+
+export const backfillUserCreatedAtIfMissing = async (userId, createdAtIso) => {
+  if (!userId || !createdAtIso) return;
+  try {
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, { createdAt: createdAtIso }, { merge: true });
+  } catch (err) {
+    // Non-critical background update
   }
 };
 
@@ -1862,14 +2131,17 @@ export const removeDefaultSuppliersAndContacts = async (userId) => {
   }
 };
 
-export const getNameMap = async (userId, isSystemAdmin = false) => {
+export const getNameMap = async (userId, isSystemAdmin = false, organizationId = null) => {
   const map = {};
-  if (!userId) return map;
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return map;
   try {
     // 1. Fetch tasks
     let tasksQuery;
     if (isSystemAdmin) {
       tasksQuery = collection(db, TASKS_COLLECTION);
+    } else if (targetOrgId) {
+      tasksQuery = query(collection(db, TASKS_COLLECTION), where('organizationId', '==', targetOrgId));
     } else {
       tasksQuery = query(collection(db, TASKS_COLLECTION), where('userId', '==', userId));
     }
@@ -1883,6 +2155,8 @@ export const getNameMap = async (userId, isSystemAdmin = false) => {
     let suppliersQuery;
     if (isSystemAdmin) {
       suppliersQuery = collection(db, 'suppliers');
+    } else if (targetOrgId) {
+      suppliersQuery = query(collection(db, 'suppliers'), where('organizationId', '==', targetOrgId));
     } else {
       suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
     }
@@ -1896,6 +2170,8 @@ export const getNameMap = async (userId, isSystemAdmin = false) => {
     let contactsQuery;
     if (isSystemAdmin) {
       contactsQuery = collection(db, 'contacts');
+    } else if (targetOrgId) {
+      contactsQuery = query(collection(db, 'contacts'), where('organizationId', '==', targetOrgId));
     } else {
       contactsQuery = query(collection(db, 'contacts'), where('userId', '==', userId));
     }
@@ -1927,14 +2203,38 @@ export const getNameMap = async (userId, isSystemAdmin = false) => {
   }
 };
 
-export const getContacts = async (userId) => {
-  if (!userId) return [];
+export const getContacts = async (userId, organizationId = null) => {
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return [];
   try {
-    const contactsQuery = query(collection(db, 'contacts'), where('userId', '==', userId));
-    const snapshot = await getDocs(contactsQuery);
+    const contactsMap = new Map();
+    if (targetOrgId) {
+      try {
+        const orgQuery = query(collection(db, 'contacts'), where('organizationId', '==', targetOrgId));
+        const orgSnapshot = await getDocs(orgQuery);
+        orgSnapshot.forEach(docSnap => {
+          contactsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+        });
+      } catch (err) {
+        console.warn('Failed to query contacts by organizationId', err);
+      }
+    }
+    if (userId) {
+      try {
+        const userQuery = query(collection(db, 'contacts'), where('userId', '==', userId));
+        const userSnapshot = await getDocs(userQuery);
+        userSnapshot.forEach(docSnap => {
+          if (!contactsMap.has(docSnap.id)) {
+            contactsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to query contacts by userId', err);
+      }
+    }
     const conts = [];
-    snapshot.forEach(docSnap => {
-      conts.push({ id: docSnap.id, ...docSnap.data() });
+    contactsMap.forEach((data) => {
+      conts.push(data);
     });
     conts.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
     return conts;
@@ -1944,14 +2244,38 @@ export const getContacts = async (userId) => {
   }
 };
 
-export const getSuppliers = async (userId) => {
-  if (!userId) return [];
+export const getSuppliers = async (userId, organizationId = null) => {
+  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  if (!userId && !targetOrgId) return [];
   try {
-    const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
-    const snapshot = await getDocs(suppliersQuery);
+    const suppliersMap = new Map();
+    if (targetOrgId) {
+      try {
+        const orgQuery = query(collection(db, 'suppliers'), where('organizationId', '==', targetOrgId));
+        const orgSnapshot = await getDocs(orgQuery);
+        orgSnapshot.forEach(docSnap => {
+          suppliersMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+        });
+      } catch (err) {
+        console.warn('Failed to query suppliers by organizationId', err);
+      }
+    }
+    if (userId) {
+      try {
+        const userQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
+        const userSnapshot = await getDocs(userQuery);
+        userSnapshot.forEach(docSnap => {
+          if (!suppliersMap.has(docSnap.id)) {
+            suppliersMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to query suppliers by userId', err);
+      }
+    }
     const sups = [];
-    snapshot.forEach(docSnap => {
-      sups.push({ id: docSnap.id, ...docSnap.data() });
+    suppliersMap.forEach((data) => {
+      sups.push(data);
     });
     sups.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
     return sups;

@@ -1,5 +1,7 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { getFeatureFlags } from '../utils/featureFlags';
+
+const AdminDetailsModal = lazy(() => import('../components/AdminDetailsModal'));
 
 let storageApiPromise = null;
 
@@ -33,19 +35,38 @@ const buildLastProjectMap = (tasks, fieldName) => {
   return map;
 };
 
-export default function SuppliersContactsPage({ suppliers = [], contacts = [], userId, onBack, autoOpenSupplierId, autoOpenContactId, onClearAutoOpen, settings }) {
+export default function SuppliersContactsPage({
+  suppliers = [],
+  contacts = [],
+  userId,
+  organizationId,
+  onSaveSettings,
+  onBack,
+  autoOpenSupplierId,
+  autoOpenContactId,
+  onClearAutoOpen,
+  settings
+}) {
   const flags = getFeatureFlags(settings);
   const getTaskLabel = (task = {}) => task.title || task.jobNumber || `${flags.terms.item} ללא שם`;
+
+  const [viewingTask, setViewingTask] = useState(null);
 
   const renderLastProject = (project) => {
     if (!project) {
       return <span className="muted-text">אין שיוך</span>;
     }
 
+    const label = getTaskLabel(project);
     return (
-      <span className="directory-project-chip" title={getTaskLabel(project)}>
-        <span className="directory-project-chip-title">{getTaskLabel(project)}</span>
-      </span>
+      <button
+        type="button"
+        className="directory-project-chip clickable"
+        title={`פתיחת כרטיס ${flags.terms.itemDefinite}: ${label}`}
+        onClick={() => setViewingTask(project)}
+      >
+        <span className="directory-project-chip-title">{label}</span>
+      </button>
     );
   };
 
@@ -74,23 +95,64 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
   const [activeContactCard, setActiveContactCard] = useState(null);
   const [pendingDeletion, setPendingDeletion] = useState(null);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadLinkedProjects = async () => {
+  const loadTasks = useCallback(async () => {
+    try {
       const { getTasks } = await loadStorageApi();
-      const fetchedTasks = await getTasks(userId);
-      if (isMounted) {
-        setTasks(fetchedTasks);
-      }
-    };
+      const fetchedTasks = await getTasks(userId, organizationId);
+      setTasks(fetchedTasks);
+      setViewingTask(prev => {
+        if (!prev) return null;
+        return fetchedTasks.find(t => t.id === prev.id) || null;
+      });
+    } catch (err) {
+      console.error('Failed to reload tasks', err);
+    }
+  }, [userId, organizationId]);
 
-    loadLinkedProjects();
+  const handleSaveTask = async (taskData) => {
+    try {
+      const { updateTask } = await loadStorageApi();
+      await updateTask(taskData.id, taskData);
+      setTasks(prev => prev.map(t => t.id === taskData.id ? { ...t, ...taskData } : t));
+      setViewingTask(prev => prev && prev.id === taskData.id ? { ...prev, ...taskData } : prev);
+    } catch (err) {
+      console.error('Failed to save project', err);
+      setMessage({ text: 'שגיאה בשמירת פרטי הפרויקט.', type: 'danger' });
+    }
+  };
 
-    return () => {
-      isMounted = false;
-    };
-  }, [userId]);
+  const handleTaskUpdated = (taskId, patch) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...patch } : t));
+    setViewingTask(prev => prev && prev.id === taskId ? { ...prev, ...patch } : prev);
+  };
+
+  const handleStatusChange = async (taskId, newStatus) => {
+    try {
+      const { updateTask } = await loadStorageApi();
+      await updateTask(taskId, { status: newStatus });
+      handleTaskUpdated(taskId, { status: newStatus });
+    } catch (err) {
+      console.error('Failed to update status', err);
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('האם את בטוחה שברצונך להעביר פרויקט זה לפח האשפה?')) return;
+    try {
+      const { trashTask } = await loadStorageApi();
+      await trashTask(taskId);
+      setViewingTask(null);
+      await loadTasks();
+      setMessage({ text: 'הפרויקט הועבר לפח האשפה בהצלחה.', type: 'success' });
+    } catch (err) {
+      console.error('Failed to delete task', err);
+      setMessage({ text: 'שגיאה במחיקת הפרויקט.', type: 'danger' });
+    }
+  };
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
   const lastSupplierProjects = useMemo(
     () => buildLastProjectMap(tasks, 'supplierName'),
@@ -529,7 +591,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                 <tr>
                   <th>שם הספק</th>
                   <th>איש קשר</th>
-                  <th>{flags.terms.item} אחרון</th>
+                  <th>{flags.terms.lastItem || `${flags.terms.item} אחרונה`}</th>
                   <th>תקשורת</th>
                   <th>פעולות</th>
                 </tr>
@@ -562,7 +624,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                           </div>
                         </td>
                         <td data-label="איש קשר">{supplier.contactPerson || <span className="muted-text">לא הוגדר</span>}</td>
-                        <td data-label={`${flags.terms.item} אחרון`}>{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
+                        <td data-label={flags.terms.lastItem || `${flags.terms.item} אחרונה`}>{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
                         <td data-label="תקשורת">
                           <div className="directory-contact-lines">
                             {supplier.phone ? <a className="directory-phone-link direction-ltr" href={`tel:${supplier.phone.replace(/\s+/g, '')}`}>{supplier.phone}</a> : null}
@@ -631,7 +693,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
               <thead>
                 <tr>
                   <th>שם</th>
-                  <th>{flags.terms.item} אחרון</th>
+                  <th>{flags.terms.lastItem || `${flags.terms.item} אחרונה`}</th>
                   <th>טלפון</th>
                   <th>אימייל</th>
                   <th>פעולות</th>
@@ -659,7 +721,7 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
                             )}
                           </div>
                         </td>
-                        <td data-label={`${flags.terms.item} אחרון`}>{renderLastProject(lastContactProjects.get(normalizeSearch(contact.name)))}</td>
+                        <td data-label={flags.terms.lastItem || `${flags.terms.item} אחרונה`}>{renderLastProject(lastContactProjects.get(normalizeSearch(contact.name)))}</td>
                         <td data-label="טלפון">
                           {isEditing ? (
                             <input type="text" className="form-control direction-ltr text-left directory-inline-input" value={editingContact.phone} onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })} />
@@ -835,6 +897,26 @@ export default function SuppliersContactsPage({ suppliers = [], contacts = [], u
             </div>
           </div>
         </div>
+      )}
+
+      {viewingTask && (
+        <Suspense fallback={null}>
+          <AdminDetailsModal
+            task={viewingTask}
+            settings={settings}
+            contacts={contacts}
+            suppliers={suppliers}
+            onSaveSettings={onSaveSettings}
+            onClose={() => setViewingTask(null)}
+            onSave={handleSaveTask}
+            onDelete={handleDeleteTask}
+            onRefresh={loadTasks}
+            onTaskUpdated={handleTaskUpdated}
+            onStatusChange={handleStatusChange}
+            userId={userId}
+            organizationId={organizationId}
+          />
+        </Suspense>
       )}
     </main>
   );

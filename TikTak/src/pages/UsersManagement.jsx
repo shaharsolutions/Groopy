@@ -35,6 +35,61 @@ const adminActions = [
   }
 ];
 
+const getUserEffectiveActivityIso = (user, stats = {}) => {
+  const timestamps = [
+    user?.lastLogin,
+    user?.lastActiveAt,
+    stats?.lastActivityAt,
+    stats?.lastProjectUpdatedAt
+  ].map(dateStr => {
+    const ts = Date.parse(dateStr || '');
+    return Number.isFinite(ts) ? ts : 0;
+  });
+  const maxTs = Math.max(0, ...timestamps);
+  return maxTs > 0 ? new Date(maxTs).toISOString() : (user?.lastLogin || '');
+};
+
+const getUserEffectiveJoinDate = (user, stats = {}) => {
+  if (user?.joinDate) return user.joinDate;
+  if (user?.createdAt) return user.createdAt;
+  const directDate = user?.creationTime || user?.registeredAt || user?.joinedAt;
+  if (directDate && Date.parse(directDate) > 0) return directDate;
+
+  const candidates = [
+    stats?.earliestTaskAt,
+    stats?.firstActivityAt,
+    user?.firstLogin,
+    user?.lastLogin,
+    user?.lastActiveAt,
+    stats?.lastProjectUpdatedAt,
+    stats?.lastActivityAt
+  ].map(d => ({ ts: Date.parse(d || ''), d })).filter(item => item.ts > 0);
+
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => a.ts - b.ts);
+    return candidates[0].d;
+  }
+  return '';
+};
+
+const USER_TABLE_COLUMNS = [
+  { id: 'user', label: 'משתמש', required: true },
+  { id: 'joinDate', label: 'תאריך הצטרפות' },
+  { id: 'organization', label: 'ארגון' },
+  { id: 'projectLoad', label: 'עומס פרויקטים' },
+  { id: 'activity', label: 'פעילות ושימוש' },
+  { id: 'actions', label: 'פעולות' }
+];
+
+const DEFAULT_USER_VISIBLE_COLUMNS = {
+  user: true,
+  joinDate: true,
+  organization: true,
+  projectLoad: true,
+  activity: true,
+  actions: true
+};
+
 export default function UsersManagement({ onImpersonate, onManageOrganization, onBack, onNavigate }) {
   const [users, setUsers] = useState([]);
   const [usageStats, setUsageStats] = useState({});
@@ -46,7 +101,44 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('lastActive');
   const [relativeNow, setRelativeNow] = useState(0);
+
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem('users_management_visible_columns');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_USER_VISIBLE_COLUMNS, ...parsed, user: true };
+      }
+    } catch (e) {
+      // ignore
+    }
+    return DEFAULT_USER_VISIBLE_COLUMNS;
+  });
+  const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
+
+  const toggleColumn = (columnId) => {
+    if (columnId === 'user') return;
+    setVisibleColumns(prev => {
+      const next = { ...prev, [columnId]: !prev[columnId] };
+      try {
+        localStorage.setItem('users_management_visible_columns', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  const showAllColumns = () => {
+    setVisibleColumns(DEFAULT_USER_VISIBLE_COLUMNS);
+    try {
+      localStorage.setItem('users_management_visible_columns', JSON.stringify(DEFAULT_USER_VISIBLE_COLUMNS));
+    } catch (e) {}
+  };
+
+  const visibleColumnCount = useMemo(() => {
+    return USER_TABLE_COLUMNS.filter(col => visibleColumns[col.id] !== false).length;
+  }, [visibleColumns]);
 
   // User Deletion States
   const [userPendingDelete, setUserPendingDelete] = useState(null);
@@ -102,14 +194,36 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
       try {
         setLoading(true);
         setError('');
-        const { getAllUsers, getUserManagementStats, getOrganizations } = await loadStorageApi();
+        const {
+          getAllUsers,
+          getUserManagementStats,
+          getOrganizations,
+          getUserJoinDateIso,
+          backfillUserCreatedAtIfMissing
+        } = await loadStorageApi();
         const [usersList, statsByUser, organizationsList] = await Promise.all([
           getAllUsers(),
           getUserManagementStats(),
           getOrganizations()
         ]);
-        // Sort by lastLogin descending
-        usersList.sort((a, b) => new Date(b.lastLogin || 0) - new Date(a.lastLogin || 0));
+        // Resolve and attach join date for each user, and backfill if missing in Firestore
+        usersList.forEach(userItem => {
+          const stats = statsByUser[userItem.uid] || {};
+          const effectiveJoin = getUserJoinDateIso?.(userItem, stats) || getUserEffectiveJoinDate(userItem, stats);
+          if (effectiveJoin) {
+            userItem.joinDate = effectiveJoin;
+            if (!userItem.createdAt) {
+              userItem.createdAt = effectiveJoin;
+              backfillUserCreatedAtIfMissing?.(userItem.uid, effectiveJoin);
+            }
+          }
+        });
+        // Sort by effective activity/login descending by default
+        usersList.sort((a, b) => {
+          const timeA = Date.parse(getUserEffectiveActivityIso(a, statsByUser[a.uid]) || a.lastLogin || 0) || 0;
+          const timeB = Date.parse(getUserEffectiveActivityIso(b, statsByUser[b.uid]) || b.lastLogin || 0) || 0;
+          return timeB - timeA;
+        });
         setUsers(usersList);
         setUsageStats(statsByUser);
         setOrganizations(organizationsList);
@@ -132,11 +246,12 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     const members = users.filter(user => (user.organizationId || 'groopy') === organization.id);
     return members.reduce((summary, user) => {
       const stats = usageStats[user.uid] || {};
+      const userActivity = getUserEffectiveActivityIso(user, stats);
       summary.projectCount += stats.projectCount || 0;
       summary.activeProjectCount += stats.activeProjectCount || 0;
       summary.activityCount += stats.activityCount || 0;
-      if (stats.lastActivityAt && new Date(stats.lastActivityAt) > new Date(summary.lastActivityAt || 0)) {
-        summary.lastActivityAt = stats.lastActivityAt;
+      if (userActivity && new Date(userActivity) > new Date(summary.lastActivityAt || 0)) {
+        summary.lastActivityAt = userActivity;
       }
       return summary;
     }, {
@@ -247,12 +362,13 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const totals = useMemo(() => {
     return users.reduce((acc, user) => {
       const stats = usageStats[user.uid] || {};
+      const userActivity = getUserEffectiveActivityIso(user, stats);
       acc.projectCount += stats.projectCount || 0;
       acc.activeProjectCount += stats.activeProjectCount || 0;
       acc.weeklyHoursTotal += stats.weeklyHoursTotal || 0;
       acc.activityCount += stats.activityCount || 0;
-      if (stats.lastActivityAt && new Date(stats.lastActivityAt) > new Date(acc.lastActivityAt || 0)) {
-        acc.lastActivityAt = stats.lastActivityAt;
+      if (userActivity && new Date(userActivity) > new Date(acc.lastActivityAt || 0)) {
+        acc.lastActivityAt = userActivity;
       }
       return acc;
     }, { projectCount: 0, activeProjectCount: 0, activityCount: 0, weeklyHoursTotal: 0, lastActivityAt: '' });
@@ -260,10 +376,37 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
 
   const filteredUsers = useMemo(() => {
     const normalizedSearch = searchTerm.toLowerCase();
-    return users.filter(user =>
+    const result = users.filter(user =>
       (user.email || '').toLowerCase().includes(normalizedSearch)
     );
-  }, [users, searchTerm]);
+
+    result.sort((a, b) => {
+      if (sortBy === 'joinDateDesc') {
+        const timeA = Date.parse(getUserEffectiveJoinDate(a, usageStats[a.uid]) || 0) || 0;
+        const timeB = Date.parse(getUserEffectiveJoinDate(b, usageStats[b.uid]) || 0) || 0;
+        return timeB - timeA;
+      }
+      if (sortBy === 'joinDateAsc') {
+        const timeA = Date.parse(getUserEffectiveJoinDate(a, usageStats[a.uid]) || 0) || 0;
+        const timeB = Date.parse(getUserEffectiveJoinDate(b, usageStats[b.uid]) || 0) || 0;
+        return timeA - timeB;
+      }
+      if (sortBy === 'projectCount') {
+        const countA = usageStats[a.uid]?.projectCount || 0;
+        const countB = usageStats[b.uid]?.projectCount || 0;
+        return countB - countA;
+      }
+      if (sortBy === 'email') {
+        return (a.email || '').localeCompare(b.email || '', 'he');
+      }
+      // Default: 'lastActive'
+      const timeA = Date.parse(getUserEffectiveActivityIso(a, usageStats[a.uid]) || a.lastLogin || 0) || 0;
+      const timeB = Date.parse(getUserEffectiveActivityIso(b, usageStats[b.uid]) || b.lastLogin || 0) || 0;
+      return timeB - timeA;
+    });
+
+    return result;
+  }, [users, usageStats, searchTerm, sortBy]);
 
   const formatNumber = (value) => (Number(value) || 0).toLocaleString('he-IL');
   const maxProjectCount = Math.max(1, ...users.map(user => usageStats[user.uid]?.projectCount || 0));
@@ -298,6 +441,57 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     } catch {
       return isoString;
     }
+  };
+
+  const formatJoinDate = (isoString) => {
+    if (!isoString) return 'לא ידוע';
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return 'לא ידוע';
+      return date.toLocaleDateString('he-IL', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch {
+      return isoString || 'לא ידוע';
+    }
+  };
+
+  const formatJoinTime = (isoString) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString('he-IL', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  const formatRelativeJoinDate = (isoString) => {
+    if (!isoString) return '';
+    const ts = Date.parse(isoString);
+    if (!Number.isFinite(ts) || ts <= 0) return '';
+    const diffMs = (relativeNow || Date.now()) - ts;
+    if (diffMs < 0) return 'זה עתה';
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'הצטרף/ה היום';
+    if (diffDays === 1) return 'הצטרף/ה אתמול';
+    if (diffDays < 7) return `לפני ${diffDays} ימים`;
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks === 1) return 'לפני שבוע';
+    if (diffWeeks < 4) return `לפני ${diffWeeks} שבועות`;
+    const diffMonths = Math.floor(diffDays / 30.44);
+    if (diffMonths <= 1) return 'לפני חודש';
+    if (diffMonths < 12) return `לפני ${diffMonths} חודשים`;
+    const diffYears = Math.floor(diffDays / 365.25);
+    if (diffYears === 1) return 'לפני שנה';
+    if (diffYears === 2) return 'לפני שנתיים';
+    return `לפני ${diffYears} שנים`;
   };
 
   const formatRelativeActivity = (isoString) => {
@@ -646,25 +840,185 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           </span>
         </div>
 
-        {/* Search Bar */}
-        <div style={{ marginBottom: '24px' }}>
-          <input 
-            type="text" 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            aria-label="חיפוש משתמשים"
-            placeholder="חיפוש לפי אימייל..."
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              fontSize: '1rem',
-              outline: 'none',
-              fontFamily: 'inherit',
-              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)'
-            }}
-          />
+        {/* Search & Sort Bar */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'center',
+          marginBottom: '24px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ flex: 1, minWidth: '240px' }}>
+            <input 
+              type="text" 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="חיפוש משתמשים"
+              placeholder="חיפוש לפי אימייל..."
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                fontSize: '0.95rem',
+                outline: 'none',
+                fontFamily: 'inherit',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label htmlFor="user-sort-select" style={{ color: '#475569', fontSize: '0.88rem', fontWeight: '600', whiteSpace: 'nowrap' }}>
+              מיון לפי:
+            </label>
+            <select
+              id="user-sort-select"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{
+                padding: '11px 14px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                background: 'white',
+                fontSize: '0.88rem',
+                fontFamily: 'inherit',
+                fontWeight: '600',
+                color: '#1e293b',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="lastActive">פעילות אחרונה</option>
+              <option value="joinDateDesc">תאריך הצטרפות (החדשים ביותר)</option>
+              <option value="joinDateAsc">תאריך הצטרפות (הוותיקים ביותר)</option>
+              <option value="projectCount">כמות פרויקטים</option>
+              <option value="email">לפי אימייל (א-ת)</option>
+            </select>
+          </div>
+
+          {/* Column Visibility Picker */}
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setIsColumnPickerOpen(prev => !prev)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '11px 14px',
+                borderRadius: '8px',
+                border: `1px solid ${isColumnPickerOpen ? '#4f46e5' : '#cbd5e1'}`,
+                background: isColumnPickerOpen ? '#eef2ff' : '#ffffff',
+                color: isColumnPickerOpen ? '#4338ca' : '#1e293b',
+                fontSize: '0.88rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                transition: 'all 0.15s ease'
+              }}
+              title="הצגת/הסתרת עמודות בטבלה"
+            >
+              <span>👁️</span>
+              <span>התאמת עמודות ({visibleColumnCount}/{USER_TABLE_COLUMNS.length})</span>
+              <span style={{ fontSize: '0.72rem', opacity: 0.6 }}>{isColumnPickerOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {isColumnPickerOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 100 }}
+                  onClick={() => setIsColumnPickerOpen(false)}
+                />
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  zIndex: 101,
+                  minWidth: '220px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '12px',
+                  boxShadow: '0 12px 28px -6px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(15, 23, 42, 0.08)',
+                  padding: '12px',
+                  direction: 'rtl'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '10px',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid #f1f5f9'
+                  }}>
+                    <span style={{ fontWeight: '700', fontSize: '0.88rem', color: '#0f172a' }}>
+                      הצגת/הסתרת עמודות
+                    </span>
+                    <button
+                      type="button"
+                      onClick={showAllColumns}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#4f46e5',
+                        fontSize: '0.78rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        borderRadius: '4px'
+                      }}
+                      title="הצגת כל העמודות בטבלה"
+                    >
+                      הצג הכל
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {USER_TABLE_COLUMNS.map(col => {
+                      const isChecked = visibleColumns[col.id] !== false;
+                      const isRequired = col.required;
+                      return (
+                        <label
+                          key={col.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '6px 8px',
+                            borderRadius: '6px',
+                            cursor: isRequired ? 'not-allowed' : 'pointer',
+                            fontSize: '0.86rem',
+                            color: isRequired ? '#64748b' : '#1e293b',
+                            backgroundColor: isChecked ? '#f8fafc' : 'transparent',
+                            userSelect: 'none',
+                            transition: 'background-color 0.15s'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={isRequired}
+                            onChange={() => toggleColumn(col.id)}
+                            style={{
+                              cursor: isRequired ? 'not-allowed' : 'pointer',
+                              accentColor: '#4f46e5',
+                              width: '16px',
+                              height: '16px'
+                            }}
+                          />
+                          <span style={{ fontWeight: isChecked ? '600' : '400', flex: 1 }}>
+                            {col.label}
+                          </span>
+                          {isRequired && (
+                            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>(נעול)</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {actionNotice && (
@@ -724,23 +1078,56 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           <div style={{ overflowX: 'auto' }}>
             <table style={{
               width: '100%',
-              minWidth: '1080px',
+              minWidth: visibleColumnCount <= 2 ? '100%' : `${Math.max(650, visibleColumnCount * 180)}px`,
               borderCollapse: 'collapse',
               textAlign: 'right'
             }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '30%' }}>משתמש</th>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700' }}>ארגון</th>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '25%' }}>עומס פרויקטים</th>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '25%' }}>פעילות ושימוש</th>
-                  <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '600', textAlign: 'center', width: '20%' }}>פעולות</th>
+                  {visibleColumns.user !== false && (
+                    <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: visibleColumnCount === 1 ? '100%' : '25%' }}>משתמש</th>
+                  )}
+                  {visibleColumns.joinDate !== false && (
+                    <th
+                      style={{
+                        padding: '12px 16px',
+                        color: '#475569',
+                        fontWeight: '700',
+                        width: '16%',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                      onClick={() => setSortBy(current => current === 'joinDateDesc' ? 'joinDateAsc' : 'joinDateDesc')}
+                      title="לחץ/י למיון לפי תאריך הצטרפות"
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span>תאריך הצטרפות</span>
+                        <span style={{ fontSize: '0.8rem', opacity: sortBy.startsWith('joinDate') ? 1 : 0.4 }}>
+                          {sortBy === 'joinDateDesc' ? '▼' : sortBy === 'joinDateAsc' ? '▲' : '⇅'}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.organization !== false && (
+                    <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '13%' }}>ארגון</th>
+                  )}
+                  {visibleColumns.projectLoad !== false && (
+                    <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '18%' }}>עומס פרויקטים</th>
+                  )}
+                  {visibleColumns.activity !== false && (
+                    <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '700', width: '17%' }}>פעילות ושימוש</th>
+                  )}
+                  {visibleColumns.actions !== false && (
+                    <th style={{ padding: '12px 16px', color: '#475569', fontWeight: '600', textAlign: 'center', width: '11%' }}>פעולות</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((user) => {
                   const stats = usageStats[user.uid] || {};
-                  const activityTone = getActivityTone(stats.lastActivityAt || user.lastLogin);
+                  const effectiveLastSeen = getUserEffectiveActivityIso(user, stats);
+                  const joinDate = getUserEffectiveJoinDate(user, stats);
+                  const activityTone = getActivityTone(effectiveLastSeen);
                   return (
                     <tr
                       key={user.uid}
@@ -751,170 +1138,201 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
-                      <td style={{ padding: '16px', color: '#1e293b' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flex: '0 0 42px',
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #eef2ff, #ecfeff)',
-                            border: '1px solid #c7d2fe',
-                            color: '#3730a3',
-                            fontWeight: '800'
-                          }}>
-                            {getInitials(user.email)}
-                          </span>
-                          <span style={{ minWidth: 0 }}>
-                            <span style={{
-                              display: 'block',
-                              maxWidth: '260px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              fontWeight: '800',
-                              color: '#0f172a'
-                            }}>
-                              {user.email || 'ללא אימייל'}
-                            </span>
+                      {visibleColumns.user !== false && (
+                        <td style={{ padding: '16px', color: '#1e293b' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                             <span style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              marginTop: '7px',
-                              padding: '4px 8px',
-                              borderRadius: '999px',
-                              background: activityTone.bg,
-                              color: activityTone.color,
-                              border: `1px solid ${activityTone.border}`,
-                              fontSize: '0.78rem',
-                              fontWeight: '700'
+                              justifyContent: 'center',
+                              flex: '0 0 42px',
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '12px',
+                              background: 'linear-gradient(135deg, #eef2ff, #ecfeff)',
+                              border: '1px solid #c7d2fe',
+                              color: '#3730a3',
+                              fontWeight: '800'
                             }}>
-                              {formatRelativeActivity(stats.lastActivityAt || user.lastLogin)}
+                              {getInitials(user.email)}
                             </span>
-                            {user.email === 'shaharsolutions@gmail.com' && (
+                            <span style={{ minWidth: 0 }}>
                               <span style={{
-                                display: 'inline-flex',
-                                marginRight: '8px',
-                                fontSize: '0.75rem',
-                                backgroundColor: '#e0e7ff',
-                                color: '#4f46e5',
-                                padding: '4px 8px',
-                                borderRadius: '999px',
-                                fontWeight: '700'
-                              }}>אני (מנהל)</span>
-                            )}
-                            <span style={{
-                              display: 'block',
-                              color: '#64748b',
-                              fontSize: '0.82rem',
-                              marginTop: '7px',
-                              lineHeight: 1.35
-                            }}>
-                              חיבור אחרון: {formatCompactDateTime(user.lastLogin)}
+                                display: 'block',
+                                maxWidth: '220px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontWeight: '800',
+                                color: '#0f172a'
+                              }}>
+                                {user.email || 'ללא אימייל'}
+                              </span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '3px 8px',
+                                  borderRadius: '999px',
+                                  background: activityTone.bg,
+                                  color: activityTone.color,
+                                  border: `1px solid ${activityTone.border}`,
+                                  fontSize: '0.76rem',
+                                  fontWeight: '700'
+                                }}>
+                                  {formatRelativeActivity(effectiveLastSeen)}
+                                </span>
+                                {user.email === 'shaharsolutions@gmail.com' && (
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    fontSize: '0.74rem',
+                                    backgroundColor: '#e0e7ff',
+                                    color: '#4f46e5',
+                                    padding: '3px 8px',
+                                    borderRadius: '999px',
+                                    fontWeight: '700'
+                                  }}>אני (מנהל)</span>
+                                )}
+                              </div>
+                              <span style={{
+                                display: 'block',
+                                color: '#64748b',
+                                fontSize: '0.8rem',
+                                marginTop: '6px',
+                                lineHeight: 1.35
+                              }}>
+                                חיבור אחרון: {formatCompactDateTime(effectiveLastSeen)}
+                              </span>
                             </span>
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '16px', color: '#475569' }}>
-                        <select
-                          value={user.organizationId || 'groopy'}
-                          onChange={(event) => handleOrganizationChange(user.uid, event.target.value)}
-                          disabled={savingOrganization === user.uid}
-                          aria-label={`ארגון עבור ${user.email || user.uid}`}
-                          style={{ minWidth: '150px', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', fontFamily: 'inherit' }}
-                        >
-                          {organizations.map(organization => (
-                            <option key={organization.id} value={organization.id}>{organization.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td style={{ padding: '16px', color: '#475569' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'baseline' }}>
-                          <strong style={{ color: '#0f172a', fontSize: '1.08rem' }}>{formatNumber(stats.projectCount)} פרויקטים</strong>
-                          <span style={{ color: '#64748b', fontSize: '0.82rem', fontWeight: '700' }}>
-                            {stats.projectCount ? `${Math.round(((stats.activeProjectCount || 0) / stats.projectCount) * 100)}% פעילים` : 'אין פרויקטים'}
-                          </span>
-                        </div>
-                        {renderProgressBar(stats.projectCount, maxProjectCount)}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
-                          {renderMetricPill('פעילים', formatNumber(stats.activeProjectCount), '#047857')}
-                          {renderMetricPill('ארכיון', formatNumber(stats.archivedProjectCount), '#475569')}
-                        </div>
-                      </td>
-                      <td style={{ padding: '16px', color: '#475569' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-                          {renderMetricPill('פעולות', formatNumber(stats.activityCount), '#7c2d12')}
-                          {renderMetricPill('שעות', formatNumber(stats.weeklyHoursTotal), '#6d28d9')}
-                        </div>
-                        <div style={{ display: 'grid', gap: '5px', color: '#64748b', fontSize: '0.84rem', lineHeight: 1.45 }}>
-                          <span><strong style={{ color: '#334155' }}>עדכון פרויקט:</strong> {formatCompactDateTime(stats.lastProjectUpdatedAt)}</span>
-                          <span><strong style={{ color: '#334155' }}>פעילות אחרונה:</strong> {formatCompactDateTime(stats.lastActivityAt)}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                        {user.email !== 'shaharsolutions@gmail.com' ? (
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={() => onImpersonate(
-                                user.uid,
-                                user.email,
-                                user.organizationId || 'groopy',
-                                organizationById[user.organizationId || 'groopy']?.name || 'Groopy'
-                              )}
-                              style={{
-                                backgroundColor: '#eff6ff',
-                                color: '#1d4ed8',
-                                borderColor: '#3b82f6',
-                                fontWeight: '600',
-                                padding: '6px 12px',
-                                fontSize: '0.85rem'
-                              }}
-                            >
-                              👁️ להתחזות ולערוך
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleStartDeleteUser(user)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                backgroundColor: '#fff1f2',
-                                color: '#e11d48',
-                                border: '1px solid #fecdd3',
-                                borderRadius: '6px',
-                                fontWeight: '600',
-                                padding: '6px 12px',
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                fontFamily: 'inherit'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#ffe4e6';
-                                e.currentTarget.style.borderColor = '#fda4af';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = '#fff1f2';
-                                e.currentTarget.style.borderColor = '#fecdd3';
-                              }}
-                              title="מחיקת משתמש לצמיתות מהמערכת"
-                            >
-                              🗑️ מחק משתמש
-                            </button>
                           </div>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>
-                            חשבון מנהל ראשי
-                          </span>
-                        )}
-                      </td>
+                        </td>
+                      )}
+                      {visibleColumns.joinDate !== false && (
+                        <td style={{ padding: '16px', color: '#1e293b', whiteSpace: 'nowrap' }}>
+                          {joinDate ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }} title={`תאריך הצטרפות מלא: ${formatDateTime(joinDate)}`}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '1rem', lineHeight: 1 }}>📅</span>
+                                <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>
+                                  {formatJoinDate(joinDate)}
+                                </strong>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#64748b', paddingRight: '22px' }}>
+                                {formatJoinTime(joinDate) && <span>{formatJoinTime(joinDate)}</span>}
+                                {formatJoinTime(joinDate) && <span>•</span>}
+                                <span style={{ color: '#475569', fontWeight: '600' }}>{formatRelativeJoinDate(joinDate)}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>לא ידוע</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.organization !== false && (
+                        <td style={{ padding: '16px', color: '#475569' }}>
+                          <select
+                            value={user.organizationId || 'groopy'}
+                            onChange={(event) => handleOrganizationChange(user.uid, event.target.value)}
+                            disabled={savingOrganization === user.uid}
+                            aria-label={`ארגון עבור ${user.email || user.uid}`}
+                            style={{ minWidth: '150px', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', fontFamily: 'inherit' }}
+                          >
+                            {organizations.map(organization => (
+                              <option key={organization.id} value={organization.id}>{organization.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
+                      {visibleColumns.projectLoad !== false && (
+                        <td style={{ padding: '16px', color: '#475569' }}>
+                          <div style={{ display: 'flex', borderSpacing: 0, justifyContent: 'space-between', gap: '12px', alignItems: 'baseline' }}>
+                            <strong style={{ color: '#0f172a', fontSize: '1.08rem' }}>{formatNumber(stats.projectCount)} פרויקטים</strong>
+                            <span style={{ color: '#64748b', fontSize: '0.82rem', fontWeight: '700' }}>
+                              {stats.projectCount ? `${Math.round(((stats.activeProjectCount || 0) / stats.projectCount) * 100)}% פעילים` : 'אין פרויקטים'}
+                            </span>
+                          </div>
+                          {renderProgressBar(stats.projectCount, maxProjectCount)}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
+                            {renderMetricPill('פעילים', formatNumber(stats.activeProjectCount), '#047857')}
+                            {renderMetricPill('ארכיון', formatNumber(stats.archivedProjectCount), '#475569')}
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.activity !== false && (
+                        <td style={{ padding: '16px', color: '#475569' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                            {renderMetricPill('פעולות', formatNumber(stats.activityCount), '#7c2d12')}
+                            {renderMetricPill('שעות', formatNumber(stats.weeklyHoursTotal), '#6d28d9')}
+                          </div>
+                          <div style={{ display: 'grid', gap: '5px', color: '#64748b', fontSize: '0.84rem', lineHeight: 1.45 }}>
+                            <span><strong style={{ color: '#334155' }}>עדכון פרויקט:</strong> {formatCompactDateTime(stats.lastProjectUpdatedAt)}</span>
+                            <span><strong style={{ color: '#334155' }}>פעילות אחרונה:</strong> {formatCompactDateTime(stats.lastActivityAt || stats.lastProjectUpdatedAt || effectiveLastSeen)}</span>
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.actions !== false && (
+                        <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                          {user.email !== 'shaharsolutions@gmail.com' ? (
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => onImpersonate(
+                                  user.uid,
+                                  user.email,
+                                  user.organizationId || 'groopy',
+                                  organizationById[user.organizationId || 'groopy']?.name || 'Groopy'
+                                )}
+                                style={{
+                                  backgroundColor: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  borderColor: '#3b82f6',
+                                  fontWeight: '600',
+                                  padding: '6px 12px',
+                                  fontSize: '0.85rem'
+                                }}
+                              >
+                                👁️ להתחזות ולערוך
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleStartDeleteUser(user)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  backgroundColor: '#fff1f2',
+                                  color: '#e11d48',
+                                  border: '1px solid #fecdd3',
+                                  borderRadius: '6px',
+                                  fontWeight: '600',
+                                  padding: '6px 12px',
+                                  fontSize: '0.85rem',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  fontFamily: 'inherit'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#ffe4e6';
+                                  e.currentTarget.style.borderColor = '#fda4af';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fff1f2';
+                                  e.currentTarget.style.borderColor = '#fecdd3';
+                                }}
+                                title="מחיקת משתמש לצמיתות מהמערכת"
+                              >
+                                🗑️ מחק משתמש
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>
+                              חשבון מנהל ראשי
+                            </span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -1014,9 +1432,11 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                     <strong style={{ display: 'block', color: '#0f172a', fontSize: '1.05rem' }}>
                       {userPendingDelete.email || 'ללא אימייל'}
                     </strong>
-                    <span style={{ color: '#64748b', fontSize: '0.84rem' }}>
-                      ארגון: {organizationById[userPendingDelete.organizationId || 'groopy']?.name || 'Groopy'}
-                    </span>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', color: '#64748b', fontSize: '0.84rem', marginTop: '3px', flexWrap: 'wrap' }}>
+                      <span>ארגון: {organizationById[userPendingDelete.organizationId || 'groopy']?.name || 'Groopy'}</span>
+                      <span>•</span>
+                      <span>הצטרף/ה: {formatJoinDate(getUserEffectiveJoinDate(userPendingDelete, usageStats[userPendingDelete.uid]))}</span>
+                    </div>
                   </div>
                 </div>
 

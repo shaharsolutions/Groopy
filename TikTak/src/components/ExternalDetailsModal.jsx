@@ -8,6 +8,10 @@ const PdfPreviewModal = lazy(() => import('./PdfPreviewModal'));
 const ImagePreviewModal = lazy(() => import('./ImagePreviewModal'));
 import PlanogramFileCard from './PlanogramFileCard';
 import PlanogramIndicator from './PlanogramIndicator';
+import WorkOrderIndicator from './WorkOrderIndicator';
+import { hasWorkOrder } from '../utils/workOrderHelper';
+import { resolveContactDetails } from '../utils/contactUtils';
+import LinkifiedText from './LinkifiedText';
 
 function getSundayOfWeek(date) {
   const d = new Date(date);
@@ -117,7 +121,7 @@ function getMonthlySummary(weeklyHoursObj) {
   return monthlyTotals;
 }
 
-export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false, userId }) {
+export default function ExternalDetailsModal({ task, settings, onClose, isSingleProjectView = false, userId, organizationId, contacts: initialContacts = [], suppliers = [] }) {
   const boardStatusConfig = useMemo(() => (
     getBoardStatusConfig(settings, task?.boardId)
   ), [settings, task?.boardId]);
@@ -126,26 +130,33 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
   const {
     hideWeeklyHours = false
   } = settings || {};
-  const flags = getFeatureFlags(settings);
-  const newTaskFields = useMemo(() => normalizeNewTaskFields(settings?.newTaskFields), [settings?.newTaskFields]);
+  const flags = getFeatureFlags({ organizationId: task?.organizationId, ...settings });
+  const newTaskFields = useMemo(() => normalizeNewTaskFields(settings?.newTaskFields, { isLegacy: flags.isLegacy }), [settings?.newTaskFields, flags.isLegacy]);
   const allFieldDefinitions = useMemo(() => getAllTaskFieldDefinitions(settings?.newTaskFields, {
-    taskFieldOrder: settings?.taskFieldOrder
-  }), [settings?.newTaskFields, settings?.taskFieldOrder]);
+    taskFieldOrder: settings?.taskFieldOrder,
+    isLegacy: flags.isLegacy
+  }), [settings?.newTaskFields, settings?.taskFieldOrder, flags.isLegacy]);
   const customFieldDefinitions = useMemo(() => allFieldDefinitions.filter(f => f.isCustom), [allFieldDefinitions]);
 
-  const isNewTaskFieldEnabled = (fieldKey) => Boolean(newTaskFields[fieldKey] && newTaskFields[fieldKey].enabled !== false && !newTaskFields[fieldKey].deleted);
-  const isFieldExcludedForTask = (fieldKey) => Boolean(flags.enableFieldExclusion && Array.isArray(task?.excludedFields) && task.excludedFields.includes(fieldKey));
-  const isFieldVisibleForTask = (fieldKey) => {
-    if (isFieldExcludedForTask(fieldKey)) return false;
-    if (task) {
-      if (fieldKey === 'contactPerson' && (task.contactPerson || task.supplierContactName)) return true;
-      if (fieldKey === 'supplierContactEmail' && (task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail)) return true;
-      if (fieldKey === 'planogramFile' && (task.planogramFile || task.planogram)) return true;
-      if (fieldKey === 'workOrderFiles' && (task.workOrderFile || (Array.isArray(task.workOrderFiles) ? task.workOrderFiles.length > 0 : Array.isArray(task.attachments) && task.attachments.length > 0))) return true;
-    }
-    return isNewTaskFieldEnabled(fieldKey);
+  const isNewTaskFieldEnabled = (fieldKey) => {
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    if (flags.isLegacy && (key === 'workOrderFiles' || key === 'planogramFile')) return true;
+    const config = newTaskFields[key] || (key === 'contactPhone' ? newTaskFields['phone'] : undefined);
+    return Boolean(config && config.enabled !== false && !config.deleted);
   };
-  const getNewTaskFieldLabel = (fieldKey) => newTaskFields[fieldKey]?.label || fieldKey;
+  const isFieldVisibleForTask = (fieldKey) => {
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    if (flags.isLegacy && (key === 'workOrderFiles' || key === 'planogramFile')) return true;
+    return isNewTaskFieldEnabled(key);
+  };
+  const getNewTaskFieldLabel = (fieldKey) => {
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    if (flags.isLegacy) {
+      if (key === 'workOrderFiles') return flags.terms?.workOrderRubric || 'הזמנת עבודה';
+      if (key === 'planogramFile') return flags.terms?.planogramRubric || 'פלנוגרמה';
+    }
+    return newTaskFields[key]?.label || newTaskFields['phone']?.label || (key === 'contactPhone' ? 'טלפון איש קשר' : key);
+  };
   const [comments, setComments] = useState([]);
   const commentAuthorName = 'משתמש/ת חיצוני/ת';
   const [commentText, setCommentText] = useState('');
@@ -216,6 +227,8 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
     };
   }, [isSingleProjectView, onClose]);
 
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
   const handleCopyTaskLink = () => {
     if (!task) return;
     const shareUrl = new URL(window.location.href);
@@ -230,7 +243,26 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
       });
   };
 
-  const [contacts, setContacts] = useState([]);
+  const handleCopyEmail = (emailStr) => {
+    if (!emailStr) return;
+    navigator.clipboard.writeText(emailStr)
+      .then(() => {
+        setCopiedEmail(true);
+        setTimeout(() => setCopiedEmail(false), 2000);
+      })
+      .catch(err => {
+        console.error("Failed to copy email", err);
+      });
+  };
+
+  const [contacts, setContacts] = useState(initialContacts);
+
+  useEffect(() => {
+    if (initialContacts && initialContacts.length > 0) {
+      setContacts(initialContacts);
+    }
+  }, [initialContacts]);
+
   const [activeSunday, setActiveSunday] = useState(() => getSundayOfWeek(new Date()));
 
   const handlePrevWeek = () => {
@@ -254,14 +286,14 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
   };
 
   useEffect(() => {
-    if (userId) {
+    if (userId && (!initialContacts || initialContacts.length === 0)) {
       const loadContacts = async () => {
         const conts = await getContacts(userId);
         setContacts(conts);
       };
       loadContacts();
     }
-  }, [userId]);
+  }, [userId, initialContacts]);
 
   useEffect(() => {
     if (task) {
@@ -326,7 +358,12 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
             <h3 className="modal-title">
               <span className="task-title-with-indicator modal-title-with-indicator">
                 <span>{task.title}</span>
-                {(task.planogramFile || task.planogram) && <PlanogramIndicator />}
+                {(Boolean(flags.isLegacy && hasWorkOrder(task)) || Boolean(task.planogramFile || task.planogram)) && (
+                  <span className="task-indicators-stack">
+                    {flags.isLegacy && hasWorkOrder(task) && <WorkOrderIndicator />}
+                    {(task.planogramFile || task.planogram) && <PlanogramIndicator />}
+                  </span>
+                )}
               </span>
             </h3>
           </div>
@@ -373,7 +410,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                     </label>
                     {task.description ? (
                       <div className="description-box" style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', minHeight: '60px', backgroundColor: '#fdfdfd' }}>
-                        {task.description}
+                        <LinkifiedText text={task.description} />
                       </div>
                     ) : (
                       <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
@@ -385,100 +422,162 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
               )}
 
               {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
-              {(isFieldVisibleForTask('workOrderFiles') || isFieldVisibleForTask('planogramFile')) && (
-                <div className="details-section-card">
-                  <h4 className="detail-section-title">📋 {flags.terms.filesSectionTitle || 'הזמנת עבודה ופלנוגרמה'}</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: (isFieldVisibleForTask('workOrderFiles') && isFieldVisibleForTask('planogramFile')) ? '1fr 1fr' : '1fr', gap: '20px' }}>
+              {flags.isLegacy ? (
+                <div className="work-order-planogram-grid" style={{ marginBottom: '20px' }}>
+                  {/* הזמנת עבודה - כרטיס נפרד */}
+                  <div className="details-section-card" style={{ margin: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <h4 className="detail-section-title">📋 {flags.terms?.workOrderRubric || 'הזמנת עבודה'}</h4>
+                    {(() => {
+                      const currentWorkOrderFile = task.workOrderFile || (Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 0 ? task.workOrderFiles[0] : (Array.isArray(task.attachments) && task.attachments.length > 0 ? task.attachments[0] : null));
+                      const extraFiles = Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 1 ? task.workOrderFiles.slice(1) : [];
 
-                    {/* הזמנת עבודה */}
-                    {isFieldVisibleForTask('workOrderFiles') && (
-                      <div>
-                        <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
-                          {getNewTaskFieldLabel('workOrderFiles')}
-                        </label>
-
-                        {(() => {
-                          const filesList = (Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 0)
-                            ? task.workOrderFiles
-                            : (task.workOrderFile ? [task.workOrderFile] : (Array.isArray(task.attachments) ? task.attachments : []));
-
-                          return filesList.length > 0 ? (
-                            <div className="attachments-list" style={{ maxHeight: '160px', overflowY: 'auto' }}>
-                              {filesList.map((file, idx) => {
-                                const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
-                                const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-                                const isPdf = /\.pdf$/i.test(file.name);
-                                return (
-                                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                                    <div
-                                      className="attachment-info"
-                                      style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
-                                      title={file.name}
-                                      onClick={() => handlePreviewFile(file)}
-                                    >
-                                      <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
-                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block', fontWeight: '500' }}>
-                                        {file.name}
-                                      </span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                                      <button
-                                        type="button"
-                                        className="btn btn-secondary"
-                                        style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                        onClick={() => handlePreviewFile(file)}
-                                        title="צפייה בקובץ מתוך המערכת"
-                                      >
-                                        👁️ צפייה
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="btn btn-primary"
-                                        style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                        onClick={(e) => handleDownloadFile(file, e)}
-                                        title="הורדת הקובץ למחשב"
-                                      >
-                                        📥 הורדה
-                                      </button>
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                          {currentWorkOrderFile ? (
+                            <PlanogramFileCard file={currentWorkOrderFile} onPreview={handlePreviewFile} defaultName="הזמנת עבודה" downloadLabel="הורדה" />
+                          ) : (
+                            <div className="planogram-preview-container" style={{ height: '100px', margin: 0, borderStyle: 'dashed' }}>
+                              <span className="planogram-empty-text">אין קובץ הזמנת עבודה</span>
+                            </div>
+                          )}
+                          {extraFiles.length > 0 && (
+                            <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '6px' }}>קבצים נוספים:</div>
+                              <div className="attachments-list" style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                                {extraFiles.map((file, idx) => (
+                                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                                    <span style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', cursor: 'pointer' }} onClick={() => handlePreviewFile(file)}>
+                                      📎 {file.name}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                      <button type="button" className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: '0.72rem' }} onClick={() => handlePreviewFile(file)}>👁️</button>
+                                      <button type="button" className="btn btn-primary" style={{ padding: '2px 6px', fontSize: '0.72rem' }} onClick={(e) => handleDownloadFile(file, e)}>📥</button>
                                     </div>
                                   </div>
-                                );
-                              })}
+                                ))}
+                              </div>
                             </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* פלנוגרמה - כרטיס נפרד */}
+                  <div className="details-section-card" style={{ margin: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <h4 className="detail-section-title">🗺️ {flags.terms?.planogramRubric || 'פלנוגרמה'}</h4>
+                    {(() => {
+                      const currentPlanogram = task.planogramFile || task.planogram;
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                          {currentPlanogram ? (
+                            <PlanogramFileCard file={currentPlanogram} onPreview={handlePreviewFile} defaultName="פלנוגרמה" downloadLabel="הורדה" />
                           ) : (
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>
-                              אין קבצי הזמנת עבודה
+                            <div className="planogram-preview-container" style={{ height: '100px', margin: 0, borderStyle: 'dashed' }}>
+                              <span className="planogram-empty-text">לא הועלתה פלנוגרמה</span>
                             </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-
-                    {/* פלנוגרמה */}
-                    {isFieldVisibleForTask('planogramFile') && (
-                      <div>
-                        <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
-                          {getNewTaskFieldLabel('planogramFile')}
-                        </label>
-
-                        {(() => {
-                          const currentPlanogram = task.planogramFile || task.planogram;
-                          return currentPlanogram ? (
-                            <PlanogramFileCard file={currentPlanogram} onPreview={handlePreviewFile} />
-                          ) : (
-                            <div
-                              className="planogram-preview-container"
-                              style={{ height: '140px', margin: 0, borderStyle: 'dashed' }}
-                            >
-                              <span className="planogram-empty-text">לא הועלה קובץ</span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
+              ) : (
+                (isFieldVisibleForTask('workOrderFiles') || isFieldVisibleForTask('planogramFile')) && (
+                  <div className="details-section-card">
+                    <h4 className="detail-section-title">📋 {flags.terms.filesSectionTitle || 'הזמנת עבודה ופלנוגרמה'}</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: (isFieldVisibleForTask('workOrderFiles') && isFieldVisibleForTask('planogramFile')) ? '1fr 1fr' : '1fr', gap: '20px' }}>
+
+                      {/* הזמנת עבודה */}
+                      {isFieldVisibleForTask('workOrderFiles') && (
+                        <div>
+                          <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
+                            {getNewTaskFieldLabel('workOrderFiles')}
+                          </label>
+
+                          {(() => {
+                            const filesList = (Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 0)
+                              ? task.workOrderFiles
+                              : (task.workOrderFile ? [task.workOrderFile] : (Array.isArray(task.attachments) ? task.attachments : []));
+
+                            return filesList.length > 0 ? (
+                              <div className="attachments-list" style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                                {filesList.map((file, idx) => {
+                                  const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
+                                  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+                                  const isPdf = /\.pdf$/i.test(file.name);
+                                  return (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                                      <div
+                                        className="attachment-info"
+                                        style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                                        title={file.name}
+                                        onClick={() => handlePreviewFile(file)}
+                                      >
+                                        <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block', fontWeight: '500' }}>
+                                          {file.name}
+                                        </span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                        <button
+                                          type="button"
+                                          className="btn btn-secondary"
+                                          style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                          onClick={() => handlePreviewFile(file)}
+                                          title="צפייה בקובץ מתוך המערכת"
+                                        >
+                                          👁️ צפייה
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-primary"
+                                          style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                          onClick={(e) => handleDownloadFile(file, e)}
+                                          title="הורדת הקובץ למחשב"
+                                        >
+                                          📥 הורדה
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                אין קבצי הזמנת עבודה
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* פלנוגרמה */}
+                      {isFieldVisibleForTask('planogramFile') && (
+                        <div>
+                          <label className="form-label" style={{ fontWeight: '700', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>
+                            {getNewTaskFieldLabel('planogramFile')}
+                          </label>
+
+                          {(() => {
+                            const currentPlanogram = task.planogramFile || task.planogram;
+                            return currentPlanogram ? (
+                              <PlanogramFileCard file={currentPlanogram} onPreview={handlePreviewFile} />
+                            ) : (
+                              <div
+                                className="planogram-preview-container"
+                                style={{ height: '140px', margin: 0, borderStyle: 'dashed' }}
+                              >
+                                <span className="planogram-empty-text">לא הועלה קובץ</span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                    </div>
+                  </div>
+                )
               )}
 
               {/* שעות עבודה */}
@@ -605,7 +704,9 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(c.createdAt)}</span>
                             </div>
                           </div>
-                          <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>
+                          <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>
+                            <LinkifiedText text={c.text} />
+                          </div>
                           {c.attachmentUrl && (
                             <div style={{ marginTop: '8px' }}>
                               {isImage && (
@@ -678,88 +779,117 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
             <div className="details-sidebar">
 
               {/* AREA 2: ספק ואיש קשר */}
-              {(isFieldVisibleForTask('contactPerson') || isFieldVisibleForTask('supplierContactEmail')) && (
+              {(isFieldVisibleForTask('contactPerson') || isFieldVisibleForTask('supplierContactEmail') || isFieldVisibleForTask('contactPhone')) && (
                 <div className="details-section-card" style={{ marginBottom: '16px' }}>
                   <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🏭 ספק ואיש קשר</h4>
 
-                  {/* Supplier Contact Name */}
-                  {isFieldVisibleForTask('contactPerson') && (() => {
-                    const currentContactPerson = task.contactPerson || task.supplierContactName;
-                    const cObj = currentContactPerson ? contacts.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
-                    const phone = cObj?.phone || task.phone || task.contactPhone || task.supplierContactPhone || '';
-                    const role = cObj?.role || task.contactRole || '';
-                    const wechat = cObj?.wechat || task.wechat || '';
-                    const address = cObj?.address || '';
-                    return (
-                      <div className="sidebar-row">
-                        <span className="sidebar-label">{getNewTaskFieldLabel('contactPerson')}</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span className="sidebar-value" style={{ fontWeight: currentContactPerson ? '600' : 'normal' }}>
-                              {currentContactPerson || '-'}
-                            </span>
-                          </div>
-                          {role && (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                              <span>💼 {role}</span>
+                    {(() => {
+                      const currentContactPerson = task.contactPerson || task.supplierContactName || '';
+                      const details = resolveContactDetails(currentContactPerson, task, contacts, suppliers);
+                      const currentContactEmail = details.email || '';
+                      const currentContactPhone = details.phone || '';
+                      const { role, wechat, address, notes } = details;
+
+                      return (
+                        <>
+                          {/* 1. שם איש קשר */}
+                          {isFieldVisibleForTask('contactPerson') && (
+                            <div className="sidebar-row">
+                              <span className="sidebar-label">
+                                {getNewTaskFieldLabel('contactPerson') === 'איש קשר' ? 'שם איש קשר' : getNewTaskFieldLabel('contactPerson')}
+                              </span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span className="sidebar-value" style={{ fontWeight: currentContactPerson ? '600' : 'normal' }}>
+                                  {currentContactPerson || '-'}
+                                </span>
+                                {role && (
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    <span>💼 {role}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
-                          {phone && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                              <span>📞</span>
-                              <a
-                                href={`tel:${phone.replace(/\s+/g, '')}`}
-                                className="directory-phone-link direction-ltr"
-                                style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'none', fontWeight: '500' }}
-                              >
-                                {phone}
-                              </a>
-                              <a
-                                href={`https://wa.me/${phone.replace(/[^0-9]/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="שליחת הודעת WhatsApp"
-                                style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366', marginRight: '4px' }}
-                              >
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
-                                </svg>
-                              </a>
+
+                          {/* 2. מייל איש קשר */}
+                          {isFieldVisibleForTask('supplierContactEmail') && (
+                            <div className="sidebar-row">
+                              <span className="sidebar-label">
+                                {getNewTaskFieldLabel('supplierContactEmail') === 'אימייל איש קשר' ? 'מייל איש קשר' : (getNewTaskFieldLabel('supplierContactEmail') || 'מייל איש קשר')}
+                              </span>
+                              {currentContactEmail ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>✉️</span>
+                                  <a href={`mailto:${currentContactEmail}`} className="direction-ltr text-left" style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'none', fontWeight: '500', fontSize: '0.85rem' }}>
+                                    {currentContactEmail}
+                                  </a>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-icon"
+                                    style={{ padding: '1px 4px', fontSize: '0.7rem', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                                    title={copiedEmail ? "הועתק!" : "העתק אימייל"}
+                                    onClick={() => handleCopyEmail(currentContactEmail)}
+                                  >
+                                    {copiedEmail ? '✔️' : '📋'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="sidebar-value">-</span>
+                              )}
                             </div>
                           )}
+
+                          {/* 3. טלפון איש קשר */}
+                          {isFieldVisibleForTask('contactPhone') && (
+                            <div className="sidebar-row">
+                              <span className="sidebar-label">{getNewTaskFieldLabel('contactPhone') || 'טלפון איש קשר'}</span>
+                              {currentContactPhone ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>📞</span>
+                                  <a
+                                    href={`tel:${currentContactPhone.replace(/\s+/g, '')}`}
+                                    className="directory-phone-link direction-ltr"
+                                    style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'none', fontWeight: '500', fontSize: '0.85rem' }}
+                                  >
+                                    {currentContactPhone}
+                                  </a>
+                                  <a
+                                    href={`https://wa.me/${currentContactPhone.replace(/[^0-9]/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="שליחת הודעת WhatsApp"
+                                    style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366', marginRight: '4px' }}
+                                  >
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
+                                    </svg>
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="sidebar-value">-</span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Extra details */}
                           {wechat && (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                               <span>💬 WeChat: {wechat}</span>
                             </div>
                           )}
                           {address && (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                               <span>📍 {address}</span>
                             </div>
                           )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Supplier Contact Email */}
-                  {isFieldVisibleForTask('supplierContactEmail') && (() => {
-                    const currentContactPerson = task.contactPerson || task.supplierContactName;
-                    const cObj = currentContactPerson ? contacts.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
-                    const currentContactEmail = task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail || (cObj ? cObj.email : '');
-                    return (
-                      <div className="sidebar-row">
-                        <span className="sidebar-label">{getNewTaskFieldLabel('supplierContactEmail')}</span>
-                        {currentContactEmail ? (
-                          <a href={`mailto:${currentContactEmail}`} className="sidebar-value direction-ltr text-left" style={{ color: 'var(--primary, #4f46e5)', textDecoration: 'underline' }}>
-                            {currentContactEmail}
-                          </a>
-                        ) : (
-                          <span className="sidebar-value">-</span>
-                        )}
-                      </div>
-                    );
-                  })()}
+                          {notes && (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'pre-line', marginTop: '2px' }}>
+                              <span>📝 {notes}</span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                 </div>
               )}
 
@@ -818,7 +948,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                         <span className="sidebar-value">
                           {f.type === 'checkbox'
                             ? (val === true || val === 'true' ? '✅ כן' : '❌ לא')
-                            : (val ? String(val) : '-')
+                            : (val ? <LinkifiedText text={String(val)} /> : '-')
                           }
                         </span>
                       </div>

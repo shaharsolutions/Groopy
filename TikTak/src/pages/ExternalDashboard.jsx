@@ -1,8 +1,12 @@
 import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { getBoardStatusConfig } from '../utils/boardStatusHelper';
 import { getFeatureFlags } from '../utils/featureFlags';
+import { getAllTaskFieldDefinitions } from '../data/taskFieldConfig';
 const ExternalDetailsModal = lazy(() => import('../components/ExternalDetailsModal'));
 import PlanogramIndicator from '../components/PlanogramIndicator';
+import WorkOrderIndicator from '../components/WorkOrderIndicator';
+import { hasWorkOrder } from '../utils/workOrderHelper';
+import LinkifiedText from '../components/LinkifiedText';
 
 let storageApiPromise = null;
 
@@ -12,13 +16,22 @@ const loadStorageApi = () => {
 };
 
 const SORT_PREFERENCE_KEY = 'tiktak_external_sort_preference';
-const SORT_MODES = new Set(['default', 'status', 'title', 'contactPerson']);
+
+const getFieldValue = (task, fieldKey) => {
+  if (!task) return '';
+  if (fieldKey === 'contactPerson') return task.contactPerson || task.supplierContactName || '';
+  if (fieldKey === 'supplierContactEmail' || fieldKey === 'email') return task.supplierContactEmail || task.contactEmail || task.email || '';
+  if (fieldKey === 'status') return task.status || '';
+  if (fieldKey === 'title') return task.title || '';
+  if (task.customFields && task.customFields[fieldKey] !== undefined) return task.customFields[fieldKey];
+  return task[fieldKey] ?? '';
+};
 
 const readSortPreference = () => {
   try {
     const savedPreference = JSON.parse(localStorage.getItem(SORT_PREFERENCE_KEY) || '{}');
     return {
-      mode: SORT_MODES.has(savedPreference.mode) ? savedPreference.mode : 'default',
+      mode: typeof savedPreference.mode === 'string' && savedPreference.mode ? savedPreference.mode : 'default',
       direction: savedPreference.direction === 'desc' ? 'desc' : 'asc'
     };
   } catch {
@@ -39,9 +52,105 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
     statuses: STATUSES = [],
     statusColors: STATUS_CLASSES = {}
   } = settings || {};
-  const flags = getFeatureFlags(settings);
+  const flags = getFeatureFlags({ organizationId, ...settings });
   const [tasks, setTasks] = useState([]);
   const [contacts, setContacts] = useState([]);
+
+  const projectFields = useMemo(() => {
+    return getAllTaskFieldDefinitions(settings?.newTaskFields, {
+      includeDeleted: false,
+      taskFieldOrder: settings?.taskFieldOrder
+    }).filter(field => field.enabled !== false && !field.deleted);
+  }, [settings?.newTaskFields, settings?.taskFieldOrder]);
+
+  const formatDate = (isoString) => {
+    if (!isoString) return '-';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('he-IL', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch {
+      return isoString;
+    }
+  };
+
+  const renderExternalFieldVal = (task, field, taskConfig) => {
+    if (field.key === 'status') {
+      const colorClass = taskConfig.statusColors[task.status] || '';
+      return (
+        <span className={`badge ${colorClass}`}>
+          {task.status}
+        </span>
+      );
+    }
+    if (field.key === 'contactPerson') {
+      return (task.contactPerson || task.supplierContactName) || '-';
+    }
+    if (field.key === 'supplierContactEmail') {
+      const email = task.supplierContactEmail || task.contactEmail || task.email || '';
+      return email ? (
+        <a href={`mailto:${email}`} className="direction-ltr" style={{ textDecoration: 'none', color: 'var(--primary)' }} onClick={(e) => e.stopPropagation()}>
+          {email}
+        </a>
+      ) : '-';
+    }
+    if (field.key === 'diecutsStatus' || field.key === 'imagesStatus') {
+      const currentVal = task[field.key] || 'אין';
+      const badgeClass = currentVal === 'יש' ? 'badge-approved' : currentVal === 'חלקי' ? 'badge-waiting' : 'badge-frozen';
+      return (
+        <span className={`badge ${badgeClass}`} style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+          {currentVal}
+        </span>
+      );
+    }
+    if (field.key === 'standardsInstituteRequired') {
+      const currentVal = task.standardsInstituteRequired || 'לא';
+      const badgeClass = currentVal === 'כן' ? 'badge-in-progress' : 'badge-frozen';
+      return (
+        <span className={`badge ${badgeClass}`} style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+          {currentVal}
+        </span>
+      );
+    }
+    if (field.key === 'workOrderFiles') {
+      return hasWorkOrder(task) ? '📎 יש קבצים' : '-';
+    }
+    if (field.key === 'planogramFile') {
+      return (task.planogramFile || task.planogram) ? '🗺️ יש פלנוגרמה' : '-';
+    }
+    if (field.key === 'description' || field.key === 'internalNotes') {
+      const textVal = task[field.key] || '';
+      if (!textVal) return '-';
+      return (
+        <span title={textVal}>
+          <LinkifiedText text={textVal} truncate={35} inline />
+        </span>
+      );
+    }
+
+    const rawVal = task.customFields?.[field.key] ?? task[field.key];
+    if (field.type === 'checkbox') {
+      return (rawVal === true || rawVal === 'true') ? '✔️ כן' : 'לא';
+    }
+    if (field.type === 'date') {
+      return rawVal ? formatDate(rawVal) : '-';
+    }
+    if (field.type === 'select') {
+      return rawVal ? (
+        <span className="badge badge-neutral" style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+          {rawVal}
+        </span>
+      ) : '-';
+    }
+    return rawVal !== undefined && rawVal !== null && rawVal !== '' ? (
+      <span title={String(rawVal)}>
+        <LinkifiedText text={String(rawVal)} truncate={35} inline />
+      </span>
+    ) : '-';
+  };
   
   // Search, Filter and Sort state
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,18 +205,30 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
 
-    // Search query filter (title, supplierContact)
+    // Search query filter (title, contact, email, notes, custom fields)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter(t => 
-        (t.title && t.title.toLowerCase().includes(q)) ||
-        ((t.contactPerson || t.supplierContactName) && (t.contactPerson || t.supplierContactName).toLowerCase().includes(q))
-      );
+      result = result.filter(t => {
+        const contact = t.contactPerson || t.supplierContactName || '';
+        const email = t.supplierContactEmail || t.contactEmail || t.email || '';
+        if (t.title && t.title.toLowerCase().includes(q)) return true;
+        if (contact && contact.toLowerCase().includes(q)) return true;
+        if (email && email.toLowerCase().includes(q)) return true;
+        if (t.description && t.description.toLowerCase().includes(q)) return true;
+        if (t.customFields && typeof t.customFields === 'object') {
+          for (const val of Object.values(t.customFields)) {
+            if (val !== null && val !== undefined && String(val).toLowerCase().includes(q)) return true;
+          }
+        }
+        return false;
+      });
     }
 
-    // Status filter
+    // Status filter - if empty ('All'), exclude archived tasks
     if (statusFilter) {
       result = result.filter(t => t.status === statusFilter);
+    } else {
+      result = result.filter(t => t.status !== 'ארכיון');
     }
 
     // Sorting logic
@@ -119,12 +240,20 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
         let comparison = 0;
         if (sortMode === 'status') {
           comparison = (statusOrder.get(a.status) ?? 999) - (statusOrder.get(b.status) ?? 999);
-        } else if (sortMode === 'contactPerson') {
-          const contactA = a.contactPerson || a.supplierContactName || '';
-          const contactB = b.contactPerson || b.supplierContactName || '';
-          comparison = contactA.localeCompare(contactB, 'he', { sensitivity: 'base', numeric: true });
-        } else if (sortMode === 'title') {
-          comparison = (a.title || '').localeCompare(b.title || '', 'he', { sensitivity: 'base', numeric: true });
+        } else {
+          const valA = getFieldValue(a, sortMode);
+          const valB = getFieldValue(b, sortMode);
+
+          if (typeof valA === 'number' && typeof valB === 'number') {
+            comparison = valA - valB;
+          } else if (typeof valA === 'boolean' || typeof valB === 'boolean') {
+            comparison = (valA === valB ? 0 : valA ? 1 : -1);
+          } else {
+            comparison = String(valA || '').localeCompare(String(valB || ''), 'he', {
+              sensitivity: 'base',
+              numeric: true
+            });
+          }
         }
 
         if (comparison !== 0) return comparison * direction;
@@ -176,6 +305,10 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
     return counts;
   }, [tasks]);
 
+  const activeTasksCount = useMemo(() => (
+    tasks.filter(t => t.status !== 'ארכיון').length
+  ), [tasks]);
+
   const handleCellClick = (task, e) => {
     if (e.target.tagName === 'BUTTON' || e.target.closest('.btn') || e.target.closest('a')) {
       return;
@@ -214,6 +347,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
           <ExternalDetailsModal 
             task={viewingTask}
             settings={settings}
+            contacts={contacts}
             onClose={null}
             isSingleProjectView={true}
             userId={userId}
@@ -242,7 +376,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
           className={`status-chip ${statusFilter === '' ? 'active' : ''}`}
           onClick={() => setStatusFilter('')}
         >
-          הכל <span className="chip-count">{tasks.length}</span>
+          הכל <span className="chip-count">{activeTasksCount}</span>
         </button>
         {STATUSES.map(st => {
           const count = statusCounts.get(st) || 0;
@@ -321,32 +455,55 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
           <div className="table-container">
             <table className="task-table">
               <thead>
-                <tr>
-                  {renderSortableHeader('title', `שם ה${flags.terms.item}`)}
-                  {renderSortableHeader('contactPerson', 'איש קשר')}
-                  {renderSortableHeader('status', 'סטטוס')}
-                  <th>פעולות</th>
-                </tr>
+                {flags.isLegacy ? (
+                  <tr>
+                    {renderSortableHeader('title', `שם ה${flags.terms.item}`)}
+                    {renderSortableHeader('contactPerson', 'איש קשר')}
+                    {renderSortableHeader('status', 'סטטוס')}
+                    <th>פעולות</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    {projectFields.map(field => renderSortableHeader(field.key, field.label))}
+                    <th>פעולות</th>
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {filteredTasks.map(task => {
                   const taskConfig = getBoardStatusConfig(settings, task.boardId);
                   const colorClass = taskConfig.statusColors[task.status] || '';
                   const currentPlanogram = task.planogramFile || task.planogram;
+                  const currentWorkOrder = hasWorkOrder(task);
                   return (
                     <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                      <td style={{ fontWeight: '600' }}>
-                        <span className="task-title-with-indicator">
-                          <span>{task.title}</span>
-                          {currentPlanogram && <PlanogramIndicator />}
-                        </span>
-                      </td>
-                      <td>{(task.contactPerson || task.supplierContactName) || '-'}</td>
-                      <td>
-                        <span className={`badge ${colorClass}`}>
-                          {task.status}
-                        </span>
-                      </td>
+                      {flags.isLegacy ? (
+                        <>
+                          <td style={{ fontWeight: '600' }}>
+                            <span className="task-title-with-indicator">
+                              <span>{task.title}</span>
+                              {(Boolean(flags.isLegacy && currentWorkOrder) || Boolean(currentPlanogram)) && (
+                                <span className="task-indicators-stack">
+                                  {flags.isLegacy && currentWorkOrder && <WorkOrderIndicator />}
+                                  {currentPlanogram && <PlanogramIndicator />}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td>{(task.contactPerson || task.supplierContactName) || '-'}</td>
+                          <td>
+                            <span className={`badge ${colorClass}`}>
+                              {task.status}
+                            </span>
+                          </td>
+                        </>
+                      ) : (
+                        projectFields.map(field => (
+                          <td key={field.key} style={field.key === 'title' ? { fontWeight: '600' } : undefined}>
+                            {renderExternalFieldVal(task, field, taskConfig)}
+                          </td>
+                        ))
+                      )}
                       <td>
                         <button 
                           className="btn btn-secondary btn-icon" 
@@ -369,6 +526,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
               const taskConfig = getBoardStatusConfig(settings, task.boardId);
               const colorClass = taskConfig.statusColors[task.status] || '';
               const currentPlanogram = task.planogramFile || task.planogram;
+              const currentWorkOrder = hasWorkOrder(task);
               return (
                 <div key={task.id} className="task-card" onClick={(e) => handleCellClick(task, e)}>
                   <div className="task-card-header">
@@ -376,7 +534,12 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
                       <h4 className="task-card-title">
                         <span className="task-title-with-indicator">
                           <span>{task.title}</span>
-                          {currentPlanogram && <PlanogramIndicator compact />}
+                          {(Boolean(flags.isLegacy && currentWorkOrder) || Boolean(currentPlanogram)) && (
+                            <span className="task-indicators-stack">
+                              {flags.isLegacy && currentWorkOrder && <WorkOrderIndicator compact />}
+                              {currentPlanogram && <PlanogramIndicator compact />}
+                            </span>
+                          )}
                         </span>
                       </h4>
                     </div>
@@ -386,36 +549,53 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
                   </div>
                   
                   <div className="task-card-meta">
-                    <div className="meta-item">
-                      <span className="meta-label">איש קשר</span>
-                      <span className="meta-value">{(task.contactPerson || task.supplierContactName) || '-'}</span>
-                    </div>
-                    {(() => {
-                      const currentContactPerson = task.contactPerson || task.supplierContactName;
-                      const cObj = currentContactPerson ? contacts.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
-                      const phone = cObj?.phone || task.phone || task.contactPhone || task.supplierContactPhone || '';
-                      const email = task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail || (cObj ? cObj.email : '');
-                      return (
-                        <>
-                          {phone && (
-                            <div className="meta-item">
-                              <span className="meta-label">טלפון</span>
-                              <span className="meta-value">
-                                <a className="directory-phone-link direction-ltr" href={`tel:${phone.replace(/\s+/g, '')}`} onClick={(e) => e.stopPropagation()}>{phone}</a>
-                              </span>
+                    {flags.isLegacy ? (
+                      <>
+                        <div className="meta-item">
+                          <span className="meta-label">איש קשר</span>
+                          <span className="meta-value">{(task.contactPerson || task.supplierContactName) || '-'}</span>
+                        </div>
+                        {(() => {
+                          const currentContactPerson = task.contactPerson || task.supplierContactName;
+                          const cObj = currentContactPerson ? contacts.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
+                          const phone = cObj?.phone || task.phone || task.contactPhone || task.supplierContactPhone || '';
+                          const email = task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail || (cObj ? cObj.email : '');
+                          return (
+                            <>
+                              {phone && (
+                                <div className="meta-item">
+                                  <span className="meta-label">טלפון</span>
+                                  <span className="meta-value">
+                                    <a className="directory-phone-link direction-ltr" href={`tel:${phone.replace(/\s+/g, '')}`} onClick={(e) => e.stopPropagation()}>{phone}</a>
+                                  </span>
+                                </div>
+                              )}
+                              {email && (
+                                <div className="meta-item">
+                                  <span className="meta-label">אימייל</span>
+                                  <span className="meta-value">
+                                    <a className="direction-ltr mobile-email-link" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>{email}</a>
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      projectFields
+                        .filter(f => f.key !== 'title' && f.key !== 'status')
+                        .map(field => {
+                          const val = renderExternalFieldVal(task, field, taskConfig);
+                          if (!val || val === '-') return null;
+                          return (
+                            <div key={field.key} className="meta-item">
+                              <span className="meta-label">{field.label}</span>
+                              <span className="meta-value">{val}</span>
                             </div>
-                          )}
-                          {email && (
-                            <div className="meta-item">
-                              <span className="meta-label">אימייל</span>
-                              <span className="meta-value">
-                                <a className="direction-ltr mobile-email-link" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>{email}</a>
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
+                          );
+                        })
+                    )}
                   </div>
 
                   <div className="task-card-actions">

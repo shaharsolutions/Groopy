@@ -35,7 +35,9 @@ export function getFeatureFlags(settingsOrOrg) {
     enableCustomBoards: !isLegacy,
     enableCompactCreateModal: !isLegacy,
     useProjectTerminology: !isLegacy,
-    enableFieldExclusion: !isLegacy,
+    enableFieldExclusion: false,
+    enableWorkOrderIndicator: isLegacy,
+    separateWorkOrderAndPlanogram: isLegacy,
 
     // Centralized Terminology
     terms: isLegacy ? {
@@ -67,6 +69,7 @@ export function getFeatureFlags(settingsOrOrg) {
       deletedActivity: 'העבודה הועברה לפח האשפה',
       restoredActivity: 'העבודה שוחזרה מפח האשפה',
       archivedActivity: 'העבודה הועברה לארכיון',
+      lastItem: 'עבודה אחרונה',
       workOrderRubric: 'הזמנת עבודה',
       planogramRubric: 'פלנוגרמה',
       filesSectionTitle: 'הזמנת עבודה ופלנוגרמה'
@@ -99,6 +102,7 @@ export function getFeatureFlags(settingsOrOrg) {
       deletedActivity: 'הפרויקט הועבר לפח האשפה',
       restoredActivity: 'הפרויקט שוחזר מפח האשפה',
       archivedActivity: 'הפרויקט הועבר לארכיון',
+      lastItem: 'פרויקט אחרון',
       workOrderRubric: 'הזמנת עבודה',
       planogramRubric: 'פלנוגרמה',
       filesSectionTitle: 'הזמנת עבודה ופלנוגרמה'

@@ -1,18 +1,31 @@
 import { useCallback, useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
-import { getBoardStatusConfig } from '../utils/boardStatusHelper';
+import { getBoardStatusConfig, isBoardSharedWithOrg, isBoardAccessibleToUser, getOrderedBoards } from '../utils/boardStatusHelper';
 import { getFeatureFlags } from '../utils/featureFlags';
-import { normalizeNewTaskFields } from '../data/taskFieldConfig';
+import { normalizeNewTaskFields, getAllTaskFieldDefinitions } from '../data/taskFieldConfig';
 
 const AdminDetailsModal = lazy(() => import('../components/AdminDetailsModal'));
 import StatusPicker from '../components/StatusPicker';
 import PlanogramIndicator from '../components/PlanogramIndicator';
+import WorkOrderIndicator from '../components/WorkOrderIndicator';
+import { hasWorkOrder } from '../utils/workOrderHelper';
+import LinkifiedText from '../components/LinkifiedText';
 
 const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
 const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
-const SORT_MODES = new Set(['manual', 'updatedAt', 'status', 'title', 'contactPerson']);
 const COMPLETED_SUBTASK_VISIBILITY_MS = 3000;
 const PRESET_BOARD_ICONS = ['📁', '📋', '🏷️', '🚀', '🎨', '📦', '⚡', '🎯', '📊', '⭐️', '✨', '💼', '📌', '🛠️', '🖨️'];
 let storageApiPromise = null;
+
+const getTaskFieldValue = (task, fieldKey) => {
+  if (!task) return '';
+  if (fieldKey === 'contactPerson') return task.contactPerson || task.supplierContactName || '';
+  if (fieldKey === 'supplierContactEmail' || fieldKey === 'email') return task.supplierContactEmail || task.contactEmail || task.email || '';
+  if (fieldKey === 'contactPhone' || fieldKey === 'phone') return task.phone || task.contactPhone || '';
+  if (fieldKey === 'status') return task.status || '';
+  if (fieldKey === 'title') return task.title || '';
+  if (task.customFields && task.customFields[fieldKey] !== undefined) return task.customFields[fieldKey];
+  return task[fieldKey] ?? '';
+};
 
 const loadStorageApi = () => {
   storageApiPromise ??= import('../utils/storage');
@@ -63,7 +76,7 @@ const readSortPreference = () => {
   try {
     const savedPreference = JSON.parse(localStorage.getItem(SORT_PREFERENCE_KEY) || '{}');
     return {
-      mode: SORT_MODES.has(savedPreference.mode) ? savedPreference.mode : 'manual',
+      mode: typeof savedPreference.mode === 'string' && savedPreference.mode ? savedPreference.mode : 'manual',
       direction: savedPreference.direction === 'desc' ? 'desc' : 'asc'
     };
   } catch {
@@ -126,18 +139,40 @@ const mergeTasksPreservingOrder = (currentTasks, fetchedTasks) => {
   return [...mergedTasks, ...newTasks];
 };
 
-export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, organizationId, autoOpenTaskId, onClearAutoOpen, onNavigate }) {
+export default function AdminDashboard({ settings, suppliers = [], contacts = [], onSaveSettings, userId, organizationId, userEmail = '', isSystemAdmin = false, autoOpenTaskId, onClearAutoOpen, onNavigate }) {
   const {
     autoArchiveInactiveDays = 45
   } = settings || {};
   const [tasks, setTasks] = useState([]);
   const [trashedTasks, setTrashedTasks] = useState([]);
-  const [workspaceView, setWorkspaceView] = useState('active');
+  const [workspaceView, setWorkspaceView] = useState(() => {
+    try {
+      const userKey = userId ? `tiktak_workspace_view_${userId}` : 'tiktak_workspace_view';
+      return localStorage.getItem(userKey) || localStorage.getItem('tiktak_workspace_view') || 'active';
+    } catch {
+      return 'active';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (workspaceView && workspaceView !== 'trash') {
+        if (userId) {
+          localStorage.setItem(`tiktak_workspace_view_${userId}`, workspaceView);
+        }
+        localStorage.setItem('tiktak_workspace_view', workspaceView);
+      }
+    } catch (err) {
+      console.warn('Could not save workspace view preference', err);
+    }
+  }, [workspaceView, userId]);
   const [restoringTaskId, setRestoringTaskId] = useState(null);
   const [permanentlyDeletingTaskId, setPermanentlyDeletingTaskId] = useState(null);
   const [permanentDeleteTask, setPermanentDeleteTask] = useState(null);
   const [isEmptyTrashConfirmOpen, setIsEmptyTrashConfirmOpen] = useState(false);
   const [isPurgingAllTrash, setIsPurgingAllTrash] = useState(false);
+
+  const flags = getFeatureFlags({ organizationId, ...settings });
 
   // Status configuration for currently active workspace/board
   const currentBoardStatusConfig = useMemo(() => (
@@ -146,16 +181,60 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const STATUSES = currentBoardStatusConfig.statuses;
   const STATUS_CLASSES = currentBoardStatusConfig.statusColors;
 
-  const newTaskFields = useMemo(() => normalizeNewTaskFields(settings?.newTaskFields), [settings?.newTaskFields]);
+  const newTaskFields = useMemo(() => normalizeNewTaskFields(settings?.newTaskFields, { isLegacy: flags.isLegacy }), [settings?.newTaskFields, flags.isLegacy]);
   const contactPersonLabel = newTaskFields.contactPerson?.label || 'איש קשר';
+  const contactPhoneLabel = newTaskFields.contactPhone?.label || 'טלפון';
+  const supplierContactEmailLabel = newTaskFields.supplierContactEmail?.label || 'אימייל';
+  const isContactPersonEnabled = !flags.isLegacy || newTaskFields.contactPerson?.enabled !== false;
+  const isContactPhoneEnabled = !flags.isLegacy || newTaskFields.contactPhone?.enabled !== false;
+  const isSupplierContactEmailEnabled = !flags.isLegacy || newTaskFields.supplierContactEmail?.enabled !== false;
 
-  // Custom Boards State
-  const customBoards = useMemo(() => (Array.isArray(settings?.boards) ? settings.boards : []).filter(b => b && b.id !== 'active'), [settings?.boards]);
+  const projectFields = useMemo(() => {
+    return getAllTaskFieldDefinitions(settings?.newTaskFields, {
+      includeDeleted: false,
+      taskFieldOrder: settings?.taskFieldOrder,
+      isLegacy: flags.isLegacy
+    }).filter(field => field.enabled !== false && !field.deleted);
+  }, [settings?.newTaskFields, settings?.taskFieldOrder, flags.isLegacy]);
+
+  // Boards State filtered by user access
+  const orderedBoards = useMemo(() => {
+    return getOrderedBoards(settings, {
+      isLegacy: flags.isLegacy,
+      userId,
+      userEmail,
+      tasks,
+      isSystemAdmin
+    });
+  }, [settings, flags.isLegacy, userId, userEmail, tasks, isSystemAdmin]);
+  const customBoards = useMemo(() => orderedBoards.filter(b => b && b.id !== 'active'), [orderedBoards]);
   const [isAddBoardModalOpen, setIsAddBoardModalOpen] = useState(false);
   const [newBoardName, setNewBoardName] = useState('');
   const [newBoardIcon, setNewBoardIcon] = useState('📁');
+  const [newBoardIsShared, setNewBoardIsShared] = useState(true);
+  const [newBoardSharedEmails, setNewBoardSharedEmails] = useState([]);
+  const [newBoardEmailInput, setNewBoardEmailInput] = useState('');
   const [editingBoard, setEditingBoard] = useState(null);
+  const [editingBoardEmailInput, setEditingBoardEmailInput] = useState('');
   const [activeBoardMenuId, setActiveBoardMenuId] = useState(null);
+  const [draggedBoardId, setDraggedBoardId] = useState(null);
+  const [dragOverBoardId, setDragOverBoardId] = useState(null);
+
+  // Auto-redirect if current workspaceView board is not accessible
+  useEffect(() => {
+    if (workspaceView && workspaceView !== 'trash' && orderedBoards.length > 0) {
+      const isStillAvailable = orderedBoards.some(b => b.id === workspaceView);
+      if (!isStillAvailable) {
+        setWorkspaceView(orderedBoards[0]?.id || 'active');
+      }
+    }
+  }, [workspaceView, orderedBoards]);
+
+  // Contacts with email for quick member sharing suggestions
+  const contactsWithEmails = useMemo(() => {
+    return (Array.isArray(contacts) ? contacts : [])
+      .filter(c => c && typeof c === 'object' && c.email && typeof c.email === 'string' && c.email.trim());
+  }, [contacts]);
 
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -165,11 +244,24 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [savingStatusIds, setSavingStatusIds] = useState(() => new Set());
   const [recentlyCompletedSubtaskKeys, setRecentlyCompletedSubtaskKeys] = useState(() => new Set());
   const [showCompletedThisWeekSubtasks, setShowCompletedThisWeekSubtasks] = useState(false);
+  const [filterSubtasksBySelectedBoard, setFilterSubtasksBySelectedBoard] = useState(false);
 
   // Reset status filter when switching boards
   useEffect(() => {
     setStatusFilter('');
   }, [workspaceView]);
+
+  // Fallback to 'active' if stored custom board was deleted
+  useEffect(() => {
+    if (workspaceView !== 'active' && workspaceView !== 'trash') {
+      if (settings?.boards !== undefined) {
+        const exists = customBoards.some(b => b && b.id === workspaceView);
+        if (!exists) {
+          setWorkspaceView('active');
+        }
+      }
+    }
+  }, [settings?.boards, customBoards, workspaceView]);
   const statusChangeSeq = useRef({});
   const autoArchiveRunKey = useRef('');
   const completedSubtaskTimers = useRef({});
@@ -232,23 +324,40 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     const nameTrimmed = newBoardName.trim();
     if (!nameTrimmed) return;
 
+    const normalizedSharedEmails = newBoardSharedEmails
+      .map(e => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+      .filter(Boolean);
+
     const newBoard = {
       id: 'board_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
       name: nameTrimmed,
       icon: newBoardIcon || '📁',
+      isSharedWithOrg: Boolean(newBoardIsShared),
+      createdBy: userId || '',
+      creatorEmail: userEmail || '',
+      sharedEmails: !newBoardIsShared ? normalizedSharedEmails : [],
+      sharedUserIds: [],
       createdAt: new Date().toISOString()
     };
 
     const currentBoards = Array.isArray(settings?.boards) ? settings.boards : [];
     const updatedBoards = [...currentBoards.filter(b => b && b.id !== newBoard.id && b.id !== 'active'), newBoard];
+    const currentBoardOrder = Array.isArray(settings?.boardOrder) && settings.boardOrder.length > 0
+      ? settings.boardOrder
+      : ['active', ...currentBoards.map(b => b.id)];
+    const updatedBoardOrder = [...currentBoardOrder.filter(id => id !== newBoard.id), newBoard.id];
 
     try {
       await onSaveSettings({
         ...settings,
-        boards: updatedBoards
+        boards: updatedBoards,
+        boardOrder: updatedBoardOrder
       });
       setNewBoardName('');
       setNewBoardIcon('📁');
+      setNewBoardIsShared(true);
+      setNewBoardSharedEmails([]);
+      setNewBoardEmailInput('');
       setIsAddBoardModalOpen(false);
       setWorkspaceView(newBoard.id);
     } catch (err) {
@@ -266,9 +375,14 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         await onSaveSettings({
           ...settings,
           boardTitle: editingBoard.name.trim(),
-          boardIcon: editingBoard.icon || '📋'
+          boardIcon: editingBoard.icon || '📋',
+          activeBoardIsShared: editingBoard.isSharedWithOrg !== false,
+          activeBoardCreatedBy: editingBoard.isSharedWithOrg !== false ? '' : (settings?.activeBoardCreatedBy || userId || ''),
+          activeBoardCreatorEmail: editingBoard.isSharedWithOrg !== false ? '' : (settings?.activeBoardCreatorEmail || userEmail || ''),
+          activeBoardSharedEmails: editingBoard.isSharedWithOrg !== false ? [] : (Array.isArray(editingBoard.sharedEmails) ? editingBoard.sharedEmails : [])
         });
         setEditingBoard(null);
+        setEditingBoardEmailInput('');
       } catch (err) {
         console.error('Failed to update default board', err);
         alert('שגיאה בעדכון הלוח. נסי שוב.');
@@ -277,7 +391,19 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     }
 
     const currentBoards = Array.isArray(settings?.boards) ? settings.boards : [];
-    const updatedBoards = currentBoards.map(b => (b.id === editingBoard.id ? { ...b, name: editingBoard.name.trim(), icon: editingBoard.icon || '📁' } : b));
+    const updatedBoards = currentBoards.map(b => (
+      b.id === editingBoard.id
+        ? {
+            ...b,
+            name: editingBoard.name.trim(),
+            icon: editingBoard.icon || '📁',
+            isSharedWithOrg: editingBoard.isSharedWithOrg !== false,
+            sharedEmails: editingBoard.isSharedWithOrg !== false ? [] : (Array.isArray(editingBoard.sharedEmails) ? editingBoard.sharedEmails : []),
+            createdBy: b.createdBy || userId || '',
+            creatorEmail: b.creatorEmail || userEmail || ''
+          }
+        : b
+    ));
 
     try {
       await onSaveSettings({
@@ -285,9 +411,44 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         boards: updatedBoards
       });
       setEditingBoard(null);
+      setEditingBoardEmailInput('');
     } catch (err) {
       console.error('Failed to update board', err);
       alert('שגיאה בעדכון הלוח. נסי שוב.');
+    }
+  };
+
+  const handleToggleBoardSharing = async (boardId) => {
+    const isCurrentlyShared = isBoardSharedWithOrg(settings, boardId);
+    const nextShared = !isCurrentlyShared;
+
+    try {
+      if (boardId === 'active') {
+        await onSaveSettings({
+          ...settings,
+          activeBoardIsShared: nextShared,
+          activeBoardCreatedBy: nextShared ? '' : (settings?.activeBoardCreatedBy || userId || ''),
+          activeBoardCreatorEmail: nextShared ? '' : (settings?.activeBoardCreatorEmail || userEmail || '')
+        });
+      } else {
+        const currentBoards = Array.isArray(settings?.boards) ? settings.boards : [];
+        const updatedBoards = currentBoards.map(b => (
+          b.id === boardId ? {
+            ...b,
+            isSharedWithOrg: nextShared,
+            createdBy: b.createdBy || userId || '',
+            creatorEmail: b.creatorEmail || userEmail || ''
+          } : b
+        ));
+        await onSaveSettings({
+          ...settings,
+          boards: updatedBoards
+        });
+      }
+      setActiveBoardMenuId(null);
+    } catch (err) {
+      console.error('Failed to toggle board sharing', err);
+      alert('שגיאה בעדכון הגדרות שיתוף הלוח. נסי שוב.');
     }
   };
 
@@ -310,9 +471,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       }
 
       const updatedBoards = currentBoards.filter(b => b.id !== boardId);
+      const updatedBoardOrder = (settings?.boardOrder || []).filter(id => id !== boardId);
       await onSaveSettings({
         ...settings,
-        boards: updatedBoards
+        boards: updatedBoards,
+        boardOrder: updatedBoardOrder
       });
 
       setActiveBoardMenuId(null);
@@ -325,26 +488,103 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     }
   };
 
+  const handleReorderBoards = async (newOrderedBoards) => {
+    const visibleBoardIds = new Set(newOrderedBoards.map(b => b.id));
+    const allCustomBoards = Array.isArray(settings?.boards) ? settings.boards : [];
+    const hiddenCustomBoards = allCustomBoards.filter(b => b && !visibleBoardIds.has(b.id));
+    const updatedCustomBoards = [...newOrderedBoards.filter(b => b.id !== 'active'), ...hiddenCustomBoards];
+
+    const visibleOrder = newOrderedBoards.map(b => b.id);
+    const existingOrder = Array.isArray(settings?.boardOrder) ? settings.boardOrder : [];
+    const hiddenOrderIds = existingOrder.filter(id => !visibleBoardIds.has(id));
+    const newBoardOrder = [...visibleOrder, ...hiddenOrderIds];
+
+    try {
+      await onSaveSettings({
+        ...settings,
+        boardOrder: newBoardOrder,
+        boards: updatedCustomBoards
+      });
+    } catch (err) {
+      console.error('Failed to update board order', err);
+      alert('שגיאה בעדכון סדר הלוחות. נסי שוב.');
+    }
+  };
+
+  const handleMoveBoard = async (fromIndex, toIndex) => {
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= orderedBoards.length || toIndex >= orderedBoards.length || fromIndex === toIndex) {
+      return;
+    }
+    const newOrdered = [...orderedBoards];
+    const [moved] = newOrdered.splice(fromIndex, 1);
+    newOrdered.splice(toIndex, 0, moved);
+    setActiveBoardMenuId(null);
+    await handleReorderBoards(newOrdered);
+  };
+
+  const handleDragStart = (e, boardId) => {
+    setDraggedBoardId(boardId);
+    e.dataTransfer.setData('text/plain', boardId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, boardId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedBoardId && draggedBoardId !== boardId && dragOverBoardId !== boardId) {
+      setDragOverBoardId(boardId);
+    }
+  };
+
+  const handleDragLeave = (e, boardId) => {
+    if (dragOverBoardId === boardId) {
+      setDragOverBoardId(null);
+    }
+  };
+
+  const handleDrop = async (e, targetBoardId) => {
+    e.preventDefault();
+    const sourceBoardId = draggedBoardId || e.dataTransfer.getData('text/plain');
+    setDraggedBoardId(null);
+    setDragOverBoardId(null);
+
+    if (!sourceBoardId || sourceBoardId === targetBoardId) return;
+
+    const fromIndex = orderedBoards.findIndex(b => b.id === sourceBoardId);
+    const toIndex = orderedBoards.findIndex(b => b.id === targetBoardId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+
+    const newOrdered = [...orderedBoards];
+    const [moved] = newOrdered.splice(fromIndex, 1);
+    newOrdered.splice(toIndex, 0, moved);
+    await handleReorderBoards(newOrdered);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedBoardId(null);
+    setDragOverBoardId(null);
+  };
+
   const loadTasks = useCallback(async () => {
     const { getTasks } = await getStorageApi();
-    const fetchedTasks = await getTasks(userId);
+    const fetchedTasks = await getTasks(userId, organizationId);
     setTasks(prev => mergeTasksPreservingOrder(prev, fetchedTasks));
     setViewingTask(prev => {
       if (!prev) return null;
       const updated = fetchedTasks.find(t => t.id === prev.id);
       return updated || prev;
     });
-  }, [getStorageApi, userId]);
+  }, [getStorageApi, userId, organizationId]);
 
   const loadTrash = useCallback(async () => {
     const { getTrashedTasks } = await getStorageApi();
-    const fetchedTasks = await getTrashedTasks(userId);
+    const fetchedTasks = await getTrashedTasks(userId, organizationId);
     const loadedAt = Number(new Date());
     setTrashedTasks(fetchedTasks.map(task => ({
       ...task,
       daysRemaining: Math.max(0, Math.ceil((Date.parse(task.expiresAt) - loadedAt) / (24 * 60 * 60 * 1000)))
     })));
-  }, [getStorageApi, userId]);
+  }, [getStorageApi, userId, organizationId]);
 
   const applyTaskPatch = (taskId, patch) => {
     setTasks(prev => prev.map(task => (
@@ -368,17 +608,24 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       } = await getStorageApi();
 
       // Fetch main tasks IMMEDIATELY in parallel for fast loading
-      const tasksPromise = getTasks(userId);
+      const tasksPromise = getTasks(userId, organizationId);
 
       // Run background maintenance tasks asynchronously
-      purgeExpiredTasks(userId).catch(err => console.error("Purge error", err));
-      const archiveRunKey = `${userId}:${autoArchiveInactiveDays}`;
+      purgeExpiredTasks(userId, organizationId).catch(err => console.error("Purge error", err));
+      const archiveRunKey = `${userId}:${organizationId || ''}:${autoArchiveInactiveDays}`;
       if (autoArchiveRunKey.current !== archiveRunKey) {
         autoArchiveRunKey.current = archiveRunKey;
-        autoArchiveInactiveTasks(userId, autoArchiveInactiveDays).catch(err => console.error("AutoArchive error", err));
+        autoArchiveInactiveTasks(userId, autoArchiveInactiveDays, organizationId).catch(err => console.error("AutoArchive error", err));
       }
+      let fetchedTasks = await tasksPromise;
       const pendingStatuses = readPendingStatuses();
       if (Object.keys(pendingStatuses).length > 0) {
+        fetchedTasks = fetchedTasks.map(task => {
+          if (pendingStatuses[task.id]) {
+            return { ...task, status: pendingStatuses[task.id] };
+          }
+          return task;
+        });
         Promise.all(Object.entries(pendingStatuses).map(async ([taskId, status]) => {
           try {
             await updateTask(taskId, { status });
@@ -389,7 +636,6 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         })).catch(err => console.error(err));
       }
 
-      const fetchedTasks = await tasksPromise;
       setTasks(fetchedTasks);
       loadTrash().catch(err => console.error(err));
 
@@ -408,7 +654,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       }
     };
     initTasks();
-  }, [userId, autoArchiveInactiveDays, getStorageApi, loadTrash]);
+  }, [userId, organizationId, autoArchiveInactiveDays, getStorageApi, loadTrash]);
 
   // Listen to autoOpenTaskId from global search to open the details modal
   useEffect(() => {
@@ -428,20 +674,64 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     }
   }, [autoOpenTaskId, tasks, onClearAutoOpen]);
 
+  // Helper to check if a task is visible on a board based on its sharing configuration
+  const isTaskVisibleOnBoard = useCallback((task, boardId) => {
+    if (isSystemAdmin) return true;
+
+    const isAccessible = isBoardAccessibleToUser(boardId, {
+      userId,
+      userEmail,
+      settings,
+      tasks,
+      isSystemAdmin
+    });
+    if (!isAccessible) return false;
+
+    const isShared = isBoardSharedWithOrg(settings, boardId);
+    if (isShared) return true;
+
+    // For a private board: check if current user is owner or explicitly shared
+    const boardObj = boardId === 'active'
+      ? {
+          createdBy: settings?.activeBoardCreatedBy,
+          creatorEmail: settings?.activeBoardCreatorEmail,
+          sharedEmails: settings?.activeBoardSharedEmails,
+          sharedUserIds: settings?.activeBoardSharedUserIds
+        }
+      : (Array.isArray(settings?.boards) ? settings.boards.find(b => b?.id === boardId) : null);
+
+    const normalizedEmail = userEmail ? userEmail.trim().toLowerCase() : '';
+    const isCreator = (userId && boardObj?.createdBy === userId) ||
+                      (normalizedEmail && boardObj?.creatorEmail && boardObj.creatorEmail.trim().toLowerCase() === normalizedEmail);
+    const isSharedMember = (normalizedEmail && Array.isArray(boardObj?.sharedEmails) && boardObj.sharedEmails.some(e => typeof e === 'string' && e.trim().toLowerCase() === normalizedEmail)) ||
+                           (userId && Array.isArray(boardObj?.sharedUserIds) && boardObj.sharedUserIds.includes(userId));
+
+    if (isCreator || isSharedMember) return true;
+
+    // Otherwise, user sees tasks assigned to / created by them
+    return !task.userId || task.userId === userId || (normalizedEmail && (
+      (task.userEmail && task.userEmail.trim().toLowerCase() === normalizedEmail) ||
+      (task.creatorEmail && task.creatorEmail.trim().toLowerCase() === normalizedEmail) ||
+      (task.email && task.email.trim().toLowerCase() === normalizedEmail)
+    ));
+  }, [settings, userId, userEmail, tasks, isSystemAdmin]);
+
   // Tasks in the currently active board view
   const currentBoardTasks = useMemo(() => {
     if (workspaceView === 'trash') return [];
     if (workspaceView === 'active') {
-      return tasks.filter(t => !t.boardId || t.boardId === 'active');
+      return tasks.filter(t => (!t.boardId || t.boardId === 'active') && isTaskVisibleOnBoard(t, 'active'));
     }
-    return tasks.filter(t => t.boardId === workspaceView);
-  }, [tasks, workspaceView]);
+    return tasks.filter(t => t.boardId === workspaceView && isTaskVisibleOnBoard(t, workspaceView));
+  }, [tasks, workspaceView, isTaskVisibleOnBoard]);
 
   const activeBoardTasksCount = useMemo(() => (
-    tasks.filter(t => !t.boardId || t.boardId === 'active').length
-  ), [tasks]);
+    tasks.filter(t => (!t.boardId || t.boardId === 'active') && isTaskVisibleOnBoard(t, 'active')).length
+  ), [tasks, isTaskVisibleOnBoard]);
 
-  const flags = getFeatureFlags(settings);
+  const activeTasksCount = useMemo(() => (
+    currentBoardTasks.filter(t => t.status !== 'ארכיון').length
+  ), [currentBoardTasks]);
 
   const defaultBoardName = settings?.boardTitle || (flags.isLegacy ? 'עבודות פעילות' : 'פרויקטים פעילים');
   const defaultBoardIcon = settings?.boardIcon || (flags.isLegacy ? '📁' : '📋');
@@ -457,19 +747,31 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const filteredTasks = useMemo(() => {
     let result = [...currentBoardTasks];
 
-    // Search query filter ( title, contactPerson )
+    // Search query filter (title, contactPerson, email, notes, custom fields)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(t => {
         const contact = t.contactPerson || t.supplierContactName || '';
-        return (t.title && t.title.toLowerCase().includes(q)) ||
-          (contact && contact.toLowerCase().includes(q));
+        const email = t.supplierContactEmail || t.contactEmail || t.email || '';
+        if (t.title && t.title.toLowerCase().includes(q)) return true;
+        if (contact && contact.toLowerCase().includes(q)) return true;
+        if (email && email.toLowerCase().includes(q)) return true;
+        if (t.description && t.description.toLowerCase().includes(q)) return true;
+        if (t.internalNotes && t.internalNotes.toLowerCase().includes(q)) return true;
+        if (t.customFields && typeof t.customFields === 'object') {
+          for (const val of Object.values(t.customFields)) {
+            if (val !== null && val !== undefined && String(val).toLowerCase().includes(q)) return true;
+          }
+        }
+        return false;
       });
     }
 
-    // Status filter
+    // Status filter - if empty ('All'), exclude archived tasks
     if (statusFilter) {
       result = result.filter(t => t.status === statusFilter);
+    } else {
+      result = result.filter(t => t.status !== 'ארכיון');
     }
 
     if (sortMode !== 'manual') {
@@ -477,14 +779,26 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       const direction = sortDirection === 'asc' ? 1 : -1;
 
       result.sort((a, b) => {
-        const comparison = sortMode === 'updatedAt'
-          ? (Date.parse(a.updatedAt) || 0) - (Date.parse(b.updatedAt) || 0)
-          : sortMode === 'status'
-            ? (statusOrder.get(a.status) ?? 999) - (statusOrder.get(b.status) ?? 999)
-            : (a[sortMode] || '').localeCompare(b[sortMode] || '', 'he', {
-            sensitivity: 'base',
-            numeric: true
-          });
+        let comparison = 0;
+        if (sortMode === 'updatedAt') {
+          comparison = (Date.parse(a.updatedAt) || 0) - (Date.parse(b.updatedAt) || 0);
+        } else if (sortMode === 'status') {
+          comparison = (statusOrder.get(a.status) ?? 999) - (statusOrder.get(b.status) ?? 999);
+        } else {
+          const valA = getTaskFieldValue(a, sortMode);
+          const valB = getTaskFieldValue(b, sortMode);
+
+          if (typeof valA === 'number' && typeof valB === 'number') {
+            comparison = valA - valB;
+          } else if (typeof valA === 'boolean' || typeof valB === 'boolean') {
+            comparison = (valA === valB ? 0 : valA ? 1 : -1);
+          } else {
+            comparison = String(valA || '').localeCompare(String(valB || ''), 'he', {
+              sensitivity: 'base',
+              numeric: true
+            });
+          }
+        }
 
         if (comparison !== 0) return comparison * direction;
         return (a.title || '').localeCompare(b.title || '', 'he', { sensitivity: 'base' });
@@ -511,20 +825,60 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     return map;
   }, [contacts]);
 
+  const boardsMap = useMemo(() => {
+    const map = new Map();
+    map.set('active', { id: 'active', name: defaultBoardName, icon: defaultBoardIcon });
+    if (Array.isArray(settings?.boards)) {
+      settings.boards.forEach(b => {
+        if (b?.id) map.set(b.id, { id: b.id, name: b.name || 'לוח ללא שם', icon: b.icon || '📁' });
+      });
+    }
+    orderedBoards.forEach(b => {
+      if (b?.id) map.set(b.id, b);
+    });
+    return map;
+  }, [orderedBoards, settings, defaultBoardName, defaultBoardIcon]);
+
+  const candidateSubtaskTasks = useMemo(() => {
+    if (!flags.isV2) {
+      return currentBoardTasks;
+    }
+
+    if (filterSubtasksBySelectedBoard && workspaceView !== 'trash') {
+      return currentBoardTasks;
+    }
+
+    return tasks.filter(t => {
+      if (t.boardId === 'trash') return false;
+      const boardId = t.boardId || 'active';
+      return isTaskVisibleOnBoard(t, boardId);
+    });
+  }, [flags.isV2, filterSubtasksBySelectedBoard, workspaceView, currentBoardTasks, tasks, isTaskVisibleOnBoard]);
+
   const allProjectSubtasks = useMemo(() => {
-    return currentBoardTasks
-      .flatMap(task => normalizeProjectSubtasks(task).map(subtask => ({
-        ...subtask,
-        taskId: task.id,
-        projectTitle: task.title || task.jobNumber || 'פרויקט ללא שם',
-        projectStatus: task.status || '',
-        projectUpdatedAt: task.updatedAt || task.createdAt || ''
-      })))
+    return candidateSubtaskTasks
+      .flatMap(task => {
+        const boardId = task.boardId || 'active';
+        const boardInfo = boardsMap.get(boardId);
+        const boardName = boardInfo?.name || (boardId === 'active' ? defaultBoardName : 'לוח');
+        const boardIcon = boardInfo?.icon || (boardId === 'active' ? defaultBoardIcon : '📁');
+
+        return normalizeProjectSubtasks(task).map(subtask => ({
+          ...subtask,
+          taskId: task.id,
+          projectTitle: task.title || task.jobNumber || 'פרויקט ללא שם',
+          projectStatus: task.status || '',
+          projectUpdatedAt: task.updatedAt || task.createdAt || '',
+          boardId,
+          boardName,
+          boardIcon
+        }));
+      })
       .sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
         return (Date.parse(b.createdAt) || Date.parse(b.projectUpdatedAt) || 0) - (Date.parse(a.createdAt) || Date.parse(a.projectUpdatedAt) || 0);
       });
-  }, [tasks]);
+  }, [candidateSubtaskTasks, boardsMap, defaultBoardName, defaultBoardIcon]);
 
   const completedThisWeekProjectSubtasks = useMemo(() => (
     allProjectSubtasks.filter(item => item.completed && isDateInCurrentWeek(item.completedAt))
@@ -673,13 +1027,13 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         // Edit mode
         const { updateTask, getTasks } = await getStorageApi();
         await updateTask(viewingTask.id, taskData);
-        const allTasks = await getTasks(userId);
+        const allTasks = await getTasks(userId, organizationId);
         const updated = allTasks.find(t => t.id === viewingTask.id);
         setViewingTask(updated || null);
       } else {
         // Create mode
         const { createTask } = await getStorageApi();
-        await createTask(taskData, userId);
+        await createTask(taskData, userId, { organizationId });
         setIsCreateOpen(false);
       }
       await loadTasks();
@@ -713,19 +1067,19 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     const trimmedVal = typeof value === 'string' ? value.trim() : value;
 
     // Check if the value hasn't changed
-    const originalValue = field === 'phone'
+    const originalValue = (field === 'phone' || field === 'contactPhone')
       ? (() => {
           const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
-          return contact ? contact.phone : '';
+          return task.phone || (contact ? contact.phone : '');
         })()
-      : field === 'email'
+      : (field === 'email' || field === 'supplierContactEmail')
         ? (task.supplierContactEmail || (() => {
             const contact = contactsByName.get((task.contactPerson || '').trim().toLowerCase());
             return contact ? contact.email : '';
           })())
-        : task[field];
+        : (task.customFields?.[field] ?? task[field]);
 
-    if (trimmedVal === (originalValue || '')) {
+    if (trimmedVal === (originalValue || '') && typeof value === 'string') {
       setEditingCell({ taskId: null, field: null });
       return;
     }
@@ -736,7 +1090,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       return;
     }
 
-    if (field === 'email' && trimmedVal) {
+    if ((field === 'email' || field === 'supplierContactEmail') && trimmedVal) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedVal)) {
         alert('כתובת אימייל לא תקינה');
         return;
@@ -746,18 +1100,22 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     setIsSavingCell(true);
     try {
       const { updateTask, updateContact, addContact } = await getStorageApi();
-      if (field === 'title' || field === 'contactPerson') {
+      const isCustomField = field.startsWith('custom_') || (task.customFields && task.customFields[field] !== undefined);
+
+      if (field === 'title' || field === 'contactPerson' || field === 'status' || field === 'diecutsStatus' || field === 'imagesStatus' || field === 'standardsInstituteRequired' || field === 'description' || field === 'internalNotes') {
         await updateTask(task.id, { [field]: trimmedVal });
         applyTaskPatch(task.id, { [field]: trimmedVal, updatedAt: new Date().toISOString() });
-      } else if (field === 'email') {
+      } else if (field === 'email' || field === 'supplierContactEmail') {
         await updateTask(task.id, { supplierContactEmail: trimmedVal });
         applyTaskPatch(task.id, { supplierContactEmail: trimmedVal, updatedAt: new Date().toISOString() });
-      } else if (field === 'phone') {
+      } else if (field === 'phone' || field === 'contactPhone') {
+        await updateTask(task.id, { phone: trimmedVal });
+        applyTaskPatch(task.id, { phone: trimmedVal, updatedAt: new Date().toISOString() });
         if (task.contactPerson) {
           const contact = contactsByName.get(task.contactPerson.trim().toLowerCase());
           if (contact) {
             await updateContact(contact.id, { ...contact, phone: trimmedVal });
-          } else {
+          } else if (trimmedVal) {
             await addContact({
               name: task.contactPerson.trim(),
               phone: trimmedVal,
@@ -768,11 +1126,17 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               notes: ''
             }, userId);
           }
-        } else {
-          alert('לא ניתן לעדכן מספר טלפון ללא איש קשר מוגדר');
-          setIsSavingCell(false);
-          return;
         }
+      } else if (isCustomField) {
+        const updatedCustomFields = {
+          ...(task.customFields || {}),
+          [field]: trimmedVal
+        };
+        await updateTask(task.id, { customFields: updatedCustomFields });
+        applyTaskPatch(task.id, { customFields: updatedCustomFields, updatedAt: new Date().toISOString() });
+      } else {
+        await updateTask(task.id, { [field]: trimmedVal });
+        applyTaskPatch(task.id, { [field]: trimmedVal, updatedAt: new Date().toISOString() });
       }
       setEditingCell({ taskId: null, field: null });
     } catch (err) {
@@ -834,7 +1198,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     setIsPurgingAllTrash(true);
     try {
       const { emptyTrash } = await getStorageApi();
-      await emptyTrash(userId);
+      await emptyTrash(userId, organizationId);
       setIsEmptyTrashConfirmOpen(false);
       await loadTrash();
     } catch (err) {
@@ -859,6 +1223,320 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     }
   };
 
+  const renderV2TableCell = (task, field, ctx) => {
+    const isEditing = editingCell.taskId === task.id && editingCell.field === field.key;
+
+    // 1. STATUS
+    if (field.key === 'status') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+          <StatusPicker
+            currentStatus={task.status}
+            statuses={ctx.taskStatusConfig.statuses}
+            statusColors={ctx.taskStatusConfig.statusColors}
+            onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+            disabled={savingStatusIds.has(task.id)}
+          />
+          {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+            <div className="task-completed-date-badge">
+              הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 2. CONTACT PERSON
+    if (field.key === 'contactPerson') {
+      if (isEditing) {
+        return (
+          <input
+            type="text"
+            className="form-control table-inline-input"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            onKeyDown={(e) => handleCellKeyDown(e, task, field.key)}
+            list="contacts-list-table"
+            autoFocus
+            disabled={isSavingCell}
+          />
+        );
+      }
+      return ctx.currentContactPerson || '-';
+    }
+
+    // 3. SUPPLIER CONTACT EMAIL
+    if (field.key === 'supplierContactEmail') {
+      if (isEditing) {
+        return (
+          <input
+            type="email"
+            className="form-control table-inline-input direction-ltr text-left"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            onKeyDown={(e) => handleCellKeyDown(e, task, field.key)}
+            autoFocus
+            disabled={isSavingCell}
+          />
+        );
+      }
+      return ctx.email ? (
+        <a
+          href={`mailto:${ctx.email}`}
+          className="direction-ltr"
+          style={{ textDecoration: 'none', color: 'var(--primary)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {ctx.email}
+        </a>
+      ) : '-';
+    }
+
+    // 3.5. CONTACT PHONE
+    if (field.key === 'contactPhone' || field.key === 'phone') {
+      const contact = contactsByName.get((ctx.currentContactPerson || '').trim().toLowerCase());
+      const phoneVal = task.phone || (contact ? contact.phone : '');
+      if (isEditing) {
+        return (
+          <input
+            type="tel"
+            className="form-control table-inline-input direction-ltr text-left"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            onKeyDown={(e) => handleCellKeyDown(e, task, field.key)}
+            autoFocus
+            disabled={isSavingCell}
+          />
+        );
+      }
+      return phoneVal ? (
+        <a
+          href={`tel:${phoneVal.replace(/\s+/g, '')}`}
+          className="directory-phone-link direction-ltr"
+          style={{ textDecoration: 'none', color: 'var(--primary)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {phoneVal}
+        </a>
+      ) : '-';
+    }
+
+    // 4. DIECUTS STATUS / IMAGES STATUS
+    if (field.key === 'diecutsStatus' || field.key === 'imagesStatus') {
+      const currentVal = task[field.key] || 'אין';
+      if (isEditing) {
+        return (
+          <select
+            className="form-control table-inline-input"
+            value={editValue}
+            onChange={(e) => {
+              setEditValue(e.target.value);
+              handleSaveCellInline(task, field.key, e.target.value);
+            }}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            autoFocus
+            disabled={isSavingCell}
+          >
+            {(field.options || ['אין', 'יש', 'חלקי']).map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        );
+      }
+      const badgeClass = currentVal === 'יש' ? 'badge-completed' : currentVal === 'חלקי' ? 'badge-review' : 'badge-neutral';
+      return (
+        <span className={`badge ${badgeClass}`} style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+          {currentVal}
+        </span>
+      );
+    }
+
+    // 5. STANDARDS INSTITUTE REQUIRED
+    if (field.key === 'standardsInstituteRequired') {
+      const currentVal = task.standardsInstituteRequired || 'לא';
+      if (isEditing) {
+        return (
+          <select
+            className="form-control table-inline-input"
+            value={editValue}
+            onChange={(e) => {
+              setEditValue(e.target.value);
+              handleSaveCellInline(task, field.key, e.target.value);
+            }}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            autoFocus
+            disabled={isSavingCell}
+          >
+            {(field.options || ['לא', 'כן']).map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        );
+      }
+      const badgeClass = currentVal === 'כן' ? 'badge-in-progress' : 'badge-neutral';
+      return (
+        <span className={`badge ${badgeClass}`} style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+          {currentVal}
+        </span>
+      );
+    }
+
+    // 6. WORK ORDER FILES
+    if (field.key === 'workOrderFiles') {
+      const fileCount = Array.isArray(task.workOrderFiles) ? task.workOrderFiles.length : (task.workOrderFiles ? 1 : 0);
+      return fileCount > 0 ? (
+        <span className="badge badge-neutral" style={{ fontSize: '0.78rem' }}>
+          📎 {fileCount} קבצים
+        </span>
+      ) : '-';
+    }
+
+    // 7. PLANOGRAM FILE
+    if (field.key === 'planogramFile') {
+      return (task.planogramFile || task.planogram) ? (
+        <span className="badge badge-neutral" style={{ fontSize: '0.78rem' }}>
+          🗺️ יש פלנוגרמה
+        </span>
+      ) : '-';
+    }
+
+    // 8. DESCRIPTION / INTERNAL NOTES
+    if (field.key === 'description' || field.key === 'internalNotes') {
+      const textVal = task[field.key] || '';
+      if (isEditing) {
+        return (
+          <input
+            type="text"
+            className="form-control table-inline-input"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            onKeyDown={(e) => handleCellKeyDown(e, task, field.key)}
+            autoFocus
+            disabled={isSavingCell}
+          />
+        );
+      }
+      if (!textVal) return '-';
+      return (
+        <span title={textVal} style={{ cursor: 'pointer' }}>
+          <LinkifiedText text={textVal} truncate={35} inline />
+        </span>
+      );
+    }
+
+    // 9. CUSTOM FIELDS
+    const rawVal = task.customFields?.[field.key] ?? task[field.key];
+
+    if (field.type === 'checkbox') {
+      const isChecked = Boolean(rawVal === true || rawVal === 'true');
+      return (
+        <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', margin: 0 }} onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={(e) => handleSaveCellInline(task, field.key, e.target.checked)}
+            style={{ width: '18px', height: '18px', cursor: 'pointer', margin: 0 }}
+            disabled={isSavingCell}
+          />
+        </label>
+      );
+    }
+
+    if (field.type === 'select') {
+      const selectVal = rawVal || '';
+      if (isEditing) {
+        return (
+          <select
+            className="form-control table-inline-input"
+            value={editValue}
+            onChange={(e) => {
+              setEditValue(e.target.value);
+              handleSaveCellInline(task, field.key, e.target.value);
+            }}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            autoFocus
+            disabled={isSavingCell}
+          >
+            <option value="">(ללא בחירה)</option>
+            {(field.options || []).map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        );
+      }
+      return selectVal ? (
+        <span className="badge badge-neutral" style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+          {selectVal}
+        </span>
+      ) : '-';
+    }
+
+    if (field.type === 'date') {
+      const dateVal = rawVal || '';
+      if (isEditing) {
+        return (
+          <input
+            type="date"
+            className="form-control table-inline-input"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            onKeyDown={(e) => handleCellKeyDown(e, task, field.key)}
+            autoFocus
+            disabled={isSavingCell}
+          />
+        );
+      }
+      return dateVal ? formatDate(dateVal) : '-';
+    }
+
+    if (field.type === 'number') {
+      const numVal = rawVal !== undefined && rawVal !== null && rawVal !== '' ? rawVal : '';
+      if (isEditing) {
+        return (
+          <input
+            type="number"
+            className="form-control table-inline-input direction-ltr text-left"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+            onKeyDown={(e) => handleCellKeyDown(e, task, field.key)}
+            autoFocus
+            disabled={isSavingCell}
+          />
+        );
+      }
+      return numVal !== '' ? String(numVal) : '-';
+    }
+
+    // Default: text / textarea
+    const strVal = rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
+    if (isEditing) {
+      return (
+        <input
+          type="text"
+          className="form-control table-inline-input"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={() => handleSaveCellInline(task, field.key, editValue)}
+          onKeyDown={(e) => handleCellKeyDown(e, task, field.key)}
+          autoFocus
+          disabled={isSavingCell}
+        />
+      );
+    }
+    if (!strVal) return '-';
+    return (
+      <span title={strVal} style={{ cursor: 'pointer' }}>
+        <LinkifiedText text={strVal} truncate={35} inline />
+      </span>
+    );
+  };
+
   return (
     <main className="dashboard-container">
 
@@ -867,7 +1545,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>{currentBoardName}</h2>
         </div>
-        {workspaceView !== 'trash' && (
+        {flags.isLegacy && workspaceView !== 'trash' && (
           <button
             className="btn btn-primary"
             onClick={() => {
@@ -883,76 +1561,32 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
       <div className="workspace-view-switcher" role="tablist" aria-label={`בחירת תצוגת ${flags.terms.items}`}>
         <div className="workspace-boards-tabs-group">
-          {/* Default Active Board */}
-          <div className="workspace-board-tab-item">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={workspaceView === 'active'}
-              className={`workspace-view-button ${workspaceView === 'active' ? 'active' : ''}`}
-              onClick={() => setWorkspaceView('active')}
-            >
-              <span className="workspace-tab-label">{defaultBoardIcon} {defaultBoardName}</span>
-              <span className="workspace-view-count">{activeBoardTasksCount}</span>
-              {flags.enableCustomBoards && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  className="workspace-board-settings-trigger"
-                  title="אפשרויות לוח"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveBoardMenuId(activeBoardMenuId === 'active' ? null : 'active');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setActiveBoardMenuId(activeBoardMenuId === 'active' ? null : 'active');
-                    }
-                  }}
-                >
-                  ⚙️
-                </span>
-              )}
-            </button>
-
-            {flags.enableCustomBoards && activeBoardMenuId === 'active' && (
-              <div className="workspace-board-dropdown" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  className="workspace-board-dropdown-item"
-                  onClick={() => {
-                    setActiveBoardMenuId(null);
-                    setEditingBoard({
-                      id: 'active',
-                      name: defaultBoardName,
-                      icon: defaultBoardIcon
-                    });
-                  }}
-                >
-                  ✏️ עריכת לוח
-                </button>
-                <button
-                  type="button"
-                  className="workspace-board-dropdown-item"
-                  onClick={() => {
-                    setActiveBoardMenuId(null);
-                    onNavigate('settings');
-                  }}
-                >
-                  🔄 ניהול סטטוסים
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Custom Boards (v2 only) */}
-          {flags.enableCustomBoards && customBoards.map(board => {
-            const count = tasks.filter(t => t.boardId === board.id).length;
+          {/* Unified Ordered Boards Tabs */}
+          {orderedBoards.map((board, index) => {
+            const isDefault = board.id === 'active';
+            const isShared = isBoardSharedWithOrg(settings, board.id);
+            const count = isDefault
+              ? activeBoardTasksCount
+              : tasks.filter(t => t.boardId === board.id && isTaskVisibleOnBoard(t, board.id)).length;
             const isActive = workspaceView === board.id;
+            const boardName = isDefault ? defaultBoardName : board.name;
+            const boardIcon = isDefault ? defaultBoardIcon : (board.icon || '📁');
+            const canDrag = Boolean(flags.enableCustomBoards && orderedBoards.length > 1);
+            const isDragging = draggedBoardId === board.id;
+            const isDragOver = dragOverBoardId === board.id;
+
             return (
-              <div key={board.id} className="workspace-board-tab-item">
+              <div
+                key={board.id}
+                className={`workspace-board-tab-item ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'is-drag-over' : ''}`}
+                draggable={canDrag}
+                onDragStart={(e) => handleDragStart(e, board.id)}
+                onDragOver={(e) => handleDragOver(e, board.id)}
+                onDragLeave={(e) => handleDragLeave(e, board.id)}
+                onDrop={(e) => handleDrop(e, board.id)}
+                onDragEnd={handleDragEnd}
+                title={canDrag ? 'ניתן לגרור לשינוי סדר הלוחות' : undefined}
+              >
                 <button
                   type="button"
                   role="tab"
@@ -960,48 +1594,117 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   className={`workspace-view-button ${isActive ? 'active' : ''}`}
                   onClick={() => setWorkspaceView(board.id)}
                 >
-                  <span className="workspace-tab-label">{board.icon || '📁'} {board.name}</span>
-                  <span className="workspace-view-count">{count}</span>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="workspace-board-settings-trigger"
-                    title="אפשרויות לוח"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveBoardMenuId(activeBoardMenuId === board.id ? null : board.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setActiveBoardMenuId(activeBoardMenuId === board.id ? null : board.id);
-                      }
-                    }}
-                  >
-                    ⚙️
+                  {canDrag && (
+                    <span className="board-drag-handle" title="גרירה לשינוי סדר" aria-hidden="true">
+                      ⋮⋮
+                    </span>
+                  )}
+                  <span className="workspace-tab-label">
+                    {boardIcon} {boardName}
+                    <span
+                      className="workspace-share-indicator"
+                      title={isShared ? 'משותף עם כל חברי הארגון' : 'לוח פרטי'}
+                      style={{ fontSize: '0.8rem', opacity: 0.75, marginInlineStart: '4px' }}
+                    >
+                      {isShared ? '🌐' : '🔒'}
+                    </span>
                   </span>
+                  <span className="workspace-view-count">{count}</span>
+                  {flags.enableCustomBoards && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="workspace-board-settings-trigger"
+                      title="אפשרויות לוח"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveBoardMenuId(activeBoardMenuId === board.id ? null : board.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setActiveBoardMenuId(activeBoardMenuId === board.id ? null : board.id);
+                        }
+                      }}
+                    >
+                      ⚙️
+                    </span>
+                  )}
                 </button>
 
-                {activeBoardMenuId === board.id && (
+                {flags.enableCustomBoards && activeBoardMenuId === board.id && (
                   <div className="workspace-board-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="workspace-board-dropdown-item"
+                      onClick={() => handleToggleBoardSharing(board.id)}
+                    >
+                      {isShared ? '🔒 הפוך ללוח פרטי' : '🌐 שתף פרויקטים עם הארגון'}
+                    </button>
                     <button
                       type="button"
                       className="workspace-board-dropdown-item"
                       onClick={() => {
                         setActiveBoardMenuId(null);
-                        setEditingBoard({ ...board });
+                        setEditingBoard({
+                          id: board.id,
+                          name: boardName,
+                          icon: boardIcon,
+                          isSharedWithOrg: isShared,
+                          sharedEmails: isDefault ? (Array.isArray(settings?.activeBoardSharedEmails) ? settings.activeBoardSharedEmails : []) : (Array.isArray(board.sharedEmails) ? board.sharedEmails : []),
+                          createdBy: isDefault ? (settings?.activeBoardCreatedBy || '') : (board.createdBy || ''),
+                          creatorEmail: isDefault ? (settings?.activeBoardCreatorEmail || '') : (board.creatorEmail || '')
+                        });
+                        setEditingBoardEmailInput('');
                       }}
                     >
-                      ✏️ עריכת שם ואייקון
+                      ✏️ {isDefault ? 'עריכת לוח' : 'עריכת שם ואייקון'}
                     </button>
-                    <button
-                      type="button"
-                      className="workspace-board-dropdown-item danger"
-                      onClick={() => handleDeleteBoard(board.id)}
-                    >
-                      🗑️ מחיקת לוח
-                    </button>
+                    {isDefault ? (
+                      <button
+                        type="button"
+                        className="workspace-board-dropdown-item"
+                        onClick={() => {
+                          setActiveBoardMenuId(null);
+                          onNavigate('settings');
+                        }}
+                      >
+                        🔄 ניהול סטטוסים
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="workspace-board-dropdown-item danger"
+                        onClick={() => handleDeleteBoard(board.id)}
+                      >
+                        🗑️ מחיקת לוח
+                      </button>
+                    )}
+
+                    {orderedBoards.length > 1 && (
+                      <>
+                        <div className="workspace-board-dropdown-divider" />
+                        {index > 0 && (
+                          <button
+                            type="button"
+                            className="workspace-board-dropdown-item"
+                            onClick={() => handleMoveBoard(index, index - 1)}
+                          >
+                            ➡️ הזז ימינה
+                          </button>
+                        )}
+                        {index < orderedBoards.length - 1 && (
+                          <button
+                            type="button"
+                            className="workspace-board-dropdown-item"
+                            onClick={() => handleMoveBoard(index, index + 1)}
+                          >
+                            ⬅️ הזז שמאלה
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1016,6 +1719,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               onClick={() => {
                 setNewBoardName('');
                 setNewBoardIcon('📁');
+                setNewBoardIsShared(true);
                 setIsAddBoardModalOpen(true);
               }}
               title="יצירת לוח חדש"
@@ -1115,7 +1819,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           className={`status-chip ${statusFilter === '' ? 'active' : ''}`}
           onClick={() => setStatusFilter('')}
         >
-          הכל <span className="chip-count">{tasks.length}</span>
+          הכל <span className="chip-count">{activeTasksCount}</span>
         </button>
         {STATUSES.map(st => {
           const count = statusCounts.get(st) || 0;
@@ -1170,7 +1874,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
         {/* Filter Summary and Clear Trigger */}
         <div className="filter-summary" style={{ marginTop: '16px' }}>
           <div>
-            מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{tasks.length}</span> {flags.terms.items} בסך הכל
+            מציג <span className="filter-badge-info">{filteredTasks.length}</span> מתוך <span className="filter-badge-info">{currentBoardTasks.length}</span> {flags.terms.items} בסך הכל
           </div>
           {(searchQuery || statusFilter || sortMode !== 'manual') && (
             <button
@@ -1198,31 +1902,68 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             <p>
               {visibleProjectSubtasks.length > 0
                 ? showCompletedThisWeekSubtasks
-                  ? `${openProjectSubtasksCount} פתוחות, ${completedThisWeekProjectSubtasksCount} הושלמו השבוע`
-                  : `${openProjectSubtasksCount} פתוחות מתוך ${visibleProjectSubtasks.length}`
+                  ? `${openProjectSubtasksCount} פתוחות, ${completedThisWeekProjectSubtasksCount} הושלמו השבוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
+                  : `${openProjectSubtasksCount} פתוחות מתוך ${visibleProjectSubtasks.length}${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
                 : allProjectSubtasks.length > 0
-                  ? 'אין משימות פתוחות כרגע'
-                  : 'אין עדיין משימות בפרויקטים'}
+                  ? (filterSubtasksBySelectedBoard ? `אין משימות פתוחות בלוח ${currentBoardName}` : 'אין משימות פתוחות כרגע')
+                  : (filterSubtasksBySelectedBoard ? `אין משימות בלוח ${currentBoardName}` : 'אין עדיין משימות בפרויקטים')}
             </p>
           </div>
-          {completedThisWeekProjectSubtasksCount > 0 && (
-            <button
-              type="button"
-              className={`dashboard-subtasks-toggle ${showCompletedThisWeekSubtasks ? 'active' : ''}`}
-              onClick={() => setShowCompletedThisWeekSubtasks(prev => !prev)}
-              aria-pressed={showCompletedThisWeekSubtasks}
-            >
-              <span>{showCompletedThisWeekSubtasks ? 'הסתרת משימות שהושלמו השבוע' : 'הצגת משימות שהושלמו השבוע'}</span>
-              <span className="dashboard-subtasks-toggle-count">{completedThisWeekProjectSubtasksCount}</span>
-            </button>
-          )}
+          <div className="dashboard-subtasks-actions">
+            {flags.isV2 && workspaceView !== 'trash' && (
+              <button
+                type="button"
+                className={`dashboard-subtasks-toggle dashboard-subtasks-board-filter ${filterSubtasksBySelectedBoard ? 'active' : ''}`}
+                onClick={() => setFilterSubtasksBySelectedBoard(prev => !prev)}
+                aria-pressed={filterSubtasksBySelectedBoard}
+                title={filterSubtasksBySelectedBoard ? 'הצגת משימות מכל הלוחות' : `סינון משימות לפי הלוח הנבחר: ${currentBoardName}`}
+              >
+                <span>
+                  {filterSubtasksBySelectedBoard ? (
+                    <>📌 מסונן לפי: <strong>{currentBoardName}</strong></>
+                  ) : (
+                    <>🔍 סינון לפי הלוח הנבחר (<strong>{currentBoardName}</strong>)</>
+                  )}
+                </span>
+                {filterSubtasksBySelectedBoard && (
+                  <span className="dashboard-subtasks-toggle-clear" title="בטל סינון והצג מכל הלוחות" aria-hidden="true">✕</span>
+                )}
+              </button>
+            )}
+
+            {completedThisWeekProjectSubtasksCount > 0 && (
+              <button
+                type="button"
+                className={`dashboard-subtasks-toggle ${showCompletedThisWeekSubtasks ? 'active' : ''}`}
+                onClick={() => setShowCompletedThisWeekSubtasks(prev => !prev)}
+                aria-pressed={showCompletedThisWeekSubtasks}
+              >
+                <span>{showCompletedThisWeekSubtasks ? 'הסתרת משימות שהושלמו השבוע' : 'הצגת משימות שהושלמו השבוע'}</span>
+                <span className="dashboard-subtasks-toggle-count">{completedThisWeekProjectSubtasksCount}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {visibleProjectSubtasks.length === 0 ? (
           <div className="dashboard-subtasks-empty">
-            {allProjectSubtasks.length > 0
-              ? 'כל המשימות בפרויקטים סומנו כבוצעו.'
-              : 'הוסיפי משימות מתוך אזור הערות ועדכוני פרויקט, והן יופיעו כאן.'}
+            {filterSubtasksBySelectedBoard ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <span>אין משימות פתוחות בלוח "{currentBoardName}".</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  onClick={() => setFilterSubtasksBySelectedBoard(false)}
+                >
+                  🌐 הצג משימות מכל הלוחות
+                </button>
+              </div>
+            ) : allProjectSubtasks.length > 0 ? (
+              'כל המשימות בפרויקטים סומנו כבוצעו.'
+            ) : (
+              'הוסיפי משימות מתוך אזור הערות ועדכוני פרויקט, והן יופיעו כאן.'
+            )}
           </div>
         ) : (
           <div className="dashboard-subtasks-list">
@@ -1237,8 +1978,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     checked={item.completed}
                     onChange={() => handleToggleProjectSubtask(item.taskId, item.id)}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <span>{item.text}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                    <span className={`dashboard-subtask-text ${item.completed ? 'completed' : ''}`} title={item.text}>
+                      {item.text}
+                    </span>
                     {item.completed && (
                       <span className="dashboard-subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.updatedAt || item.createdAt)}`}>
                         הושלם ב-{formatDate(item.completedAt || item.updatedAt || item.createdAt)}
@@ -1246,17 +1989,40 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     )}
                   </div>
                 </label>
-                <button
-                  type="button"
-                  className="dashboard-subtask-project"
-                  onClick={() => {
-                    const project = tasks.find(task => task.id === item.taskId);
-                    if (project) setViewingTask(project);
-                  }}
-                  title="פתיחת הפרויקט"
-                >
-                  {item.projectTitle}
-                </button>
+                <div className="dashboard-subtask-meta">
+                  {flags.isV2 && item.boardName && (
+                    <button
+                      type="button"
+                      className="dashboard-subtask-board-badge"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setWorkspaceView(item.boardId);
+                        setFilterSubtasksBySelectedBoard(true);
+                      }}
+                      title={`מעבר ללוח ${item.boardName} וסינון לפיו`}
+                    >
+                      {item.boardIcon} {item.boardName}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="dashboard-subtask-project"
+                    onClick={() => {
+                      const project = tasks.find(task => task.id === item.taskId);
+                      if (project) {
+                        if (project.boardId) {
+                          setWorkspaceView(project.boardId);
+                        } else {
+                          setWorkspaceView('active');
+                        }
+                        setViewingTask(project);
+                      }
+                    }}
+                    title="פתיחת הפרויקט"
+                  >
+                    {item.projectTitle}
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -1303,160 +2069,243 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           <div className="table-container">
             <table className="task-table">
               <thead>
-                <tr>
-                  {renderSortableHeader('title', 'שם הפרויקט')}
-                  {renderSortableHeader('contactPerson', contactPersonLabel)}
-                  <th>טלפון</th>
-                  <th>אימייל</th>
-                  {renderSortableHeader('status', 'סטטוס')}
-                  {renderSortableHeader('updatedAt', 'עודכן ב')}
-                  <th>פעולות</th>
-                </tr>
+                {flags.isLegacy ? (
+                  <tr>
+                    {renderSortableHeader('title', 'שם הפרויקט')}
+                    {isContactPersonEnabled && renderSortableHeader('contactPerson', contactPersonLabel)}
+                    {isContactPhoneEnabled && <th>{contactPhoneLabel}</th>}
+                    {isSupplierContactEmailEnabled && <th>{supplierContactEmailLabel}</th>}
+                    {renderSortableHeader('status', 'סטטוס')}
+                    {renderSortableHeader('updatedAt', 'עודכן ב')}
+                    <th>פעולות</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    {renderSortableHeader('title', `שם ה${flags.terms.item}`)}
+                    {projectFields.map(field => {
+                      if (field.type === 'file') {
+                        return <th key={field.key}>{field.label}</th>;
+                      }
+                      return renderSortableHeader(field.key, field.label);
+                    })}
+                    {renderSortableHeader('updatedAt', 'עודכן ב')}
+                    <th>פעולות</th>
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {filteredTasks.map(task => {
                   const currentContactPerson = task.contactPerson || task.supplierContactName || '';
                   const currentPlanogram = task.planogramFile || task.planogram;
+                  const currentWorkOrder = hasWorkOrder(task);
                   const contact = contactsByName.get(currentContactPerson.trim().toLowerCase());
                   const phone = contact ? contact.phone : '';
                   const email = task.supplierContactEmail || task.contactEmail || task.email || (contact ? contact.email : '');
+                  const taskStatusConfig = getBoardStatusConfig(settings, task.boardId);
 
+                  if (flags.isLegacy) {
+                    return (
+                      <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
+                        <td style={{ fontWeight: '600' }}>
+                          <span className="task-title-with-indicator">
+                            <span>{task.title}</span>
+                            {(Boolean(currentWorkOrder) || Boolean(currentPlanogram)) && (
+                              <span className="task-indicators-stack">
+                                {currentWorkOrder && <WorkOrderIndicator />}
+                                {currentPlanogram && <PlanogramIndicator />}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        {isContactPersonEnabled && (
+                          <td
+                            className={editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? '' : 'editable-cell'}
+                            onClick={(e) => {
+                              if (editingCell.taskId === task.id && editingCell.field === 'contactPerson') return;
+                              e.stopPropagation();
+                              startEditingCell(task.id, 'contactPerson', currentContactPerson);
+                            }}
+                          >
+                            {editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? (
+                              <input
+                                type="text"
+                                className="form-control table-inline-input"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleSaveCellInline(task, 'contactPerson', editValue)}
+                                onKeyDown={(e) => handleCellKeyDown(e, task, 'contactPerson')}
+                                list="contacts-list-table"
+                                autoFocus
+                                disabled={isSavingCell}
+                              />
+                            ) : (
+                              currentContactPerson || '-'
+                            )}
+                          </td>
+                        )}
+                        {isContactPhoneEnabled && (
+                          <td
+                            className={editingCell.taskId === task.id && editingCell.field === 'phone' ? '' : 'editable-cell'}
+                            onClick={(e) => {
+                              if (editingCell.taskId === task.id && editingCell.field === 'phone') return;
+                              e.stopPropagation();
+                              if (!currentContactPerson) {
+                                alert('יש להגדיר איש קשר לפני עדכון מספר טלפון');
+                                return;
+                              }
+                              startEditingCell(task.id, 'phone', phone);
+                            }}
+                          >
+                            {editingCell.taskId === task.id && editingCell.field === 'phone' ? (
+                              <input
+                                type="text"
+                                className="form-control table-inline-input direction-ltr text-left"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleSaveCellInline(task, 'phone', editValue)}
+                                onKeyDown={(e) => handleCellKeyDown(e, task, 'phone')}
+                                autoFocus
+                                disabled={isSavingCell}
+                              />
+                            ) : (
+                              phone ? (
+                                <a
+                                  href={`tel:${phone.replace(/\s+/g, '')}`}
+                                  className="directory-phone-link direction-ltr"
+                                  style={{ textDecoration: 'none', color: 'var(--primary)' }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {phone}
+                                </a>
+                              ) : '-'
+                            )}
+                          </td>
+                        )}
+                        {isSupplierContactEmailEnabled && (
+                          <td
+                            className={editingCell.taskId === task.id && editingCell.field === 'email' ? '' : 'editable-cell'}
+                            onClick={(e) => {
+                              if (editingCell.taskId === task.id && editingCell.field === 'email') return;
+                              e.stopPropagation();
+                              startEditingCell(task.id, 'email', email);
+                            }}
+                          >
+                            {editingCell.taskId === task.id && editingCell.field === 'email' ? (
+                              <input
+                                type="email"
+                                className="form-control table-inline-input direction-ltr text-left"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleSaveCellInline(task, 'email', editValue)}
+                                onKeyDown={(e) => handleCellKeyDown(e, task, 'email')}
+                                autoFocus
+                                disabled={isSavingCell}
+                              />
+                            ) : (
+                              email ? (
+                                <a
+                                  href={`mailto:${email}`}
+                                  className="direction-ltr"
+                                  style={{ textDecoration: 'none', color: 'var(--primary)' }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {email}
+                                </a>
+                              ) : '-'
+                            )}
+                          </td>
+                        )}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                            <StatusPicker
+                              currentStatus={task.status}
+                              statuses={taskStatusConfig.statuses}
+                              statusColors={taskStatusConfig.statusColors}
+                              onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                              disabled={savingStatusIds.has(task.id)}
+                            />
+                            {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                              <div className="task-completed-date-badge">
+                                הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td>{formatDate(task.updatedAt)}</td>
+                        <td>
+                          <div className="actions-cell">
+                            <button
+                              className="btn btn-secondary btn-icon"
+                              title="צפייה בפרטים"
+                              onClick={() => setViewingTask(task)}
+                            >
+                              👁️
+                            </button>
+                            <button
+                              className="btn btn-danger btn-icon"
+                              title="מחיקת משימה"
+                              onClick={() => setDeletingTaskId(task.id)}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  // V2 Row - Dynamically render cells based on projectFields
                   return (
                     <tr key={task.id} onClick={(e) => handleCellClick(task, e)}>
-                      <td
-                        style={{ fontWeight: '600' }}
-                      >
+                      <td style={{ fontWeight: '600' }}>
                         <span className="task-title-with-indicator">
                           <span>{task.title}</span>
-                          {currentPlanogram && <PlanogramIndicator />}
+                          {Boolean(currentPlanogram) && (
+                            <span className="task-indicators-stack">
+                              <PlanogramIndicator />
+                            </span>
+                          )}
                         </span>
                       </td>
-                      <td
-                        className={editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? '' : 'editable-cell'}
-                        onClick={(e) => {
-                          if (editingCell.taskId === task.id && editingCell.field === 'contactPerson') return;
-                          e.stopPropagation();
-                          startEditingCell(task.id, 'contactPerson', currentContactPerson);
-                        }}
-                      >
-                        {editingCell.taskId === task.id && editingCell.field === 'contactPerson' ? (
-                          <input
-                            type="text"
-                            className="form-control table-inline-input"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleSaveCellInline(task, 'contactPerson', editValue)}
-                            onKeyDown={(e) => handleCellKeyDown(e, task, 'contactPerson')}
-                            list="contacts-list-table"
-                            autoFocus
-                            disabled={isSavingCell}
-                          />
-                        ) : (
-                          currentContactPerson || '-'
-                        )}
-                      </td>
-                      <td
-                        className={editingCell.taskId === task.id && editingCell.field === 'phone' ? '' : 'editable-cell'}
-                        onClick={(e) => {
-                          if (editingCell.taskId === task.id && editingCell.field === 'phone') return;
-                          e.stopPropagation();
-                          if (!currentContactPerson) {
-                            alert('יש להגדיר איש קשר לפני עדכון מספר טלפון');
-                            return;
-                          }
-                          startEditingCell(task.id, 'phone', phone);
-                        }}
-                      >
-                        {editingCell.taskId === task.id && editingCell.field === 'phone' ? (
-                          <input
-                            type="text"
-                            className="form-control table-inline-input direction-ltr text-left"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleSaveCellInline(task, 'phone', editValue)}
-                            onKeyDown={(e) => handleCellKeyDown(e, task, 'phone')}
-                            autoFocus
-                            disabled={isSavingCell}
-                          />
-                        ) : (
-                          phone ? (
-                            <a
-                              href={`tel:${phone.replace(/\s+/g, '')}`}
-                              className="directory-phone-link direction-ltr"
-                              style={{ textDecoration: 'none', color: 'var(--primary)' }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {phone}
-                            </a>
-                          ) : '-'
-                        )}
-                      </td>
-                      <td
-                        className={editingCell.taskId === task.id && editingCell.field === 'email' ? '' : 'editable-cell'}
-                        onClick={(e) => {
-                          if (editingCell.taskId === task.id && editingCell.field === 'email') return;
-                          e.stopPropagation();
-                          startEditingCell(task.id, 'email', email);
-                        }}
-                      >
-                        {editingCell.taskId === task.id && editingCell.field === 'email' ? (
-                          <input
-                            type="email"
-                            className="form-control table-inline-input direction-ltr text-left"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleSaveCellInline(task, 'email', editValue)}
-                            onKeyDown={(e) => handleCellKeyDown(e, task, 'email')}
-                            autoFocus
-                            disabled={isSavingCell}
-                          />
-                        ) : (
-                          email ? (
-                            <a
-                              href={`mailto:${email}`}
-                              className="direction-ltr"
-                              style={{ textDecoration: 'none', color: 'var(--primary)' }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {email}
-                            </a>
-                          ) : '-'
-                        )}
-                      </td>
-                      <td>
-                        {(() => {
-                          const taskStatusConfig = getBoardStatusConfig(settings, task.boardId);
-                          return (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                              <StatusPicker
-                                currentStatus={task.status}
-                                statuses={taskStatusConfig.statuses}
-                                statusColors={taskStatusConfig.statusColors}
-                                onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
-                                disabled={savingStatusIds.has(task.id)}
-                              />
-                              {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
-                                <div className="task-completed-date-badge">
-                                  הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
+
+                      {projectFields.map(field => {
+                        const isNonEditableCell = field.key === 'status' || field.type === 'file' || field.type === 'checkbox';
+                        const isEditingThisField = editingCell.taskId === task.id && editingCell.field === field.key;
+                        return (
+                          <td
+                            key={field.key}
+                            className={isNonEditableCell || isEditingThisField ? '' : 'editable-cell'}
+                            onClick={(e) => {
+                              if (isNonEditableCell || isEditingThisField) return;
+                              e.stopPropagation();
+                              const val = getTaskFieldValue(task, field.key);
+                              startEditingCell(task.id, field.key, val);
+                            }}
+                          >
+                            {renderV2TableCell(task, field, {
+                              currentContactPerson,
+                              email,
+                              currentPlanogram,
+                              currentWorkOrder,
+                              taskStatusConfig
+                            })}
+                          </td>
+                        );
+                      })}
+
                       <td>{formatDate(task.updatedAt)}</td>
                       <td>
                         <div className="actions-cell">
                           <button
                             className="btn btn-secondary btn-icon"
-                            title="צפייה בפרטים"
+                            title={`צפייה בפרטי ה${flags.terms.item}`}
                             onClick={() => setViewingTask(task)}
                           >
                             👁️
                           </button>
                           <button
                             className="btn btn-danger btn-icon"
-                            title="מחיקת משימה"
+                            title={`מחיקת ${flags.terms.item}`}
                             onClick={() => setDeletingTaskId(task.id)}
                           >
                             🗑️
@@ -1491,6 +2340,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             {filteredTasks.map(task => {
               const currentContactPerson = task.contactPerson || task.supplierContactName || '';
               const currentPlanogram = task.planogramFile || task.planogram;
+              const currentWorkOrder = hasWorkOrder(task);
               const contact = contactsByName.get(currentContactPerson.trim().toLowerCase());
               const phone = contact ? contact.phone : '';
               const email = task.supplierContactEmail || task.contactEmail || task.email || (contact ? contact.email : '');
@@ -1503,7 +2353,12 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                       <h4 className="task-card-title">
                         <span className="task-title-with-indicator">
                           <span>{task.title}</span>
-                          {currentPlanogram && <PlanogramIndicator compact />}
+                          {(Boolean(flags.isLegacy && currentWorkOrder) || Boolean(currentPlanogram)) && (
+                            <span className="task-indicators-stack">
+                              {flags.isLegacy && currentWorkOrder && <WorkOrderIndicator compact />}
+                              {currentPlanogram && <PlanogramIndicator compact />}
+                            </span>
+                          )}
                         </span>
                       </h4>
                     </div>
@@ -1524,32 +2379,63 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   </div>
 
                   <div className="task-card-meta">
-                    <div className="meta-item">
-                      <span className="meta-label">איש קשר</span>
-                      <span className="meta-value">{currentContactPerson || '-'}</span>
-                    </div>
-                    <div className="meta-item">
-                      <span className="meta-label">עודכן ב</span>
-                      <span className="meta-value">{formatDate(task.updatedAt)}</span>
-                    </div>
-                    {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
-                      <div className="meta-item">
-                        <span className="meta-label">תאריך השלמה</span>
-                        <span className="meta-value completed-date-highlight">{formatDate(task.completedAt || task.updatedAt)}</span>
-                      </div>
+                    {flags.isLegacy ? (
+                      <>
+                        <div className="meta-item">
+                          <span className="meta-label">איש קשר</span>
+                          <span className="meta-value">{currentContactPerson || '-'}</span>
+                        </div>
+                        <div className="meta-item">
+                          <span className="meta-label">עודכן ב</span>
+                          <span className="meta-value">{formatDate(task.updatedAt)}</span>
+                        </div>
+                        {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                          <div className="meta-item">
+                            <span className="meta-label">תאריך השלמה</span>
+                            <span className="meta-value completed-date-highlight">{formatDate(task.completedAt || task.updatedAt)}</span>
+                          </div>
+                        )}
+                        <div className="meta-item">
+                          <span className="meta-label">טלפון</span>
+                          <span className="meta-value">
+                            {phone ? <a className="directory-phone-link direction-ltr" href={`tel:${phone.replace(/\s+/g, '')}`} onClick={(e) => e.stopPropagation()}>{phone}</a> : '-'}
+                          </span>
+                        </div>
+                        <div className="meta-item">
+                          <span className="meta-label">אימייל</span>
+                          <span className="meta-value">
+                            {email ? <a className="direction-ltr mobile-email-link" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>{email}</a> : '-'}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {projectFields.filter(f => f.key !== 'status').map(field => (
+                          <div key={field.key} className="meta-item">
+                            <span className="meta-label">{field.label}</span>
+                            <span className="meta-value">
+                              {renderV2TableCell(task, field, {
+                                currentContactPerson,
+                                email,
+                                currentPlanogram,
+                                currentWorkOrder,
+                                taskStatusConfig
+                              })}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="meta-item">
+                          <span className="meta-label">עודכן ב</span>
+                          <span className="meta-value">{formatDate(task.updatedAt)}</span>
+                        </div>
+                        {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                          <div className="meta-item">
+                            <span className="meta-label">תאריך השלמה</span>
+                            <span className="meta-value completed-date-highlight">{formatDate(task.completedAt || task.updatedAt)}</span>
+                          </div>
+                        )}
+                      </>
                     )}
-                    <div className="meta-item">
-                      <span className="meta-label">טלפון</span>
-                      <span className="meta-value">
-                        {phone ? <a className="directory-phone-link direction-ltr" href={`tel:${phone.replace(/\s+/g, '')}`} onClick={(e) => e.stopPropagation()}>{phone}</a> : '-'}
-                      </span>
-                    </div>
-                    <div className="meta-item">
-                      <span className="meta-label">אימייל</span>
-                      <span className="meta-value">
-                        {email ? <a className="direction-ltr mobile-email-link" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>{email}</a> : '-'}
-                      </span>
-                    </div>
                   </div>
 
                   <div className="task-card-actions">
@@ -1603,6 +2489,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             onTaskUpdated={applyTaskPatch}
             onStatusChange={handleStatusChange}
             userId={userId}
+            userEmail={userEmail}
+            isSystemAdmin={isSystemAdmin}
             organizationId={organizationId}
           />
         </Suspense>
@@ -1611,7 +2499,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       {/* Modal for adding a new board */}
       {isAddBoardModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAddBoardModalOpen(false)}>
-          <div className="modal-content confirm-dialog" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">✨ יצירת לוח פרויקטים חדש</h3>
               <button type="button" className="modal-close" onClick={() => setIsAddBoardModalOpen(false)}>&times;</button>
@@ -1646,6 +2534,124 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     ))}
                   </div>
                 </div>
+                <div className="form-group" style={{ marginBottom: 0, marginTop: '4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.95rem', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={newBoardIsShared}
+                      onChange={e => setNewBoardIsShared(e.target.checked)}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <span>🌐 שתף פרויקטים בלוח זה עם כל חברי הארגון</span>
+                  </label>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginInlineStart: '26px' }}>
+                    {newBoardIsShared ? 'כל מי שמחובר לארגון יוכל לצפות ולערוך פרויקטים בלוח זה' : 'לוח פרטי - לא יוצג ליתר חברי הארגון אלא אם שותפו'}
+                  </span>
+                </div>
+
+                {!newBoardIsShared && (
+                  <div style={{
+                    backgroundColor: 'var(--bg-secondary, #f8fafc)',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600', fontSize: '0.88rem' }}>
+                      <span>🔒</span>
+                      <span>שיתוף חברי צוות בלוח זה</span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      לוח זה מוסתר מיתר חברי הארגון. רק את/ה ומי שיוגדר כאן יוכלו לצפות בלוח ובפרויקטים שבו.
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="email"
+                        className="form-control"
+                        style={{ fontSize: '0.85rem' }}
+                        placeholder="הזן אימייל של חבר צוות להוספה..."
+                        value={newBoardEmailInput}
+                        onChange={e => setNewBoardEmailInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const email = newBoardEmailInput.trim().toLowerCase();
+                            if (email && email.includes('@') && !newBoardSharedEmails.some(x => x.toLowerCase() === email)) {
+                              setNewBoardSharedEmails([...newBoardSharedEmails, email]);
+                              setNewBoardEmailInput('');
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 12px', whiteSpace: 'nowrap', fontSize: '0.85rem' }}
+                        onClick={() => {
+                          const email = newBoardEmailInput.trim().toLowerCase();
+                          if (email && email.includes('@') && !newBoardSharedEmails.some(x => x.toLowerCase() === email)) {
+                            setNewBoardSharedEmails([...newBoardSharedEmails, email]);
+                            setNewBoardEmailInput('');
+                          }
+                        }}
+                      >
+                        ➕ הוסף
+                      </button>
+                    </div>
+                    {contactsWithEmails.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>הוספה מהירה:</span>
+                        {contactsWithEmails.slice(0, 5).map(c => {
+                          const email = (c.email || '').trim().toLowerCase();
+                          if (!email || newBoardSharedEmails.some(x => x.toLowerCase() === email)) return null;
+                          return (
+                            <button
+                              key={c.id || email}
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px' }}
+                              onClick={() => setNewBoardSharedEmails([...newBoardSharedEmails, email])}
+                            >
+                              + {c.name || email}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {newBoardSharedEmails.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                        {newBoardSharedEmails.map(email => (
+                          <span
+                            key={email}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              backgroundColor: '#e0e7ff',
+                              color: '#3730a3',
+                              padding: '3px 10px',
+                              borderRadius: '16px',
+                              fontSize: '0.8rem',
+                              fontWeight: '500'
+                            }}
+                          >
+                            ✉️ {email}
+                            <button
+                              type="button"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.85rem', color: '#4338ca' }}
+                              onClick={() => setNewBoardSharedEmails(newBoardSharedEmails.filter(e => e !== email))}
+                              title="הסר שיתוף"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsAddBoardModalOpen(false)}>
@@ -1663,7 +2669,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       {/* Modal for editing an existing board */}
       {editingBoard && (
         <div className="modal-overlay" onClick={() => setEditingBoard(null)}>
-          <div className="modal-content confirm-dialog" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content confirm-dialog" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">✏️ עריכת לוח</h3>
               <button type="button" className="modal-close" onClick={() => setEditingBoard(null)}>&times;</button>
@@ -1697,6 +2703,130 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     ))}
                   </div>
                 </div>
+                <div className="form-group" style={{ marginBottom: 0, marginTop: '4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.95rem', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={editingBoard.isSharedWithOrg !== false}
+                      onChange={e => setEditingBoard({ ...editingBoard, isSharedWithOrg: e.target.checked })}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <span>🌐 שתף פרויקטים בלוח זה עם כל חברי הארגון</span>
+                  </label>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginInlineStart: '26px' }}>
+                    {editingBoard.isSharedWithOrg !== false ? 'כל מי שמחובר לארגון יוכל לצפות ולערוך פרויקטים בלוח זה' : 'לוח פרטי - לא יוצג ליתר חברי הארגון אלא אם שותפו'}
+                  </span>
+                </div>
+
+                {editingBoard.isSharedWithOrg === false && (
+                  <div style={{
+                    backgroundColor: 'var(--bg-secondary, #f8fafc)',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600', fontSize: '0.88rem' }}>
+                      <span>🔒</span>
+                      <span>שיתוף חברי צוות בלוח זה</span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      לוח זה מוסתר מיתר חברי הארגון. רק את/ה ומי שיוגדר כאן יוכלו לצפות בלוח ובפרויקטים שבו.
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="email"
+                        className="form-control"
+                        style={{ fontSize: '0.85rem' }}
+                        placeholder="הזן אימייל של חבר צוות להוספה..."
+                        value={editingBoardEmailInput}
+                        onChange={e => setEditingBoardEmailInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const email = editingBoardEmailInput.trim().toLowerCase();
+                            const current = Array.isArray(editingBoard.sharedEmails) ? editingBoard.sharedEmails : [];
+                            if (email && email.includes('@') && !current.some(x => x.toLowerCase() === email)) {
+                              setEditingBoard({ ...editingBoard, sharedEmails: [...current, email] });
+                              setEditingBoardEmailInput('');
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 12px', whiteSpace: 'nowrap', fontSize: '0.85rem' }}
+                        onClick={() => {
+                          const email = editingBoardEmailInput.trim().toLowerCase();
+                          const current = Array.isArray(editingBoard.sharedEmails) ? editingBoard.sharedEmails : [];
+                          if (email && email.includes('@') && !current.some(x => x.toLowerCase() === email)) {
+                            setEditingBoard({ ...editingBoard, sharedEmails: [...current, email] });
+                            setEditingBoardEmailInput('');
+                          }
+                        }}
+                      >
+                        ➕ הוסף
+                      </button>
+                    </div>
+                    {contactsWithEmails.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>הוספה מהירה:</span>
+                        {contactsWithEmails.slice(0, 5).map(c => {
+                          const email = (c.email || '').trim().toLowerCase();
+                          const current = Array.isArray(editingBoard.sharedEmails) ? editingBoard.sharedEmails : [];
+                          if (!email || current.some(x => x.toLowerCase() === email)) return null;
+                          return (
+                            <button
+                              key={c.id || email}
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px' }}
+                              onClick={() => setEditingBoard({ ...editingBoard, sharedEmails: [...current, email] })}
+                            >
+                              + {c.name || email}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {Array.isArray(editingBoard.sharedEmails) && editingBoard.sharedEmails.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                        {editingBoard.sharedEmails.map(email => (
+                          <span
+                            key={email}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              backgroundColor: '#e0e7ff',
+                              color: '#3730a3',
+                              padding: '3px 10px',
+                              borderRadius: '16px',
+                              fontSize: '0.8rem',
+                              fontWeight: '500'
+                            }}
+                          >
+                            ✉️ {email}
+                            <button
+                              type="button"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.85rem', color: '#4338ca' }}
+                              onClick={() => setEditingBoard({
+                                ...editingBoard,
+                                sharedEmails: editingBoard.sharedEmails.filter(e => e !== email)
+                              })}
+                              title="הסר שיתוף"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setEditingBoard(null)}>
@@ -1838,6 +2968,37 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating Action Button (FAB) for creating a project - Only in new version (v2) */}
+      {!flags.isLegacy && workspaceView !== 'trash' && (
+        <button
+          type="button"
+          className="floating-create-btn"
+          onClick={() => {
+            setViewingTask(null);
+            setStartInEditMode(false);
+            setIsCreateOpen(true);
+          }}
+          aria-label="יצירת פרויקט חדש"
+        >
+          <svg
+            className="floating-create-btn-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span className="floating-create-tooltip" role="tooltip">
+            יצירת פרויקט חדש
+          </span>
+        </button>
       )}
     </main>
   );

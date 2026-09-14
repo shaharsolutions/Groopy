@@ -3,7 +3,7 @@ import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Header from './components/Header';
 import { DEFAULT_NEW_TASK_FIELDS } from './data/taskFieldConfig';
-import { getFeatureFlags, DEFAULT_APP_VERSION } from './utils/featureFlags';
+import { getFeatureFlags, DEFAULT_APP_VERSION, APP_VERSIONS } from './utils/featureFlags';
 
 // Lazy loading pages for better initial load performance
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -89,6 +89,7 @@ export default function App() {
     hideWeeklyHours: false,
     autoArchiveInactiveDays: 45,
     boards: [],
+    boardOrder: [],
     appVersion: DEFAULT_APP_VERSION
   });
 
@@ -236,6 +237,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      if (cancelled) return;
+      try {
+        const { touchUserActivity } = await import('./utils/storage');
+        await touchUserActivity(auth.currentUser);
+      } catch (err) {
+        // silent background heartbeat
+      }
+    }, 2 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [userId]);
+
+  useEffect(() => {
     const effectiveUserId = impersonatedUserId || userId;
     const effectiveOrganizationId = impersonatedOrganizationId || organizationId;
     if (!effectiveUserId || !effectiveOrganizationId) return;
@@ -265,14 +285,35 @@ export default function App() {
       };
       if (docSnap.exists()) {
         const dbSettings = docSnap.data();
+        let sanitizedBoards = Array.isArray(dbSettings.boards) ? dbSettings.boards : [];
+        let sanitizedBoardOrder = Array.isArray(dbSettings.boardOrder) ? dbSettings.boardOrder : [];
+
+        const hasTestBoard = sanitizedBoards.some(b => b && b.name && b.name.trim() === 'בדיקה');
+        if (hasTestBoard) {
+          const testBoardIds = new Set(sanitizedBoards.filter(b => b && b.name && b.name.trim() === 'בדיקה').map(b => b.id));
+          sanitizedBoards = sanitizedBoards.filter(b => !testBoardIds.has(b.id));
+          sanitizedBoardOrder = sanitizedBoardOrder.filter(id => !testBoardIds.has(id));
+          import('./utils/storage').then(({ saveGlobalSettings }) => {
+            saveGlobalSettings({
+              ...dbSettings,
+              boards: sanitizedBoards,
+              boardOrder: sanitizedBoardOrder
+            }, effectiveOrganizationId, { skipActivityLog: true }).catch(err => {
+              console.warn('Could not auto-purge test board from settings', err);
+            });
+          });
+        }
+
         setSettings(prev => ({
           ...prev,
           ...dbSettings,
-          appVersion: dbSettings.appVersion || DEFAULT_APP_VERSION,
+          organizationId: effectiveOrganizationId,
+          appVersion: dbSettings.appVersion || (effectiveOrganizationId === 'groopy' ? APP_VERSIONS.LEGACY : DEFAULT_APP_VERSION),
           statuses: dbSettings.statuses || defaultStatuses,
           statusColors: dbSettings.statusColors || defaultStatusColors,
           defaultStatus: dbSettings.defaultStatus || 'חדש',
-          boards: Array.isArray(dbSettings.boards) ? dbSettings.boards : [],
+          boards: sanitizedBoards,
+          boardOrder: sanitizedBoardOrder,
           autoArchiveInactiveDays: Number.isFinite(Number(dbSettings.autoArchiveInactiveDays))
             ? Number(dbSettings.autoArchiveInactiveDays)
             : 45
@@ -280,13 +321,15 @@ export default function App() {
       } else {
         setSettings(prev => ({
           ...prev,
-          appVersion: DEFAULT_APP_VERSION,
+          organizationId: effectiveOrganizationId,
+          appVersion: effectiveOrganizationId === 'groopy' ? APP_VERSIONS.LEGACY : DEFAULT_APP_VERSION,
           statuses: defaultStatuses,
           statusColors: defaultStatusColors,
           defaultStatus: 'חדש',
           hideWeeklyHours: false,
           autoArchiveInactiveDays: 45,
-          boards: []
+          boards: [],
+          boardOrder: []
         }));
       }
     }, (err) => {
@@ -294,7 +337,9 @@ export default function App() {
     });
 
       // Listen to suppliers real-time from Firestore
-      const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', effectiveUserId));
+      const suppliersQuery = effectiveOrganizationId
+        ? query(collection(db, 'suppliers'), where('organizationId', '==', effectiveOrganizationId))
+        : query(collection(db, 'suppliers'), where('userId', '==', effectiveUserId));
       unsubscribeSuppliers = onSnapshot(suppliersQuery, (snapshot) => {
         const sups = [];
         snapshot.forEach(docSnap => {
@@ -308,7 +353,9 @@ export default function App() {
       });
 
       // Listen to contacts real-time from Firestore
-      const contactsQuery = query(collection(db, 'contacts'), where('userId', '==', effectiveUserId));
+      const contactsQuery = effectiveOrganizationId
+        ? query(collection(db, 'contacts'), where('organizationId', '==', effectiveOrganizationId))
+        : query(collection(db, 'contacts'), where('userId', '==', effectiveUserId));
       unsubscribeContacts = onSnapshot(contactsQuery, (snapshot) => {
         const conts = [];
         snapshot.forEach(docSnap => {
@@ -383,9 +430,11 @@ export default function App() {
   };
 
   const effectiveUserId = impersonatedUserId || userId;
+  const effectiveUserEmail = impersonatedUserEmail || auth.currentUser?.email || '';
   const effectiveOrganizationId = impersonatedOrganizationId || organizationId;
   const effectiveOrganizationName = impersonatedOrganizationName || organizationName;
   const isSystemAdmin = auth.currentUser?.email === 'shaharsolutions@gmail.com';
+  const effectiveIsSystemAdmin = impersonatedUserId ? (effectiveUserEmail === 'shaharsolutions@gmail.com') : isSystemAdmin;
 
   useEffect(() => {
     import('./utils/storage').then(({ setActiveOrganizationContext }) => {
@@ -521,7 +570,8 @@ export default function App() {
         onLogout={handleLogout}
         userId={effectiveUserId}
         organizationId={effectiveOrganizationId}
-        userEmail={auth.currentUser?.email}
+        userEmail={effectiveUserEmail}
+        isSystemAdmin={isSystemAdmin}
         onSearchTrigger={() => setIsSearchOpen(true)}
         onOpenTask={(taskId) => setAutoOpenTaskId(taskId)}
         settings={settings}
@@ -552,7 +602,13 @@ export default function App() {
               key={`${effectiveOrganizationId}:${JSON.stringify(settings)}`}
               settings={settings}
               organizationName={effectiveOrganizationName}
+              organizationId={effectiveOrganizationId}
               onSaveSettings={handleSaveSettings}
+              userId={effectiveUserId}
+              userEmail={effectiveUserEmail}
+              isSystemAdmin={effectiveIsSystemAdmin}
+              contacts={contacts}
+              suppliers={suppliers}
               onBack={() => {
                 if (organizationManagementMode) {
                   handleStopImpersonation();
@@ -567,6 +623,8 @@ export default function App() {
               suppliers={suppliers}
               contacts={contacts}
               userId={effectiveUserId}
+              organizationId={effectiveOrganizationId}
+              onSaveSettings={handleSaveSettings}
               onBack={() => setCurrentView('dashboard')}
               autoOpenSupplierId={autoOpenSupplierId}
               autoOpenContactId={autoOpenContactId}
@@ -580,8 +638,8 @@ export default function App() {
             <ActivityLogPage
               currentUserId={userId}
               organizationId={effectiveOrganizationId}
-              currentUserEmail={auth.currentUser?.email || ''}
-              isSystemAdmin={isSystemAdmin}
+              currentUserEmail={effectiveUserEmail}
+              isSystemAdmin={effectiveIsSystemAdmin}
               onBack={() => setCurrentView('dashboard')}
               initialSearchQuery={searchQueryForActivity}
               onClearSearchQuery={() => setSearchQueryForActivity(null)}
@@ -589,12 +647,15 @@ export default function App() {
             />
           ) : (
             <AdminDashboard
+              key={`${effectiveUserId}_${effectiveOrganizationId}`}
               settings={settings}
               suppliers={suppliers}
               contacts={contacts}
               onSaveSettings={handleSaveSettings}
               userId={effectiveUserId}
               organizationId={effectiveOrganizationId}
+              userEmail={effectiveUserEmail}
+              isSystemAdmin={effectiveIsSystemAdmin}
               autoOpenTaskId={autoOpenTaskId}
               onClearAutoOpen={() => setAutoOpenTaskId(null)}
             />
@@ -615,7 +676,10 @@ export default function App() {
             isOpen={isSearchOpen}
             onClose={() => setIsSearchOpen(false)}
             userId={effectiveUserId}
+            organizationId={effectiveOrganizationId}
             userRole={userRole}
+            userEmail={effectiveUserEmail}
+            isSystemAdmin={effectiveIsSystemAdmin}
             onNavigate={handleSearchNavigate}
             settings={settings}
           />

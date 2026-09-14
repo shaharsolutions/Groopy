@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react';
+import PdfThumbnail from './PdfThumbnail';
+import ExcelThumbnail from './ExcelThumbnail';
 
 const isPdfFile = (file) => /\.pdf$/i.test(file?.name || '');
 const isExcelFile = (file) => /\.(xlsx|xls)$/i.test(file?.name || '');
@@ -10,7 +12,8 @@ export default function PlanogramFileCard({
   onDelete = null,
   deleteLabel = 'מחיקה',
   downloadLabel = 'הורדת קובץ',
-  isReplacing = false
+  isReplacing = false,
+  defaultName = 'קובץ'
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const replaceInputRef = useRef(null);
@@ -81,15 +84,27 @@ export default function PlanogramFileCard({
         title="לחצי לצפייה בקובץ מתוך המערכת"
       >
         {isPdf ? (
-          <div className="planogram-pdf-preview" aria-label="פלנוגרמה בקובץ PDF">
-            <span className="planogram-pdf-icon" aria-hidden="true">PDF</span>
-            <span>צפייה והורדה</span>
-          </div>
+          <PdfThumbnail 
+            url={file.url} 
+            name={file.name}
+            fallback={
+              <div className="planogram-pdf-preview" aria-label="קובץ PDF">
+                <span className="planogram-pdf-icon" aria-hidden="true">PDF</span>
+                <span>צפייה והורדה</span>
+              </div>
+            }
+          />
         ) : isExcel ? (
-          <div className="planogram-pdf-preview" aria-label="פלנוגרמה בקובץ Excel">
-            <span className="planogram-pdf-icon" style={{ backgroundColor: '#107c41' }} aria-hidden="true">XLS</span>
-            <span>צפייה והורדה</span>
-          </div>
+          <ExcelThumbnail 
+            url={file.url} 
+            name={file.name}
+            fallback={
+              <div className="planogram-pdf-preview" aria-label="קובץ Excel">
+                <span className="planogram-pdf-icon" style={{ backgroundColor: '#107c41' }} aria-hidden="true">XLS</span>
+                <span>צפייה והורדה</span>
+              </div>
+            }
+          />
         ) : (
           <img src={file.url} alt={file.name || 'תצוגה מקדימה'} className="planogram-preview-img" />
         )}
@@ -102,7 +117,7 @@ export default function PlanogramFileCard({
           onClick={handlePreviewClick}
           style={{ cursor: 'pointer' }}
         >
-          {file.name || 'פלנוגרמה'}
+          {file.name || defaultName}
         </span>
         <div className="planogram-file-actions" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
           <button 

@@ -104,7 +104,7 @@ function getAggregatedMonthlySummary(tasks) {
  *
  * Top bar with logo, share link generator for admin, and role toggling.
  */
-export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, organizationId, userEmail, onSearchTrigger, onOpenTask, settings, organizationName }) {
+export default function Header({ userRole, onChangeRole, showSwitcher, currentView, onViewChange, onLogout, userId, organizationId, userEmail, onSearchTrigger, onOpenTask, settings, organizationName, isSystemAdmin = false }) {
   const [copied, setCopied] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [summaryData, setSummaryData] = useState({});
@@ -112,6 +112,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
   const [loading, setLoading] = useState(false);
 
   const flags = getFeatureFlags(settings);
+  const canAccessAdminTools = isSystemAdmin || userEmail === 'shaharsolutions@gmail.com';
 
   const toggleMonth = (key) => {
     setExpandedMonths(prev => ({
@@ -131,7 +132,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
     setIsSummaryOpen(true);
     setLoading(true);
     try {
-      const cacheKey = userId || 'anonymous';
+      const cacheKey = `${userId || 'anonymous'}:${organizationId || ''}`;
       const cached = summaryCache.get(cacheKey);
       if (cached && Date.now() - cached.createdAt < SUMMARY_CACHE_TTL_MS) {
         setSummaryData(cached.summary);
@@ -140,8 +141,26 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
       }
 
       const { getTasks } = await import('../utils/storage');
-      const tasks = await getTasks(userId);
-      const summary = getAggregatedMonthlySummary(tasks);
+      const { isBoardSharedWithOrg, isBoardAccessibleToUser } = await import('../utils/boardStatusHelper');
+      const allTasks = await getTasks(userId, organizationId);
+      const visibleTasks = allTasks.filter(t => {
+        const boardId = t.boardId || 'active';
+        const isAccessible = isBoardAccessibleToUser(boardId, {
+          userId,
+          userEmail,
+          settings,
+          tasks: allTasks
+        });
+        if (!isAccessible) return false;
+        if (isBoardSharedWithOrg(settings, boardId)) return true;
+        const normalizedEmail = userEmail ? userEmail.trim().toLowerCase() : '';
+        return !t.userId || t.userId === userId || (normalizedEmail && (
+          (t.userEmail && t.userEmail.trim().toLowerCase() === normalizedEmail) ||
+          (t.creatorEmail && t.creatorEmail.trim().toLowerCase() === normalizedEmail) ||
+          (t.email && t.email.trim().toLowerCase() === normalizedEmail)
+        ));
+      });
+      const summary = getAggregatedMonthlySummary(visibleTasks);
       setSummaryData(summary);
       
       const keys = Object.keys(summary);
@@ -226,7 +245,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
           🔍 חיפוש במערכת
         </button>
 
-        {userEmail === 'shaharsolutions@gmail.com' && onViewChange && (
+        {canAccessAdminTools && onViewChange && (
           currentView === 'users' ? (
             <button
               className="btn btn-secondary"
@@ -302,7 +321,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
             )}
 
             {/* Settings button */}
-            {userEmail === 'shaharsolutions@gmail.com' && currentView !== 'settings' && (
+            {canAccessAdminTools && currentView !== 'settings' && (
               <button
                 className="btn btn-secondary"
                 onClick={() => onViewChange('settings')}

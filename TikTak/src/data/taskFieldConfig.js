@@ -17,6 +17,7 @@ export const DEFAULT_NEW_TASK_FIELDS = {
   status: { enabled: true, label: 'סטטוס', type: 'select', style: 'standard', isCustom: false },
   contactPerson: { enabled: true, label: 'איש קשר', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
   supplierContactEmail: { enabled: true, label: 'אימייל איש קשר', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
+  contactPhone: { enabled: true, label: 'טלפון איש קשר', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
   standardsInstituteRequired: { enabled: true, label: 'דרישות מכון תקנים', type: 'select', style: 'standard', options: ['לא', 'כן'], defaultValue: 'לא', isCustom: false },
   diecutsStatus: { enabled: true, label: 'דייקאטים', type: 'select', style: 'standard', options: ['אין', 'יש', 'חלקי'], defaultValue: 'אין', isCustom: false },
   imagesStatus: { enabled: true, label: 'תמונות', type: 'select', style: 'standard', options: ['אין', 'יש', 'חלקי'], defaultValue: 'אין', isCustom: false },
@@ -30,6 +31,7 @@ export const NEW_TASK_FIELD_DEFINITIONS = [
   { key: 'status', label: 'סטטוס', type: 'select', description: 'רשימת הסטטוסים מנוהלת בהמשך עמוד ההגדרות', isCustom: false },
   { key: 'contactPerson', label: 'איש קשר', type: 'text', options: [], isCustom: false },
   { key: 'supplierContactEmail', label: 'אימייל איש קשר', type: 'text', options: [], isCustom: false },
+  { key: 'contactPhone', label: 'טלפון איש קשר', type: 'text', options: [], isCustom: false },
   {
     key: 'standardsInstituteRequired',
     label: 'דרישות מכון תקנים',
@@ -80,16 +82,18 @@ export const createCustomFieldConfig = ({ label, type = 'text', style = 'standar
   };
 };
 
-export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false } = {}) => {
+export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false, isLegacy = false } = {}) => {
   const normalized = {};
 
   // 1. Process default built-in fields
   for (const [key, defaults] of Object.entries(DEFAULT_NEW_TASK_FIELDS)) {
-    const customOverride = fields?.[key];
+    const customOverride = fields?.[key] || (key === 'contactPhone' ? fields?.['phone'] : undefined);
     const isDeleted = customOverride?.deleted === true;
 
     if (isDeleted && !includeDeleted) {
-      continue; // Field was deleted from org and we are not including deleted fields
+      if (!isLegacy || (key !== 'workOrderFiles' && key !== 'planogramFile')) {
+        continue; // Field was deleted from org and we are not including deleted fields
+      }
     }
 
     const merged = { ...defaults, ...(customOverride || {}) };
@@ -108,8 +112,10 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false } =
     let label = String(customOverride?.label || defaults.label).trim() || defaults.label;
     if (label === 'איש קשר אצל הספק') label = 'איש קשר';
     if (label === 'מייל איש קשר ספק' || label === 'אימייל ספק') label = 'אימייל איש קשר';
+    if (label === 'טלפון ספק' || label === 'טלפון איש קשר ספק' || label === 'טלפון') label = 'טלפון איש קשר';
     if (key === 'planogramFile') {
       if (
+        isLegacy ||
         label === 'הזמנת עבודה / פלנוגרמה' ||
         label === 'העלאת פלנוגרמה' ||
         label.includes('הזמנת עבודה') ||
@@ -120,6 +126,7 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false } =
     }
     if (key === 'workOrderFiles') {
       if (
+        isLegacy ||
         label.includes('קבצים מצורפים') ||
         label.includes('תעודות') ||
         label.includes('הוראות עבודה') ||
@@ -134,14 +141,18 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false } =
       }
     }
 
+    const isLockedLegacyField = isLegacy && (key === 'workOrderFiles' || key === 'planogramFile');
+    const enabled = isLockedLegacyField ? true : (isDeleted ? false : merged.enabled !== false);
+    const deleted = isLockedLegacyField ? false : isDeleted;
+
     normalized[key] = {
       ...merged,
       key,
       label,
       type: merged.type || defaults.type || 'text',
       style: NEW_TASK_FIELD_STYLES.some(style => style.value === merged.style) ? merged.style : 'standard',
-      enabled: isDeleted ? false : (key === 'contactPerson' || key === 'supplierContactEmail' || key === 'planogramFile' || key === 'workOrderFiles' ? true : merged.enabled !== false),
-      deleted: isDeleted,
+      enabled,
+      deleted,
       isCustom: false,
       ...(hasDefinedOptions ? {
         options: options || [],
@@ -153,7 +164,7 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false } =
   // 2. Process custom user-created fields
   if (fields && typeof fields === 'object') {
     for (const [key, fieldConfig] of Object.entries(fields)) {
-      if (DEFAULT_NEW_TASK_FIELDS[key] || !fieldConfig || key === 'workType') {
+      if (DEFAULT_NEW_TASK_FIELDS[key] || !fieldConfig || key === 'workType' || key === 'phone') {
         continue;
       }
 
@@ -185,8 +196,8 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false } =
   return normalized;
 };
 
-export const getAllTaskFieldDefinitions = (newTaskFields = {}, { includeDeleted = false, taskFieldOrder = [] } = {}) => {
-  const normalized = normalizeNewTaskFields(newTaskFields, { includeDeleted });
+export const getAllTaskFieldDefinitions = (newTaskFields = {}, { includeDeleted = false, taskFieldOrder = [], isLegacy = false } = {}) => {
+  const normalized = normalizeNewTaskFields(newTaskFields, { includeDeleted, isLegacy });
   const definitionsMap = new Map();
 
   // 1. Index built-ins

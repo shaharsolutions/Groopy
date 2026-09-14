@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getActivityLogs, getAllUsers, getNameMap } from '../utils/storage';
 import { getFeatureFlags } from '../utils/featureFlags';
+import LinkifiedText from '../components/LinkifiedText';
 
 const formatDateTime = (isoString) => {
   if (!isoString) return 'לא ידוע';
@@ -417,7 +418,7 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
                   <td>
                     <div className="activity-target-label">{log.targetLabel || '-'}</div>
                   </td>
-                  <td>{log.details || '-'}</td>
+                  <td>{log.details ? <LinkifiedText text={log.details} /> : '-'}</td>
                 </tr>
               ))}
             </tbody>

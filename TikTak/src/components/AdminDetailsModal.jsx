@@ -5,9 +5,13 @@ const PdfPreviewModal = React.lazy(() => import('./PdfPreviewModal'));
 const ImagePreviewModal = React.lazy(() => import('./ImagePreviewModal'));
 import PlanogramFileCard from './PlanogramFileCard';
 import PlanogramIndicator from './PlanogramIndicator';
+import WorkOrderIndicator from './WorkOrderIndicator';
+import { hasWorkOrder } from '../utils/workOrderHelper';
 import { normalizeNewTaskFields, getAllTaskFieldDefinitions } from '../data/taskFieldConfig';
-import { getBoardStatusConfig } from '../utils/boardStatusHelper';
+import { getBoardStatusConfig, getOrderedBoards } from '../utils/boardStatusHelper';
 import { getFeatureFlags } from '../utils/featureFlags';
+import { resolveContactDetails } from '../utils/contactUtils';
+import LinkifiedText from './LinkifiedText';
 
 function getSundayOfWeek(date) {
   const d = new Date(date);
@@ -44,15 +48,18 @@ function getMonthlySummary(weeklyHoursObj) {
       { key: 'monday', offset: 1 },
       { key: 'tuesday', offset: 2 },
       { key: 'wednesday', offset: 3 },
-      { key: 'thursday', offset: 4 }
+      { key: 'thursday', offset: 4 },
+      { key: 'friday', offset: 5 },
+      { key: 'saturday', offset: 6 }
     ];
 
-    days.forEach(day => {
-      const hours = weeklyHoursObj[day.key] || 0;
+    days.forEach(({ key, offset }) => {
+      const hours = Number(weeklyHoursObj[key]) || 0;
       if (hours > 0) {
-        const d = new Date(yyyy, mm - 1, dd + day.offset);
-        const monthName = d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
-        monthlyTotals[monthName] = (monthlyTotals[monthName] || 0) + hours;
+        const d = new Date(yyyy, mm - 1, dd);
+        d.setDate(d.getDate() + offset);
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthlyTotals[monthKey] = (monthlyTotals[monthKey] || 0) + hours;
       }
     });
 
@@ -95,6 +102,7 @@ export default function AdminDetailsModal({
   task,
   settings,
   contacts: CONTACTS = [],
+  suppliers = [],
   onClose,
   onSave,
   onDelete,
@@ -104,6 +112,8 @@ export default function AdminDetailsModal({
   startInEditMode = false,
   initialBoardId = 'active',
   userId,
+  userEmail = '',
+  isSystemAdmin = false,
   organizationId
 }) {
   const isCreateMode = !task;
@@ -122,44 +132,43 @@ export default function AdminDetailsModal({
     hideWeeklyHours = false
   } = settings || {};
 
-  const flags = getFeatureFlags(settings);
+  const flags = getFeatureFlags({ organizationId: task?.organizationId, ...settings });
 
-  const newTaskFields = React.useMemo(() => normalizeNewTaskFields(settings?.newTaskFields), [settings?.newTaskFields]);
+  const newTaskFields = React.useMemo(() => normalizeNewTaskFields(settings?.newTaskFields, { isLegacy: flags.isLegacy }), [settings?.newTaskFields, flags.isLegacy]);
   const allFieldDefinitions = React.useMemo(() => getAllTaskFieldDefinitions(settings?.newTaskFields, {
-    taskFieldOrder: settings?.taskFieldOrder
-  }), [settings?.newTaskFields, settings?.taskFieldOrder]);
+    taskFieldOrder: settings?.taskFieldOrder,
+    isLegacy: flags.isLegacy
+  }), [settings?.newTaskFields, settings?.taskFieldOrder, flags.isLegacy]);
   const customFieldDefinitions = React.useMemo(() => allFieldDefinitions.filter(f => f.isCustom), [allFieldDefinitions]);
 
-  const isNewTaskFieldEnabled = (fieldKey) => Boolean(newTaskFields[fieldKey] && newTaskFields[fieldKey].enabled !== false && !newTaskFields[fieldKey].deleted);
-  const isFieldExcludedForTask = React.useCallback((fieldKey) => {
-    if (!flags.enableFieldExclusion) return false;
-    return Array.isArray(task?.excludedFields) && task.excludedFields.includes(fieldKey);
-  }, [flags.enableFieldExclusion, task?.excludedFields]);
+  const isNewTaskFieldEnabled = (fieldKey) => {
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    if (flags.isLegacy && (key === 'workOrderFiles' || key === 'planogramFile')) return true;
+    const config = newTaskFields[key] || (key === 'contactPhone' ? newTaskFields['phone'] : undefined);
+    return Boolean(config && config.enabled !== false && !config.deleted);
+  };
 
   const isFieldVisibleForTask = React.useCallback((fieldKey) => {
-    if (isFieldExcludedForTask(fieldKey)) return false;
-    // Always show if task has existing data to prevent hiding previous version data
-    if (task) {
-      if (fieldKey === 'contactPerson' && (task.contactPerson || task.supplierContactName)) return true;
-      if (fieldKey === 'supplierContactEmail' && (task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail)) return true;
-      if (fieldKey === 'planogramFile' && (task.planogramFile || task.planogram)) return true;
-      if (fieldKey === 'workOrderFiles' && (task.workOrderFile || (Array.isArray(task.workOrderFiles) ? task.workOrderFiles.length > 0 : Array.isArray(task.attachments) && task.attachments.length > 0))) return true;
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    if (flags.isLegacy && (key === 'workOrderFiles' || key === 'planogramFile')) return true;
+    return isNewTaskFieldEnabled(key);
+  }, [isNewTaskFieldEnabled, flags.isLegacy]);
+
+  const getNewTaskFieldLabel = (fieldKey) => {
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    if (flags.isLegacy) {
+      if (key === 'workOrderFiles') return flags.terms?.workOrderRubric || 'הזמנת עבודה';
+      if (key === 'planogramFile') return flags.terms?.planogramRubric || 'פלנוגרמה';
     }
-    return isNewTaskFieldEnabled(fieldKey);
-  }, [isFieldExcludedForTask, isNewTaskFieldEnabled, task]);
-
-  const excludedFieldsList = React.useMemo(() => {
-    if (!flags.enableFieldExclusion || !task || !Array.isArray(task.excludedFields) || task.excludedFields.length === 0) return [];
-    return task.excludedFields.map(key => {
-      const fieldDef = allFieldDefinitions.find(f => f.key === key) || { key, label: key };
-      return { key, label: fieldDef.label || key };
-    });
-  }, [flags.enableFieldExclusion, task, allFieldDefinitions]);
-
-  const getNewTaskFieldLabel = (fieldKey) => newTaskFields[fieldKey]?.label || fieldKey;
-  const getNewTaskFieldOptions = (fieldKey) => newTaskFields[fieldKey]?.options || [];
+    return newTaskFields[key]?.label || newTaskFields['phone']?.label || (key === 'contactPhone' ? 'טלפון איש קשר' : key);
+  };
+  const getNewTaskFieldOptions = (fieldKey) => {
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    return newTaskFields[key]?.options || [];
+  };
   const getNewTaskFieldStyle = (fieldKey) => {
-    const style = newTaskFields[fieldKey]?.style;
+    const key = (fieldKey === 'phone' || fieldKey === 'contactPhone') ? 'contactPhone' : fieldKey;
+    const style = newTaskFields[key]?.style;
     if (style === 'highlighted') {
       return { padding: '14px', border: '1px solid #c7d2fe', borderRadius: '10px', background: '#f8faff' };
     }
@@ -171,19 +180,28 @@ export default function AdminDetailsModal({
 
   const defaultContactPerson = newTaskFields.contactPerson?.defaultValue || '';
   const defaultSupplierContactEmail = newTaskFields.supplierContactEmail?.defaultValue || '';
+  const defaultContactPhone = newTaskFields.contactPhone?.defaultValue || newTaskFields.phone?.defaultValue || '';
   const defaultDiecutsStatus = newTaskFields.diecutsStatus?.defaultValue || 'אין';
   const defaultImagesStatus = newTaskFields.imagesStatus?.defaultValue || 'אין';
   const defaultStandardsInstituteRequired = newTaskFields.standardsInstituteRequired?.defaultValue || 'לא';
 
   const availableBoards = React.useMemo(() => {
-    const defaultBoard = {
-      id: 'active',
-      name: settings?.boardTitle || (flags.isLegacy ? 'עבודות פעילות' : 'פרויקטים פעילים'),
-      icon: settings?.boardIcon || (flags.isLegacy ? '📁' : '📋')
-    };
-    const customBoards = (settings?.boards || []).filter(b => b && b.id !== 'active');
-    return [defaultBoard, ...customBoards];
-  }, [settings?.boards, settings?.boardTitle, settings?.boardIcon, flags.isLegacy]);
+    const boards = getOrderedBoards(settings, {
+      isLegacy: flags.isLegacy,
+      userId,
+      userEmail,
+      isSystemAdmin
+    });
+    const currentBoardId = task?.boardId;
+    if (currentBoardId && currentBoardId !== 'active' && !boards.some(b => b.id === currentBoardId)) {
+      const allBoards = Array.isArray(settings?.boards) ? settings.boards : [];
+      const found = allBoards.find(b => b && b.id === currentBoardId);
+      if (found) {
+        return [...boards, found];
+      }
+    }
+    return boards;
+  }, [settings, flags.isLegacy, userId, userEmail, isSystemAdmin, task?.boardId]);
 
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -263,7 +281,7 @@ export default function AdminDetailsModal({
   const [comments, setComments] = useState([]);
   const [commentToDelete, setCommentToDelete] = useState(null);
   const [showPlanogramDeleteConfirm, setShowPlanogramDeleteConfirm] = useState(false);
-  const [fieldToExclude, setFieldToExclude] = useState(null); // { key, label }
+  const [showWorkOrderDeleteConfirm, setShowWorkOrderDeleteConfirm] = useState(false);
   const commentAuthorName = 'מנהל/ת תיקתק';
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
@@ -287,12 +305,17 @@ export default function AdminDetailsModal({
   const handleOpenContactCard = (contactName) => {
     if (!contactName) return;
     setActiveCardEditField(null);
-    const contact = CONTACTS.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === contactName.trim().toLowerCase());
-    const contactObj = contact || {
-      name: contactName,
-      phone: task?.phone || task?.contactPhone || task?.supplierContactPhone || '',
-      email: task?.supplierContactEmail || task?.contactEmail || task?.email || task?.supplierEmail || '',
-      role: task?.contactRole || ''
+    const details = resolveContactDetails(contactName, task, CONTACTS, suppliers);
+    const contact = details.contactObj;
+    const contactObj = {
+      id: contact?.id,
+      name: (typeof contact === 'object' ? contact?.name : '') || contactName,
+      phone: details.phone,
+      email: details.email,
+      role: details.role,
+      address: details.address,
+      wechat: details.wechat,
+      notes: details.notes
     };
     setActiveInfoCard({
       type: 'contact',
@@ -332,6 +355,18 @@ export default function AdminDetailsModal({
         } else {
           await addContact(fieldsData, userId);
         }
+        if (task?.id) {
+          const taskPatch = {};
+          if (fieldsData.email) taskPatch.supplierContactEmail = fieldsData.email;
+          if (fieldsData.phone) taskPatch.phone = fieldsData.phone;
+          if (fieldsData.name && fieldsData.name !== task.contactPerson) taskPatch.contactPerson = fieldsData.name;
+          if (Object.keys(taskPatch).length > 0) {
+            await updateTask(task.id, taskPatch);
+            if (onTaskUpdated) {
+              onTaskUpdated(task.id, { ...taskPatch, updatedAt: new Date().toISOString() });
+            }
+          }
+        }
       } else if (activeInfoCard.type === 'supplier') {
         const supplierId = activeInfoCard.supplierId;
         if (supplierId) {
@@ -354,6 +389,7 @@ export default function AdminDetailsModal({
   const [editDescription, setEditDescription] = useState('');
   const [editContactPerson, setEditContactPerson] = useState('');
   const [editSupplierContactEmail, setEditSupplierContactEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [editInternalNotes, setEditInternalNotes] = useState('');
   const [editCustomValue, setEditCustomValue] = useState('');
 
@@ -362,12 +398,19 @@ export default function AdminDetailsModal({
   const [createDescription, setCreateDescription] = useState('');
   const [createContactPerson, setCreateContactPerson] = useState(defaultContactPerson);
   const [createSupplierContactEmail, setCreateSupplierContactEmail] = useState(defaultSupplierContactEmail);
+  const [createPhone, setCreatePhone] = useState(defaultContactPhone);
   const [createDiecutsStatus, setCreateDiecutsStatus] = useState(defaultDiecutsStatus);
   const [createImagesStatus, setCreateImagesStatus] = useState(defaultImagesStatus);
   const [createStandardsInstituteRequired, setCreateStandardsInstituteRequired] = useState(defaultStandardsInstituteRequired);
   const [createStatus, setCreateStatus] = useState(DEFAULT_STATUS || 'חדש');
   const [createInternalNotes, setCreateInternalNotes] = useState('');
   const [createAttachments, setCreateAttachments] = useState([]);
+  const [createWorkOrderFile, setCreateWorkOrderFile] = useState(null);
+  const [workOrderDragActive, setWorkOrderDragActive] = useState(false);
+  const [uploadingWorkOrder, setUploadingWorkOrder] = useState(false);
+  const [uploadErrorWorkOrder, setUploadErrorWorkOrder] = useState('');
+  const [isReplacingWorkOrder, setIsReplacingWorkOrder] = useState(false);
+  const [uploadProgressWorkOrder, setUploadProgressWorkOrder] = useState(0);
   const [createPlanogramFile, setCreatePlanogramFile] = useState(null);
   const [createCustomFields, setCreateCustomFields] = useState(() => {
     const initial = {};
@@ -422,6 +465,7 @@ export default function AdminDetailsModal({
     if (fieldKey === 'description') setEditDescription(value || '');
     if (fieldKey === 'contactPerson') setEditContactPerson(value || '');
     if (fieldKey === 'supplierContactEmail') setEditSupplierContactEmail(value || '');
+    if (fieldKey === 'phone' || fieldKey === 'contactPhone') setEditPhone(value || '');
     if (fieldKey === 'internalNotes') setEditInternalNotes(value || '');
     setEditCustomValue(value !== undefined ? value : '');
   }, []);
@@ -440,7 +484,7 @@ export default function AdminDetailsModal({
       });
 
       const loadComments = async () => {
-        const fetchedComments = await getCommentsForTask(task.id, userId);
+        const fetchedComments = await getCommentsForTask(task.id, userId, organizationId);
         if (cancelled) return;
         setComments(fetchedComments);
       };
@@ -459,11 +503,14 @@ export default function AdminDetailsModal({
         setCreateDescription('');
         setCreateContactPerson(defaultContactPerson);
         setCreateSupplierContactEmail(defaultSupplierContactEmail);
+        setCreatePhone(defaultContactPhone);
         setCreateDiecutsStatus(defaultDiecutsStatus);
         setCreateImagesStatus(defaultImagesStatus);
         setCreateStandardsInstituteRequired(defaultStandardsInstituteRequired);
         setCreateStatus(DEFAULT_STATUS || 'חדש');
         setCreateAttachments([]);
+        setCreateWorkOrderFile(null);
+        setUploadErrorWorkOrder('');
         setCreatePlanogramFile(null);
         setCreateInternalNotes('');
         const initialCustom = {};
@@ -478,7 +525,7 @@ export default function AdminDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, startEditingField, defaultDiecutsStatus, defaultImagesStatus, defaultStandardsInstituteRequired, defaultContactPerson, defaultSupplierContactEmail, initialBoardId, customFieldDefinitions]);
+  }, [task, startInEditMode, activeEditField, userId, DEFAULT_STATUS, startEditingField, defaultDiecutsStatus, defaultImagesStatus, defaultStandardsInstituteRequired, defaultContactPerson, defaultSupplierContactEmail, defaultContactPhone, initialBoardId, customFieldDefinitions]);
 
   // Sync hours state with active Sunday week
   useEffect(() => {
@@ -535,6 +582,8 @@ export default function AdminDetailsModal({
         }
         if (commentToDelete) {
           setCommentToDelete(null);
+        } else if (showWorkOrderDeleteConfirm) {
+          setShowWorkOrderDeleteConfirm(false);
         } else if (showPlanogramDeleteConfirm) {
           setShowPlanogramDeleteConfirm(false);
         } else if (activeEditField) {
@@ -548,7 +597,7 @@ export default function AdminDetailsModal({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [commentToDelete, showPlanogramDeleteConfirm, activeEditField, onClose]);
+  }, [commentToDelete, showPlanogramDeleteConfirm, showWorkOrderDeleteConfirm, activeEditField, onClose]);
 
   // --- Inline Field Handlers ---
 
@@ -570,9 +619,41 @@ export default function AdminDetailsModal({
       }
     }
 
-    const updateData = fieldKey === 'internalNotes'
+    let updateData = fieldKey === 'internalNotes'
       ? { internalNotes: trimmedVal }
       : { [fieldKey]: trimmedVal };
+
+    if (fieldKey === 'contactPerson' && trimmedVal) {
+      const details = resolveContactDetails(trimmedVal, task, CONTACTS, suppliers);
+      if (details.email && !task.supplierContactEmail) {
+        updateData.supplierContactEmail = details.email;
+      }
+      if (details.phone && !task.phone) {
+        updateData.phone = details.phone;
+      }
+    }
+
+    if (fieldKey === 'supplierContactEmail' && task?.contactPerson) {
+      const contact = CONTACTS.find(c => (typeof c === 'string' ? c : c.name)?.trim().toLowerCase() === task.contactPerson.trim().toLowerCase());
+      if (contact && typeof contact === 'object' && !contact.email && trimmedVal) {
+        try {
+          await updateContact(contact.id, { ...contact, email: trimmedVal });
+        } catch (e) {
+          console.warn('Could not sync contact email to contacts directory', e);
+        }
+      }
+    }
+
+    if (fieldKey === 'phone' && task?.contactPerson) {
+      const contact = CONTACTS.find(c => (typeof c === 'string' ? c : c.name)?.trim().toLowerCase() === task.contactPerson.trim().toLowerCase());
+      if (contact && typeof contact === 'object' && trimmedVal) {
+        try {
+          await updateContact(contact.id, { ...contact, phone: trimmedVal });
+        } catch (e) {
+          console.warn('Could not sync contact phone to contacts directory', e);
+        }
+      }
+    }
 
     try {
       await updateTask(task.id, updateData);
@@ -580,7 +661,7 @@ export default function AdminDetailsModal({
         setInternalNotes(trimmedVal);
       } else if (onTaskUpdated) {
         onTaskUpdated(task.id, {
-          [fieldKey]: trimmedVal,
+          ...updateData,
           updatedAt: new Date().toISOString()
         });
       }
@@ -613,48 +694,6 @@ export default function AdminDetailsModal({
       console.error(`Failed to save custom field ${fieldKey}`, err);
       alert('השינוי לא נשמר. בדקי את החיבור ונסי שוב.');
       return false;
-    }
-  };
-
-  const handleExcludeFieldFromTask = (fieldKey, fieldLabel) => {
-    setFieldToExclude({ key: fieldKey, label: fieldLabel });
-  };
-
-  const confirmExcludeFieldFromTask = async () => {
-    if (!task || !fieldToExclude) return;
-    const { key: fieldKey } = fieldToExclude;
-    const currentExcluded = Array.isArray(task.excludedFields) ? task.excludedFields : [];
-    const newExcluded = [...new Set([...currentExcluded, fieldKey])];
-    try {
-      await updateTask(task.id, { excludedFields: newExcluded });
-      if (onTaskUpdated) {
-        onTaskUpdated(task.id, {
-          excludedFields: newExcluded,
-          updatedAt: new Date().toISOString()
-        });
-      }
-      setFieldToExclude(null);
-    } catch (err) {
-      console.error('Failed to exclude field from task', err);
-      alert('שגיאה בהסרת השדה מפרויקט זה.');
-    }
-  };
-
-  const handleRestoreFieldToTask = async (fieldKey) => {
-    if (!task) return;
-    const currentExcluded = Array.isArray(task.excludedFields) ? task.excludedFields : [];
-    const newExcluded = currentExcluded.filter(k => k !== fieldKey);
-    try {
-      await updateTask(task.id, { excludedFields: newExcluded });
-      if (onTaskUpdated) {
-        onTaskUpdated(task.id, {
-          excludedFields: newExcluded,
-          updatedAt: new Date().toISOString()
-        });
-      }
-    } catch (err) {
-      console.error('Failed to restore field to task', err);
-      alert('שגיאה בהחזרת השדה לפרויקט.');
     }
   };
 
@@ -771,7 +810,7 @@ export default function AdminDetailsModal({
         await updateTask(task.id, { status: newStatus });
       }
       setQuickStatus(newStatus);
-      const fetchedComments = await getCommentsForTask(task.id, userId);
+      const fetchedComments = await getCommentsForTask(task.id, userId, organizationId);
       setComments(fetchedComments);
       if (!onStatusChange && onRefresh) {
         await onRefresh();
@@ -922,7 +961,7 @@ export default function AdminDetailsModal({
     if (!commentToDelete) return;
     try {
       await deleteComment(commentToDelete, task.id);
-      const fetchedComments = await getCommentsForTask(task.id, userId);
+      const fetchedComments = await getCommentsForTask(task.id, userId, organizationId);
       setComments(fetchedComments);
       setCommentToDelete(null);
       if (onRefresh) onRefresh();
@@ -948,11 +987,12 @@ export default function AdminDetailsModal({
         commentText,
         attachedFile ? attachedFile.url : null,
         attachedFile ? attachedFile.name : null,
-        userId
+        userId,
+        organizationId
       );
       setCommentText('');
       setAttachedFile(null);
-      const fetchedComments = await getCommentsForTask(task.id, userId);
+      const fetchedComments = await getCommentsForTask(task.id, userId, organizationId);
       setComments(fetchedComments);
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -995,7 +1035,9 @@ export default function AdminDetailsModal({
   const handleDeleteAttachmentDirectly = async (indexToDelete) => {
     const currentFiles = task.workOrderFiles || task.attachments || [];
     const newAttachments = currentFiles.filter((_, idx) => idx !== indexToDelete);
-    await updateTask(task.id, { workOrderFiles: newAttachments });
+    const newWorkOrderFile = newAttachments.length > 0 ? newAttachments[0] : null;
+    await updateTask(task.id, { workOrderFiles: newAttachments, workOrderFile: newWorkOrderFile });
+    if (onTaskUpdated) onTaskUpdated(task.id, { workOrderFiles: newAttachments, workOrderFile: newWorkOrderFile });
     onRefresh();
   };
 
@@ -1058,9 +1100,10 @@ export default function AdminDetailsModal({
       return;
     }
 
-    setUploading(true);
+    setUploadingPlanogram(true);
+    setUploadErrorPlanogram('');
     try {
-      const result = await uploadFileToStorage(file, 'planograms', () => {});
+      const result = await uploadFileToStorage(file, 'planograms', (progress) => setUploadProgressPlanogram(progress));
       await updateTask(task.id, { planogramFile: result });
       if (onTaskUpdated) onTaskUpdated(task.id, { planogramFile: result });
       e.target.value = '';
@@ -1069,7 +1112,7 @@ export default function AdminDetailsModal({
       console.error(err);
       alert('שגיאה בהעלאת הקובץ');
     } finally {
-      setUploading(false);
+      setUploadingPlanogram(false);
     }
   };
 
@@ -1089,7 +1132,7 @@ export default function AdminDetailsModal({
 
     setIsReplacingPlanogram(true);
     try {
-      const result = await uploadFileToStorage(file, 'planograms', () => {});
+      const result = await uploadFileToStorage(file, 'planograms', (progress) => setUploadProgressPlanogram(progress));
       await updateTask(task.id, { planogramFile: result });
       if (onTaskUpdated) onTaskUpdated(task.id, { planogramFile: result });
       onRefresh();
@@ -1107,13 +1150,204 @@ export default function AdminDetailsModal({
 
   const confirmDeletePlanogram = async () => {
     try {
-      await updateTask(task.id, { planogramFile: null });
+      await updateTask(task.id, { planogramFile: null, planogram: null });
+      if (onTaskUpdated) onTaskUpdated(task.id, { planogramFile: null, planogram: null });
       setShowPlanogramDeleteConfirm(false);
       onRefresh();
     } catch (err) {
       console.error("Failed to delete planogram", err);
       alert('שגיאה במחיקת הפלנוגרמה');
     }
+  };
+
+  // --- Handlers for Single Work Order (View Mode) ---
+  const handleWorkOrderUploadView = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
+    if (file.size > MAX_SIZE) {
+      alert('גודל הקובץ עולה על המותר (מקסימום 15MB)');
+      e.target.value = '';
+      return;
+    }
+
+    if (!/\.(jpg|jpeg|png|webp|gif|svg|pdf|xlsx|xls)$/i.test(file.name)) {
+      alert('אנא בחרי קובץ תמונה, PDF או Excel');
+      e.target.value = '';
+      return;
+    }
+
+    setUploadingWorkOrder(true);
+    setUploadErrorWorkOrder('');
+    try {
+      const result = await uploadFileToStorage(file, 'tasks', (progress) => setUploadProgressWorkOrder(progress));
+      await updateTask(task.id, { workOrderFile: result, workOrderFiles: [result] });
+      if (onTaskUpdated) onTaskUpdated(task.id, { workOrderFile: result, workOrderFiles: [result] });
+      e.target.value = '';
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      alert('שגיאה בהעלאת הזמנת העבודה');
+    } finally {
+      setUploadingWorkOrder(false);
+    }
+  };
+
+  const handleWorkOrderReplaceView = async (file) => {
+    if (!file) return;
+
+    const MAX_SIZE = 15 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert('גודל הקובץ עולה על המותר (מקסימום 15MB)');
+      return;
+    }
+
+    if (!/\.(jpg|jpeg|png|webp|gif|svg|pdf|xlsx|xls)$/i.test(file.name)) {
+      alert('אנא בחרי קובץ תמונה, PDF או Excel');
+      return;
+    }
+
+    setIsReplacingWorkOrder(true);
+    try {
+      const result = await uploadFileToStorage(file, 'tasks', (progress) => setUploadProgressWorkOrder(progress));
+      await updateTask(task.id, { workOrderFile: result, workOrderFiles: [result] });
+      if (onTaskUpdated) onTaskUpdated(task.id, { workOrderFile: result, workOrderFiles: [result] });
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to replace work order file', err);
+      alert('שגיאה בעדכון הזמנת העבודה');
+    } finally {
+      setIsReplacingWorkOrder(false);
+    }
+  };
+
+  const handleWorkOrderDeleteView = () => {
+    setShowWorkOrderDeleteConfirm(true);
+  };
+
+  const confirmDeleteWorkOrder = async () => {
+    try {
+      await updateTask(task.id, { workOrderFile: null, workOrderFiles: [], attachments: [] });
+      if (onTaskUpdated) onTaskUpdated(task.id, { workOrderFile: null, workOrderFiles: [], attachments: [] });
+      setShowWorkOrderDeleteConfirm(false);
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to delete work order", err);
+      alert('שגיאה במחיקת הזמנת העבודה');
+    }
+  };
+
+  const handleWorkOrderDragView = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (uploadingWorkOrder || isReplacingWorkOrder) return;
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setWorkOrderDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setWorkOrderDragActive(false);
+    }
+  };
+
+  const handleWorkOrderDropView = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setWorkOrderDragActive(false);
+    if (uploadingWorkOrder || isReplacingWorkOrder) return;
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await handleWorkOrderReplaceView(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handlePlanogramDragView = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (uploadingPlanogram || isReplacingPlanogram) return;
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setPlanogramDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setPlanogramDragActive(false);
+    }
+  };
+
+  const handlePlanogramDropView = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPlanogramDragActive(false);
+    if (uploadingPlanogram || isReplacingPlanogram) return;
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await handlePlanogramReplaceView(e.dataTransfer.files[0]);
+    }
+  };
+
+  // --- Handlers for Work Order Create Mode (Single File) ---
+  const uploadWorkOrderCreateFile = async (file) => {
+    if (!file) return;
+
+    const MAX_SIZE = 15 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setUploadErrorWorkOrder('גודל הקובץ עולה על המותר (מקסימום 15MB)');
+      return;
+    }
+
+    if (!/\.(jpg|jpeg|png|webp|gif|svg|pdf|xlsx|xls)$/i.test(file.name)) {
+      setUploadErrorWorkOrder('אנא בחרי קובץ תמונה, PDF או Excel');
+      return;
+    }
+
+    setUploadingWorkOrder(true);
+    setUploadProgressWorkOrder(0);
+    setUploadErrorWorkOrder('');
+    try {
+      const result = await uploadFileToStorage(file, 'tasks', (progress) => {
+        setUploadProgressWorkOrder(progress);
+      });
+      setCreateWorkOrderFile(result);
+      setCreateAttachments([result]);
+    } catch (err) {
+      console.error(err);
+      setUploadErrorWorkOrder('שגיאה בהעלאת הזמנת העבודה');
+    } finally {
+      setUploadingWorkOrder(false);
+    }
+  };
+
+  const handleWorkOrderUploadCreate = async (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await uploadWorkOrderCreateFile(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleWorkOrderDragCreate = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (uploadingWorkOrder) return;
+
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setWorkOrderDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setWorkOrderDragActive(false);
+    }
+  };
+
+  const handleWorkOrderDropCreate = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setWorkOrderDragActive(false);
+    if (uploadingWorkOrder) return;
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await uploadWorkOrderCreateFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleWorkOrderDeleteCreate = () => {
+    setCreateWorkOrderFile(null);
+    setCreateAttachments([]);
   };
 
   // --- Handlers for Full Form (Create Mode) ---
@@ -1273,10 +1507,13 @@ export default function AdminDetailsModal({
       boardId: createBoardId || 'active',
       ...(isNewTaskFieldEnabled('contactPerson') ? { contactPerson: createContactPerson.trim() } : {}),
       ...(isNewTaskFieldEnabled('supplierContactEmail') ? { supplierContactEmail: createSupplierContactEmail.trim() } : {}),
+      ...(isNewTaskFieldEnabled('contactPhone') && createPhone?.trim() ? { phone: createPhone.trim() } : {}),
       ...(isNewTaskFieldEnabled('diecutsStatus') ? { diecutsStatus: createDiecutsStatus } : {}),
       ...(isNewTaskFieldEnabled('imagesStatus') ? { imagesStatus: createImagesStatus } : {}),
-      ...(isNewTaskFieldEnabled('standardsInstituteRequired') ? { standardsInstituteRequired: createStandardsInstituteRequired } : {}),
-      ...(isNewTaskFieldEnabled('workOrderFiles') ? { workOrderFiles: createAttachments } : {}),
+      ...(isNewTaskFieldEnabled('workOrderFiles') ? {
+        workOrderFile: createWorkOrderFile || (createAttachments.length > 0 ? createAttachments[0] : null),
+        workOrderFiles: createWorkOrderFile ? [createWorkOrderFile] : createAttachments
+      } : {}),
       ...(isNewTaskFieldEnabled('planogramFile') ? { planogramFile: createPlanogramFile } : {}),
       internalNotes: createInternalNotes.trim(),
       customFields: createCustomFields,
@@ -1352,7 +1589,12 @@ export default function AdminDetailsModal({
                   >
                     {task.title} ✏️
                   </span>
-                  {(task.planogramFile || task.planogram) && <PlanogramIndicator />}
+                  {(Boolean(flags.isLegacy && hasWorkOrder(task)) || Boolean(task.planogramFile || task.planogram)) && (
+                    <span className="task-indicators-stack">
+                      {flags.isLegacy && hasWorkOrder(task) && <WorkOrderIndicator />}
+                      {(task.planogramFile || task.planogram) && <PlanogramIndicator />}
+                    </span>
+                  )}
                 </span>
               )}
             </h3>
@@ -1501,7 +1743,15 @@ export default function AdminDetailsModal({
                       type="text"
                       className="form-control"
                       value={createContactPerson}
-                      onChange={(e) => setCreateContactPerson(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCreateContactPerson(val);
+                        if (val) {
+                          const details = resolveContactDetails(val, null, CONTACTS, suppliers);
+                          if (details.email && !createSupplierContactEmail) setCreateSupplierContactEmail(details.email);
+                          if (details.phone && !createPhone) setCreatePhone(details.phone);
+                        }
+                      }}
                       list="contacts-list-modal"
                       style={{ flex: 1 }}
                     />
@@ -1535,11 +1785,11 @@ export default function AdminDetailsModal({
                 </div>
               )}
 
-              {(isNewTaskFieldEnabled('supplierContactEmail') || isNewTaskFieldEnabled('standardsInstituteRequired')) && (
+              {(isNewTaskFieldEnabled('supplierContactEmail') || isNewTaskFieldEnabled('contactPhone')) && (
                 <div className="form-row">
                   {isNewTaskFieldEnabled('supplierContactEmail') && (
                     <div className="form-group" style={{ ...getNewTaskFieldStyle('supplierContactEmail'), flex: 1 }}>
-                      <label className="form-label">{getNewTaskFieldLabel('supplierContactEmail')}</label>
+                      <label className="form-label">{getNewTaskFieldLabel('supplierContactEmail') === 'אימייל איש קשר' ? 'מייל איש קשר' : getNewTaskFieldLabel('supplierContactEmail')}</label>
                       <input
                         type="text"
                         className="form-control text-left direction-ltr"
@@ -1561,20 +1811,33 @@ export default function AdminDetailsModal({
                     </div>
                   )}
 
-                  {isNewTaskFieldEnabled('standardsInstituteRequired') && (
-                    <div className="form-group" style={{ ...getNewTaskFieldStyle('standardsInstituteRequired'), flex: 1 }}>
-                      <label className="form-label">{getNewTaskFieldLabel('standardsInstituteRequired')}</label>
-                      <select
-                        className="form-control"
-                        value={createStandardsInstituteRequired}
-                        onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
-                      >
-                        {getNewTaskFieldOptions('standardsInstituteRequired').map(option => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
+                  {isNewTaskFieldEnabled('contactPhone') && (
+                    <div className="form-group" style={{ ...getNewTaskFieldStyle('contactPhone'), flex: 1 }}>
+                      <label className="form-label">{getNewTaskFieldLabel('contactPhone') || 'טלפון איש קשר'}</label>
+                      <input
+                        type="tel"
+                        className="form-control text-left direction-ltr"
+                        placeholder="050-0000000"
+                        value={createPhone}
+                        onChange={(e) => setCreatePhone(e.target.value)}
+                      />
                     </div>
                   )}
+                </div>
+              )}
+
+              {isNewTaskFieldEnabled('standardsInstituteRequired') && (
+                <div className="form-group" style={{ ...getNewTaskFieldStyle('standardsInstituteRequired'), marginBottom: '16px' }}>
+                  <label className="form-label">{getNewTaskFieldLabel('standardsInstituteRequired')}</label>
+                  <select
+                    className="form-control"
+                    value={createStandardsInstituteRequired}
+                    onChange={(e) => setCreateStandardsInstituteRequired(e.target.value)}
+                  >
+                    {getNewTaskFieldOptions('standardsInstituteRequired').map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -1612,169 +1875,108 @@ export default function AdminDetailsModal({
                 </div>
               )}
 
-              {/* הזמנת עבודה */}
-              {isNewTaskFieldEnabled('workOrderFiles') && (
-                <div className="form-group" style={getNewTaskFieldStyle('workOrderFiles')}>
-                  <label className="form-label">
-                    {getNewTaskFieldLabel('workOrderFiles')}
-                  </label>
+              {/* הזמנת עבודה ופלנוגרמה */}
+              {(isNewTaskFieldEnabled('workOrderFiles') || isNewTaskFieldEnabled('planogramFile')) && (
+                <div className="work-order-planogram-grid" style={{ marginBottom: '16px' }}>
+                  {/* הזמנת עבודה */}
+                  {isNewTaskFieldEnabled('workOrderFiles') && (
+                    <div className="form-group" style={{ ...getNewTaskFieldStyle('workOrderFiles'), margin: 0 }}>
+                      <label className="form-label">
+                        {getNewTaskFieldLabel('workOrderFiles')}
+                      </label>
 
-                  <div
-                    className={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
-                    style={{ padding: '14px' }}
-                    onDragEnter={handleDrag}
-                    onDragOver={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDrop={handleDrop}
-                    onClick={() => document.getElementById('modal-task-file-input-create').click()}
-                  >
-                    <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>📁</div>
-                    <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
-                      <strong>{uploading ? 'מעלה קובץ...' : 'גררי לכאן קבצי הזמנת עבודה'}</strong> או לחצי לבחירה מהמחשב
-                    </div>
-                    <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
-                      עד 15MB לקובץ
-                    </div>
-                    <input
-                      type="file"
-                      id="modal-task-file-input-create"
-                      multiple
-                      className="file-upload-input"
-                      onChange={handleFileChangeCreateMode}
-                    />
-                  </div>
-
-                  {uploading && (
-                    <div style={{ marginTop: '10px', textAlign: 'center', color: 'var(--primary)' }}>
-                      <span>🔄 מעלה קובץ {currentUploadIndex} מתוך {totalUploadCount} ({uploadProgress}%)</span>
-                      <div style={{
-                        width: '100%',
-                        height: '6px',
-                        backgroundColor: 'var(--border-color, #e2e8f0)',
-                        borderRadius: '3px',
-                        marginTop: '6px',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          width: `${uploadProgress}%`,
-                          height: '100%',
-                          backgroundColor: 'var(--primary)',
-                          transition: 'width 0.2s ease-in-out'
-                        }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {uploadError && (
-                    <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '6px' }}>
-                      {uploadError}
-                    </div>
-                  )}
-
-                  {createAttachments.length > 0 && (
-                    <div className="attachments-list" style={{ marginTop: '10px' }}>
-                      {createAttachments.map((file, idx) => {
-                        const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
-                        const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-                        const isPdf = /\.pdf$/i.test(file.name);
-                        return (
-                          <div key={idx} className="attachment-row" style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="attachment-info"
-                              title="צפייה בקובץ מתוך המערכת"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                handlePreviewFile(file);
-                              }}
-                              style={{ flex: 1, minWidth: 0 }}
-                            >
-                              <span className="attachment-icon">{isImage ? '🖼️' : isExcel ? '📊' : isPdf ? '📄' : '📎'}</span>
-                              <span style={{ direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {file.name}
-                              </span>
-                            </a>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                style={{ padding: '2px 6px', fontSize: '0.75rem', height: '26px' }}
-                                onClick={() => handlePreviewFile(file)}
-                                title="צפייה"
-                              >
-                                👁️
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-primary"
-                                style={{ padding: '2px 6px', fontSize: '0.75rem', height: '26px' }}
-                                onClick={(e) => handleDownloadFile(file, e)}
-                                title="הורדה"
-                              >
-                                📥
-                              </button>
-                              <button
-                                type="button"
-                                className="attachment-delete-btn"
-                                onClick={() => handleDeleteAttachmentCreateMode(idx)}
-                                title="הסר קובץ"
-                              >
-                                🗑️
-                              </button>
-                            </div>
+                      {createWorkOrderFile ? (
+                        <PlanogramFileCard 
+                          file={createWorkOrderFile} 
+                          onPreview={handlePreviewFile}
+                          onReplace={uploadWorkOrderCreateFile}
+                          onDelete={handleWorkOrderDeleteCreate} 
+                          deleteLabel="הסרה"
+                          downloadLabel="הורדה"
+                          isReplacing={uploadingWorkOrder}
+                          defaultName="הזמנת עבודה"
+                        />
+                      ) : (
+                        <div
+                          className={`file-upload-zone planogram-upload-zone ${workOrderDragActive ? 'drag-active' : ''} ${uploadingWorkOrder ? 'is-uploading' : ''}`}
+                          style={{ padding: '14px' }}
+                          onDragEnter={handleWorkOrderDragCreate}
+                          onDragOver={handleWorkOrderDragCreate}
+                          onDragLeave={handleWorkOrderDragCreate}
+                          onDrop={handleWorkOrderDropCreate}
+                          onClick={() => document.getElementById('modal-workorder-file-input-create').click()}
+                        >
+                          <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>📋</div>
+                          <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
+                            <strong>{uploadingWorkOrder ? 'מעלה הזמנת עבודה...' : 'גררי לכאן הזמנת עבודה'}</strong> או לחצי לבחירה מהמחשב
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+                          <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
+                            תמונה, PDF או Excel, עד 15MB
+                          </div>
+                          <input
+                            type="file"
+                            id="modal-workorder-file-input-create"
+                            accept="image/*,.pdf,application/pdf,.xlsx,.xls"
+                            className="file-upload-input"
+                            onChange={handleWorkOrderUploadCreate}
+                            disabled={uploadingWorkOrder}
+                          />
+                        </div>
+                      )}
 
-              {/* פלנוגרמה Upload */}
-              {isNewTaskFieldEnabled('planogramFile') && (
-                <div className="form-group" style={getNewTaskFieldStyle('planogramFile')}>
-                  <label className="form-label">{getNewTaskFieldLabel('planogramFile')}</label>
-                  {createPlanogramFile ? (
-                    <PlanogramFileCard 
-                      file={createPlanogramFile} 
-                      onPreview={handlePreviewFile}
-                      onReplace={uploadPlanogramCreateFile}
-                      onDelete={handlePlanogramDeleteCreate} 
-                      deleteLabel="הסרה"
-                      downloadLabel="הורדה"
-                      isReplacing={uploadingPlanogram}
-                    />
-                  ) : (
-                    <div
-                      className={`file-upload-zone planogram-upload-zone ${planogramDragActive ? 'drag-active' : ''} ${uploadingPlanogram ? 'is-uploading' : ''}`}
-                      style={{ padding: '14px' }}
-                      onDragEnter={handlePlanogramDragCreate}
-                      onDragOver={handlePlanogramDragCreate}
-                      onDragLeave={handlePlanogramDragCreate}
-                      onDrop={handlePlanogramDropCreate}
-                      onClick={() => document.getElementById('planogram-upload-create-input').click()}
-                    >
-                      <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>🗂️</div>
-                      <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
-                        <strong>{uploadingPlanogram ? 'מעלה קובץ...' : 'גררי לכאן פלנוגרמה'}</strong> או לחצי לבחירה מהמחשב
-                      </div>
-                      <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
-                        תמונה, PDF או Excel, עד 15MB
-                      </div>
-                      <input
-                        type="file"
-                        id="planogram-upload-create-input"
-                        accept="image/*,.pdf,application/pdf,.xlsx,.xls"
-                        className="file-upload-input"
-                        onChange={handlePlanogramUploadCreate}
-                        disabled={uploadingPlanogram}
-                      />
+                      {uploadErrorWorkOrder && (
+                        <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '6px' }}>
+                          {uploadErrorWorkOrder}
+                        </div>
+                      )}
                     </div>
                   )}
-                  {uploadErrorPlanogram && (
-                    <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '6px' }}>{uploadErrorPlanogram}</div>
+
+                  {/* פלנוגרמה Upload */}
+                  {isNewTaskFieldEnabled('planogramFile') && (
+                    <div className="form-group" style={{ ...getNewTaskFieldStyle('planogramFile'), margin: 0 }}>
+                      <label className="form-label">{getNewTaskFieldLabel('planogramFile')}</label>
+                      {createPlanogramFile ? (
+                        <PlanogramFileCard 
+                          file={createPlanogramFile} 
+                          onPreview={handlePreviewFile}
+                          onReplace={uploadPlanogramCreateFile}
+                          onDelete={handlePlanogramDeleteCreate} 
+                          deleteLabel="הסרה"
+                          downloadLabel="הורדה"
+                          isReplacing={uploadingPlanogram}
+                        />
+                      ) : (
+                        <div
+                          className={`file-upload-zone planogram-upload-zone ${planogramDragActive ? 'drag-active' : ''} ${uploadingPlanogram ? 'is-uploading' : ''}`}
+                          style={{ padding: '14px' }}
+                          onDragEnter={handlePlanogramDragCreate}
+                          onDragOver={handlePlanogramDragCreate}
+                          onDragLeave={handlePlanogramDragCreate}
+                          onDrop={handlePlanogramDropCreate}
+                          onClick={() => document.getElementById('planogram-upload-create-input').click()}
+                        >
+                          <div className="file-upload-icon" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>🗂️</div>
+                          <div className="file-upload-text" style={{ fontSize: '0.85rem' }}>
+                            <strong>{uploadingPlanogram ? 'מעלה קובץ...' : 'גררי לכאן פלנוגרמה'}</strong> או לחצי לבחירה מהמחשב
+                          </div>
+                          <div className="file-upload-subtext" style={{ fontSize: '0.75rem', color: 'var(--text-muted, #718096)' }}>
+                            תמונה, PDF או Excel, עד 15MB
+                          </div>
+                          <input
+                            type="file"
+                            id="planogram-upload-create-input"
+                            accept="image/*,.pdf,application/pdf,.xlsx,.xls"
+                            className="file-upload-input"
+                            onChange={handlePlanogramUploadCreate}
+                            disabled={uploadingPlanogram}
+                          />
+                        </div>
+                      )}
+                      {uploadErrorPlanogram && (
+                        <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '6px' }}>{uploadErrorPlanogram}</div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -1868,14 +2070,14 @@ export default function AdminDetailsModal({
                             <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
                               {getNewTaskFieldLabel('description')}
                             </label>
-                            {flags.enableFieldExclusion && (
+                            {activeEditField !== 'description' && (
                               <button
                                 type="button"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                                title={`הסרת ${getNewTaskFieldLabel('description')} מפרויקט זה`}
-                                onClick={() => handleExcludeFieldFromTask('description', getNewTaskFieldLabel('description'))}
+                                className="btn-link-edit"
+                                onClick={() => startEditingField('description', task.description)}
+                                title="עריכת תיאור"
                               >
-                                🗑️ הסרת שדה
+                                ✏️ עריכה
                               </button>
                             )}
                           </div>
@@ -1901,7 +2103,7 @@ export default function AdminDetailsModal({
                               title="לחצי לעריכת תיאור"
                             >
                               {task.description ? (
-                                task.description
+                                <LinkifiedText text={task.description} />
                               ) : (
                                 <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
                                   {flags.terms?.noDescription || (flags.isLegacy ? 'אין פירוט מדויק לעבודה זו. לחצי להוספת תיאור.' : 'אין פירוט מדויק לפרויקט זה. לחצי להוספת תיאור.')}
@@ -1919,14 +2121,14 @@ export default function AdminDetailsModal({
                             <label className="form-label" style={{ fontWeight: '700', color: 'var(--secondary)', margin: 0, fontSize: '0.85rem' }}>
                               🔒 {getNewTaskFieldLabel('internalNotes')}
                             </label>
-                            {flags.enableFieldExclusion && (
+                            {activeEditField !== 'internalNotes' && (
                               <button
                                 type="button"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                                title={`הסרת ${getNewTaskFieldLabel('internalNotes')} מפרויקט זה`}
-                                onClick={() => handleExcludeFieldFromTask('internalNotes', getNewTaskFieldLabel('internalNotes'))}
+                                className="btn-link-edit"
+                                onClick={() => startEditingField('internalNotes', internalNotes)}
+                                title="עריכת הערות פנימיות"
                               >
-                                🗑️ הסרת שדה
+                                ✏️ עריכה
                               </button>
                             )}
                           </div>
@@ -1953,7 +2155,7 @@ export default function AdminDetailsModal({
                               title="לחצי לעריכת הערות פנימיות"
                             >
                               {internalNotes ? (
-                                internalNotes
+                                <LinkifiedText text={internalNotes} />
                               ) : (
                                 <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>אין הערות פנימיות. לחצי להוספת הערות.</p>
                               )}
@@ -1965,166 +2167,144 @@ export default function AdminDetailsModal({
                   )}
 
                   {/* AREA 4: הזמנת עבודה ופלנוגרמה */}
-                  {(isFieldVisibleForTask('workOrderFiles') || isFieldVisibleForTask('planogramFile')) && (
-                    <div className="details-section-card">
-                      <h4 className="detail-section-title">📋 {flags.terms.filesSectionTitle || 'הזמנת עבודה ופלנוגרמה'}</h4>
-                      <div className="work-order-planogram-grid">
+                  {flags.isLegacy ? (
+                    <div className="work-order-planogram-grid" style={{ marginBottom: '20px' }}>
+                      {/* AREA 4A: הזמנת עבודה */}
+                      <div className="details-section-card" style={{ margin: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <h4 className="detail-section-title">📋 {flags.terms?.workOrderRubric || 'הזמנת עבודה'}</h4>
+                        {(() => {
+                          const currentWorkOrderFile = task.workOrderFile || (Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 0 ? task.workOrderFiles[0] : (Array.isArray(task.attachments) && task.attachments.length > 0 ? task.attachments[0] : null));
+                          const extraFiles = Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 1 ? task.workOrderFiles.slice(1) : [];
 
-                        {/* הזמנת עבודה */}
-                        {isFieldVisibleForTask('workOrderFiles') && (
-                          <div className="work-order-column">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
-                                {getNewTaskFieldLabel('workOrderFiles')}
-                              </label>
-                              {flags.enableFieldExclusion && (
-                                <button
-                                  type="button"
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                                  title={`הסרת ${getNewTaskFieldLabel('workOrderFiles')} מפרויקט זה`}
-                                  onClick={() => handleExcludeFieldFromTask('workOrderFiles', getNewTaskFieldLabel('workOrderFiles'))}
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                              {currentWorkOrderFile ? (
+                                <PlanogramFileCard 
+                                  file={currentWorkOrderFile} 
+                                  onPreview={handlePreviewFile}
+                                  onReplace={handleWorkOrderReplaceView}
+                                  onDelete={handleWorkOrderDeleteView}
+                                  isReplacing={isReplacingWorkOrder}
+                                  defaultName="הזמנת עבודה"
+                                  deleteLabel="מחיקה"
+                                  downloadLabel="הורדה"
+                                />
+                              ) : (
+                                <div
+                                  className={`planogram-preview-container ${workOrderDragActive ? 'drag-active' : ''}`}
+                                  style={{
+                                    height: '140px',
+                                    margin: 0,
+                                    borderStyle: 'dashed',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    backgroundColor: workOrderDragActive ? '#eff6ff' : '#f8fafc',
+                                    borderColor: workOrderDragActive ? '#3b82f6' : 'var(--border)'
+                                  }}
+                                  onDragEnter={handleWorkOrderDragView}
+                                  onDragOver={handleWorkOrderDragView}
+                                  onDragLeave={handleWorkOrderDragView}
+                                  onDrop={handleWorkOrderDropView}
                                 >
-                                  🗑️ הסרת שדה
-                                </button>
+                                  <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                    {uploadingWorkOrder ? `מעלה קובץ... ${uploadProgressWorkOrder}%` : 'לא הועלתה הזמנת עבודה (גררי קובץ לכאן או לחצי להעלאה)'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                                    onClick={() => document.getElementById('workorder-upload-view-input').click()}
+                                    disabled={uploadingWorkOrder || isReplacingWorkOrder}
+                                  >
+                                    העלאת הזמנת עבודה
+                                  </button>
+                                  <input
+                                    type="file"
+                                    id="workorder-upload-view-input"
+                                    accept="image/*,.pdf,application/pdf,.xlsx,.xls"
+                                    style={{ display: 'none' }}
+                                    onChange={handleWorkOrderUploadView}
+                                  />
+                                </div>
                               )}
-                            </div>
+                              {uploadErrorWorkOrder && (
+                                <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '6px' }}>{uploadErrorWorkOrder}</div>
+                              )}
 
-                            {(() => {
-                              const filesList = (Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 0)
-                                ? task.workOrderFiles
-                                : (task.workOrderFile ? [task.workOrderFile] : (Array.isArray(task.attachments) ? task.attachments : []));
-
-                              return filesList.length > 0 ? (
-                                <div className="attachments-list" style={{ maxHeight: '160px', overflowY: 'auto', marginBottom: '12px' }}>
-                                  {filesList.map((file, idx) => {
-                                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-                                    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-                                    const isPdf = /\.pdf$/i.test(file.name);
-                                    return (
-                                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                                        <div
-                                          className="attachment-info"
-                                          style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
-                                          title={file.name}
-                                          onClick={() => handlePreviewFile(file)}
-                                        >
-                                          <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
-                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block', fontWeight: '500' }}>
-                                            {file.name}
-                                          </span>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                                          <button
-                                            type="button"
-                                            className="btn btn-secondary"
-                                            style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                            onClick={() => handlePreviewFile(file)}
-                                            title="צפייה בקובץ מתוך המערכת"
-                                          >
-                                            👁️ צפייה
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className="btn btn-primary"
-                                            style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                            onClick={(e) => handleDownloadFile(file, e)}
-                                            title="הורדת הקובץ למחשב"
-                                          >
-                                            📥 הורדה
-                                          </button>
-                                          <button
-                                            type="button"
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px 4px' }}
-                                            onClick={() => handleDeleteAttachmentDirectly(idx)}
-                                            title="מחיקת קובץ"
-                                          >
-                                            🗑️
-                                          </button>
+                              {extraFiles.length > 0 && (
+                                <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
+                                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '6px' }}>קבצים נוספים מהעבר:</div>
+                                  <div className="attachments-list" style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                                    {extraFiles.map((file, idx) => (
+                                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                                        <span style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', cursor: 'pointer' }} onClick={() => handlePreviewFile(file)}>
+                                          📎 {file.name}
+                                        </span>
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                          <button type="button" className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: '0.72rem' }} onClick={() => handlePreviewFile(file)}>👁️</button>
+                                          <button type="button" className="btn btn-primary" style={{ padding: '2px 6px', fontSize: '0.72rem' }} onClick={(e) => handleDownloadFile(file, e)}>📥</button>
+                                          <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px 4px' }} onClick={() => handleDeleteAttachmentDirectly(idx + 1)} title="מחיקת קובץ">🗑️</button>
                                         </div>
                                       </div>
-                                    );
-                                  })}
+                                    ))}
+                                  </div>
                                 </div>
-                              ) : (
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', marginBottom: '12px' }}>
-                                  אין קבצי הזמנת עבודה
-                                </div>
-                              );
-                            })()}
-
-                            {/* Add file inline */}
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                                <button
-                                  type="button"
-                                  className="comment-attachment-btn"
-                                  style={{ padding: '6px 10px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                  onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
-                                  disabled={uploading}
-                                >
-                                  {uploading
-                                    ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%`
-                                    : '📎 הוספת קובץ'}
-                                </button>
-                                {!uploading && (
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 15MB)</span>
-                                )}
-                              </div>
-                              <input
-                                type="file"
-                                id="view-attachment-file-input-inline"
-                                multiple
-                                style={{ display: 'none' }}
-                                onChange={handleUploadFilesDirectly}
-                              />
-                              {uploadError && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{uploadError}</div>}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* פלנוגרמה */}
-                        {isFieldVisibleForTask('planogramFile') && (
-                          <div className="planogram-column">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
-                                {getNewTaskFieldLabel('planogramFile')}
-                              </label>
-                              {flags.enableFieldExclusion && (
-                                <button
-                                  type="button"
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                                  title={`הסרת ${getNewTaskFieldLabel('planogramFile')} מפרויקט זה`}
-                                  onClick={() => handleExcludeFieldFromTask('planogramFile', getNewTaskFieldLabel('planogramFile'))}
-                                >
-                                  🗑️ הסרת שדה
-                                </button>
                               )}
                             </div>
+                          );
+                        })()}
+                      </div>
 
-                            {(() => {
-                              const currentPlanogram = task.planogramFile || task.planogram;
-                              return currentPlanogram ? (
+                      {/* AREA 4B: פלנוגרמה */}
+                      <div className="details-section-card" style={{ margin: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <h4 className="detail-section-title">🗺️ {flags.terms?.planogramRubric || 'פלנוגרמה'}</h4>
+                        {(() => {
+                          const currentPlanogram = task.planogramFile || task.planogram;
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                              {currentPlanogram ? (
                                 <PlanogramFileCard 
                                   file={currentPlanogram} 
                                   onPreview={handlePreviewFile}
                                   onReplace={handlePlanogramReplaceView}
                                   onDelete={handlePlanogramDeleteView}
                                   isReplacing={isReplacingPlanogram}
+                                  defaultName="פלנוגרמה"
                                   deleteLabel="מחיקה"
                                   downloadLabel="הורדה"
                                 />
                               ) : (
                                 <div
-                                  className="planogram-preview-container"
-                                  style={{ height: '140px', margin: 0, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center', alignItems: 'center' }}
+                                  className={`planogram-preview-container ${planogramDragActive ? 'drag-active' : ''}`}
+                                  style={{
+                                    height: '140px',
+                                    margin: 0,
+                                    borderStyle: 'dashed',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    backgroundColor: planogramDragActive ? '#eff6ff' : '#f8fafc',
+                                    borderColor: planogramDragActive ? '#3b82f6' : 'var(--border)'
+                                  }}
+                                  onDragEnter={handlePlanogramDragView}
+                                  onDragOver={handlePlanogramDragView}
+                                  onDragLeave={handlePlanogramDragView}
+                                  onDrop={handlePlanogramDropView}
                                 >
-                                  <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא הועלה קובץ</span>
+                                  <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                    {uploadingPlanogram ? `מעלה קובץ... ${uploadProgressPlanogram}%` : 'לא הועלה קובץ (גררי קובץ לכאן או לחצי להעלאה)'}
+                                  </span>
                                   <button
                                     type="button"
                                     className="btn btn-secondary"
                                     style={{ padding: '4px 10px', fontSize: '0.75rem' }}
                                     onClick={() => document.getElementById('planogram-upload-view-input').click()}
-                                    disabled={uploading || isReplacingPlanogram}
+                                    disabled={uploadingPlanogram || isReplacingPlanogram}
                                   >
                                     העלאת קובץ
                                   </button>
@@ -2136,13 +2316,175 @@ export default function AdminDetailsModal({
                                     onChange={handlePlanogramUploadView}
                                   />
                                 </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-
+                              )}
+                              {uploadErrorPlanogram && (
+                                <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '6px' }}>{uploadErrorPlanogram}</div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
+                  ) : (
+                    (isFieldVisibleForTask('workOrderFiles') || isFieldVisibleForTask('planogramFile')) && (
+                      <div className="details-section-card">
+                        <h4 className="detail-section-title">📋 {flags.terms.filesSectionTitle || 'הזמנת עבודה ופלנוגרמה'}</h4>
+                        <div className="work-order-planogram-grid">
+
+                          {/* הזמנת עבודה */}
+                          {isFieldVisibleForTask('workOrderFiles') && (
+                            <div className="work-order-column">
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
+                                  {getNewTaskFieldLabel('workOrderFiles')}
+                                </label>
+                              </div>
+
+                              {(() => {
+                                const filesList = (Array.isArray(task.workOrderFiles) && task.workOrderFiles.length > 0)
+                                  ? task.workOrderFiles
+                                  : (task.workOrderFile ? [task.workOrderFile] : (Array.isArray(task.attachments) ? task.attachments : []));
+
+                                return filesList.length > 0 ? (
+                                  <div className="attachments-list" style={{ maxHeight: '160px', overflowY: 'auto', marginBottom: '12px' }}>
+                                    {filesList.map((file, idx) => {
+                                      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+                                      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+                                      const isPdf = /\.pdf$/i.test(file.name);
+                                      return (
+                                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                                          <div
+                                            className="attachment-info"
+                                            style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                                            title={file.name}
+                                            onClick={() => handlePreviewFile(file)}
+                                          >
+                                            <span className="attachment-icon">{isImage ? '🖼️ ' : isExcel ? '📊 ' : isPdf ? '📄 ' : '📎 '}</span>
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right', display: 'block', fontWeight: '500' }}>
+                                              {file.name}
+                                            </span>
+                                          </div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                            <button
+                                              type="button"
+                                              className="btn btn-secondary"
+                                              style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                              onClick={() => handlePreviewFile(file)}
+                                              title="צפייה בקובץ מתוך המערכת"
+                                            >
+                                              👁️ צפייה
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="btn btn-primary"
+                                              style={{ padding: '2px 8px', fontSize: '0.75rem', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                              onClick={(e) => handleDownloadFile(file, e)}
+                                              title="הורדת הקובץ למחשב"
+                                            >
+                                              📥 הורדה
+                                            </button>
+                                            <button
+                                              type="button"
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '2px 4px' }}
+                                              onClick={() => handleDeleteAttachmentDirectly(idx)}
+                                              title="מחיקת קובץ"
+                                            >
+                                              🗑️
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', marginBottom: '12px' }}>
+                                    אין קבצי הזמנת עבודה
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Add file inline */}
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                  <button
+                                    type="button"
+                                    className="comment-attachment-btn"
+                                    style={{ padding: '6px 10px', fontSize: '0.75rem', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    onClick={() => document.getElementById('view-attachment-file-input-inline').click()}
+                                    disabled={uploading}
+                                  >
+                                    {uploading
+                                      ? `🔄 מעלה (${currentUploadIndex}/${totalUploadCount}) ${uploadProgress}%`
+                                      : '📎 הוספת קובץ'}
+                                  </button>
+                                  {!uploading && (
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(עד 15MB)</span>
+                                  )}
+                                </div>
+                                <input
+                                  type="file"
+                                  id="view-attachment-file-input-inline"
+                                  multiple
+                                  style={{ display: 'none' }}
+                                  onChange={handleUploadFilesDirectly}
+                                />
+                                {uploadError && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{uploadError}</div>}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* פלנוגרמה */}
+                          {isFieldVisibleForTask('planogramFile') && (
+                            <div className="planogram-column">
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <label className="form-label" style={{ fontWeight: '700', margin: 0, fontSize: '0.85rem' }}>
+                                  {getNewTaskFieldLabel('planogramFile')}
+                                </label>
+                              </div>
+
+                              {(() => {
+                                const currentPlanogram = task.planogramFile || task.planogram;
+                                return currentPlanogram ? (
+                                  <PlanogramFileCard 
+                                    file={currentPlanogram} 
+                                    onPreview={handlePreviewFile}
+                                    onReplace={handlePlanogramReplaceView}
+                                    onDelete={handlePlanogramDeleteView}
+                                    isReplacing={isReplacingPlanogram}
+                                    deleteLabel="מחיקה"
+                                    downloadLabel="הורדה"
+                                  />
+                                ) : (
+                                  <div
+                                    className="planogram-preview-container"
+                                    style={{ height: '140px', margin: 0, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center', alignItems: 'center' }}
+                                  >
+                                    <span className="planogram-empty-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>לא הועלה קובץ</span>
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary"
+                                      style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                                      onClick={() => document.getElementById('planogram-upload-view-input').click()}
+                                      disabled={uploadingPlanogram || isReplacingPlanogram}
+                                    >
+                                      העלאת קובץ
+                                    </button>
+                                    <input
+                                      type="file"
+                                      id="planogram-upload-view-input"
+                                      accept="image/*,.pdf,application/pdf,.xlsx,.xls"
+                                      style={{ display: 'none' }}
+                                      onChange={handlePlanogramUploadView}
+                                    />
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+
+                        </div>
+                      </div>
+                    )
                   )}
 
                   {/* שעות עבודה בפרויקט */}
@@ -2260,8 +2602,8 @@ export default function AdminDetailsModal({
                               disabled={savingSubtasks}
                               onChange={() => handleToggleSubtask(item.id)}
                             />
-                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                              <span className={`subtask-text ${item.completed ? 'completed' : ''}`}>
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                              <span className={`subtask-text ${item.completed ? 'completed' : ''}`} title={item.text}>
                                 {item.text}
                               </span>
                               {item.completed && (
@@ -2383,7 +2725,9 @@ export default function AdminDetailsModal({
                                   🗑️
                                 </button>
                               </div>
-                              <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>
+                              <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>
+                                <LinkifiedText text={c.text} />
+                              </div>
                               {c.attachmentUrl && (
                                 <div style={{ marginTop: '8px' }}>
                                   {isImage ? (
@@ -2476,217 +2820,276 @@ export default function AdminDetailsModal({
                 <div className="details-sidebar">
 
                   {/* AREA 2: ספק ואיש קשר */}
-                  {(isFieldVisibleForTask('contactPerson') || isFieldVisibleForTask('supplierContactEmail')) && (
+                  {(isFieldVisibleForTask('contactPerson') || isFieldVisibleForTask('supplierContactEmail') || isFieldVisibleForTask('contactPhone')) && (
                     <div className="details-section-card">
                       <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>📇 ספק ואיש קשר</h4>
 
-                      {/* Supplier Contact Person */}
-                      {isFieldVisibleForTask('contactPerson') && (
-                        <div className="sidebar-row">
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                            <span className="sidebar-label">{getNewTaskFieldLabel('contactPerson')}</span>
-                            {flags.enableFieldExclusion && (
-                              <button
-                                type="button"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                                title={`הסרת ${getNewTaskFieldLabel('contactPerson')} מפרויקט זה`}
-                                onClick={() => handleExcludeFieldFromTask('contactPerson', getNewTaskFieldLabel('contactPerson'))}
-                              >
-                                🗑️
-                              </button>
-                            )}
-                          </div>
-                          {activeEditField === 'contactPerson' ? (
-                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                              <input
-                                type="text"
-                                className="form-control"
-                                style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                                value={editContactPerson}
-                                onChange={(e) => setEditContactPerson(e.target.value)}
-                                onBlur={(e) => handleAutoSaveBlur(e, 'contactPerson', editContactPerson)}
-                                list="contacts-list-inline"
-                                autoFocus
-                              />
-                              <datalist id="contacts-list-inline">
-                                {Array.from(new Set([
-                                  ...getNewTaskFieldOptions('contactPerson'),
-                                  ...CONTACTS.map(c => typeof c === 'string' ? c : c.name)
-                                ])).map(name => {
-                                  const contactObj = CONTACTS.find(c => (typeof c === 'string' ? c : c.name) === name);
-                                  const role = contactObj && typeof contactObj !== 'string' ? contactObj.role : '';
-                                  const phone = contactObj && typeof contactObj !== 'string' ? contactObj.phone : '';
-                                  return (
-                                    <option key={name} value={name}>
-                                      {role ? `${role} ${phone ? `(${phone})` : ''}` : ''}
-                                    </option>
-                                  );
-                                })}
-                              </datalist>
-                              <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
-                              <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                            </div>
-                          ) : (() => {
-                            const currentContactPerson = task.contactPerson || task.supplierContactName;
-                            const cObj = currentContactPerson ? CONTACTS.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
-                            const phone = cObj?.phone || task.phone || task.contactPhone || task.supplierContactPhone || '';
-                            const role = cObj?.role || task.contactRole || '';
-                            const wechat = cObj?.wechat || task.wechat || '';
-                            const address = cObj?.address || '';
-                            return (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span
-                                    className="sidebar-value hover-editable-inline"
-                                    onClick={() => startEditingField('contactPerson', currentContactPerson)}
-                                    title={`לחצי לעריכת ${getNewTaskFieldLabel('contactPerson')}`}
-                                    style={{ fontWeight: currentContactPerson ? '600' : 'normal' }}
-                                  >
-                                    {currentContactPerson || 'לחצי להוספה...'} ✏️
-                                  </span>
-                                  {currentContactPerson && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary btn-icon"
-                                      style={{ padding: '2px 6px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                      title="פרטי כרטיס איש קשר"
-                                      onClick={() => handleOpenContactCard(currentContactPerson)}
-                                    >
-                                      📇 כרטיס
-                                    </button>
+                        {(() => {
+                          const currentContactPerson = task.contactPerson || task.supplierContactName || '';
+                          const details = resolveContactDetails(currentContactPerson, task, CONTACTS, suppliers);
+                          const currentContactEmail = details.email || '';
+                          const currentContactPhone = details.phone || '';
+                          const { role, wechat, address, notes } = details;
+
+                          return (
+                            <>
+                              {/* 1. שם איש קשר */}
+                              {isFieldVisibleForTask('contactPerson') && (
+                                <div className="sidebar-row">
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                    <span className="sidebar-label">
+                                      {getNewTaskFieldLabel('contactPerson') === 'איש קשר' ? 'שם איש קשר' : getNewTaskFieldLabel('contactPerson')}
+                                    </span>
+                                  </div>
+                                  {activeEditField === 'contactPerson' ? (
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                                      <input
+                                        type="text"
+                                        className="form-control"
+                                        style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                                        value={editContactPerson}
+                                        onChange={(e) => setEditContactPerson(e.target.value)}
+                                        onBlur={(e) => handleAutoSaveBlur(e, 'contactPerson', editContactPerson)}
+                                        list="contacts-list-inline"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveField('contactPerson', editContactPerson);
+                                          if (e.key === 'Escape') handleCancelField();
+                                        }}
+                                      />
+                                      <datalist id="contacts-list-inline">
+                                        {Array.from(new Set([
+                                          ...getNewTaskFieldOptions('contactPerson'),
+                                          ...CONTACTS.map(c => typeof c === 'string' ? c : c.name)
+                                        ])).map(name => {
+                                          const contactObj = CONTACTS.find(c => (typeof c === 'string' ? c : c.name) === name);
+                                          const contactRole = contactObj && typeof contactObj !== 'string' ? contactObj.role : '';
+                                          const contactPhone = contactObj && typeof contactObj !== 'string' ? contactObj.phone : '';
+                                          return (
+                                            <option key={name} value={name}>
+                                              {contactRole ? `${contactRole} ${contactPhone ? `(${contactPhone})` : ''}` : ''}
+                                            </option>
+                                          );
+                                        })}
+                                      </datalist>
+                                      <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('contactPerson', editContactPerson)}>✔️</button>
+                                      <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span
+                                          className="sidebar-value hover-editable-inline"
+                                          onClick={() => startEditingField('contactPerson', currentContactPerson)}
+                                          title="לחצי לעריכת שם איש קשר"
+                                          style={{
+                                            fontWeight: currentContactPerson ? '600' : 'normal',
+                                            color: currentContactPerson ? 'inherit' : 'var(--text-muted)'
+                                          }}
+                                        >
+                                          {currentContactPerson || 'לחצי להוספה...'} ✏️
+                                        </span>
+                                        {currentContactPerson && (
+                                          <button
+                                            type="button"
+                                            className="btn btn-secondary btn-icon"
+                                            style={{ padding: '2px 6px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            title="פרטי כרטיס איש קשר"
+                                            onClick={() => handleOpenContactCard(currentContactPerson)}
+                                          >
+                                            📇 כרטיס
+                                          </button>
+                                        )}
+                                      </div>
+                                      {role && (
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                          <span>💼 {role}</span>
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
-                                {role && (
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                    <span>💼 {role}</span>
-                                  </div>
-                                )}
-                                {phone && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                    <span>📞</span>
-                                    <a
-                                      href={`tel:${phone.replace(/\s+/g, '')}`}
-                                      className="directory-phone-link direction-ltr"
-                                      style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '500' }}
-                                    >
-                                      {phone}
-                                    </a>
-                                    <a
-                                      href={`https://wa.me/${phone.replace(/[^0-9]/g, '')}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="שליחת הודעת WhatsApp"
-                                      style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366', marginRight: '4px' }}
-                                    >
-                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
-                                      </svg>
-                                    </a>
-                                  </div>
-                                )}
-                                {wechat && (
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                    <span>💬 WeChat: {wechat}</span>
-                                  </div>
-                                )}
-                                {address && (
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                    <span>📍 {address}</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {/* Supplier Contact Email */}
-                      {isFieldVisibleForTask('supplierContactEmail') && (
-                        <div className="sidebar-row">
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                            <span className="sidebar-label">{getNewTaskFieldLabel('supplierContactEmail')}</span>
-                            {flags.enableFieldExclusion && (
-                              <button
-                                type="button"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                                title={`הסרת ${getNewTaskFieldLabel('supplierContactEmail')} מפרויקט זה`}
-                                onClick={() => handleExcludeFieldFromTask('supplierContactEmail', getNewTaskFieldLabel('supplierContactEmail'))}
-                              >
-                                🗑️
-                              </button>
-                            )}
-                          </div>
-                          {activeEditField === 'supplierContactEmail' ? (
-                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
-                              <input
-                                type="text"
-                                className="form-control text-left direction-ltr"
-                                style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
-                                value={editSupplierContactEmail}
-                                list="supplier-emails-list-inline"
-                                onChange={(e) => setEditSupplierContactEmail(e.target.value)}
-                                onBlur={(e) => handleAutoSaveBlur(e, 'supplierContactEmail', editSupplierContactEmail)}
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveField('supplierContactEmail', editSupplierContactEmail);
-                                }}
-                              />
-                              {getNewTaskFieldOptions('supplierContactEmail').length > 0 && (
-                                <datalist id="supplier-emails-list-inline">
-                                  {getNewTaskFieldOptions('supplierContactEmail').map(email => (
-                                    <option key={email} value={email}>{email}</option>
-                                  ))}
-                                </datalist>
                               )}
-                              <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactEmail', editSupplierContactEmail)}>✔️</button>
-                              <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
-                            </div>
-                          ) : (() => {
-                            const currentContactPerson = task.contactPerson || task.supplierContactName;
-                            const cObj = currentContactPerson ? CONTACTS.find(c => (typeof c === 'string' ? c : c?.name)?.trim().toLowerCase() === currentContactPerson.trim().toLowerCase()) : null;
-                            const currentContactEmail = task.supplierContactEmail || task.contactEmail || task.email || task.supplierEmail || (cObj ? cObj.email : '');
-                            return (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
-                                <span
-                                  className="sidebar-value hover-editable-inline"
-                                  onClick={() => startEditingField('supplierContactEmail', currentContactEmail)}
-                                  title={`לחצי לעריכת ${getNewTaskFieldLabel('supplierContactEmail')}`}
-                                  style={{
-                                    color: currentContactEmail ? 'var(--primary)' : 'var(--text-muted)',
-                                    whiteSpace: 'nowrap',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
-                                  }}
-                                >
-                                  <span style={{
-                                    textDecoration: currentContactEmail ? 'underline' : 'none',
-                                    direction: currentContactEmail ? 'ltr' : 'rtl'
-                                  }}>
-                                    {currentContactEmail || 'לחצי להוספה...'}
-                                  </span>
-                                  ✏️
-                                </span>
-                                {currentContactEmail && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary btn-icon"
-                                    style={{ padding: '2px 4px', fontSize: '0.75rem', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                                    title={copiedEmail ? "הועתק!" : "העתק אימייל"}
-                                    onClick={() => handleCopyEmail(currentContactEmail)}
-                                  >
-                                    {copiedEmail ? '✔️' : '📋'}
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
+
+                              {/* 2. מייל איש קשר */}
+                              {isFieldVisibleForTask('supplierContactEmail') && (
+                                <div className="sidebar-row">
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                    <span className="sidebar-label">
+                                      {getNewTaskFieldLabel('supplierContactEmail') === 'אימייל איש קשר' ? 'מייל איש קשר' : (getNewTaskFieldLabel('supplierContactEmail') || 'מייל איש קשר')}
+                                    </span>
+                                  </div>
+                                  {activeEditField === 'supplierContactEmail' ? (
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                                      <input
+                                        type="text"
+                                        className="form-control text-left direction-ltr"
+                                        style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                                        value={editSupplierContactEmail}
+                                        list="supplier-emails-list-inline"
+                                        onChange={(e) => setEditSupplierContactEmail(e.target.value)}
+                                        onBlur={(e) => handleAutoSaveBlur(e, 'supplierContactEmail', editSupplierContactEmail)}
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveField('supplierContactEmail', editSupplierContactEmail);
+                                          if (e.key === 'Escape') handleCancelField();
+                                        }}
+                                      />
+                                      {getNewTaskFieldOptions('supplierContactEmail').length > 0 && (
+                                        <datalist id="supplier-emails-list-inline">
+                                          {getNewTaskFieldOptions('supplierContactEmail').map(email => (
+                                            <option key={email} value={email}>{email}</option>
+                                          ))}
+                                        </datalist>
+                                      )}
+                                      <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('supplierContactEmail', editSupplierContactEmail)}>✔️</button>
+                                      <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
+                                      {currentContactEmail ? (
+                                        <>
+                                          <span style={{ fontSize: '0.85rem' }}>✉️</span>
+                                          <a
+                                            href={`mailto:${currentContactEmail}`}
+                                            className="direction-ltr text-left"
+                                            style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.85rem' }}
+                                          >
+                                            {currentContactEmail}
+                                          </a>
+                                          <button
+                                            type="button"
+                                            className="btn btn-secondary btn-icon"
+                                            style={{ padding: '1px 4px', fontSize: '0.7rem', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                                            title={copiedEmail ? "הועתק!" : "העתק אימייל"}
+                                            onClick={() => handleCopyEmail(currentContactEmail)}
+                                          >
+                                            {copiedEmail ? '✔️' : '📋'}
+                                          </button>
+                                          <span
+                                            className="hover-editable-inline"
+                                            onClick={() => startEditingField('supplierContactEmail', currentContactEmail)}
+                                            title="לחצי לעריכת מייל איש קשר"
+                                            style={{ cursor: 'pointer', fontSize: '0.8rem' }}
+                                          >
+                                            ✏️
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <span
+                                          className="sidebar-value hover-editable-inline"
+                                          onClick={() => startEditingField('supplierContactEmail', '')}
+                                          title="לחצי להוספת מייל איש קשר"
+                                          style={{
+                                            fontWeight: 'normal',
+                                            color: 'var(--text-muted)'
+                                          }}
+                                        >
+                                          לחצי להוספה... ✏️
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 3. טלפון איש קשר */}
+                              {isFieldVisibleForTask('contactPhone') && (
+                                <div className="sidebar-row">
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                    <span className="sidebar-label">{getNewTaskFieldLabel('contactPhone') || 'טלפון איש קשר'}</span>
+                                  </div>
+                                  {activeEditField === 'phone' ? (
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+                                      <input
+                                        type="tel"
+                                        className="form-control text-left direction-ltr"
+                                        style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto' }}
+                                        value={editPhone}
+                                        onChange={(e) => setEditPhone(e.target.value)}
+                                        onBlur={(e) => handleAutoSaveBlur(e, 'phone', editPhone)}
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveField('phone', editPhone);
+                                          if (e.key === 'Escape') handleCancelField();
+                                        }}
+                                      />
+                                      <button type="button" data-inline-edit-action="true" className="btn btn-primary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={() => handleSaveField('phone', editPhone)}>✔️</button>
+                                      <button type="button" data-inline-edit-action="true" className="btn btn-secondary btn-icon" style={{ padding: '4px 6px', fontSize: '0.75rem' }} onClick={handleCancelField}>❌</button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl', flexWrap: 'nowrap' }}>
+                                      {currentContactPhone ? (
+                                        <>
+                                          <span style={{ fontSize: '0.85rem' }}>📞</span>
+                                          <a
+                                            href={`tel:${currentContactPhone.replace(/\s+/g, '')}`}
+                                            className="directory-phone-link direction-ltr"
+                                            style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.85rem' }}
+                                          >
+                                            {currentContactPhone}
+                                          </a>
+                                          <a
+                                            href={`https://wa.me/${currentContactPhone.replace(/[^0-9]/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title="שליחת הודעת WhatsApp"
+                                            style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366', marginRight: '4px' }}
+                                          >
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
+                                            </svg>
+                                          </a>
+                                          <span
+                                            className="hover-editable-inline"
+                                            onClick={() => startEditingField('phone', currentContactPhone)}
+                                            title="לחצי לעריכת טלפון איש קשר"
+                                            style={{ cursor: 'pointer', fontSize: '0.8rem' }}
+                                          >
+                                            ✏️
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <span
+                                          className="sidebar-value hover-editable-inline"
+                                          onClick={() => startEditingField('phone', '')}
+                                          title="לחצי להוספת טלפון איש קשר"
+                                          style={{
+                                            fontWeight: 'normal',
+                                            color: 'var(--text-muted)'
+                                          }}
+                                        >
+                                          לחצי להוספה... ✏️
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Extra contact details if available */}
+                              {wechat && (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                  <span>💬 WeChat: {wechat}</span>
+                                </div>
+                              )}
+                              {address && (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  <span>📍 {address}</span>
+                                </div>
+                              )}
+                              {notes && (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'pre-line', marginTop: '2px' }}>
+                                  <span>📝 {notes}</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                     </div>
                   )}
 
-                  {/* AREA 3: חומרים ואישורים */}
+                    {/* AREA 3: חומרים ואישורים */}
                   <div className="details-section-card">
                     <h4 className="detail-section-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>🧪 שלב ואישורים</h4>
 
@@ -2775,16 +3178,6 @@ export default function AdminDetailsModal({
                       <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                           <span className="sidebar-label">{getNewTaskFieldLabel('diecutsStatus')}</span>
-                          {flags.enableFieldExclusion && (
-                            <button
-                              type="button"
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                              title={`הסרת ${getNewTaskFieldLabel('diecutsStatus')} מפרויקט זה`}
-                              onClick={() => handleExcludeFieldFromTask('diecutsStatus', getNewTaskFieldLabel('diecutsStatus'))}
-                            >
-                              🗑️
-                            </button>
-                          )}
                         </div>
                         <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                           {(getNewTaskFieldOptions('diecutsStatus').length > 0 ? getNewTaskFieldOptions('diecutsStatus') : ['אין', 'חלקי', 'יש']).map(val => {
@@ -2822,16 +3215,6 @@ export default function AdminDetailsModal({
                       <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                           <span className="sidebar-label">{getNewTaskFieldLabel('imagesStatus')}</span>
-                          {flags.enableFieldExclusion && (
-                            <button
-                              type="button"
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                              title={`הסרת ${getNewTaskFieldLabel('imagesStatus')} מפרויקט זה`}
-                              onClick={() => handleExcludeFieldFromTask('imagesStatus', getNewTaskFieldLabel('imagesStatus'))}
-                            >
-                              🗑️
-                            </button>
-                          )}
                         </div>
                         <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                           {(getNewTaskFieldOptions('imagesStatus').length > 0 ? getNewTaskFieldOptions('imagesStatus') : ['אין', 'חלקי', 'יש']).map(val => {
@@ -2869,16 +3252,6 @@ export default function AdminDetailsModal({
                       <div className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                           <span className="sidebar-label">{getNewTaskFieldLabel('standardsInstituteRequired')}</span>
-                          {flags.enableFieldExclusion && (
-                            <button
-                              type="button"
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                              title={`הסרת ${getNewTaskFieldLabel('standardsInstituteRequired')} מפרויקט זה`}
-                              onClick={() => handleExcludeFieldFromTask('standardsInstituteRequired', getNewTaskFieldLabel('standardsInstituteRequired'))}
-                            >
-                              🗑️
-                            </button>
-                          )}
                         </div>
                         <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                           {(getNewTaskFieldOptions('standardsInstituteRequired').length > 0 ? getNewTaskFieldOptions('standardsInstituteRequired') : ['לא', 'כן']).map(val => {
@@ -2925,16 +3298,6 @@ export default function AdminDetailsModal({
                           <div key={f.key} className="sidebar-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', marginBottom: '12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                               <span className="sidebar-label">{f.label}</span>
-                              {flags.enableFieldExclusion && (
-                                <button
-                                  type="button"
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 4px' }}
-                                  title={`הסרת שדה ${f.label} מפרויקט זה`}
-                                  onClick={() => handleExcludeFieldFromTask(f.key, f.label)}
-                                >
-                                  🗑️
-                                </button>
-                              )}
                             </div>
 
                             {isEditing ? (
@@ -3027,11 +3390,15 @@ export default function AdminDetailsModal({
                                   startEditingField(f.key, val);
                                 }}
                                 title={`לחצי לעריכת ${f.label}`}
-                                style={{ cursor: 'pointer' }}
+                                style={{
+                                  cursor: 'pointer',
+                                  fontWeight: (val !== undefined && val !== null && val !== '' && val !== false) ? '600' : 'normal',
+                                  color: (val !== undefined && val !== null && val !== '' && val !== false) ? 'inherit' : 'var(--text-muted)'
+                                }}
                               >
                                 {f.type === 'checkbox'
                                   ? (val === true || val === 'true' ? '✅ כן' : '❌ לא')
-                                  : (val ? String(val) : 'לחצי להוספה...')
+                                  : (val ? <LinkifiedText text={String(val)} /> : 'לחצי להוספה...')
                                 } ✏️
                               </span>
                             )}
@@ -3041,31 +3408,6 @@ export default function AdminDetailsModal({
                     </div>
                   )}
 
-                  {/* AREA: החזרת שדות שהוסרו מפרויקט זה */}
-                  {flags.enableFieldExclusion && excludedFieldsList.length > 0 && (
-                    <div className="details-section-card" style={{ backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1' }}>
-                      <h4 className="detail-section-title" style={{ fontSize: '0.85rem', marginBottom: '8px', color: '#475569' }}>
-                        ➕ שדות שהוסרו מפרויקט זה ({excludedFieldsList.length})
-                      </h4>
-                      <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                        לחצי על שדה כדי להחזיר אותו לתצוגת פרויקט זה:
-                      </p>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {excludedFieldsList.map(field => (
-                          <button
-                            key={field.key}
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '4px', borderRadius: '14px' }}
-                            onClick={() => handleRestoreFieldToTask(field.key)}
-                            title={`החזרת שדה ${field.label} לפרויקט זה`}
-                          >
-                            ➕ {field.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="sidebar-row" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
                     <span>נוצר: {formatDate(task.createdAt)}</span>
@@ -3223,7 +3565,7 @@ export default function AdminDetailsModal({
       {showPlanogramDeleteConfirm && (
         <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { e.stopPropagation(); setShowPlanogramDeleteConfirm(false); }}>
           <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת פלנוגרמה</h3>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת {flags.terms?.planogramRubric || 'פלנוגרמה'}</h3>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק את הפלנוגרמה? לא ניתן לבטל פעולה זו.</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
@@ -3247,22 +3589,16 @@ export default function AdminDetailsModal({
         </div>
       )}
 
-      {/* Field Exclusion Confirmation Modal */}
-      {fieldToExclude && (
-        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setFieldToExclude(null)}>
-          <div className="modal-content confirm-dialog" style={{ maxWidth: '420px', textAlign: 'center', padding: '24px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🗑️</div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '10px' }}>הסרת שדה מפרויקט זה</h3>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5, fontSize: '0.9rem' }}>
-              האם את/ה בטוח/ה שברצונך להסיר את השדה <strong style={{ color: '#1e293b' }}>"{fieldToExclude.label}"</strong> מפרויקט זה?
-              <br />
-              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>השדה יוסר מתצוגת פרויקט זה בלבד. תוכל/י להחזיר אותו בכל עת מתחתית הכרטיס.</span>
-            </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+      {showWorkOrderDeleteConfirm && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { e.stopPropagation(); setShowWorkOrderDeleteConfirm(false); }}>
+          <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '12px' }}>מחיקת {flags.terms?.workOrderRubric || 'הזמנת עבודה'}</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>האם את בטוחה שברצונך למחוק את הזמנת העבודה? לא ניתן לבטל פעולה זו.</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setFieldToExclude(null)}
+                onClick={() => setShowWorkOrderDeleteConfirm(false)}
                 style={{ flex: 1 }}
               >
                 ביטול
@@ -3270,15 +3606,16 @@ export default function AdminDetailsModal({
               <button
                 type="button"
                 className="btn btn-danger"
-                onClick={confirmExcludeFieldFromTask}
+                onClick={confirmDeleteWorkOrder}
                 style={{ flex: 1 }}
               >
-                הסר שדה
+                מחק
               </button>
             </div>
           </div>
         </div>
       )}
+
 
       {/* Excel Preview Modal */}
       <React.Suspense fallback={null}>

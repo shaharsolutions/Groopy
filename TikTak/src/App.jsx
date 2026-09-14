@@ -4,6 +4,7 @@ import { auth } from './firebase';
 import Header from './components/Header';
 import { DEFAULT_NEW_TASK_FIELDS } from './data/taskFieldConfig';
 import { getFeatureFlags, DEFAULT_APP_VERSION, APP_VERSIONS } from './utils/featureFlags';
+import { isSystemAdminEmail } from './utils/storage';
 
 // Lazy loading pages for better initial load performance
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -14,6 +15,7 @@ const UsersManagement = lazy(() => import('./pages/UsersManagement'));
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'));
 const SearchModal = lazy(() => import('./components/SearchModal'));
 const Login = lazy(() => import('./pages/Login'));
+const OrganizationSuspendedView = lazy(() => import('./pages/OrganizationSuspendedView'));
 
 import './App.css';
 
@@ -29,6 +31,8 @@ export default function App() {
   const [organizationId, setOrganizationId] = useState(null);
   const [organizationName, setOrganizationName] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isOrgSuspended, setIsOrgSuspended] = useState(false);
+  const [suspendedOrgInfo, setSuspendedOrgInfo] = useState(null);
 
   // Global search states
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -167,14 +171,32 @@ export default function App() {
 
           // Register user login profile and set organization context
           let resolvedOrgId = storageApi.DEFAULT_ORGANIZATION_ID;
+          let userOrg = null;
           try {
             const profile = await storageApi.registerUserLogin(user);
             resolvedOrgId = profile?.organizationId || storageApi.DEFAULT_ORGANIZATION_ID;
             storageApi.setActiveOrganizationContext(resolvedOrgId);
             setOrganizationId(resolvedOrgId);
+
+            userOrg = await storageApi.getUserOrganization(user.uid);
+            if (userOrg?.name) setOrganizationName(userOrg.name);
           } catch (regError) {
-            console.error("Failed to register login profile", regError);
+            console.error("Failed to register login profile or check organization", regError);
           }
+
+          const isSysAdmin = isSystemAdminEmail(user.email);
+          if (!isSysAdmin && userOrg && userOrg.active === false) {
+            setIsOrgSuspended(true);
+            setSuspendedOrgInfo({
+              id: userOrg.id || resolvedOrgId,
+              name: userOrg.name || resolvedOrgId
+            });
+            setInitializing(false);
+            return;
+          }
+
+          setIsOrgSuspended(false);
+          setSuspendedOrgInfo(null);
 
           // Unblock main UI immediately for instant startup!
           setInitializing(false);
@@ -182,16 +204,20 @@ export default function App() {
           // Run background migrations & organization setup asynchronously without blocking UI
           (async () => {
             try {
-              const organization = await storageApi.getUserOrganization(user.uid);
-              if (organization?.name) setOrganizationName(organization.name);
+              if (userOrg?.name) {
+                setOrganizationName(userOrg.name);
+              } else {
+                const organization = await storageApi.getUserOrganization(user.uid);
+                if (organization?.name) setOrganizationName(organization.name);
+              }
               await storageApi.migrateUserDataToOrganization(user.uid, resolvedOrgId);
-              if (user.email === 'shaharsolutions@gmail.com') {
+              if (isSystemAdminEmail(user.email)) {
                 await storageApi.assignExistingUsersToDefaultOrganization();
               }
               await storageApi.migrateLegacyTasksToUser(user.uid, user.email);
 
               const userSettings = await storageApi.getGlobalSettings(resolvedOrgId);
-              if (!userSettings && user.email === 'shaharsolutions@gmail.com') {
+              if (!userSettings && isSystemAdminEmail(user.email)) {
                 const defaultSettings = {
                   statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
                   defaultStatus: 'חדש',
@@ -254,6 +280,54 @@ export default function App() {
       clearInterval(interval);
     };
   }, [userId]);
+
+  // Real-time listener for organization active/suspended status
+  useEffect(() => {
+    if (!userId || isSystemAdmin || !organizationId || organizationId === 'groopy') {
+      return;
+    }
+
+    let unsubscribeOrg = () => {};
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [{ doc, onSnapshot }, { db }] = await Promise.all([
+          import('firebase/firestore'),
+          import('./firebaseDb')
+        ]);
+        if (cancelled) return;
+
+        const orgDocRef = doc(db, 'organizations', organizationId);
+        unsubscribeOrg = onSnapshot(orgDocRef, (snap) => {
+          if (cancelled) return;
+          if (snap.exists()) {
+            const orgData = snap.data();
+            const isActive = orgData.active !== false;
+            if (!isActive) {
+              setIsOrgSuspended(true);
+              setSuspendedOrgInfo({
+                id: organizationId,
+                name: orgData.name || organizationName || organizationId
+              });
+            } else {
+              setIsOrgSuspended(false);
+              setSuspendedOrgInfo(null);
+            }
+          }
+        }, (listenerErr) => {
+          console.warn('Organization active real-time listener warning:', listenerErr);
+        });
+      } catch (err) {
+        console.warn('Failed to attach organization active listener:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribeOrg();
+    };
+  }, [userId, organizationId, organizationName, isSystemAdmin]);
 
   useEffect(() => {
     const effectiveUserId = impersonatedUserId || userId;
@@ -393,6 +467,8 @@ export default function App() {
       setUserId(null);
       setOrganizationId(null);
       setOrganizationName('');
+      setIsOrgSuspended(false);
+      setSuspendedOrgInfo(null);
       setImpersonatedUserId(null);
       setImpersonatedUserEmail('');
       setImpersonatedOrganizationId(null);
@@ -433,8 +509,8 @@ export default function App() {
   const effectiveUserEmail = impersonatedUserEmail || auth.currentUser?.email || '';
   const effectiveOrganizationId = impersonatedOrganizationId || organizationId;
   const effectiveOrganizationName = impersonatedOrganizationName || organizationName;
-  const isSystemAdmin = auth.currentUser?.email === 'shaharsolutions@gmail.com';
-  const effectiveIsSystemAdmin = impersonatedUserId ? (effectiveUserEmail === 'shaharsolutions@gmail.com') : isSystemAdmin;
+  const isSystemAdmin = isSystemAdminEmail(auth.currentUser?.email);
+  const effectiveIsSystemAdmin = impersonatedUserId ? isSystemAdminEmail(effectiveUserEmail) : isSystemAdmin;
 
   useEffect(() => {
     import('./utils/storage').then(({ setActiveOrganizationContext }) => {
@@ -517,6 +593,29 @@ export default function App() {
         </div>
       }>
         <Login />
+      </Suspense>
+    );
+  }
+
+  if (isOrgSuspended && !effectiveIsSystemAdmin) {
+    return (
+      <Suspense fallback={
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          fontFamily: 'Rubik, sans-serif',
+          color: 'var(--text-muted)'
+        }}>
+          טוען נתונים...
+        </div>
+      }>
+        <OrganizationSuspendedView
+          user={auth.currentUser}
+          organization={suspendedOrgInfo || { id: effectiveOrganizationId, name: effectiveOrganizationName }}
+          onLogout={handleLogout}
+        />
       </Suspense>
     );
   }

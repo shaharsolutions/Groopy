@@ -68,7 +68,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.email == 'shaharsolutions@gmail.com';
+      return isAuthenticated() && (
+        request.auth.token.email == 'shaharsolutions@gmail.com' ||
+        request.auth.token.email == 'shaharc94@gmail.com'
+      );
     }
 
     function isAnonymousViewer() {
@@ -434,9 +437,8 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (resource.data.actorUid == request.auth.uid || canAccessOrganization(resource.data.organizationId) || isAdmin());
       allow create: if isAuthenticated() && !isAnonymousViewer() && isValidActivityLog(request.resource.data) && canAccessOrganization(request.resource.data.organizationId);
       allow update: if isAuthenticated() &&
-                    !('organizationId' in resource.data) &&
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['organizationId']) &&
-                    (resource.data.actorUid == request.auth.uid || isAdmin());
+                    (isAdmin() || (resource.data.actorUid == request.auth.uid && !('organizationId' in resource.data)));
       allow delete: if false;
     }
   }

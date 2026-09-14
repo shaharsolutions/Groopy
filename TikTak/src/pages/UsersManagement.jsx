@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { APP_VERSIONS, DEFAULT_APP_VERSION, getFeatureFlags } from '../utils/featureFlags';
+import { isSystemAdminEmail } from '../utils/storage';
 
 let storageApiPromise = null;
 
@@ -285,9 +286,14 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const handleOrganizationChange = async (userId, nextOrganizationId) => {
     try {
       setSavingOrganization(userId);
+      setError('');
       const { assignUserToOrganization, migrateUserDataToOrganization } = await loadStorageApi();
       await assignUserToOrganization(userId, nextOrganizationId);
-      await migrateUserDataToOrganization(userId, nextOrganizationId);
+      try {
+        await migrateUserDataToOrganization(userId, nextOrganizationId);
+      } catch (migrationErr) {
+        console.warn('Background data migration notice after assigning organization:', migrationErr);
+      }
       setUsers(current => current.map(user => user.uid === userId ? { ...user, organizationId: nextOrganizationId } : user));
     } catch (err) {
       console.error('Failed to assign organization', err);
@@ -1183,7 +1189,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                                 }}>
                                   {formatRelativeActivity(effectiveLastSeen)}
                                 </span>
-                                {user.email === 'shaharsolutions@gmail.com' && (
+                                {isSystemAdminEmail(user.email) && (
                                   <span style={{
                                     display: 'inline-flex',
                                     fontSize: '0.74rem',
@@ -1192,7 +1198,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                                     padding: '3px 8px',
                                     borderRadius: '999px',
                                     fontWeight: '700'
-                                  }}>אני (מנהל)</span>
+                                  }}>מנהל מערכת</span>
                                 )}
                               </div>
                               <span style={{
@@ -1273,7 +1279,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       )}
                       {visibleColumns.actions !== false && (
                         <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                          {user.email !== 'shaharsolutions@gmail.com' ? (
+                          {!isSystemAdminEmail(user.email) ? (
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
                               <button
                                 type="button"

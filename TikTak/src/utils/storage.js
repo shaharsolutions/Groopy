@@ -76,7 +76,8 @@ const COMMENTS_COLLECTION = 'comments';
 const ACTIVITY_LOGS_COLLECTION = 'activityLogs';
 const TRASH_RETENTION_DAYS = 30;
 const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
-const ARCHIVE_STATUS = 'ארכיון';
+export const SYSTEM_ADMIN_EMAILS = ['shaharsolutions@gmail.com', 'shaharc94@gmail.com'];
+export const isSystemAdminEmail = (email) => SYSTEM_ADMIN_EMAILS.includes(String(email || '').trim().toLowerCase());
 const SYSTEM_ADMIN_EMAIL = 'shaharsolutions@gmail.com';
 export const DEFAULT_ORGANIZATION_ID = 'groopy';
 export const DEFAULT_ORGANIZATION_NAME = 'Groopy';
@@ -153,7 +154,7 @@ const getCurrentActor = () => {
     actorUid: user.uid,
     actorEmail: user.email || '',
     actorName: user.displayName || user.email || 'משתמש מערכת',
-    isSystemAdmin: user.email === SYSTEM_ADMIN_EMAIL
+    isSystemAdmin: isSystemAdminEmail(user.email)
   };
 };
 
@@ -1543,21 +1544,32 @@ export const getUserOrganization = async (userId) => {
   const profile = userSnap.data();
   const organizationId = profile.organizationId || DEFAULT_ORGANIZATION_ID;
   let organizationName = organizationId === DEFAULT_ORGANIZATION_ID ? DEFAULT_ORGANIZATION_NAME : organizationId;
+  let active = true;
   try {
     const organizationSnap = await getDoc(doc(db, 'organizations', organizationId));
-    if (organizationSnap.exists()) organizationName = organizationSnap.data().name || organizationName;
+    if (organizationSnap.exists()) {
+      const data = organizationSnap.data();
+      organizationName = data.name || organizationName;
+      if (data.active !== undefined) {
+        active = data.active !== false;
+      }
+    }
   } catch {
     try {
       const registrySnap = await getDoc(doc(db, SETTINGS_COLLECTION, 'system-organizations'));
       const registryOrganization = registrySnap.data()?.organizations?.find(item => item.id === organizationId);
       if (registryOrganization?.name) organizationName = registryOrganization.name;
+      if (registryOrganization && registryOrganization.active !== undefined) {
+        active = registryOrganization.active !== false;
+      }
     } catch {
       // Keep a stable fallback name when organization metadata is not readable.
     }
   }
   return {
     id: organizationId,
-    name: organizationName
+    name: organizationName,
+    active
   };
 };
 
@@ -1568,38 +1580,58 @@ export const migrateUserDataToOrganization = async (userId, organizationId = DEF
   const collectionsToMigrate = [TASKS_COLLECTION, COMMENTS_COLLECTION, 'taskPrivateNotes', 'suppliers', 'contacts'];
 
   for (const collectionName of collectionsToMigrate) {
-    const legacySnapshot = await getDocs(query(collection(db, collectionName), where('userId', '==', userId)));
-    for (const legacyDoc of legacySnapshot.docs) {
-      if (legacyDoc.data().organizationId === organizationId) continue;
-      await updateDoc(doc(db, collectionName, legacyDoc.id), { organizationId });
-      migratedCount += 1;
+    try {
+      const legacySnapshot = await getDocs(query(collection(db, collectionName), where('userId', '==', userId)));
+      for (const legacyDoc of legacySnapshot.docs) {
+        if (legacyDoc.data().organizationId === organizationId) continue;
+        try {
+          await updateDoc(doc(db, collectionName, legacyDoc.id), { organizationId });
+          migratedCount += 1;
+        } catch (docErr) {
+          console.warn(`Failed to migrate ${collectionName} doc ${legacyDoc.id}:`, docErr);
+        }
+      }
+    } catch (colErr) {
+      console.warn(`Failed to query collection ${collectionName} for user ${userId}:`, colErr);
     }
   }
 
-  const legacyActivitySnapshot = await getDocs(query(
-    collection(db, ACTIVITY_LOGS_COLLECTION),
-    where('actorUid', '==', userId)
-  ));
-  for (const activityDoc of legacyActivitySnapshot.docs) {
-    if (activityDoc.data().organizationId === organizationId) continue;
-    await updateDoc(doc(db, ACTIVITY_LOGS_COLLECTION, activityDoc.id), { organizationId });
-    migratedCount += 1;
+  try {
+    const legacyActivitySnapshot = await getDocs(query(
+      collection(db, ACTIVITY_LOGS_COLLECTION),
+      where('actorUid', '==', userId)
+    ));
+    for (const activityDoc of legacyActivitySnapshot.docs) {
+      if (activityDoc.data().organizationId === organizationId) continue;
+      try {
+        await updateDoc(doc(db, ACTIVITY_LOGS_COLLECTION, activityDoc.id), { organizationId });
+        migratedCount += 1;
+      } catch (actErr) {
+        console.warn(`Failed to migrate activity log ${activityDoc.id}:`, actErr);
+      }
+    }
+  } catch (actQueryErr) {
+    console.warn(`Failed to query activity logs for user ${userId}:`, actQueryErr);
   }
 
-  const legacySettingsRef = doc(db, SETTINGS_COLLECTION, userId);
-  const legacySettingsSnap = await getDoc(legacySettingsRef);
-  const organizationSettingsRef = doc(db, SETTINGS_COLLECTION, organizationId);
-  const organizationSettingsSnap = await getDoc(organizationSettingsRef);
-  if (!organizationSettingsSnap.exists() && legacySettingsSnap.exists() && getCurrentActor()?.isSystemAdmin) {
-    await setDoc(organizationSettingsRef, {
-      ...legacySettingsSnap.data(),
-      organizationId
-    });
-    migratedCount += 1;
-  }
-  if (legacySettingsSnap.exists() && !legacySettingsSnap.data().organizationId) {
-    await setDoc(legacySettingsRef, { organizationId }, { merge: true });
-    migratedCount += 1;
+  try {
+    const legacySettingsRef = doc(db, SETTINGS_COLLECTION, userId);
+    const legacySettingsSnap = await getDoc(legacySettingsRef);
+    const organizationSettingsRef = doc(db, SETTINGS_COLLECTION, organizationId);
+    const organizationSettingsSnap = await getDoc(organizationSettingsRef);
+    if (!organizationSettingsSnap.exists() && legacySettingsSnap.exists() && getCurrentActor()?.isSystemAdmin) {
+      await setDoc(organizationSettingsRef, {
+        ...legacySettingsSnap.data(),
+        organizationId
+      });
+      migratedCount += 1;
+    }
+    if (legacySettingsSnap.exists() && !legacySettingsSnap.data().organizationId) {
+      await setDoc(legacySettingsRef, { organizationId }, { merge: true });
+      migratedCount += 1;
+    }
+  } catch (settingsErr) {
+    console.warn('Failed to migrate user settings:', settingsErr);
   }
 
   return migratedCount;
@@ -1778,7 +1810,7 @@ export const deleteUser = async (userId) => {
   const userData = userSnap.exists() ? userSnap.data() : {};
   const userEmail = userData.email || '';
 
-  if (userEmail === SYSTEM_ADMIN_EMAIL || userId === auth.currentUser?.uid) {
+  if (isSystemAdminEmail(userEmail) || userId === auth.currentUser?.uid) {
     throw new Error('לא ניתן למחוק את חשבון מנהל המערכת הראשי');
   }
 

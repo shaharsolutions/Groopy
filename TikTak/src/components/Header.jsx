@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getFeatureFlags } from '../utils/featureFlags';
+import { isSystemAdminEmail } from '../utils/storage';
 
 const SUMMARY_CACHE_TTL_MS = 60 * 1000;
 const summaryCache = new Map();
@@ -112,7 +113,7 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
   const [loading, setLoading] = useState(false);
 
   const flags = getFeatureFlags(settings);
-  const canAccessAdminTools = isSystemAdmin || userEmail === 'shaharsolutions@gmail.com';
+  const canAccessAdminTools = isSystemAdmin || isSystemAdminEmail(userEmail);
 
   const toggleMonth = (key) => {
     setExpandedMonths(prev => ({

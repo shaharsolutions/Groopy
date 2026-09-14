@@ -1871,12 +1871,15 @@ export default function SettingsPage({
           </div>
 
           <p style={{ color: '#334155', fontSize: '0.9rem', lineHeight: '1.6', marginBottom: '16px' }}>
-            ייצוא של כל הפרויקטים, המשימות, ההערות הפנימיות, התגובות, תתי-המשימות, אנשי הקשר והספקים של המשתמש והארגון לקובץ אקסל מסודר ונוח לקריאה ולגיבוי.
+            ייצוא של כל הפרויקטים, המשימות, ההערות הפנימיות, התגובות, תתי-המשימות, אנשי הקשר והספקים של המשתמש והארגון לקובץ אקסל מסודר.
+            <strong style={{ color: '#166534', display: 'block', marginTop: '4px' }}>
+              🔗 כל הקישורים לקבצי הזמנת העבודה, הפלנוגרמה ותיקיות ה-Drive לחיצים ישירות מתוך קובץ האקסל!
+            </strong>
           </p>
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
             gap: '10px',
             marginBottom: '16px',
             background: 'rgba(255, 255, 255, 0.9)',
@@ -1886,7 +1889,11 @@ export default function SettingsPage({
           }}>
             <div style={{ fontSize: '0.83rem', color: '#1e293b' }}>
               <span style={{ display: 'block', fontWeight: '700', color: '#15803d' }}>📋 גיליון פרויקטים</span>
-              מספרי פרויקט, שמות, סטטוסים, ספקים, זמנים, הערות פנימיות ושדות מותאמים
+              פרטים מלאים, קישורים לחיצים לקבצים ולדרייב, הערות ושדות מותאמים
+            </div>
+            <div style={{ fontSize: '0.83rem', color: '#1e293b' }}>
+              <span style={{ display: 'block', fontWeight: '700', color: '#15803d' }}>📁 גיליון קבצים ומסמכים</span>
+              טבלת כל קבצי הזמנות העבודה והפלנוגרמות עם קישורי פתיחה ישירים
             </div>
             <div style={{ fontSize: '0.83rem', color: '#1e293b' }}>
               <span style={{ display: 'block', fontWeight: '700', color: '#15803d' }}>💬 גיליון תגובות</span>

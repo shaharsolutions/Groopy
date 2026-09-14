@@ -1,8 +1,9 @@
 /**
  * Excel Export Helper for Groopy / TikTak
  * 
- * Exports all user projects, comments, subtasks, suppliers, contacts,
- * and system settings to a comprehensive multi-sheet Excel (.xlsx) file.
+ * Exports all user projects, comments, subtasks, files & documents,
+ * suppliers, contacts, and system settings to a comprehensive multi-sheet Excel (.xlsx) file.
+ * All file and folder links (work order, planogram, Drive, comments) are fully clickable hyperlinks.
  */
 
 import * as XLSX from 'xlsx';
@@ -14,6 +15,58 @@ import {
 } from './storage';
 import { getAllTaskFieldDefinitions } from '../data/taskFieldConfig';
 import { getFeatureFlags } from './featureFlags';
+
+/**
+ * Creates a native clickable hyperlink cell for SheetJS
+ */
+const createHyperlinkCell = (url, label) => {
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return label || '';
+  }
+  const cleanUrl = url.trim();
+  const cleanLabel = label ? String(label).trim() : cleanUrl;
+  return {
+    t: 's',
+    v: cleanLabel,
+    l: {
+      Target: cleanUrl,
+      Tooltip: cleanLabel
+    }
+  };
+};
+
+/**
+ * Normalizes files data into an array of { name, url }
+ */
+const normalizeFileList = (filesData) => {
+  if (!filesData) return [];
+  const rawList = Array.isArray(filesData) ? filesData : [filesData];
+  const result = [];
+  rawList.forEach((item) => {
+    if (!item) return;
+    if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (trimmed) {
+        let name = 'קובץ';
+        try {
+          const urlObj = new URL(trimmed);
+          const pathname = urlObj.pathname;
+          name = decodeURIComponent(pathname.substring(pathname.lastIndexOf('/') + 1)) || 'קובץ';
+        } catch {
+          name = trimmed.length > 35 ? trimmed.substring(0, 32) + '...' : trimmed;
+        }
+        result.push({ name, url: trimmed });
+      }
+    } else if (typeof item === 'object') {
+      const url = item.url || item.downloadURL || item.link || '';
+      const name = item.name || item.fileName || (url ? 'קובץ' : '');
+      if (url || name) {
+        result.push({ name, url });
+      }
+    }
+  });
+  return result;
+};
 
 /**
  * Formats an ISO date string to a user-friendly Hebrew date format (YYYY-MM-DD HH:mm)
@@ -62,22 +115,6 @@ const getBoardName = (boardId, settings, isLegacy) => {
 };
 
 /**
- * Format file attachments into readable string (Name + URL)
- */
-const formatFilesList = (files) => {
-  if (!files) return '';
-  const fileArray = Array.isArray(files) ? files : [files];
-  return fileArray
-    .filter(Boolean)
-    .map((f) => {
-      if (typeof f === 'string') return f;
-      if (f.name && f.url) return `${f.name}: ${f.url}`;
-      return f.name || f.url || JSON.stringify(f);
-    })
-    .join('\n');
-};
-
-/**
  * Summarizes subtasks for the master sheet
  */
 const formatSubtasksSummary = (subtasks) => {
@@ -102,7 +139,10 @@ const autoFitColumns = (worksheet, dataRows, headerRow) => {
     allRows.forEach((row) => {
       const cellVal = Array.isArray(row) ? row[colIdx] : row[colName];
       if (cellVal != null) {
-        const lines = String(cellVal).split('\n');
+        const textToMeasure = (typeof cellVal === 'object' && cellVal.v != null)
+          ? String(cellVal.v)
+          : String(cellVal);
+        const lines = textToMeasure.split('\n');
         lines.forEach((line) => {
           if (line.length > maxLen) {
             maxLen = Math.min(line.length, 65); // Cap width at 65 characters
@@ -220,13 +260,35 @@ export const exportAllUserDataToExcel = async ({
       }
     }
 
-    // Work order files formatting
-    const workOrderFilesData = task.workOrderFiles || task.workOrderFile || task.attachments || [];
-    const workOrderFilesStr = formatFilesList(workOrderFilesData);
+    // Drive Link - Clickable hyperlink
+    let driveLinkCell = '';
+    if (task.driveLink && typeof task.driveLink === 'string' && task.driveLink.trim().startsWith('http')) {
+      driveLinkCell = createHyperlinkCell(task.driveLink.trim(), '🔗 פתח קישור לדרייב');
+    } else {
+      driveLinkCell = task.driveLink || '';
+    }
 
-    // Planogram formatting
-    const planogramData = task.planogramFile || task.planogram || null;
-    const planogramStr = formatFilesList(planogramData);
+    // Work order files - Clickable hyperlink
+    const woFiles = normalizeFileList(task.workOrderFiles || task.workOrderFile || task.attachments);
+    let workOrderFilesCell = '';
+    if (woFiles.length === 1) {
+      workOrderFilesCell = woFiles[0].url
+        ? createHyperlinkCell(woFiles[0].url, `🔗 ${woFiles[0].name || 'פתח הזמנת עבודה'}`)
+        : (woFiles[0].name || '');
+    } else if (woFiles.length > 1) {
+      workOrderFilesCell = woFiles[0].url
+        ? createHyperlinkCell(woFiles[0].url, `🔗 ${woFiles[0].name} (+${woFiles.length - 1} קבצים בגיליון קבצים)`)
+        : `${woFiles[0].name} (+${woFiles.length - 1} נוספים)`;
+    }
+
+    // Planogram - Clickable hyperlink
+    const planoFiles = normalizeFileList(task.planogramFile || task.planogram);
+    let planogramCell = '';
+    if (planoFiles.length > 0) {
+      planogramCell = planoFiles[0].url
+        ? createHyperlinkCell(planoFiles[0].url, `🔗 ${planoFiles[0].name || 'פתח פלנוגרמה'}`)
+        : (planoFiles[0].name || '');
+    }
 
     const row = [
       task.jobNumber || '',
@@ -243,12 +305,12 @@ export const exportAllUserDataToExcel = async ({
       formatDateOnly(task.deadline),
       task.description || '',
       internalNotes,
-      task.driveLink || '',
+      driveLinkCell,
       task.standardsInstituteRequired || 'לא',
       task.diecutsStatus || 'אין',
       task.imagesStatus || 'אין',
-      workOrderFilesStr,
-      planogramStr,
+      workOrderFilesCell,
+      planogramCell,
       formatSubtasksSummary(task.subtasks),
       hoursStr,
       taskComments.length,
@@ -278,7 +340,7 @@ export const exportAllUserDataToExcel = async ({
   autoFitColumns(wsProjects, projectRows, projectHeaders);
 
   // ---------------------------------------------------------------------------
-  // SHEET 2: תגובות והתכתבויות (Comments Sheet)
+  // SHEET 2: תגובות והתכתבויות (Comments Sheet with Clickable Attachment Links)
   // ---------------------------------------------------------------------------
   const commentHeaders = [
     'מספר פרויקט',
@@ -302,13 +364,20 @@ export const exportAllUserDataToExcel = async ({
 
   const commentRows = allComments.map((c) => {
     const parentTask = taskDetailsMap.get(c.jobId) || {};
+    const attachmentCell = c.attachmentUrl
+      ? createHyperlinkCell(c.attachmentUrl, `🔗 ${c.attachmentName || 'פתח קובץ'}`)
+      : (c.attachmentName || '');
+    const attachmentLinkCell = c.attachmentUrl
+      ? createHyperlinkCell(c.attachmentUrl, c.attachmentUrl)
+      : '';
+
     return [
       parentTask.jobNumber || c.jobId || '',
       parentTask.title || '',
       c.authorName || c.authorEmail || 'משתמש',
       c.text || '',
-      c.attachmentName || '',
-      c.attachmentUrl || '',
+      attachmentCell,
+      attachmentLinkCell,
       formatDateTime(c.createdAt),
       c.id || ''
     ];
@@ -350,7 +419,87 @@ export const exportAllUserDataToExcel = async ({
   autoFitColumns(wsSubtasks, subtaskRows, subtaskHeaders);
 
   // ---------------------------------------------------------------------------
-  // SHEET 4: ספקים ואנשי קשר (Suppliers & Contacts Sheet)
+  // SHEET 4: קבצים ומסמכים (Dedicated Files & Documents with Clickable Direct Links)
+  // ---------------------------------------------------------------------------
+  const fileHeaders = [
+    'מספר פרויקט',
+    'שם הפרויקט',
+    'לוח',
+    'סוג מסמך',
+    'שם הקובץ',
+    'קישור לחיץ לפתיחה / הורדה',
+    'כתובת אינטרנט (URL)'
+  ];
+
+  const fileRows = [];
+
+  combinedTasks.forEach((task) => {
+    const boardTitle = getBoardName(task.boardId, settings, flags.isLegacy);
+
+    // 1. Work order files
+    const woFiles = normalizeFileList(task.workOrderFiles || task.workOrderFile || task.attachments);
+    woFiles.forEach((f, idx) => {
+      fileRows.push([
+        task.jobNumber || '',
+        task.title || '',
+        boardTitle,
+        woFiles.length > 1 ? `הזמנת עבודה (${idx + 1}/${woFiles.length})` : 'הזמנת עבודה',
+        f.name || 'הזמנת עבודה',
+        f.url ? createHyperlinkCell(f.url, `🔗 לחץ לפתיחת ${f.name || 'הקובץ'}`) : 'אין קישור ישיר',
+        f.url ? createHyperlinkCell(f.url, f.url) : ''
+      ]);
+    });
+
+    // 2. Planogram file
+    const planoFiles = normalizeFileList(task.planogramFile || task.planogram);
+    planoFiles.forEach((f) => {
+      fileRows.push([
+        task.jobNumber || '',
+        task.title || '',
+        boardTitle,
+        'פלנוגרמה',
+        f.name || 'פלנוגרמה',
+        f.url ? createHyperlinkCell(f.url, `🔗 לחץ לפתיחת ${f.name || 'הפלנוגרמה'}`) : 'אין קישור ישיר',
+        f.url ? createHyperlinkCell(f.url, f.url) : ''
+      ]);
+    });
+
+    // 3. Drive links
+    if (task.driveLink && typeof task.driveLink === 'string' && task.driveLink.trim().startsWith('http')) {
+      const driveUrl = task.driveLink.trim();
+      fileRows.push([
+        task.jobNumber || '',
+        task.title || '',
+        boardTitle,
+        'תיקיית Google Drive',
+        'תיקיית דרייב',
+        createHyperlinkCell(driveUrl, '🔗 לחץ לפתיחת תיקיית Drive'),
+        createHyperlinkCell(driveUrl, driveUrl)
+      ]);
+    }
+
+    // 4. Comments attachments
+    const taskComments = commentsByTaskId.get(task.id) || [];
+    taskComments.forEach((c) => {
+      if (c.attachmentUrl) {
+        fileRows.push([
+          task.jobNumber || '',
+          task.title || '',
+          boardTitle,
+          'קובץ מצורף לתגובה',
+          c.attachmentName || 'קובץ תגובה',
+          createHyperlinkCell(c.attachmentUrl, `🔗 לחץ לפתיחת ${c.attachmentName || 'הקובץ'}`),
+          createHyperlinkCell(c.attachmentUrl, c.attachmentUrl)
+        ]);
+      }
+    });
+  });
+
+  const wsFiles = XLSX.utils.aoa_to_sheet([fileHeaders, ...fileRows]);
+  autoFitColumns(wsFiles, fileRows, fileHeaders);
+
+  // ---------------------------------------------------------------------------
+  // SHEET 5: ספקים ואנשי קשר (Suppliers & Contacts Sheet)
   // ---------------------------------------------------------------------------
   const directoryHeaders = [
     'סוג רשומה',
@@ -401,7 +550,7 @@ export const exportAllUserDataToExcel = async ({
   autoFitColumns(wsDirectory, directoryRows, directoryHeaders);
 
   // ---------------------------------------------------------------------------
-  // SHEET 5: סיכום והגדרות מערכת (Summary Sheet)
+  // SHEET 6: סיכום והגדרות מערכת (Summary Sheet)
   // ---------------------------------------------------------------------------
   const summaryHeaders = ['מאפיין מערכת', 'ערך / פירוט'];
   const summaryRows = [
@@ -413,6 +562,7 @@ export const exportAllUserDataToExcel = async ({
     ['מתוכם פרויקטים פעילים', tasks.filter((t) => t.status !== 'ארכיון').length],
     ['מתוכם פרויקטים בארכיון', tasks.filter((t) => t.status === 'ארכיון').length],
     ['מתוכם פרויקטים בסל מחזור', trashedTasks.length],
+    ['סה״כ קבצים ומסמכים מקושרים', fileRows.length],
     ['סה״כ תגובות', allComments.length],
     ['סה״כ תתי-משימות', subtaskRows.length],
     ['סה״כ ספקים', (suppliers || []).length],
@@ -439,6 +589,7 @@ export const exportAllUserDataToExcel = async ({
   XLSX.utils.book_append_sheet(workbook, wsProjects, 'פרויקטים');
   XLSX.utils.book_append_sheet(workbook, wsComments, 'תגובות והתכתבויות');
   XLSX.utils.book_append_sheet(workbook, wsSubtasks, 'תתי משימות');
+  XLSX.utils.book_append_sheet(workbook, wsFiles, 'קבצים ומסמכים');
   if (directoryRows.length > 0) {
     XLSX.utils.book_append_sheet(workbook, wsDirectory, 'ספקים ואנשי קשר');
   }
@@ -470,6 +621,7 @@ export const exportAllUserDataToExcel = async ({
   return {
     filename,
     totalProjects: combinedTasks.length,
+    totalFiles: fileRows.length,
     totalComments: allComments.length,
     totalSubtasks: subtaskRows.length
   };

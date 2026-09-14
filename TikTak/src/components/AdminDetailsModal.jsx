@@ -457,7 +457,7 @@ export default function AdminDetailsModal({
   // Planogram creation upload states
   const [uploadingPlanogram, setUploadingPlanogram] = useState(false);
   const [uploadErrorPlanogram, setUploadErrorPlanogram] = useState('');
-  const [, setUploadProgressPlanogram] = useState(0);
+  const [uploadProgressPlanogram, setUploadProgressPlanogram] = useState(0);
 
   const startEditingField = useCallback((fieldKey, value) => {
     setActiveEditField(fieldKey);

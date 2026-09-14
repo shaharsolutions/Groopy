@@ -76,6 +76,7 @@ const COMMENTS_COLLECTION = 'comments';
 const ACTIVITY_LOGS_COLLECTION = 'activityLogs';
 const TRASH_RETENTION_DAYS = 30;
 const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
+const ARCHIVE_STATUS = 'ארכיון';
 export const SYSTEM_ADMIN_EMAILS = ['shaharsolutions@gmail.com', 'shaharc94@gmail.com'];
 export const isSystemAdminEmail = (email) => SYSTEM_ADMIN_EMAILS.includes(String(email || '').trim().toLowerCase());
 const SYSTEM_ADMIN_EMAIL = 'shaharsolutions@gmail.com';

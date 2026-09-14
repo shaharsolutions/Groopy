@@ -104,6 +104,13 @@ export default function App() {
   const shortCode = (pathParts[0] === 'v' && pathParts[1]) ? pathParts[1] : new URLSearchParams(window.location.search).get('v');
   const isSharedLink = Boolean(shortCode) || new URLSearchParams(window.location.search).get('mode') === 'viewer';
 
+  const effectiveUserId = impersonatedUserId || userId;
+  const effectiveUserEmail = impersonatedUserEmail || auth.currentUser?.email || '';
+  const effectiveOrganizationId = impersonatedOrganizationId || organizationId;
+  const effectiveOrganizationName = impersonatedOrganizationName || organizationName;
+  const isSystemAdmin = isSystemAdminEmail(auth.currentUser?.email);
+  const effectiveIsSystemAdmin = impersonatedUserId ? isSystemAdminEmail(effectiveUserEmail) : isSystemAdmin;
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const targetUserId = params.get('userId') || params.get('ownerId');
@@ -504,13 +511,6 @@ export default function App() {
     setOrganizationManagementMode(true);
     setCurrentView('settings');
   };
-
-  const effectiveUserId = impersonatedUserId || userId;
-  const effectiveUserEmail = impersonatedUserEmail || auth.currentUser?.email || '';
-  const effectiveOrganizationId = impersonatedOrganizationId || organizationId;
-  const effectiveOrganizationName = impersonatedOrganizationName || organizationName;
-  const isSystemAdmin = isSystemAdminEmail(auth.currentUser?.email);
-  const effectiveIsSystemAdmin = impersonatedUserId ? isSystemAdminEmail(effectiveUserEmail) : isSystemAdmin;
 
   useEffect(() => {
     import('./utils/storage').then(({ setActiveOrganizationContext }) => {

@@ -7,8 +7,7 @@ service firebase.storage {
 
     function isSystemAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == 'shaharsolutions@gmail.com' ||
-        request.auth.token.email == 'shaharc94@gmail.com'
+        request.auth.token.email == 'shaharsolutions@gmail.com'
       );
     }
 

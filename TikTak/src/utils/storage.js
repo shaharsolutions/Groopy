@@ -79,9 +79,18 @@ const DEFAULT_AUTO_ARCHIVE_INACTIVE_DAYS = 45;
 const ARCHIVE_STATUS = 'ארכיון';
 export const SYSTEM_ADMIN_EMAILS = ['shaharsolutions@gmail.com'];
 export const isSystemAdminEmail = (email) => SYSTEM_ADMIN_EMAILS.includes(String(email || '').trim().toLowerCase());
-const SYSTEM_ADMIN_EMAIL = 'shaharsolutions@gmail.com';
-export const DEFAULT_ORGANIZATION_ID = 'groopy';
-export const DEFAULT_ORGANIZATION_NAME = 'Groopy';
+export const SYSTEM_ADMIN_EMAIL = 'shaharsolutions@gmail.com';
+export const DEFAULT_ORGANIZATION_ID = '';
+export const DEFAULT_ORGANIZATION_NAME = '';
+export const SUSPENDED_CONTACT_METHODS = {
+  WHATSAPP: 'whatsapp',
+  EMAIL: 'email',
+  NONE: 'none'
+};
+export const DEFAULT_SUSPENDED_CONTACT_METHOD = SUSPENDED_CONTACT_METHODS.WHATSAPP;
+export const SUSPENDED_CONTACT_WHATSAPP_PHONE = '052-8366744';
+export const SUSPENDED_CONTACT_WHATSAPP_PHONE_RAW = '972528366744';
+export const SUSPENDED_CONTACT_EMAIL = 'shaharsolutions@gmail.com';
 let activeOrganizationId = '';
 
 export const setActiveOrganizationContext = (organizationId) => {
@@ -146,7 +155,7 @@ export const resolveShortShareLink = async (shortId) => {
   return null;
 };
 
-const currentOrganizationId = () => activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+const currentOrganizationId = () => activeOrganizationId || '';
 
 const getCurrentActor = () => {
   const user = auth.currentUser;
@@ -186,7 +195,7 @@ export const touchUserActivity = async (user = auth.currentUser) => {
   }
 };
 
-const recordActivity = async ({
+export const recordActivity = async ({
   action,
   actionLabel,
   targetType,
@@ -357,7 +366,7 @@ const getLegacyOwnerId = (scopeId) => {
 };
 
 export const getTasks = async (userId, organizationId = null) => {
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return [];
   try {
     const tasksMap = new Map();
@@ -428,7 +437,7 @@ export const getTasks = async (userId, organizationId = null) => {
 };
 
 export const getTrashedTasks = async (userId, organizationId = null) => {
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return [];
   try {
     const tasksMap = new Map();
@@ -483,7 +492,7 @@ export const getTrashedTasks = async (userId, organizationId = null) => {
 
 export const getCommentsForTask = async (taskId, userId, organizationId = null) => {
   if (!taskId) return [];
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   try {
     const commentsMap = new Map();
 
@@ -535,7 +544,7 @@ export const getCommentsForTask = async (taskId, userId, organizationId = null) 
 };
 
 export const getAllCommentsForUser = async (userId, organizationId = null) => {
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return [];
   try {
     const commentsMap = new Map();
@@ -588,7 +597,7 @@ export const addComment = async (jobId, authorName, text, attachmentUrl = null, 
   try {
     const now = new Date().toISOString();
     const resolvedAuthorName = getCommentAuthorName(authorName);
-    const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+    const targetOrgId = organizationId || activeOrganizationId || '';
     const commentData = {
       jobId,
       userId,
@@ -707,7 +716,7 @@ export const getPrivateNotes = async (taskId, userId) => {
 };
 
 export const getAllPrivateNotesForUser = async (userId, organizationId = null) => {
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return new Map();
   try {
     const notesMap = new Map();
@@ -755,7 +764,7 @@ export const createTask = async (taskData, userId, options = {}) => {
   if (!userId) throw new Error("User ID is required to create a task");
   assertSystemManagerSession();
   try {
-    const targetOrgId = options.organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+    const targetOrgId = options.organizationId || activeOrganizationId || '';
     const tasks = await getTasks(userId, targetOrgId);
     const jobNumber = generateNextJobNumber(tasks);
     const now = new Date().toISOString();
@@ -1003,7 +1012,7 @@ export const autoArchiveInactiveTasks = async (userId, organizationId = null, in
     resolvedDays = organizationId;
     resolvedOrgId = null;
   }
-  const targetOrgId = resolvedOrgId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = resolvedOrgId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return 0;
   assertSystemManagerSession();
 
@@ -1357,7 +1366,7 @@ export const migrateSuppliersAndContacts = async (userId) => {
 export const autoAddSupplierAndContactFromTask = async (taskData) => {
   try {
     const userId = taskData.userId || auth.currentUser?.uid || '';
-    const organizationId = taskData.organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+    const organizationId = taskData.organizationId || activeOrganizationId || '';
     if (!userId && !organizationId) return;
 
     const supplierName = taskData.supplierName ? taskData.supplierName.trim() : '';
@@ -1488,9 +1497,7 @@ export const registerUserLogin = async (user) => {
     const userRef = doc(db, 'users', user.uid);
     const existingUser = await getDoc(userRef);
     const existingData = existingUser.exists() ? existingUser.data() : null;
-    const organizationId = existingData
-      ? (existingData.organizationId || DEFAULT_ORGANIZATION_ID)
-      : DEFAULT_ORGANIZATION_ID;
+    const organizationId = existingData?.organizationId || '';
 
     // Determine creation time from auth metadata or existing data
     const authCreationTime = user.metadata?.creationTime
@@ -1508,18 +1515,7 @@ export const registerUserLogin = async (user) => {
       organizationId,
       createdAt
     }, { merge: true });
-    if (organizationId === DEFAULT_ORGANIZATION_ID) {
-      const defaultOrganizationRef = doc(db, 'organizations', DEFAULT_ORGANIZATION_ID);
-      const defaultOrganizationSnap = await getDoc(defaultOrganizationRef);
-      if (!defaultOrganizationSnap.exists()) {
-        await setDoc(defaultOrganizationRef, {
-          id: DEFAULT_ORGANIZATION_ID,
-          name: DEFAULT_ORGANIZATION_NAME,
-          createdAt: new Date().toISOString(),
-          active: true
-        });
-      }
-    }
+
     await recordActivity({
       action: 'user.login',
       actionLabel: 'כניסה למערכת',
@@ -1534,7 +1530,7 @@ export const registerUserLogin = async (user) => {
     return { uid: user.uid, organizationId };
   } catch (e) {
     console.error("Error registering user login in Firestore:", e);
-    return { uid: user.uid, organizationId: DEFAULT_ORGANIZATION_ID };
+    return { uid: user.uid, organizationId: '' };
   }
 };
 
@@ -1543,9 +1539,11 @@ export const getUserOrganization = async (userId) => {
   const userSnap = await getDoc(doc(db, 'users', userId));
   if (!userSnap.exists()) return null;
   const profile = userSnap.data();
-  const organizationId = profile.organizationId || DEFAULT_ORGANIZATION_ID;
-  let organizationName = organizationId === DEFAULT_ORGANIZATION_ID ? DEFAULT_ORGANIZATION_NAME : organizationId;
+  const organizationId = profile.organizationId || '';
+  if (!organizationId) return null;
+  let organizationName = organizationId;
   let active = true;
+  let suspendedContactMethod = null;
   try {
     const organizationSnap = await getDoc(doc(db, 'organizations', organizationId));
     if (organizationSnap.exists()) {
@@ -1553,6 +1551,9 @@ export const getUserOrganization = async (userId) => {
       organizationName = data.name || organizationName;
       if (data.active !== undefined) {
         active = data.active !== false;
+      }
+      if (data.suspendedContactMethod) {
+        suspendedContactMethod = data.suspendedContactMethod;
       }
     }
   } catch {
@@ -1563,6 +1564,9 @@ export const getUserOrganization = async (userId) => {
       if (registryOrganization && registryOrganization.active !== undefined) {
         active = registryOrganization.active !== false;
       }
+      if (registryOrganization?.suspendedContactMethod) {
+        suspendedContactMethod = registryOrganization.suspendedContactMethod;
+      }
     } catch {
       // Keep a stable fallback name when organization metadata is not readable.
     }
@@ -1570,11 +1574,12 @@ export const getUserOrganization = async (userId) => {
   return {
     id: organizationId,
     name: organizationName,
-    active
+    active,
+    suspendedContactMethod
   };
 };
 
-export const migrateUserDataToOrganization = async (userId, organizationId = DEFAULT_ORGANIZATION_ID) => {
+export const migrateUserDataToOrganization = async (userId, organizationId) => {
   if (!userId || !organizationId) return 0;
   assertSystemManagerSession();
   let migratedCount = 0;
@@ -1639,20 +1644,8 @@ export const migrateUserDataToOrganization = async (userId, organizationId = DEF
 };
 
 export const assignExistingUsersToDefaultOrganization = async () => {
-  const actor = getCurrentActor();
-  if (!actor?.isSystemAdmin) return 0;
-  const usersSnapshot = await getDocs(collection(db, 'users'));
-  let assignedCount = 0;
-  for (const userDoc of usersSnapshot.docs) {
-    const profile = userDoc.data();
-    const targetOrganizationId = profile.organizationId || DEFAULT_ORGANIZATION_ID;
-    if (!profile.organizationId) {
-      await updateDoc(doc(db, 'users', userDoc.id), { organizationId: targetOrganizationId });
-      assignedCount += 1;
-    }
-    await migrateUserDataToOrganization(profile.uid || userDoc.id, targetOrganizationId);
-  }
-  return assignedCount;
+  // Obsolete: No longer assigning users to a default organization
+  return 0;
 };
 
 const ORGANIZATIONS_REGISTRY_REF = () => doc(db, SETTINGS_COLLECTION, 'system-organizations');
@@ -1680,29 +1673,27 @@ export const getOrganizations = async () => {
   let collectionOrganizations = [];
   try {
     const snapshot = await getDocs(collection(db, 'organizations'));
-    collectionOrganizations = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+    collectionOrganizations = snapshot.docs
+      .filter(item => item.id !== 'system_config')
+      .map(item => ({ id: item.id, ...item.data() }));
   } catch (error) {
     console.warn('Organizations collection is not available yet; using the compatibility registry', error);
   }
 
-  const registryOrganizations = await readOrganizationRegistry();
-  const organizationsById = new Map([
-    [DEFAULT_ORGANIZATION_ID, {
-      id: DEFAULT_ORGANIZATION_ID,
-      name: DEFAULT_ORGANIZATION_NAME,
-      active: true,
-      appVersion: DEFAULT_APP_VERSION
-    }]
-  ]);
+  const registryOrganizations = (await readOrganizationRegistry())
+    .filter(org => org && org.id !== 'system_config');
+  const organizationsById = new Map();
   registryOrganizations.forEach(organization => {
     organizationsById.set(organization.id, {
       appVersion: DEFAULT_APP_VERSION,
+      suspendedContactMethod: 'default',
       ...organization
     });
   });
   collectionOrganizations.forEach(organization => {
     organizationsById.set(organization.id, {
       appVersion: DEFAULT_APP_VERSION,
+      suspendedContactMethod: 'default',
       ...organization
     });
   });
@@ -1730,6 +1721,7 @@ export const createOrganization = async (name, options = {}) => {
     name: normalizedName,
     active: true,
     appVersion: options.appVersion || DEFAULT_APP_VERSION,
+    suspendedContactMethod: options.suspendedContactMethod || 'default',
     createdAt: new Date().toISOString()
   };
   try {
@@ -1764,6 +1756,12 @@ export const updateOrganization = async (organizationId, updates = {}) => {
       allowedUpdates.appVersion = updates.appVersion;
     }
   }
+  if (Object.prototype.hasOwnProperty.call(updates, 'suspendedContactMethod')) {
+    const validMethods = [...Object.values(SUSPENDED_CONTACT_METHODS), 'default'];
+    if (validMethods.includes(updates.suspendedContactMethod)) {
+      allowedUpdates.suspendedContactMethod = updates.suspendedContactMethod;
+    }
+  }
   if (Object.keys(allowedUpdates).length === 0) return true;
   try {
     await updateDoc(doc(db, 'organizations', organizationId), {
@@ -1788,10 +1786,112 @@ export const updateOrganization = async (organizationId, updates = {}) => {
   return true;
 };
 
+export const getSystemSuspendedContactMethod = async () => {
+  try {
+    const configSnap = await getDoc(doc(db, 'organizations', 'system_config'));
+    if (configSnap.exists()) {
+      const data = configSnap.data();
+      if (data.suspendedContactMethod && Object.values(SUSPENDED_CONTACT_METHODS).includes(data.suspendedContactMethod)) {
+        return data.suspendedContactMethod;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read system_config from organizations collection', err);
+  }
+  return DEFAULT_SUSPENDED_CONTACT_METHOD;
+};
+
+export const setSystemSuspendedContactMethod = async (method) => {
+  assertSystemManagerSession();
+  const validMethods = Object.values(SUSPENDED_CONTACT_METHODS);
+  if (!validMethods.includes(method)) {
+    throw new Error('ערוץ פנייה לא תקין');
+  }
+  try {
+    await setDoc(doc(db, 'organizations', 'system_config'), {
+      suspendedContactMethod: method,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Could not write system_config to organizations collection', err);
+  }
+  return method;
+};
+
 export const assignUserToOrganization = async (userId, organizationId) => {
   assertSystemManagerSession();
-  if (!userId || !organizationId) throw new Error('חסרים פרטי משתמש או ארגון');
-  await updateDoc(doc(db, 'users', userId), { organizationId });
+  if (!userId) throw new Error('חסר מזהה משתמש');
+  await updateDoc(doc(db, 'users', userId), { organizationId: organizationId || '' });
+  return true;
+};
+
+export const deleteOrganization = async (organizationId) => {
+  assertSystemManagerSession();
+  const actor = getCurrentActor();
+  if (!actor?.isSystemAdmin) {
+    throw new Error('רק מנהל המערכת מורשה למחוק ארגונים');
+  }
+  if (!organizationId) {
+    throw new Error('חסר מזהה ארגון');
+  }
+
+  let orgName = organizationId;
+  try {
+    const orgSnap = await getDoc(doc(db, 'organizations', organizationId));
+    if (orgSnap.exists()) {
+      orgName = orgSnap.data().name || organizationId;
+    }
+  } catch {
+    // Non-critical
+  }
+
+  // 1. Delete organization doc from Firestore
+  try {
+    await deleteDoc(doc(db, 'organizations', organizationId));
+  } catch (err) {
+    console.warn(`Failed to delete organization ${organizationId} from Firestore:`, err);
+  }
+
+  // 2. Remove from compatibility registry if present
+  try {
+    const registryOrganizations = await readOrganizationRegistry();
+    const updated = registryOrganizations.filter(item => item && item.id !== organizationId);
+    if (updated.length !== registryOrganizations.length) {
+      await saveOrganizationRegistry(updated);
+    }
+  } catch (err) {
+    console.warn('Failed to remove organization from registry:', err);
+  }
+
+  // 3. Delete organization settings doc if exists
+  try {
+    await deleteDoc(doc(db, SETTINGS_COLLECTION, organizationId));
+  } catch (err) {
+    console.warn(`Failed to delete settings for organization ${organizationId}:`, err);
+  }
+
+  // 4. Unassign users that were in this organization
+  try {
+    const usersSnap = await getDocs(query(collection(db, 'users'), where('organizationId', '==', organizationId)));
+    for (const userDoc of usersSnap.docs) {
+      await updateDoc(doc(db, 'users', userDoc.id), { organizationId: '' });
+    }
+  } catch (err) {
+    console.warn('Failed to unassign users of deleted organization:', err);
+  }
+
+  // 5. Record activity
+  await recordActivity({
+    action: 'organization.deleted',
+    actionLabel: 'מחיקת ארגון',
+    targetType: 'organization',
+    targetId: organizationId,
+    targetLabel: orgName,
+    organizationId: '',
+    details: `ארגון "${orgName}" נמחק מהמערכת`,
+    metadata: { organizationId, orgName }
+  });
+
   return true;
 };
 
@@ -1877,7 +1977,7 @@ export const deleteUser = async (userId) => {
     targetId: userId,
     targetLabel: userEmail || userId,
     targetUserId: userId,
-    organizationId: userData.organizationId || DEFAULT_ORGANIZATION_ID,
+    organizationId: userData.organizationId || '',
     details: `משתמש "${userEmail || userId}" וכל הנתונים המשויכים נמחקו לצמיתות מהמערכת`,
     metadata: { userEmail }
   });
@@ -2166,7 +2266,7 @@ export const removeDefaultSuppliersAndContacts = async (userId) => {
 
 export const getNameMap = async (userId, isSystemAdmin = false, organizationId = null) => {
   const map = {};
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return map;
   try {
     // 1. Fetch tasks
@@ -2237,7 +2337,7 @@ export const getNameMap = async (userId, isSystemAdmin = false, organizationId =
 };
 
 export const getContacts = async (userId, organizationId = null) => {
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return [];
   try {
     const contactsMap = new Map();
@@ -2278,7 +2378,7 @@ export const getContacts = async (userId, organizationId = null) => {
 };
 
 export const getSuppliers = async (userId, organizationId = null) => {
-  const targetOrgId = organizationId || activeOrganizationId || DEFAULT_ORGANIZATION_ID;
+  const targetOrgId = organizationId || activeOrganizationId || '';
   if (!userId && !targetOrgId) return [];
   try {
     const suppliersMap = new Map();

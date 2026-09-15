@@ -84,7 +84,7 @@ service cloud.firestore {
     function currentOrganizationId() {
       return hasUserDoc() && ('organizationId' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data)
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId
-        : 'groopy';
+        : '';
     }
 
     function isViewer() {
@@ -94,7 +94,7 @@ service cloud.firestore {
     function viewerOrganizationId() {
       return isViewer() && ('organizationId' in get(/databases/$(database)/documents/viewerSessions/$(request.auth.uid)).data)
         ? get(/databases/$(database)/documents/viewerSessions/$(request.auth.uid)).data.organizationId
-        : 'groopy';
+        : '';
     }
 
     function viewerOwnerId() {
@@ -110,8 +110,7 @@ service cloud.firestore {
         (
           organizationId == null ||
           organizationId == '' ||
-          organizationId == 'groopy' ||
-          organizationId == currentOrganizationId()
+          (currentOrganizationId() != '' && organizationId == currentOrganizationId())
         )
       );
     }
@@ -338,16 +337,14 @@ service cloud.firestore {
 
     // Settings Collection Rules
     match /settings/{documentId} {
-      allow read: if (isViewer() && (documentId == viewerOrganizationId() || documentId == 'groopy')) ||
+      allow read: if (isViewer() && viewerOrganizationId() != '' && documentId == viewerOrganizationId()) ||
                      documentId == request.auth.uid ||
-                     documentId == currentOrganizationId() ||
-                     documentId == 'groopy' ||
+                     (currentOrganizationId() != '' && documentId == currentOrganizationId()) ||
                      isAdmin();
       allow write: if isAuthenticated() && !isAnonymousViewer() && (
         isAdmin() ||
-        documentId == currentOrganizationId() ||
-        documentId == request.auth.uid ||
-        documentId == 'groopy'
+        (currentOrganizationId() != '' && documentId == currentOrganizationId()) ||
+        documentId == request.auth.uid
       );
     }
 
@@ -390,15 +387,14 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        (request.auth.uid == userId && (request.resource.data.organizationId == 'groopy' || canAccessOrganization(request.resource.data.organizationId)))
+        (request.auth.uid == userId && canAccessOrganization(request.resource.data.organizationId))
       );
       allow update: if isAuthenticated() && (
         isAdmin() ||
         (
           request.auth.uid == userId &&
           (
-            request.resource.data.organizationId == resource.data.organizationId ||
-            (!('organizationId' in resource.data) && request.resource.data.organizationId == 'groopy')
+            request.resource.data.organizationId == resource.data.organizationId
           )
         )
       );
@@ -429,6 +425,13 @@ service cloud.firestore {
     match /shareLinks/{shortId} {
       allow read: if isAuthenticated();
       allow create, update: if isAuthenticated() && !isAnonymousViewer();
+    }
+
+    // Payments Collection Rules
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && !isAnonymousViewer();
+      allow update, delete: if isAdmin();
     }
 
     // Activity Log Rules

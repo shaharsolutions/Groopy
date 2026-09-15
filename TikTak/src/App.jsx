@@ -114,7 +114,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const targetUserId = params.get('userId') || params.get('ownerId');
-    const targetOrganizationId = params.get('organizationId') || 'groopy';
+    const targetOrganizationId = params.get('organizationId') || '';
     const viewerToken = params.get('shareToken');
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -177,26 +177,40 @@ export default function App() {
           }
 
           // Register user login profile and set organization context
-          let resolvedOrgId = storageApi.DEFAULT_ORGANIZATION_ID;
+          let resolvedOrgId = '';
           let userOrg = null;
+          const isSysAdmin = isSystemAdminEmail(user.email);
           try {
             const profile = await storageApi.registerUserLogin(user);
-            resolvedOrgId = profile?.organizationId || storageApi.DEFAULT_ORGANIZATION_ID;
+            resolvedOrgId = profile?.organizationId || '';
             storageApi.setActiveOrganizationContext(resolvedOrgId);
             setOrganizationId(resolvedOrgId);
 
-            userOrg = await storageApi.getUserOrganization(user.uid);
-            if (userOrg?.name) setOrganizationName(userOrg.name);
+            if (resolvedOrgId) {
+              userOrg = await storageApi.getUserOrganization(user.uid);
+              if (userOrg?.name) setOrganizationName(userOrg.name);
+            } else if (isSysAdmin) {
+              setCurrentView('users');
+            }
           } catch (regError) {
             console.error("Failed to register login profile or check organization", regError);
           }
 
-          const isSysAdmin = isSystemAdminEmail(user.email);
           if (!isSysAdmin && userOrg && userOrg.active === false) {
+            let contactMethod = userOrg.suspendedContactMethod;
+            if (!contactMethod || contactMethod === 'default') {
+              try {
+                contactMethod = await storageApi.getSystemSuspendedContactMethod();
+              } catch {
+                contactMethod = storageApi.DEFAULT_SUSPENDED_CONTACT_METHOD;
+              }
+            }
             setIsOrgSuspended(true);
             setSuspendedOrgInfo({
+              ...userOrg,
               id: userOrg.id || resolvedOrgId,
-              name: userOrg.name || resolvedOrgId
+              name: userOrg.name || resolvedOrgId,
+              suspendedContactMethod: contactMethod
             });
             setInitializing(false);
             return;
@@ -211,15 +225,14 @@ export default function App() {
           // Run background migrations & organization setup asynchronously without blocking UI
           (async () => {
             try {
-              if (userOrg?.name) {
-                setOrganizationName(userOrg.name);
-              } else {
-                const organization = await storageApi.getUserOrganization(user.uid);
-                if (organization?.name) setOrganizationName(organization.name);
-              }
-              await storageApi.migrateUserDataToOrganization(user.uid, resolvedOrgId);
-              if (isSystemAdminEmail(user.email)) {
-                await storageApi.assignExistingUsersToDefaultOrganization();
+              if (resolvedOrgId) {
+                if (userOrg?.name) {
+                  setOrganizationName(userOrg.name);
+                } else {
+                  const organization = await storageApi.getUserOrganization(user.uid);
+                  if (organization?.name) setOrganizationName(organization.name);
+                }
+                await storageApi.migrateUserDataToOrganization(user.uid, resolvedOrgId);
               }
               await storageApi.migrateLegacyTasksToUser(user.uid, user.email);
 
@@ -290,7 +303,7 @@ export default function App() {
 
   // Real-time listener for organization active/suspended status
   useEffect(() => {
-    if (!userId || isSystemAdmin || !organizationId || organizationId === 'groopy') {
+    if (!userId || isSystemAdmin || !organizationId) {
       return;
     }
 
@@ -306,16 +319,26 @@ export default function App() {
         if (cancelled) return;
 
         const orgDocRef = doc(db, 'organizations', organizationId);
-        unsubscribeOrg = onSnapshot(orgDocRef, (snap) => {
+        unsubscribeOrg = onSnapshot(orgDocRef, async (snap) => {
           if (cancelled) return;
           if (snap.exists()) {
             const orgData = snap.data();
             const isActive = orgData.active !== false;
             if (!isActive) {
+              let contactMethod = orgData.suspendedContactMethod;
+              if (!contactMethod || contactMethod === 'default') {
+                try {
+                  contactMethod = await storageApi.getSystemSuspendedContactMethod();
+                } catch {
+                  contactMethod = storageApi.DEFAULT_SUSPENDED_CONTACT_METHOD;
+                }
+              }
               setIsOrgSuspended(true);
               setSuspendedOrgInfo({
+                ...orgData,
                 id: organizationId,
-                name: orgData.name || organizationName || organizationId
+                name: orgData.name || organizationName || organizationId,
+                suspendedContactMethod: contactMethod
               });
             } else {
               setIsOrgSuspended(false);
@@ -389,7 +412,7 @@ export default function App() {
           ...prev,
           ...dbSettings,
           organizationId: effectiveOrganizationId,
-          appVersion: dbSettings.appVersion || (effectiveOrganizationId === 'groopy' ? APP_VERSIONS.LEGACY : DEFAULT_APP_VERSION),
+          appVersion: dbSettings.appVersion || DEFAULT_APP_VERSION,
           statuses: dbSettings.statuses || defaultStatuses,
           statusColors: dbSettings.statusColors || defaultStatusColors,
           defaultStatus: dbSettings.defaultStatus || 'חדש',
@@ -403,7 +426,7 @@ export default function App() {
         setSettings(prev => ({
           ...prev,
           organizationId: effectiveOrganizationId,
-          appVersion: effectiveOrganizationId === 'groopy' ? APP_VERSIONS.LEGACY : DEFAULT_APP_VERSION,
+          appVersion: DEFAULT_APP_VERSION,
           statuses: defaultStatuses,
           statusColors: defaultStatusColors,
           defaultStatus: 'חדש',
@@ -617,6 +640,48 @@ export default function App() {
           onLogout={handleLogout}
         />
       </Suspense>
+    );
+  }
+
+  if (!effectiveIsSystemAdmin && !effectiveOrganizationId) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: 'Rubik, sans-serif',
+        padding: '24px',
+        direction: 'rtl',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
+      }}>
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '36px',
+          maxWidth: '480px',
+          width: '100%',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+          textAlign: 'center',
+          border: '1px solid #e2e8f0'
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🏢</div>
+          <h2 style={{ fontSize: '1.4rem', color: '#1e293b', marginBottom: '12px' }}>החשבון ממתין לשיוך לארגון</h2>
+          <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '24px' }}>
+            שלום <strong>{auth.currentUser?.displayName || auth.currentUser?.email}</strong>,<br />
+            החשבון שלך נוצר בהצלחה אך טרם שויך לארגון פעיל במערכת.<br />
+            אנא פנה/י למנהל המערכת על מנת שישייך אותך לארגון המתאים.
+          </p>
+          <button
+            onClick={handleLogout}
+            className="btn btn-secondary"
+            style={{ width: '100%', padding: '10px', fontWeight: '600' }}
+          >
+            🚪 התנתקות
+          </button>
+        </div>
+      </div>
     );
   }
 

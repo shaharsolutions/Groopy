@@ -1,6 +1,14 @@
 import { useMemo, useState, useEffect } from 'react';
 import { APP_VERSIONS, DEFAULT_APP_VERSION, getFeatureFlags } from '../utils/featureFlags';
 import { isSystemAdminEmail } from '../utils/storage';
+import PaymentModal from '../components/PaymentModal';
+import {
+  getPaymentConfig,
+  savePaymentConfig,
+  getPaymentRecords,
+  buildTranzilaPaymentUrl,
+  TRANZILA_DEFAULT_CONFIG
+} from '../utils/paymentConfig';
 
 let storageApiPromise = null;
 
@@ -104,6 +112,110 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('lastActive');
   const [relativeNow, setRelativeNow] = useState(0);
+  const [systemContactMethod, setSystemContactMethod] = useState('whatsapp');
+  const [savingSystemContactMethod, setSavingSystemContactMethod] = useState(false);
+  const [contactMethodSuccessMessage, setContactMethodSuccessMessage] = useState('');
+
+  // Payment Management States
+  const [paymentConfig, setPaymentConfig] = useState(TRANZILA_DEFAULT_CONFIG);
+  const [reopenPriceInput, setReopenPriceInput] = useState(TRANZILA_DEFAULT_CONFIG.defaultReopenPrice);
+  const [savingReopenPrice, setSavingReopenPrice] = useState(false);
+  const [reopenPriceSuccess, setReopenPriceSuccess] = useState('');
+  const [paymentRecords, setPaymentRecords] = useState([]);
+  const [loadingPaymentRecords, setLoadingPaymentRecords] = useState(true);
+  const [testPaymentOrg, setTestPaymentOrg] = useState(null);
+  const [copiedPaymentOrgId, setCopiedPaymentOrgId] = useState('');
+
+  const loadPayments = async () => {
+    try {
+      setLoadingPaymentRecords(true);
+      const [config, records] = await Promise.all([
+        getPaymentConfig(),
+        getPaymentRecords(50)
+      ]);
+      if (config) {
+        setPaymentConfig(config);
+        setReopenPriceInput(config.reopenPrice);
+      }
+      if (records) {
+        setPaymentRecords(records);
+      }
+    } catch (err) {
+      console.warn('Failed to load payments data in UsersManagement:', err);
+    } finally {
+      setLoadingPaymentRecords(false);
+    }
+  };
+
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchInitialData = async () => {
+      try {
+        const [config, records] = await Promise.all([
+          getPaymentConfig(),
+          getPaymentRecords(50)
+        ]);
+        if (!isCancelled) {
+          if (config) {
+            setPaymentConfig(config);
+            setReopenPriceInput(config.reopenPrice);
+          }
+          if (records) {
+            setPaymentRecords(records);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load payments data in UsersManagement:', err);
+      } finally {
+        if (!isCancelled) {
+          setLoadingPaymentRecords(false);
+        }
+      }
+    };
+    fetchInitialData();
+    return () => { isCancelled = true; };
+  }, []);
+
+  const handleSaveReopenPrice = async (e) => {
+    if (e) e.preventDefault();
+    const priceNum = Number(reopenPriceInput);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      setError('אנא הזינו מחיר תקין במספרים (גדול מ-0)');
+      return;
+    }
+    try {
+      setSavingReopenPrice(true);
+      setError('');
+      await savePaymentConfig({ reopenPrice: priceNum });
+      setPaymentConfig(prev => ({ ...prev, reopenPrice: priceNum }));
+      setReopenPriceSuccess('המחיר לפתיחת גישה עודכן בהצלחה!');
+      setTimeout(() => setReopenPriceSuccess(''), 3000);
+    } catch (err) {
+      console.error('Failed to save reopen price:', err);
+      setError('שגיאה בשמירת מחיר פתיחת גישה');
+    } finally {
+      setSavingReopenPrice(false);
+    }
+  };
+
+  const handleCopyPaymentLink = (org) => {
+    try {
+      const url = buildTranzilaPaymentUrl({
+        sum: paymentConfig.reopenPrice,
+        orgId: org.id,
+        orgName: org.name
+      });
+      navigator.clipboard.writeText(url);
+      setCopiedPaymentOrgId(org.id);
+      setTimeout(() => setCopiedPaymentOrgId(''), 2500);
+    } catch (err) {
+      console.error('Failed to copy payment link', err);
+    }
+  };
+
+  const suspendedOrganizations = useMemo(() => {
+    return organizations.filter(org => org.active === false);
+  }, [organizations]);
 
   const [visibleColumns, setVisibleColumns] = useState(() => {
     try {
@@ -146,6 +258,50 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [actionNotice, setActionNotice] = useState(null);
+
+  // Organization Deletion States
+  const [orgPendingDelete, setOrgPendingDelete] = useState(null);
+  const [deleteOrgConfirmationInput, setDeleteOrgConfirmationInput] = useState('');
+  const [isDeletingOrg, setIsDeletingOrg] = useState(false);
+
+  const handleStartDeleteOrganization = (organization) => {
+    setOrgPendingDelete(organization);
+    setDeleteOrgConfirmationInput('');
+    setError('');
+  };
+
+  const handleCancelDeleteOrganization = () => {
+    if (isDeletingOrg) return;
+    setOrgPendingDelete(null);
+    setDeleteOrgConfirmationInput('');
+  };
+
+  const handleConfirmDeleteOrganization = async () => {
+    if (!orgPendingDelete || isDeletingOrg) return;
+    try {
+      setIsDeletingOrg(true);
+      setError('');
+      const { deleteOrganization } = await loadStorageApi();
+      await deleteOrganization(orgPendingDelete.id);
+
+      const deletedName = orgPendingDelete.name || orgPendingDelete.id;
+      setOrganizations(current => current.filter(o => o.id !== orgPendingDelete.id));
+      setUsers(current => current.map(u => u.organizationId === orgPendingDelete.id ? { ...u, organizationId: '' } : u));
+
+      setOrgPendingDelete(null);
+      setDeleteOrgConfirmationInput('');
+      setActionNotice({
+        type: 'success',
+        message: `הארגון "${deletedName}" נמחק בהצלחה מהמערכת.`
+      });
+      setTimeout(() => setActionNotice(null), 6000);
+    } catch (err) {
+      console.error('Failed to delete organization', err);
+      setError(err?.message || 'מחיקת הארגון נכשלה. אנא נסו שוב.');
+    } finally {
+      setIsDeletingOrg(false);
+    }
+  };
 
   const handleStartDeleteUser = (user) => {
     setUserPendingDelete(user);
@@ -200,13 +356,18 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           getUserManagementStats,
           getOrganizations,
           getUserJoinDateIso,
-          backfillUserCreatedAtIfMissing
+          backfillUserCreatedAtIfMissing,
+          getSystemSuspendedContactMethod
         } = await loadStorageApi();
-        const [usersList, statsByUser, organizationsList] = await Promise.all([
+        const [usersList, statsByUser, organizationsList, currentContactMethod] = await Promise.all([
           getAllUsers(),
           getUserManagementStats(),
-          getOrganizations()
+          getOrganizations(),
+          getSystemSuspendedContactMethod ? getSystemSuspendedContactMethod() : 'whatsapp'
         ]);
+        if (currentContactMethod) {
+          setSystemContactMethod(currentContactMethod);
+        }
         // Resolve and attach join date for each user, and backfill if missing in Firestore
         usersList.forEach(userItem => {
           const stats = statsByUser[userItem.uid] || {};
@@ -244,7 +405,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   ), [organizations]);
 
   const organizationSummaries = useMemo(() => organizations.map(organization => {
-    const members = users.filter(user => (user.organizationId || 'groopy') === organization.id);
+    const members = users.filter(user => user.organizationId === organization.id);
     return members.reduce((summary, user) => {
       const stats = usageStats[user.uid] || {};
       const userActivity = getUserEffectiveActivityIso(user, stats);
@@ -330,7 +491,6 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   };
 
   const handleToggleOrganization = async (organization) => {
-    if (organization.id === 'groopy') return;
     const nextActive = organization.active === false;
     try {
       setSavingOrganization(`status:${organization.id}`);
@@ -360,6 +520,39 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     } catch (err) {
       console.error('Failed to update organization version', err);
       setError('עדכון גרסת הארגון נכשל.');
+    } finally {
+      setSavingOrganization('');
+    }
+  };
+
+  const handleUpdateSystemContactMethod = async (nextMethod) => {
+    if (savingSystemContactMethod || nextMethod === systemContactMethod) return;
+    try {
+      setSavingSystemContactMethod(true);
+      const { setSystemSuspendedContactMethod } = await loadStorageApi();
+      await setSystemSuspendedContactMethod(nextMethod);
+      setSystemContactMethod(nextMethod);
+      setContactMethodSuccessMessage('הגדרת ערוץ הפנייה עודכנה בהצלחה!');
+      setTimeout(() => setContactMethodSuccessMessage(''), 3000);
+    } catch (err) {
+      console.error('Failed to update system suspended contact method', err);
+      setError('שגיאה בעדכון הגדרת ערוץ הפנייה בהשבתה');
+    } finally {
+      setSavingSystemContactMethod(false);
+    }
+  };
+
+  const handleUpdateOrganizationContactMethod = async (organization, nextMethod) => {
+    try {
+      setSavingOrganization(`contactMethod:${organization.id}`);
+      const { updateOrganization } = await loadStorageApi();
+      await updateOrganization(organization.id, { suspendedContactMethod: nextMethod });
+      setOrganizations(current => current.map(item => (
+        item.id === organization.id ? { ...item, suspendedContactMethod: nextMethod } : item
+      )));
+    } catch (err) {
+      console.error('Failed to update organization contact method', err);
+      setError('שגיאה בעדכון ערוץ פנייה עבור הארגון');
     } finally {
       setSavingOrganization('');
     }
@@ -665,6 +858,641 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
         </button>
       </form>
 
+      {/* Suspended Screen Settings Section */}
+      <section style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '16px',
+        padding: '22px',
+        marginBottom: '24px',
+        boxShadow: '0 4px 12px -2px rgba(15, 23, 42, 0.06)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '1.4rem' }}>🔒</span>
+              <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem', fontWeight: '700' }}>
+                הגדרת אייקון מרחף במסך השבתת ארגון
+              </h3>
+            </div>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '0.88rem', lineHeight: '1.5' }}>
+              קבעו איזה אייקון מרחף יופיע במסך ההשבתה למשתמש שנכנס למערכת כאשר הארגון שלו מושבת
+            </p>
+          </div>
+
+          {contactMethodSuccessMessage && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '999px',
+              backgroundColor: '#dcfce7',
+              color: '#15803d',
+              fontSize: '0.82rem',
+              fontWeight: '700',
+              border: '1px solid #86efac'
+            }}>
+              <span>✓</span>
+              <span>{contactMethodSuccessMessage}</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: '12px'
+        }}>
+          {/* Option 1: WhatsApp */}
+          <button
+            type="button"
+            onClick={() => handleUpdateSystemContactMethod('whatsapp')}
+            disabled={savingSystemContactMethod}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '16px',
+              textAlign: 'right',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all 0.2s ease',
+              border: systemContactMethod === 'whatsapp' ? '2px solid #25D366' : '1px solid #e2e8f0',
+              backgroundColor: systemContactMethod === 'whatsapp' ? '#f0fdf4' : '#ffffff',
+              boxShadow: systemContactMethod === 'whatsapp' ? '0 4px 14px rgba(37, 211, 102, 0.18)' : 'none'
+            }}
+          >
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: '#25D366',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 2px 6px rgba(37, 211, 102, 0.35)'
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2C6.48 2 2 6.48 2 12C2 13.85 2.5 15.58 3.38 17.07L2 22L7.07 20.66C8.52 21.52 10.21 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="white" />
+                <path d="M17.47 14.81C17.24 14.69 16.08 14.12 15.87 14.04C15.65 13.96 15.5 13.92 15.34 14.15C15.19 14.38 14.76 14.88 14.63 15.03C14.5 15.19 14.37 15.21 14.14 15.09C13.91 14.98 12.93 14.66 11.78 13.63C10.88 12.83 10.27 11.84 10.04 11.45C9.81 11.07 10.02 10.86 10.13 10.74C10.24 10.63 10.37 10.45 10.49 10.32C10.61 10.19 10.65 10.09 10.73 9.94C10.81 9.78 10.77 9.65 10.71 9.53C10.65 9.42 10.19 8.28 10 7.82C9.81 7.37 9.62 7.43 9.47 7.42C9.33 7.41 9.18 7.41 9.02 7.41C8.87 7.41 8.62 7.47 8.41 7.7C8.2 7.93 7.6 8.49 7.6 9.64C7.6 10.79 8.43 11.89 8.55 12.05C8.67 12.21 10.19 14.55 12.52 15.55C13.07 15.79 13.5 15.93 13.84 16.04C14.39 16.21 14.89 16.19 15.28 16.13C15.72 16.06 16.63 15.57 16.82 15.04C17.01 14.51 17.01 14.05 16.95 13.96C16.89 13.86 16.74 13.8 16.51 13.69" fill="#25D366" />
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <strong style={{ color: '#166534', fontSize: '0.98rem' }}>אייקון ווטסאפ (WhatsApp)</strong>
+                {systemContactMethod === 'whatsapp' && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '999px' }}>פעיל</span>
+                )}
+              </div>
+              <p style={{ margin: '4px 0 0', color: '#15803d', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                אייקון מרחף שיוביל למספר <strong>052-8366744</strong> (פתיחת צ'אט ישיר)
+              </p>
+            </div>
+          </button>
+
+          {/* Option 2: Email */}
+          <button
+            type="button"
+            onClick={() => handleUpdateSystemContactMethod('email')}
+            disabled={savingSystemContactMethod}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '16px',
+              textAlign: 'right',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all 0.2s ease',
+              border: systemContactMethod === 'email' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+              backgroundColor: systemContactMethod === 'email' ? '#eff6ff' : '#ffffff',
+              boxShadow: systemContactMethod === 'email' ? '0 4px 14px rgba(37, 99, 235, 0.18)' : 'none'
+            }}
+          >
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: '#2563eb',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 2px 6px rgba(37, 99, 235, 0.35)'
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <strong style={{ color: '#1e40af', fontSize: '0.98rem' }}>אייקון אימייל (Email)</strong>
+                {systemContactMethod === 'email' && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#2563eb', backgroundColor: '#dbeafe', padding: '2px 8px', borderRadius: '999px' }}>פעיל</span>
+                )}
+              </div>
+              <p style={{ margin: '4px 0 0', color: '#1d4ed8', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                אייקון מרחף שישלח הודעה למייל <strong>shaharsolutions@gmail.com</strong>
+              </p>
+            </div>
+          </button>
+
+          {/* Option 3: None */}
+          <button
+            type="button"
+            onClick={() => handleUpdateSystemContactMethod('none')}
+            disabled={savingSystemContactMethod}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '16px',
+              textAlign: 'right',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all 0.2s ease',
+              border: systemContactMethod === 'none' ? '2px solid #64748b' : '1px solid #e2e8f0',
+              backgroundColor: systemContactMethod === 'none' ? '#f8fafc' : '#ffffff',
+              boxShadow: systemContactMethod === 'none' ? '0 4px 14px rgba(100, 116, 139, 0.18)' : 'none'
+            }}
+          >
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              fontSize: '1.2rem',
+              color: 'white'
+            }}>
+              🚫
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <strong style={{ color: '#334155', fontSize: '0.98rem' }}>ללא אייקון (מוסתר)</strong>
+                {systemContactMethod === 'none' && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#475569', backgroundColor: '#e2e8f0', padding: '2px 8px', borderRadius: '999px' }}>פעיל</span>
+                )}
+              </div>
+              <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                מסך ההשבתה יוצג ללא אייקון פנייה מרחף
+              </p>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      {/* Payments & Pricing Management Section */}
+      <section style={{
+        background: '#ffffff',
+        border: '1px solid #c7d2fe',
+        borderRadius: '16px',
+        padding: '24px',
+        marginBottom: '24px',
+        boxShadow: '0 8px 24px -6px rgba(99, 102, 241, 0.12)'
+      }}>
+        {/* Section Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '1.6rem' }}>💳</span>
+              <h3 style={{ margin: 0, color: '#1e1b4b', fontSize: '1.35rem', fontWeight: '800' }}>
+                ניהול תשלומים ופתיחת גישה (סליקת Tranzila)
+              </h3>
+            </div>
+            <p style={{ margin: 0, color: '#4338ca', fontSize: '0.9rem', lineHeight: '1.5' }}>
+              הגדרת המחיר שארגונים מושבתים יצטרכו לשלם כדי לקבל גישה למערכת, פרטי מסוף הסליקה Tranzila, ריכוז ארגונים מושבתים ויומן עסקאות.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setTestPaymentOrg({ id: 'test-org-preview', name: 'ארגון לבדיקה' })}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                backgroundColor: '#eff6ff',
+                color: '#1d4ed8',
+                border: '1px solid #bfdbfe',
+                fontWeight: '700',
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                fontFamily: 'inherit'
+              }}
+              title="בדיקת דף תשלום Tranzila בזמן אמת"
+            >
+              <span>🧪</span>
+              <span>בדיקת דף תשלום</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={loadPayments}
+              disabled={loadingPaymentRecords}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                backgroundColor: '#f8fafc',
+                color: '#475569',
+                border: '1px solid #cbd5e1',
+                fontWeight: '600',
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                fontFamily: 'inherit'
+              }}
+              title="רענון נתוני תשלומים"
+            >
+              <span>🔄</span>
+              <span>{loadingPaymentRecords ? 'מרענן...' : 'רענון'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2-Column Grid: Price Setting + Gateway Details */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '16px',
+          marginBottom: '20px'
+        }}>
+          {/* Card 1: Setting Reopen Price */}
+          <div style={{
+            border: '1px solid #e0e7ff',
+            backgroundColor: '#f5f7ff',
+            borderRadius: '12px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <strong style={{ color: '#1e1b4b', fontSize: '1.05rem' }}>💰 קביעת מחיר פתיחת גישה לארגון מושבת</strong>
+                <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#4338ca', backgroundColor: '#e0e7ff', padding: '2px 10px', borderRadius: '999px' }}>
+                  ₪{paymentConfig.reopenPrice}
+                </span>
+              </div>
+              <p style={{ margin: '0 0 14px 0', color: '#475569', fontSize: '0.84rem', lineHeight: '1.45' }}>
+                סכום זה יוצג למשתמשי ארגון שהושבת במסך החסימה. עם תשלום סכום זה דרך Tranzila, המערכת תיפתח להם מיידית.
+              </p>
+
+              {/* Presets */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>קיצורים מהירים:</span>
+                {[99, 150, 200, 250, 350, 500].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setReopenPriceInput(val)}
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      border: Number(reopenPriceInput) === val ? '1px solid #4338ca' : '1px solid #cbd5e1',
+                      backgroundColor: Number(reopenPriceInput) === val ? '#4338ca' : '#ffffff',
+                      color: Number(reopenPriceInput) === val ? '#ffffff' : '#334155',
+                      fontSize: '0.8rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    ₪{val}
+                  </button>
+                ))}
+              </div>
+
+              {/* Price Form */}
+              <form onSubmit={handleSaveReopenPrice} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: '700' }}>₪</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={reopenPriceInput}
+                    onChange={(e) => setReopenPriceInput(e.target.value)}
+                    placeholder="הזינו מחיר בש״ח"
+                    style={{
+                      width: '100%',
+                      padding: '9px 28px 9px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #a5b4fc',
+                      fontSize: '0.95rem',
+                      fontWeight: '700',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={savingReopenPrice}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    backgroundColor: '#4338ca',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: '700',
+                    fontSize: '0.88rem',
+                    cursor: savingReopenPrice ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {savingReopenPrice ? 'שומר...' : 'שמור מחיר'}
+                </button>
+              </form>
+            </div>
+
+            {reopenPriceSuccess && (
+              <div style={{
+                marginTop: '10px',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                backgroundColor: '#dcfce7',
+                color: '#15803d',
+                border: '1px solid #86efac',
+                fontSize: '0.82rem',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <span>✓</span>
+                <span>{reopenPriceSuccess}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Card 2: Tranzila Gateway Status */}
+          <div style={{
+            border: '1px solid #e2e8f0',
+            backgroundColor: '#f8fafc',
+            borderRadius: '12px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <strong style={{ color: '#0f172a', fontSize: '1.05rem' }}>🛡️ פרטי ספק סליקה (Tranzila)</strong>
+                <span style={{ fontSize: '0.78rem', fontWeight: '800', color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #86efac', padding: '3px 10px', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>●</span>
+                  <span>מסוף מחובר ופעיל</span>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.84rem', color: '#475569', marginTop: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>מסוף ראשי:</span>
+                  <strong style={{ color: '#0f172a', direction: 'ltr' }}>{paymentConfig.mainTerminal || 'shaher1'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>מסוף טוקנים:</span>
+                  <strong style={{ color: '#0f172a', direction: 'ltr' }}>{paymentConfig.tokenTerminal || 'shaher1tok'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>מפתח App Key:</span>
+                  <span style={{ color: '#64748b', direction: 'ltr', fontSize: '0.78rem' }}>1klmutNv...h0L</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>תקן אבטחה:</span>
+                  <strong style={{ color: '#0f172a' }}>PCI-DSS Level 1</strong>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+              <a
+                href="https://docs.tranzila.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '0.8rem', color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}
+              >
+                דוקומנטציה Tranzila ↗
+              </a>
+              <span style={{ color: '#cbd5e1' }}>·</span>
+              <a
+                href="https://my.tranzila.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '0.8rem', color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}
+              >
+                פורטל מסוף my.tranzila ↗
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Suspended Organizations Table & Direct Actions */}
+        <div style={{
+          border: '1px solid #fed7aa',
+          backgroundColor: '#fffbeb',
+          borderRadius: '12px',
+          padding: '16px 18px',
+          marginBottom: '20px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.2rem' }}>🔒</span>
+              <strong style={{ color: '#9a3412', fontSize: '0.98rem' }}>
+                ארגונים מושבתים כעת ({suspendedOrganizations.length})
+              </strong>
+            </div>
+            <span style={{ fontSize: '0.82rem', color: '#b45309' }}>
+              ניתן להעתיק קישור תשלום ישיר ולשלוח ללקוח בוואטסאפ או במייל
+            </span>
+          </div>
+
+          {suspendedOrganizations.length === 0 ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#15803d', backgroundColor: '#f0fdf4', borderRadius: '8px', fontSize: '0.88rem', fontWeight: '600', border: '1px solid #bbf7d0' }}>
+              ✓ כל הארגונים במערכת פעילים כעת! אין ארגונים מושבתים.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {suspendedOrganizations.map(org => {
+                const isCopied = copiedPaymentOrgId === org.id;
+                return (
+                  <div
+                    key={org.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #fde68a',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      flexWrap: 'wrap',
+                      gap: '10px'
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{org.name}</strong>
+                      <span style={{ margin: '0 8px', color: '#cbd5e1' }}>|</span>
+                      <span style={{ color: '#64748b', fontSize: '0.82rem' }}>
+                        עלות לפתיחה: <strong>₪{paymentConfig.reopenPrice}</strong>
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPaymentLink(org)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: isCopied ? '#dcfce7' : '#eff6ff',
+                          color: isCopied ? '#15803d' : '#1d4ed8',
+                          border: isCopied ? '1px solid #86efac' : '1px solid #bfdbfe',
+                          fontSize: '0.8rem',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit'
+                        }}
+                        title="העתקת קישור סליקה ישיר לשליחה ללקוח"
+                      >
+                        <span>{isCopied ? '✓' : '📋'}</span>
+                        <span>{isCopied ? 'הקישור הועתק!' : 'העתק קישור לתשלום'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleOrganization(org)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: '#f8fafc',
+                          color: '#166534',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.8rem',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit'
+                        }}
+                        title="פתיחה ידנית ללא תשלום אשראי (למשל תשלום בהעברה בנקאית)"
+                      >
+                        <span>🔓</span>
+                        <span>פתיחה ידנית</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Transactions / Payment Records Log */}
+        <div style={{
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          backgroundColor: '#ffffff'
+        }}>
+          <div style={{
+            padding: '12px 16px',
+            backgroundColor: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.1rem' }}>🧾</span>
+              <strong style={{ color: '#1e293b', fontSize: '0.94rem' }}>
+                יומן תשלומי פתיחת גישה ({paymentRecords.length})
+              </strong>
+            </div>
+            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>עסקאות אחרונות</span>
+          </div>
+
+          {loadingPaymentRecords ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.88rem' }}>
+              טוען יומן תשלומים...
+            </div>
+          ) : paymentRecords.length === 0 ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem' }}>
+              טרם בוצעו תשלומים לפתיחת ארגונים במערכת.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'right' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '10px 14px' }}>תאריך ושעה</th>
+                    <th style={{ padding: '10px 14px' }}>שם ארגון</th>
+                    <th style={{ padding: '10px 14px' }}>משתמש משלם</th>
+                    <th style={{ padding: '10px 14px' }}>סכום</th>
+                    <th style={{ padding: '10px 14px' }}>מזהה עסקה</th>
+                    <th style={{ padding: '10px 14px' }}>סטטוס</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentRecords.map((item) => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        {item.createdAt ? new Date(item.createdAt).toLocaleString('he-IL') : '-'}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0f172a' }}>
+                        {item.organizationName || item.organizationId}
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#475569', direction: 'ltr', textAlign: 'right' }}>
+                        {item.userEmail || '-'}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontWeight: '800', color: '#15803d' }}>
+                        ₪{item.amount}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b' }}>
+                        {item.confirmationCode || item.transactionId || '-'}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          backgroundColor: '#dcfce7',
+                          color: '#15803d',
+                          fontSize: '0.74rem',
+                          fontWeight: '800'
+                        }}>
+                          ✓ הושלם
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
       <section style={{
         background: 'rgba(255, 255, 255, 0.82)',
         border: '1px solid #e2e8f0',
@@ -745,6 +1573,39 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                               {orgFlags.isV2 ? '✨ גרסה 2 (חדשה)' : '🏛️ Legacy (קלאסית)'}
                               <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>⇄</span>
                             </button>
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '999px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '0.74rem'
+                            }}>
+                              <span title="אייקון במסך השבתה">🔒</span>
+                              <select
+                                value={organization.suspendedContactMethod || 'default'}
+                                onChange={(e) => handleUpdateOrganizationContactMethod(organization, e.target.value)}
+                                disabled={savingOrganization === `contactMethod:${organization.id}`}
+                                title="קביעת ערוץ הפנייה שיוצג במסך ההשבתה של ארגון זה"
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: '#334155',
+                                  fontSize: '0.74rem',
+                                  fontWeight: '600',
+                                  fontFamily: 'inherit',
+                                  cursor: 'pointer',
+                                  outline: 'none'
+                                }}
+                              >
+                                <option value="default">ברירת מחדל ({systemContactMethod === 'whatsapp' ? 'ווטסאפ' : systemContactMethod === 'email' ? 'מייל' : 'ללא'})</option>
+                                <option value="whatsapp">🟢 ווטסאפ (052-8366744)</option>
+                                <option value="email">✉️ מייל (shaharsolutions@gmail.com)</option>
+                                <option value="none">🚫 ללא אייקון (מוסתר)</option>
+                              </select>
+                            </div>
                           </div>
                         </>
                       )}
@@ -787,19 +1648,24 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       >
                         ⚙️ {orgFlags.terms.workSettings}
                       </button>
-                      {organization.id === 'groopy' ? (
-                        <span style={{ color: '#4338ca', fontSize: '0.78rem', fontWeight: '800' }}>ארגון ברירת מחדל</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => handleToggleOrganization(organization)}
-                          disabled={savingOrganization === `status:${organization.id}`}
-                          style={{ padding: '6px 10px', fontSize: '0.8rem', color: isActive ? '#b45309' : '#166534' }}
-                        >
-                          {isActive ? 'השבתת ארגון' : 'הפעלת ארגון'}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => handleToggleOrganization(organization)}
+                        disabled={savingOrganization === `status:${organization.id}`}
+                        style={{ padding: '6px 10px', fontSize: '0.8rem', color: isActive ? '#b45309' : '#166534' }}
+                      >
+                        {isActive ? 'השבתת ארגון' : 'הפעלת ארגון'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => handleStartDeleteOrganization(organization)}
+                        style={{ padding: '6px 10px', fontSize: '0.8rem', color: '#dc2626', borderColor: '#fecaca', backgroundColor: '#fff5f5' }}
+                        title="מחיקת ארגון"
+                      >
+                        🗑️ מחיקה
+                      </button>
                     </div>
                   </div>
                 </article>
@@ -1238,12 +2104,13 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       {visibleColumns.organization !== false && (
                         <td style={{ padding: '16px', color: '#475569' }}>
                           <select
-                            value={user.organizationId || 'groopy'}
+                            value={user.organizationId || ''}
                             onChange={(event) => handleOrganizationChange(user.uid, event.target.value)}
                             disabled={savingOrganization === user.uid}
                             aria-label={`ארגון עבור ${user.email || user.uid}`}
                             style={{ minWidth: '150px', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', fontFamily: 'inherit' }}
                           >
+                            <option value="">-- ללא שיוך לארגון --</option>
                             {organizations.map(organization => (
                               <option key={organization.id} value={organization.id}>{organization.name}</option>
                             ))}
@@ -1287,8 +2154,8 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                                 onClick={() => onImpersonate(
                                   user.uid,
                                   user.email,
-                                  user.organizationId || 'groopy',
-                                  organizationById[user.organizationId || 'groopy']?.name || 'Groopy'
+                                  user.organizationId || '',
+                                  user.organizationId ? (organizationById[user.organizationId]?.name || user.organizationId) : 'ללא ארגון'
                                 )}
                                 style={{
                                   backgroundColor: '#eff6ff',
@@ -1439,7 +2306,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       {userPendingDelete.email || 'ללא אימייל'}
                     </strong>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', color: '#64748b', fontSize: '0.84rem', marginTop: '3px', flexWrap: 'wrap' }}>
-                      <span>ארגון: {organizationById[userPendingDelete.organizationId || 'groopy']?.name || 'Groopy'}</span>
+                      <span>ארגון: {userPendingDelete.organizationId ? (organizationById[userPendingDelete.organizationId]?.name || userPendingDelete.organizationId) : 'ללא ארגון'}</span>
                       <span>•</span>
                       <span>הצטרף/ה: {formatJoinDate(getUserEffectiveJoinDate(userPendingDelete, usageStats[userPendingDelete.uid]))}</span>
                     </div>
@@ -1542,6 +2409,188 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
             </div>
           </div>
         </div>
+      )}
+
+      {/* Delete Organization Confirmation Modal */}
+      {orgPendingDelete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '20px',
+          direction: 'rtl',
+          fontFamily: 'Rubik, sans-serif'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            maxWidth: '520px',
+            width: '100%',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            border: '1px solid #fee2e2',
+            animation: 'fadeIn 0.15s ease-out'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              background: '#fef2f2',
+              borderBottom: '1px solid #fecaca',
+              padding: '20px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px'
+            }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                backgroundColor: '#fee2e2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.4rem',
+                flexShrink: 0,
+                border: '2px solid #fca5a5'
+              }}>
+                🗑️
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, color: '#991b1b', fontSize: '1.28rem', fontWeight: '800' }}>
+                  מחיקת ארגון מהמערכת
+                </h3>
+                <p style={{ margin: '4px 0 0', color: '#b91c1c', fontSize: '0.88rem' }}>
+                  הארגון יימחק והמשתמשים שבו ינותקו משיוך
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '18px'
+              }}>
+                <strong style={{ display: 'block', color: '#0f172a', fontSize: '1.1rem', marginBottom: '6px' }}>
+                  {orgPendingDelete.name}
+                </strong>
+                <span style={{ color: '#64748b', fontSize: '0.86rem' }}>
+                  מזהה: {orgPendingDelete.id} • חברים: {users.filter(u => u.organizationId === orgPendingDelete.id).length} משתמשים
+                </span>
+              </div>
+
+              {/* Warning Alert Box */}
+              <div style={{
+                background: '#fff5f5',
+                border: '1px solid #fed7d7',
+                borderRadius: '10px',
+                padding: '14px 16px',
+                marginBottom: '20px',
+                color: '#9b2c2c',
+                fontSize: '0.9rem',
+                lineHeight: 1.55
+              }}>
+                <strong>🚨 שים/י לב:</strong>
+                <ul style={{ margin: '6px 0 0', paddingRight: '20px' }}>
+                  <li>הארגון יימחק לצמיתות מרשימת הארגונים וההגדרות שלו יוסרו.</li>
+                  <li>כל המשתמשים שהיו משויכים לארגון זה יישארו במערכת אך יוגדרו כ<strong>ללא ארגון</strong> עד שיוך מחדש.</li>
+                </ul>
+              </div>
+
+              {/* Confirmation Input Field */}
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontWeight: '700', color: '#1e293b', fontSize: '0.92rem', marginBottom: '8px' }}>
+                  לאישור המחיקה, נא להקליד את המילה <span style={{ color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>מחק</span> בשדה הבא:
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={deleteOrgConfirmationInput}
+                  onChange={(e) => setDeleteOrgConfirmationInput(e.target.value)}
+                  placeholder="הקלד/י 'מחק' כאן..."
+                  disabled={isDeletingOrg}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    border: `2px solid ${deleteOrgConfirmationInput.trim() === 'מחק' ? '#dc2626' : '#cbd5e1'}`,
+                    fontSize: '1rem',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    backgroundColor: deleteOrgConfirmationInput.trim() === 'מחק' ? '#fff1f2' : '#ffffff',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              background: '#f8fafc',
+              padding: '16px 24px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCancelDeleteOrganization}
+                disabled={isDeletingOrg}
+                style={{ minWidth: '100px', padding: '10px 18px', fontWeight: '600' }}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteOrganization}
+                disabled={deleteOrgConfirmationInput.trim() !== 'מחק' || isDeletingOrg}
+                style={{
+                  minWidth: '160px',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  background: deleteOrgConfirmationInput.trim() === 'מחק' && !isDeletingOrg ? '#dc2626' : '#fca5a5',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: '700',
+                  fontSize: '0.95rem',
+                  cursor: deleteOrgConfirmationInput.trim() === 'מחק' && !isDeletingOrg ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s',
+                  boxShadow: deleteOrgConfirmationInput.trim() === 'מחק' && !isDeletingOrg ? '0 4px 12px rgba(220, 38, 38, 0.35)' : 'none',
+                  fontFamily: 'inherit'
+                }}
+              >
+                {isDeletingOrg ? '⏳ מוחק ארגון...' : '🗑️ כן, מחק ארגון'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test / Preview Payment Modal */}
+      {testPaymentOrg && (
+        <PaymentModal
+          isOpen={Boolean(testPaymentOrg)}
+          onClose={() => setTestPaymentOrg(null)}
+          organization={testPaymentOrg}
+          user={{ uid: 'admin-preview', email: 'shaharsolutions@gmail.com', displayName: 'מנהל מערכת' }}
+          amount={paymentConfig.reopenPrice}
+          onPaymentSuccess={() => {
+            loadPayments();
+          }}
+        />
       )}
     </div>
   );

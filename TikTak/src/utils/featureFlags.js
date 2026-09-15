@@ -19,11 +19,7 @@ export const DEFAULT_APP_VERSION = APP_VERSIONS.V2;
  * @returns {object} Feature flag booleans and terms dictionary.
  */
 export function getFeatureFlags(settingsOrOrg) {
-  const version = settingsOrOrg?.appVersion || settingsOrOrg?.version || (
-    (settingsOrOrg?.organizationId === 'groopy' || settingsOrOrg?.id === 'groopy')
-      ? APP_VERSIONS.LEGACY
-      : DEFAULT_APP_VERSION
-  );
+  const version = settingsOrOrg?.appVersion || settingsOrOrg?.version || DEFAULT_APP_VERSION;
   const isLegacy = version === APP_VERSIONS.LEGACY;
 
   return {

@@ -668,8 +668,8 @@ export const exportAllUserDataToExcel = async ({
   // ---------------------------------------------------------------------------
   const summaryHeaders = ['מאפיין מערכת', 'ערך / פירוט'];
   const summaryRows = [
-    ['שם הארגון', organizationName || targetOrgId || 'Groopy'],
-    ['מזהה ארגון', targetOrgId],
+    ['שם הארגון', organizationName || targetOrgId || 'ללא ארגון'],
+    ['מזהה ארגון', targetOrgId || ''],
     ['משתמש מייצא', userEmail || userId || ''],
     ['תאריך הפקת הדו״ח', formatDateTime(new Date().toISOString())],
     ['סה״כ פרויקטים שיוצאו', combinedTasks.length],
@@ -713,7 +713,7 @@ export const exportAllUserDataToExcel = async ({
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
-  const safeOrgName = (organizationName || 'Groopy').replace(/[\\/:*?"<>|]/g, '_').trim();
+  const safeOrgName = (organizationName || targetOrgId || 'organization').replace(/[\\/:*?"<>|]/g, '_').trim();
   const filename = `ייצוא_פרויקטים_${safeOrgName}_${dateStr}.xlsx`;
 
   // Write and trigger download

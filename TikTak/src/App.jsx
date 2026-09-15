@@ -53,6 +53,69 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Handle Tranzila payment return callback (from iframe redirect or full tab redirect)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const hasPaymentParam = params.has('payment_status') || params.has('Response');
+    if (!hasPaymentParam) return;
+
+    const responseCode = params.get('Response');
+    const confirmationCode = params.get('ConfirmationCode') || params.get('confirmation_code') || params.get('approval');
+    const orgIdParam = params.get('orgId') || params.get('u_org_id');
+    const sumParam = params.get('sum');
+
+    // Case 1: Loaded inside iframe (in PaymentModal)
+    if (window.self !== window.top) {
+      if (responseCode === '000' && confirmationCode) {
+        try {
+          window.parent.postMessage({
+            type: 'TRANZILA_SUCCESS',
+            Response: '000',
+            ConfirmationCode: confirmationCode,
+            orgId: orgIdParam,
+            sum: sumParam
+          }, window.location.origin);
+        } catch (postErr) {
+          console.error('Failed to postMessage to parent window:', postErr);
+        }
+      } else if (responseCode && responseCode !== '000') {
+        try {
+          window.parent.postMessage({
+            type: 'TRANZILA_FAIL',
+            Response: responseCode,
+            message: 'העסקה לא אושרה על ידי חברת האשראי'
+          }, window.location.origin);
+        } catch (postErr) {
+          console.error('Failed to postMessage failure to parent window:', postErr);
+        }
+      }
+      return;
+    }
+
+    // Case 2: Loaded in top window (user completed payment in a separate tab or full window)
+    if (responseCode === '000' && confirmationCode && orgIdParam) {
+      const processTopRedirect = async () => {
+        try {
+          const { recordPaymentAndReactivateOrg } = await import('./utils/paymentConfig');
+          await recordPaymentAndReactivateOrg({
+            organizationId: orgIdParam,
+            amount: Number(sumParam) || 0,
+            confirmationCode,
+            transactionId: `TRZ-${confirmationCode}`,
+            method: 'tranzila_recurring'
+          });
+        } catch (err) {
+          console.error('Failed to reactivate org from redirect:', err);
+        } finally {
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+      };
+      processTopRedirect();
+    }
+  }, []);
+
   const handleSearchNavigate = (view, params) => {
     setCurrentView(view);
     if (params.autoOpenTaskId) {
@@ -567,6 +630,49 @@ export default function App() {
     await saveGlobalSettings(newSettings, effectiveOrganizationId);
     setSettings(newSettings);
   };
+
+  const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const isPaymentCallback = Boolean(searchParams?.has('payment_status') || searchParams?.has('Response'));
+
+  if (isInsideIframe && isPaymentCallback) {
+    const isApproved = searchParams?.get('Response') === '000';
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#ffffff',
+        fontFamily: 'Rubik, sans-serif',
+        direction: 'rtl',
+        padding: '24px',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          backgroundColor: isApproved ? '#dcfce7' : '#fee2e2',
+          color: isApproved ? '#16a34a' : '#dc2626',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '2rem',
+          marginBottom: '12px'
+        }}>
+          {isApproved ? '✓' : '✕'}
+        </div>
+        <h3 style={{ margin: 0, fontSize: '1.25rem', color: isApproved ? '#14532d' : '#991b1b', fontWeight: '800' }}>
+          {isApproved ? 'התשלום אושר בהצלחה!' : 'העסקה לא אושרה על ידי חברת האשראי'}
+        </h3>
+        <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '6px' }}>
+          {isApproved ? 'מעדכן את סטטוס הארגון ומשחרר את החסימה...' : 'אנא נסו שנית או השתמשו בכרטיס אחר.'}
+        </p>
+      </div>
+    );
+  }
 
   if (initializing) {
     return (

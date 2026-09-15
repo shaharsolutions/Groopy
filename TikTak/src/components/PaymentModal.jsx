@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebaseDb';
 import { buildTranzilaPaymentUrl, recordPaymentAndReactivateOrg, TRANZILA_DEFAULT_CONFIG } from '../utils/paymentConfig';
 
 export default function PaymentModal({
@@ -53,18 +55,41 @@ export default function PaymentModal({
     }
   }, [isOpen]);
 
-  // Listen for message events or URL callbacks
+  // Real-time Firestore listener: when the organization is reactivated upon verified payment
+  useEffect(() => {
+    if (!isOpen || !orgId) return;
+    const orgDocRef = doc(db, 'organizations', orgId);
+    const unsubscribe = onSnapshot(orgDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.active === true && !isSuccess) {
+          setIsSuccess(true);
+          if (onPaymentSuccess) {
+            onPaymentSuccess(data.lastPayment || {});
+          }
+          setTimeout(() => {
+            onClose();
+          }, 2200);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [isOpen, orgId, isSuccess, onClose, onPaymentSuccess]);
+
+  // Listen for message events from Tranzila iframe redirect
   useEffect(() => {
     if (!isOpen) return;
 
     const handleMessage = async (event) => {
-      // Check if Tranzila or child window notified us of success
+      const data = event?.data;
+      // Strictly require TRANZILA_SUCCESS with Response === '000' and a non-empty ConfirmationCode
       if (
-        event?.data?.type === 'TRANZILA_SUCCESS' ||
-        (typeof event?.data === 'string' && event.data.includes('Response=000')) ||
-        event?.data?.Response === '000'
+        data &&
+        (data.type === 'TRANZILA_SUCCESS' || data.Response === '000') &&
+        data.ConfirmationCode &&
+        String(data.ConfirmationCode).trim()
       ) {
-        handleCompleteReactivation(event?.data?.ConfirmationCode || event?.data?.transactionId || '');
+        handleCompleteReactivation(String(data.ConfirmationCode).trim());
       }
     };
 
@@ -74,6 +99,13 @@ export default function PaymentModal({
 
   const handleCompleteReactivation = async (confirmationCode = '') => {
     if (isProcessing) return;
+    const cleanCode = (confirmationCode || '').trim();
+    if (!cleanCode) {
+      console.warn('Blocked reactivation attempt: missing confirmation code');
+      setErrorMessage('לא התקבל אישור עסקה תקין ממסוף התשלום. החסימה לא שוחררה.');
+      return;
+    }
+
     setIsProcessing(true);
     setErrorMessage('');
 
@@ -84,9 +116,9 @@ export default function PaymentModal({
         userId: user?.uid || '',
         userEmail,
         amount: paymentAmount,
-        confirmationCode: confirmationCode || customTxId || '',
-        transactionId: confirmationCode ? `TRZ-${confirmationCode}` : undefined,
-        method: 'tranzila'
+        confirmationCode: cleanCode,
+        transactionId: `TRZ-${cleanCode}`,
+        method: 'tranzila_recurring'
       });
 
       if (res.success) {
@@ -374,46 +406,23 @@ export default function PaymentModal({
                 />
               </div>
 
-              {/* Action helper footer */}
+              {/* Secure status footer - no manual bypass */}
               <div
                 style={{
                   marginTop: '14px',
                   paddingTop: '12px',
                   borderTop: '1px solid #f1f5f9',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px'
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  color: '#64748b',
+                  fontSize: '0.82rem',
+                  textAlign: 'center'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                    ביצעת את התשלום בחלון נפרד או שהסתיים בהצלחה?
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCompleteReactivation()}
-                    disabled={isProcessing}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      backgroundColor: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: '700',
-                      fontSize: '0.86rem',
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                      opacity: isProcessing ? 0.7 : 1,
-                      fontFamily: 'inherit',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    <span>{isProcessing ? '⏳' : '✓'}</span>
-                    <span>{isProcessing ? 'מאמת ומפעיל את הארגון...' : 'סיימתי תשלום - שחרר חסימה והפעל מנוי'}</span>
-                  </button>
-                </div>
+                <span style={{ color: '#16a34a' }}>🛡️</span>
+                <span>השחרור מתבצע אוטומטית ברגע קבלת אישור סופי (קוד אישור 000) ממסוף טרנזילה</span>
               </div>
             </>
           )}

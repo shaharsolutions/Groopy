@@ -192,6 +192,11 @@ export const recordPaymentAndReactivateOrg = async ({
     throw new Error('חסר מזהה ארגון להפעלת תשלום');
   }
 
+  const cleanCode = (confirmationCode || '').trim();
+  if (!cleanCode) {
+    throw new Error('לא ניתן להפעיל ארגון ללא מספר אישור עסקה מאומת מטרנזילה');
+  }
+
   const now = new Date().toISOString();
   const nextBillingDate = calculateNextBillingDate();
   const cleanAmount = Number(amount) || 0;
@@ -208,8 +213,8 @@ export const recordPaymentAndReactivateOrg = async ({
     nextBillingDate,
     terminal,
     status: 'completed',
-    transactionId: transactionId || `TRZ-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-    confirmationCode: confirmationCode || '',
+    transactionId: transactionId || `TRZ-${cleanCode}`,
+    confirmationCode: cleanCode,
     method,
     createdAt: now
   };

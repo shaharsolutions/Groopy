@@ -6,6 +6,7 @@ import {
   getPaymentConfig,
   savePaymentConfig,
   getPaymentRecords,
+  clearAllPaymentRecords,
   buildTranzilaPaymentUrl,
   TRANZILA_DEFAULT_CONFIG
 } from '../utils/paymentConfig';
@@ -123,6 +124,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [reopenPriceSuccess, setReopenPriceSuccess] = useState('');
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingPaymentRecords, setLoadingPaymentRecords] = useState(true);
+  const [clearingPayments, setClearingPayments] = useState(false);
   const [testPaymentOrg, setTestPaymentOrg] = useState(null);
   const [copiedPaymentOrgId, setCopiedPaymentOrgId] = useState('');
   const [editingPriceOrgId, setEditingPriceOrgId] = useState('');
@@ -146,6 +148,23 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
       console.warn('Failed to load payments data in UsersManagement:', err);
     } finally {
       setLoadingPaymentRecords(false);
+    }
+  };
+
+  const handleClearPayments = async () => {
+    if (paymentRecords.length === 0) return;
+    const confirmReset = window.confirm('האם אתה בטוח שברצונך לאפס ולמחוק את כל הרשומות מיומן התשלומים?');
+    if (!confirmReset) return;
+
+    try {
+      setClearingPayments(true);
+      await clearAllPaymentRecords();
+      setPaymentRecords([]);
+    } catch (err) {
+      console.error('Failed to clear payments:', err);
+      alert('שגיאה באיפוס יומן התשלומים: ' + (err.message || 'אנא נסה שוב'));
+    } finally {
+      setClearingPayments(false);
     }
   };
 
@@ -1572,7 +1591,35 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                 יומן תשלומי פתיחת גישה ({paymentRecords.length})
               </strong>
             </div>
-            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>עסקאות אחרונות</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {paymentRecords.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearPayments}
+                  disabled={clearingPayments}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: '#fee2e2',
+                    color: '#b91c1c',
+                    border: '1px solid #fca5a5',
+                    fontSize: '0.78rem',
+                    fontWeight: '700',
+                    cursor: clearingPayments ? 'not-allowed' : 'pointer',
+                    opacity: clearingPayments ? 0.6 : 1,
+                    fontFamily: 'inherit'
+                  }}
+                  title="איפוס ומחיקת כל רשומות יומן התשלומים"
+                >
+                  <span>🗑️</span>
+                  <span>{clearingPayments ? 'מאפס...' : 'איפוס יומן'}</span>
+                </button>
+              )}
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>עסקאות אחרונות</span>
+            </div>
           </div>
 
           {loadingPaymentRecords ? (

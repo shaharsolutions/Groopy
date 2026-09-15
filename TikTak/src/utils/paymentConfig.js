@@ -7,6 +7,7 @@ import {
   setDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   orderBy,
   limit
@@ -298,5 +299,21 @@ export const getPaymentRecords = async (maxRecords = 50) => {
   } catch (err) {
     console.warn('Could not fetch payment records from Firestore:', err);
     return [];
+  }
+};
+
+/**
+ * Clear/reset all payment records from Firestore (Admin only)
+ */
+export const clearAllPaymentRecords = async () => {
+  try {
+    const q = query(collection(db, PAYMENTS_COLLECTION));
+    const snapshot = await getDocs(q);
+    const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, PAYMENTS_COLLECTION, docSnap.id)));
+    await Promise.all(deletePromises);
+    return { success: true, count: snapshot.docs.length };
+  } catch (err) {
+    console.error('Failed to clear payment records from Firestore:', err);
+    throw err;
   }
 };

@@ -141,7 +141,8 @@ export const buildTranzilaPaymentUrl = ({
     params.set('recur_transaction', '4_approved'); // Monthly recurring locked
     params.set('recur_sum', cleanSum.toString()); // Recurring monthly charge
     params.set('recur_start_date', recurStartDate); // Start date of next charge (YYYY-MM-DD)
-    params.set('recur_payments', '0'); // 0 = continuous recurring monthly
+    // Note: recur_payments is omitted so Tranzila treats it as continuous subscription
+    // and avoids displaying the confusing 'ל-0 חודשים'.
   }
 
   if (orgName) {

@@ -125,7 +125,7 @@ export const buildTranzilaPaymentUrl = ({
   const cleanSum = Number(sum) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
   // Default to token terminal (shaher1tok) for recurring standing orders
   const terminalName = terminal || TRANZILA_DEFAULT_CONFIG.tokenTerminal || TRANZILA_DEFAULT_CONFIG.mainTerminal;
-  const baseUrl = `https://direct.tranzila.com/${encodeURIComponent(terminalName)}/iframenew.php`;
+  const baseUrl = `https://directng.tranzila.com/${encodeURIComponent(terminalName)}/iframenew.php`;
 
   const recurStartDate = calculateNextBillingDate();
 

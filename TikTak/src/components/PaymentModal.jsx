@@ -102,7 +102,7 @@ export default function PaymentModal({
     const cleanCode = (confirmationCode || '').trim();
     if (!cleanCode) {
       console.warn('Blocked reactivation attempt: missing confirmation code');
-      setErrorMessage('לא התקבל אישור עסקה תקין ממסוף התשלום. החסימה לא שוחררה.');
+      setErrorMessage('לא התקבל אישור על ביצוע התשלום. אנא ודאו את פרטי הכרטיס או נסו שוב.');
       return;
     }
 
@@ -388,7 +388,7 @@ export default function PaymentModal({
                         animation: 'spin 0.8s linear infinite'
                       }}
                     />
-                    <span>טוען מסוף תשלום מאובטח...</span>
+                    <span>טוען טופס תשלום מאובטח...</span>
                   </div>
                 )}
 
@@ -416,13 +416,13 @@ export default function PaymentModal({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  color: '#64748b',
-                  fontSize: '0.82rem',
+                  color: '#475569',
+                  fontSize: '0.84rem',
                   textAlign: 'center'
                 }}
               >
-                <span style={{ color: '#16a34a' }}>🛡️</span>
-                <span>השחרור מתבצע אוטומטית ברגע קבלת אישור סופי (קוד אישור 000) ממסוף טרנזילה</span>
+                <span style={{ color: '#16a34a' }}>✨</span>
+                <span>הגישה למערכת תיפתח באופן מיידי ואוטומטי עם סיום התשלום</span>
               </div>
             </>
           )}

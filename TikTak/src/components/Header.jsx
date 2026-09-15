@@ -322,12 +322,35 @@ export default function Header({ userRole, onChangeRole, showSwitcher, currentVi
             )}
 
             {/* Settings button */}
-            {canAccessAdminTools && currentView !== 'settings' && (
+            {currentView !== 'settings' && (
               <button
                 className="btn btn-secondary"
                 onClick={() => onViewChange('settings')}
                 style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}
                 title="מעבר להגדרות מערכת"
+              >
+                ⚙️ הגדרות
+              </button>
+            )}
+          </div>
+        )}
+
+        {userRole !== 'admin' && onViewChange && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {currentView === 'settings' ? (
+              <button
+                className="btn btn-secondary"
+                onClick={() => onViewChange('dashboard')}
+                style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                📋 חזרה ללוח המשימות
+              </button>
+            ) : (
+              <button
+                className="btn btn-secondary"
+                onClick={() => onViewChange('settings')}
+                style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="מעבר להגדרות תצוגה"
               >
                 ⚙️ הגדרות
               </button>

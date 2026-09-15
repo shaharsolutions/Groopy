@@ -775,60 +775,83 @@ export default function SettingsPage({
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '14px' }}>
-            קביעת גרסת המערכת והפיצ'רים שיוצגו לכלל משתמשי הארגון. ארגוני Legacy רואים את הממשק הקלאסי (לוח יחיד, מינוח עבודות).
+            {isSystemAdmin 
+              ? 'קביעת גרסת המערכת והפיצ\'רים שיוצגו לכלל משתמשי הארגון. ארגוני Legacy רואים את הממשק הקלאסי (לוח יחיד, מינוח עבודות).'
+              : 'גרסת המערכת הפעילה נקבעת ומנוהלת על ידי הנהלת המערכת.'}
           </p>
 
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 14px',
-              borderRadius: '8px',
-              background: '#ffffff',
-              border: `2px solid ${flags.isV2 ? 'var(--primary)' : 'var(--border)'}`,
-              cursor: 'pointer',
-              flex: 1,
-              minWidth: '220px'
-            }}>
-              <input
-                type="radio"
-                name="orgAppVersion"
-                value={APP_VERSIONS.V2}
-                checked={flags.isV2}
-                onChange={() => setLocalSettings({ ...localSettings, appVersion: APP_VERSIONS.V2 })}
-              />
-              <div>
-                <strong style={{ display: 'block', fontSize: '0.88rem', color: '#1e293b' }}>✨ גרסה חדשה (v2)</strong>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>לוחות פרויקטים מרובים, עיצוב מודרני ומינוח פרויקטים</span>
-              </div>
-            </label>
+          {isSystemAdmin ? (
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                background: '#ffffff',
+                border: `2px solid ${flags.isV2 ? 'var(--primary)' : 'var(--border)'}`,
+                cursor: 'pointer',
+                flex: 1,
+                minWidth: '220px'
+              }}>
+                <input
+                  type="radio"
+                  name="orgAppVersion"
+                  value={APP_VERSIONS.V2}
+                  checked={flags.isV2}
+                  onChange={() => setLocalSettings({ ...localSettings, appVersion: APP_VERSIONS.V2 })}
+                />
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.88rem', color: '#1e293b' }}>✨ גרסה חדשה (v2)</strong>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>לוחות פרויקטים מרובים, עיצוב מודרני ומינוח פרויקטים</span>
+                </div>
+              </label>
 
-            <label style={{
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                background: '#ffffff',
+                border: `2px solid ${flags.isLegacy ? '#d97706' : 'var(--border)'}`,
+                cursor: 'pointer',
+                flex: 1,
+                minWidth: '220px'
+              }}>
+                <input
+                  type="radio"
+                  name="orgAppVersion"
+                  value={APP_VERSIONS.LEGACY}
+                  checked={flags.isLegacy}
+                  onChange={() => setLocalSettings({ ...localSettings, appVersion: APP_VERSIONS.LEGACY })}
+                />
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.88rem', color: '#1e293b' }}>🏛️ גרסה קלאסית (Legacy)</strong>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>לוח יחיד, ממשק קלאסי ומינוח עבודות</span>
+                </div>
+              </label>
+            </div>
+          ) : (
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 14px',
+              gap: '10px',
+              padding: '12px 16px',
+              backgroundColor: '#ffffff',
               borderRadius: '8px',
-              background: '#ffffff',
-              border: `2px solid ${flags.isLegacy ? '#d97706' : 'var(--border)'}`,
-              cursor: 'pointer',
-              flex: 1,
-              minWidth: '220px'
+              border: '1px solid var(--border)',
+              fontSize: '0.9rem'
             }}>
-              <input
-                type="radio"
-                name="orgAppVersion"
-                value={APP_VERSIONS.LEGACY}
-                checked={flags.isLegacy}
-                onChange={() => setLocalSettings({ ...localSettings, appVersion: APP_VERSIONS.LEGACY })}
-              />
+              <span style={{ fontSize: '1.2rem' }}>{flags.isV2 ? '✨' : '🏛️'}</span>
               <div>
-                <strong style={{ display: 'block', fontSize: '0.88rem', color: '#1e293b' }}>🏛️ גרסה קלאסית (Legacy)</strong>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>לוח יחיד, ממשק קלאסי ומינוח עבודות</span>
+                <strong>{flags.isV2 ? 'גרסה 2 (חדשה)' : 'גרסה קלאסית (Legacy)'}</strong>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block' }}>
+                  {flags.isV2 ? 'לוחות פרויקטים מרובים, עיצוב מודרני ומינוח פרויקטים' : 'לוח יחיד, ממשק קלאסי ומינוח עבודות'}
+                </span>
               </div>
-            </label>
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Section 1: Dashboard Details */}

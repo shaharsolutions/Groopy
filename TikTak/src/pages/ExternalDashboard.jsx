@@ -56,11 +56,27 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
   const [tasks, setTasks] = useState([]);
   const [contacts, setContacts] = useState([]);
 
+  const tableDensity = useMemo(() => {
+    try {
+      return localStorage.getItem('tiktak_external_table_density') || 'normal';
+    } catch {
+      return 'normal';
+    }
+  }, []);
+
   const projectFields = useMemo(() => {
+    let hiddenCols = [];
+    try {
+      hiddenCols = JSON.parse(localStorage.getItem('tiktak_external_hidden_columns') || '[]');
+    } catch {
+      hiddenCols = [];
+    }
     return getAllTaskFieldDefinitions(settings?.newTaskFields, {
       includeDeleted: false,
       taskFieldOrder: settings?.taskFieldOrder
-    }).filter(field => field.enabled !== false && !field.deleted);
+    })
+      .filter(field => field.enabled !== false && !field.deleted)
+      .filter(field => !hiddenCols.includes(field.key));
   }, [settings?.newTaskFields, settings?.taskFieldOrder]);
 
   const formatDate = (isoString) => {
@@ -453,7 +469,7 @@ export default function ExternalDashboard({ settings, userId, organizationId, au
         <>
           {/* Desktop Table View */}
           <div className="table-container">
-            <table className="task-table">
+            <table className={`task-table ${tableDensity === 'compact' ? 'compact-table' : ''}`}>
               <thead>
                 {flags.isLegacy ? (
                   <tr>

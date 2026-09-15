@@ -10,6 +10,7 @@ import { isSystemAdminEmail } from './utils/storage';
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const ExternalDashboard = lazy(() => import('./pages/ExternalDashboard'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ViewerSettingsPage = lazy(() => import('./pages/ViewerSettingsPage'));
 const SuppliersContactsPage = lazy(() => import('./pages/SuppliersContactsPage'));
 const UsersManagement = lazy(() => import('./pages/UsersManagement'));
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'));
@@ -930,6 +931,12 @@ export default function App() {
               onClearAutoOpen={() => setAutoOpenTaskId(null)}
             />
           )
+        ) : currentView === 'settings' ? (
+          <ViewerSettingsPage
+            settings={settings}
+            organizationName={effectiveOrganizationName}
+            onBack={() => setCurrentView('dashboard')}
+          />
         ) : (
           <ExternalDashboard 
             settings={settings} 

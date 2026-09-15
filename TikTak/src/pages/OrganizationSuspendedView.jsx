@@ -295,7 +295,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
                   color: '#1e3a8a',
                   margin: 0
                 }}>
-                  הסדרת תשלום ופתיחה מיידית של המערכת
+                  הסדרת מנוי חודשי ופתיחה מיידית של המערכת
                 </h2>
                 <p style={{
                   margin: '4px 0 0 0',
@@ -303,7 +303,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
                   color: '#3b82f6',
                   lineHeight: '1.4'
                 }}>
-                  חידוש הגישה עבור כל משתמשי הארגון {organizationName}
+                  חידוש הגישה עבור כל משתמשי הארגון {organizationName} באמצעות מנוי חודשי
                 </p>
               </div>
             </div>
@@ -320,6 +320,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
             }}>
               <span style={{ fontSize: '0.82rem', color: '#64748b' }}>עלות:</span>
               <span style={{ fontSize: '1.25rem', fontWeight: '800', color: '#1d4ed8' }}>₪{reopenPrice}</span>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>/ חודש</span>
             </div>
           </div>
 
@@ -329,7 +330,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
             lineHeight: '1.5',
             margin: '0 0 16px 0'
           }}>
-            לפתיחה מיידית של הגישה ללוחות המשימות, לפרטי הפרויקטים ולהגדרות העבודה, ניתן לבצע תשלום מאובטח באמצעות כרטיס אשראי. עם סיום התשלום, המערכת תשתחרר מיידית לכל חברי הארגון.
+            לפתיחה מיידית של הגישה ללוחות המשימות, לפרטי הפרויקטים ולהגדרות העבודה, ניתן להסדיר מנוי חודשי (הוראת קבע) מאובטח באמצעות כרטיס אשראי. עם אישור התשלום, המערכת תשתחרר מיידית לכל חברי הארגון.
           </p>
 
           <button
@@ -355,7 +356,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
             }}
           >
             <span>💳</span>
-            <span>לתשלום מאובטח (₪{reopenPrice}) ופתיחת הגישה</span>
+            <span>לתשלום והפעלת מנוי חודשי (₪{reopenPrice}/חודש)</span>
           </button>
 
           <div style={{
@@ -365,9 +366,12 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
             gap: '8px',
             marginTop: '12px',
             fontSize: '0.78rem',
-            color: '#64748b'
+            color: '#64748b',
+            flexWrap: 'wrap'
           }}>
             <span>🔒 סליקה מאובטחת בתקן PCI-DSS Level 1 על ידי Tranzila</span>
+            <span>·</span>
+            <span>הוראת קבע חודשית ללא התחייבות</span>
             <span>·</span>
             <span>חשבונית מס קבלה תופק עם אישור התשלום</span>
           </div>

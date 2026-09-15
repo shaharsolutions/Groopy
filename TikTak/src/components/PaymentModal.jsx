@@ -174,7 +174,7 @@ export default function PaymentModal({
             </div>
             <div>
               <h2 style={{ margin: 0, fontSize: '1.15rem', color: '#0f172a', fontWeight: '800' }}>
-                תשלום לפתיחת גישה למערכת
+                הפעלת מנוי חודשי ופתיחת גישה
               </h2>
               <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
                 עבור ארגון: <strong style={{ color: '#1e293b' }}>{orgName}</strong>
@@ -194,7 +194,7 @@ export default function PaymentModal({
                 border: '1px solid #86efac'
               }}
             >
-              ₪{paymentAmount}
+              ₪{paymentAmount} / חודש
             </div>
 
             <button
@@ -251,7 +251,7 @@ export default function PaymentModal({
                 ✓
               </div>
               <h3 style={{ margin: 0, fontSize: '1.35rem', color: '#14532d', fontWeight: '800' }}>
-                התשלום בוצע בהצלחה!
+                המנוי החודשי הופעל בהצלחה!
               </h3>
               <p style={{ margin: 0, color: '#15803d', fontSize: '0.96rem', lineHeight: '1.5' }}>
                 הארגון <strong>{orgName}</strong> הופעל מחדש. הגישה לכלל המשתמשים נפתחה כעת.
@@ -279,7 +279,7 @@ export default function PaymentModal({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span>🔒</span>
-                  <span>סליקה מאובטחת בתקן <strong>PCI-DSS Level 1</strong> באמצעות Tranzila</span>
+                  <span>הוראת קבע חודשית מאובטחת בתקן <strong>PCI-DSS Level 1</strong> באמצעות Tranzila</span>
                 </div>
                 <a
                   href={paymentUrl}
@@ -411,7 +411,7 @@ export default function PaymentModal({
                     }}
                   >
                     <span>{isProcessing ? '⏳' : '✓'}</span>
-                    <span>{isProcessing ? 'מאמת ומפעיל את הארגון...' : 'סיימתי תשלום - שחרר חסימה'}</span>
+                    <span>{isProcessing ? 'מאמת ומפעיל את הארגון...' : 'סיימתי תשלום - שחרר חסימה והפעל מנוי'}</span>
                   </button>
                 </div>
               </div>

@@ -98,8 +98,16 @@ export const savePaymentConfig = async (updates) => {
   return payload;
 };
 
+export const calculateNextBillingDate = () => {
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${nextMonth.getFullYear()}-${pad(nextMonth.getMonth() + 1)}-${pad(nextMonth.getDate())}`;
+};
+
 /**
- * Generate a secure Tranzila Payment URL for direct iframe or redirect
+ * Generate a secure Tranzila Payment URL for direct iframe or redirect.
+ * Supports recurring monthly subscription (הוראת קבע) using the token terminal.
  */
 export const buildTranzilaPaymentUrl = ({
   sum,
@@ -107,21 +115,33 @@ export const buildTranzilaPaymentUrl = ({
   orgName = '',
   userEmail = '',
   contactName = '',
-  terminal = TRANZILA_DEFAULT_CONFIG.mainTerminal,
+  terminal = '',
   description = TRANZILA_DEFAULT_CONFIG.defaultDescription,
   successUrl = '',
-  failUrl = ''
+  failUrl = '',
+  isRecurring = true
 }) => {
   const cleanSum = Number(sum) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
-  const terminalName = terminal || TRANZILA_DEFAULT_CONFIG.mainTerminal;
+  // Default to token terminal (shaher1tok) for recurring standing orders
+  const terminalName = terminal || TRANZILA_DEFAULT_CONFIG.tokenTerminal || TRANZILA_DEFAULT_CONFIG.mainTerminal;
   const baseUrl = `https://direct.tranzila.com/${encodeURIComponent(terminalName)}/iframenew.php`;
+
+  const recurStartDate = calculateNextBillingDate();
 
   const params = new URLSearchParams();
   params.set('sum', cleanSum.toString());
   params.set('currency', '1'); // 1 = ILS (₪)
   params.set('lang', 'il'); // Hebrew RTL
-  params.set('cred_type', '1'); // Regular one-time payment
+  params.set('cred_type', '1'); // Regular one-time charge for initial payment
   params.set('tranmode', 'A'); // Automatic settlement/charge
+
+  if (isRecurring) {
+    // Tranzila recurring payment parameters (הוראת קבע חודשית)
+    params.set('recur_transaction', '4_approved'); // Monthly recurring locked
+    params.set('recur_sum', cleanSum.toString()); // Recurring monthly charge
+    params.set('recur_start_date', recurStartDate); // Start date of next charge (YYYY-MM-DD)
+    params.set('recur_payments', '0'); // 0 = continuous recurring monthly
+  }
 
   if (orgName) {
     params.set('company', orgName);
@@ -155,7 +175,7 @@ export const buildTranzilaPaymentUrl = ({
 };
 
 /**
- * Record a successful payment and reactivate the organization
+ * Record a successful payment and reactivate the organization with recurring subscription
  */
 export const recordPaymentAndReactivateOrg = async ({
   organizationId,
@@ -165,20 +185,28 @@ export const recordPaymentAndReactivateOrg = async ({
   amount = 0,
   transactionId = '',
   confirmationCode = '',
-  method = 'tranzila'
+  method = 'tranzila_recurring',
+  terminal = TRANZILA_DEFAULT_CONFIG.tokenTerminal
 }) => {
   if (!organizationId) {
     throw new Error('חסר מזהה ארגון להפעלת תשלום');
   }
 
   const now = new Date().toISOString();
+  const nextBillingDate = calculateNextBillingDate();
+  const cleanAmount = Number(amount) || 0;
+
   const paymentRecord = {
     organizationId,
     organizationName: organizationName || organizationId,
     userId: userId || '',
     userEmail: userEmail || '',
-    amount: Number(amount) || 0,
+    amount: cleanAmount,
     currency: 'ILS',
+    billingType: 'recurring_monthly',
+    recurringFrequency: 'monthly',
+    nextBillingDate,
+    terminal,
     status: 'completed',
     transactionId: transactionId || `TRZ-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     confirmationCode: confirmationCode || '',
@@ -194,18 +222,28 @@ export const recordPaymentAndReactivateOrg = async ({
     console.error('Failed to create payment document in payments collection:', err);
   }
 
-  // 2. Reactivate organization
+  // 2. Reactivate organization & record subscription details
   const orgRef = doc(db, ORGANIZATIONS_COLLECTION, organizationId);
   await updateDoc(orgRef, {
     active: true,
     updatedAt: now,
+    subscription: {
+      type: 'monthly',
+      status: 'active',
+      startDate: now,
+      nextBillingDate,
+      amount: cleanAmount,
+      currency: 'ILS',
+      terminal
+    },
     lastPayment: {
-      amount: Number(amount) || 0,
+      amount: cleanAmount,
       date: now,
       userId,
       userEmail,
       transactionId: paymentRecord.transactionId,
-      paymentId: paymentDocRef?.id || ''
+      paymentId: paymentDocRef?.id || '',
+      billingType: 'recurring_monthly'
     }
   });
 
@@ -213,13 +251,15 @@ export const recordPaymentAndReactivateOrg = async ({
   try {
     await recordActivity({
       action: 'ORGANIZATION_REACTIVATED_BY_PAYMENT',
-      actionLabel: 'ארגון הופעל מחדש לאחר תשלום',
+      actionLabel: 'הפעלת מנוי חודשי ופתיחת ארגון',
       targetType: 'organization',
       targetId: organizationId,
       targetLabel: organizationName || organizationId,
-      details: `בוצע תשלום בסך ₪${paymentRecord.amount} עבור פתיחת הארגון`,
+      details: `הופעל מנוי חודשי (הוראת קבע) בסך ₪${cleanAmount}/חודש עבור פתיחת הארגון`,
       metadata: {
-        amount: paymentRecord.amount,
+        amount: cleanAmount,
+        billingType: 'recurring_monthly',
+        nextBillingDate,
         transactionId: paymentRecord.transactionId,
         userEmail
       },

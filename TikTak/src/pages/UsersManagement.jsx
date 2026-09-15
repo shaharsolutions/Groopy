@@ -190,11 +190,11 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
       setError('');
       await savePaymentConfig({ reopenPrice: priceNum });
       setPaymentConfig(prev => ({ ...prev, reopenPrice: priceNum }));
-      setReopenPriceSuccess('המחיר לפתיחת גישה עודכן בהצלחה!');
+      setReopenPriceSuccess('מחיר המנוי החודשי עודכן בהצלחה!');
       setTimeout(() => setReopenPriceSuccess(''), 3000);
     } catch (err) {
       console.error('Failed to save reopen price:', err);
-      setError('שגיאה בשמירת מחיר פתיחת גישה');
+      setError('שגיאה בשמירת מחיר מנוי חודשי');
     } finally {
       setSavingReopenPrice(false);
     }
@@ -1181,13 +1181,13 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <strong style={{ color: '#1e1b4b', fontSize: '1.05rem' }}>💰 קביעת מחיר פתיחת גישה לארגון מושבת</strong>
+                <strong style={{ color: '#1e1b4b', fontSize: '1.05rem' }}>💰 קביעת מחיר מנוי חודשי לארגון מושבת</strong>
                 <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#4338ca', backgroundColor: '#e0e7ff', padding: '2px 10px', borderRadius: '999px' }}>
-                  ₪{paymentConfig.reopenPrice}
+                  ₪{paymentConfig.reopenPrice} / חודש
                 </span>
               </div>
               <p style={{ margin: '0 0 14px 0', color: '#475569', fontSize: '0.84rem', lineHeight: '1.45' }}>
-                סכום זה יוצג למשתמשי ארגון שהושבת במסך החסימה. עם תשלום סכום זה דרך Tranzila, המערכת תיפתח להם מיידית.
+                סכום זה ייגבה בהוראת קבע חודשית דרך Tranzila עבור פתיחת ושימור הגישה של ארגון מושבת. עם אישור התשלום, המערכת תיפתח למשתמשי הארגון מיידית.
               </p>
 
               {/* Presets */}
@@ -1303,8 +1303,8 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   <strong style={{ color: '#0f172a', direction: 'ltr' }}>{paymentConfig.mainTerminal || 'shaher1'}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>מסוף טוקנים:</span>
-                  <strong style={{ color: '#0f172a', direction: 'ltr' }}>{paymentConfig.tokenTerminal || 'shaher1tok'}</strong>
+                  <span>מסוף מנויים / הוראות קבע (טוקנים):</span>
+                  <strong style={{ color: '#16a34a', direction: 'ltr' }}>{paymentConfig.tokenTerminal || 'shaher1tok'} (פעיל)</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>מפתח App Key:</span>
@@ -1465,14 +1465,14 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       ) : (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ color: '#64748b', fontSize: '0.82rem' }}>
-                            עלות פתיחה:{' '}
+                            מנוי חודשי:{' '}
                             {org.reopenPrice !== undefined && org.reopenPrice !== null && Number(org.reopenPrice) > 0 ? (
                               <strong style={{ color: '#1d4ed8', backgroundColor: '#dbeafe', padding: '2px 8px', borderRadius: '999px', fontSize: '0.84rem' }}>
-                                ₪{org.reopenPrice} (מחיר ספציפי)
+                                ₪{org.reopenPrice} / חודש (ספציפי)
                               </strong>
                             ) : (
                               <strong style={{ color: '#334155' }}>
-                                ₪{paymentConfig.reopenPrice} (ברירת מחדל)
+                                ₪{paymentConfig.reopenPrice} / חודש (ברירת מחדל)
                               </strong>
                             )}
                           </span>
@@ -1857,9 +1857,9 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                                   }}
                                 >
                                   <span>
-                                    {organization.reopenPrice
-                                      ? `₪${organization.reopenPrice} (מחיר ספציפי)`
-                                      : `ברירת מחדל (₪${paymentConfig.reopenPrice})`}
+                                     {organization.reopenPrice
+                                       ? `₪${organization.reopenPrice}/חודש (ספציפי)`
+                                       : `ברירת מחדל (₪${paymentConfig.reopenPrice}/חודש)`}
                                   </span>
                                   <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>✏️</span>
                                 </button>

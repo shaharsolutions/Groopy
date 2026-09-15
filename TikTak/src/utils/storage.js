@@ -1762,6 +1762,11 @@ export const updateOrganization = async (organizationId, updates = {}) => {
       allowedUpdates.suspendedContactMethod = updates.suspendedContactMethod;
     }
   }
+  if (Object.prototype.hasOwnProperty.call(updates, 'reopenPrice')) {
+    allowedUpdates.reopenPrice = (updates.reopenPrice === null || updates.reopenPrice === '' || updates.reopenPrice === undefined)
+      ? null
+      : (Number(updates.reopenPrice) > 0 ? Number(updates.reopenPrice) : null);
+  }
   if (Object.keys(allowedUpdates).length === 0) return true;
   try {
     await updateDoc(doc(db, 'organizations', organizationId), {

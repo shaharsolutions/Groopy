@@ -125,6 +125,8 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [loadingPaymentRecords, setLoadingPaymentRecords] = useState(true);
   const [testPaymentOrg, setTestPaymentOrg] = useState(null);
   const [copiedPaymentOrgId, setCopiedPaymentOrgId] = useState('');
+  const [editingPriceOrgId, setEditingPriceOrgId] = useState('');
+  const [editingOrgPriceValue, setEditingOrgPriceValue] = useState('');
 
   const loadPayments = async () => {
     try {
@@ -198,10 +200,46 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     }
   };
 
+  const handleStartEditOrgPrice = (organization) => {
+    setEditingPriceOrgId(organization.id);
+    setEditingOrgPriceValue(organization.reopenPrice !== undefined && organization.reopenPrice !== null ? String(organization.reopenPrice) : '');
+  };
+
+  const handleSaveOrgPrice = async (organizationId) => {
+    try {
+      setSavingOrganization(`price:${organizationId}`);
+      const { updateOrganization } = await loadStorageApi();
+      const trimmed = String(editingOrgPriceValue || '').trim();
+      const priceVal = (trimmed === '' || isNaN(Number(trimmed)) || Number(trimmed) <= 0) ? null : Number(trimmed);
+
+      await updateOrganization(organizationId, { reopenPrice: priceVal });
+      setOrganizations(current => current.map(item => (
+        item.id === organizationId ? { ...item, reopenPrice: priceVal } : item
+      )));
+      setEditingPriceOrgId('');
+      setEditingOrgPriceValue('');
+      setActionNotice({
+        type: 'success',
+        message: priceVal
+          ? `מחיר פתיחת הגישה לארגון עודכן ל-₪${priceVal}`
+          : 'מחיר הארגון הוגדר לפי ברירת המחדל של המערכת'
+      });
+      setTimeout(() => setActionNotice(null), 3500);
+    } catch (err) {
+      console.error('Failed to update organization price', err);
+      setError('עדכון מחיר הארגון נכשל.');
+    } finally {
+      setSavingOrganization('');
+    }
+  };
+
   const handleCopyPaymentLink = (org) => {
     try {
+      const effectivePrice = (org.reopenPrice !== undefined && org.reopenPrice !== null && Number(org.reopenPrice) > 0)
+        ? Number(org.reopenPrice)
+        : paymentConfig.reopenPrice;
       const url = buildTranzilaPaymentUrl({
-        sum: paymentConfig.reopenPrice,
+        sum: effectivePrice,
         orgId: org.id,
         orgName: org.name
       });
@@ -1344,12 +1382,119 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                       gap: '10px'
                     }}
                   >
-                    <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{org.name}</strong>
-                      <span style={{ margin: '0 8px', color: '#cbd5e1' }}>|</span>
-                      <span style={{ color: '#64748b', fontSize: '0.82rem' }}>
-                        עלות לפתיחה: <strong>₪{paymentConfig.reopenPrice}</strong>
-                      </span>
+                      <span style={{ color: '#cbd5e1' }}>|</span>
+
+                      {editingPriceOrgId === org.id ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#f0f9ff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#0369a1', fontWeight: '700' }}>מחיר ספציפי:</span>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>₪</span>
+                          <input
+                            autoFocus
+                            type="number"
+                            min="1"
+                            value={editingOrgPriceValue}
+                            onChange={(e) => setEditingOrgPriceValue(e.target.value)}
+                            placeholder={`ברירת מחדל (${paymentConfig.reopenPrice})`}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveOrgPrice(org.id);
+                              if (e.key === 'Escape') setEditingPriceOrgId('');
+                            }}
+                            style={{
+                              width: '90px',
+                              padding: '3px 6px',
+                              border: '1px solid #0284c7',
+                              borderRadius: '4px',
+                              fontSize: '0.82rem',
+                              fontFamily: 'inherit',
+                              fontWeight: '700'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveOrgPrice(org.id)}
+                            disabled={savingOrganization === `price:${org.id}`}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: '#0284c7',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '0.76rem',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {savingOrganization === `price:${org.id}` ? 'שומר...' : 'שמור'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingOrgPriceValue('');
+                              handleSaveOrgPrice(org.id);
+                            }}
+                            title="ביטול מחיר ספציפי ושימוש בברירת המחדל של המערכת"
+                            style={{
+                              padding: '3px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: '#ffffff',
+                              color: '#475569',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '0.72rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            איפוס לברירת מחדל
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingPriceOrgId('')}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#64748b',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              padding: '0 2px'
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#64748b', fontSize: '0.82rem' }}>
+                            עלות פתיחה:{' '}
+                            {org.reopenPrice !== undefined && org.reopenPrice !== null && Number(org.reopenPrice) > 0 ? (
+                              <strong style={{ color: '#1d4ed8', backgroundColor: '#dbeafe', padding: '2px 8px', borderRadius: '999px', fontSize: '0.84rem' }}>
+                                ₪{org.reopenPrice} (מחיר ספציפי)
+                              </strong>
+                            ) : (
+                              <strong style={{ color: '#334155' }}>
+                                ₪{paymentConfig.reopenPrice} (ברירת מחדל)
+                              </strong>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditOrgPrice(org)}
+                            title="עריכת מחיר פתיחת גישה ספציפי עבור ארגון זה"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#2563eb',
+                              fontSize: '0.76rem',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              padding: '2px 4px',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            ✏️ {org.reopenPrice ? 'שינוי מחיר' : 'קביעת מחיר ספציפי'}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1605,6 +1750,120 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                                 <option value="email">✉️ מייל (shaharsolutions@gmail.com)</option>
                                 <option value="none">🚫 ללא אייקון (מוסתר)</option>
                               </select>
+                            </div>
+
+                            {/* Organization Specific Reopen Price Badge & Quick Edit */}
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '999px',
+                              backgroundColor: organization.reopenPrice ? '#eff6ff' : '#f8fafc',
+                              border: organization.reopenPrice ? '1px solid #bfdbfe' : '1px solid #cbd5e1',
+                              fontSize: '0.74rem'
+                            }}>
+                              <span title="מחיר פתיחת גישה">💳</span>
+                              {editingPriceOrgId === organization.id ? (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <input
+                                    autoFocus
+                                    type="number"
+                                    min="1"
+                                    value={editingOrgPriceValue}
+                                    onChange={(e) => setEditingOrgPriceValue(e.target.value)}
+                                    placeholder={`ברירת מחדל (${paymentConfig.reopenPrice})`}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleSaveOrgPrice(organization.id);
+                                      if (e.key === 'Escape') setEditingPriceOrgId('');
+                                    }}
+                                    style={{
+                                      width: '75px',
+                                      padding: '2px 4px',
+                                      border: '1px solid #3b82f6',
+                                      borderRadius: '4px',
+                                      fontSize: '0.74rem',
+                                      fontFamily: 'inherit'
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveOrgPrice(organization.id)}
+                                    disabled={savingOrganization === `price:${organization.id}`}
+                                    style={{
+                                      background: '#2563eb',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      padding: '2px 6px',
+                                      fontSize: '0.7rem',
+                                      cursor: 'pointer',
+                                      fontWeight: '700'
+                                    }}
+                                  >
+                                    שמור
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingOrgPriceValue('');
+                                      handleSaveOrgPrice(organization.id);
+                                    }}
+                                    title="איפוס למחיר ברירת מחדל"
+                                    style={{
+                                      background: '#e2e8f0',
+                                      color: '#475569',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      padding: '2px 4px',
+                                      fontSize: '0.68rem',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    איפוס
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingPriceOrgId('')}
+                                    style={{
+                                      background: 'transparent',
+                                      color: '#94a3b8',
+                                      border: 'none',
+                                      padding: '0 2px',
+                                      fontSize: '0.7rem',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditOrgPrice(organization)}
+                                  title="לחצי לקביעת מחיר פתיחת גישה ספציפי לארגון זה"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: organization.reopenPrice ? '#1d4ed8' : '#475569',
+                                    fontSize: '0.74rem',
+                                    fontWeight: organization.reopenPrice ? '800' : '600',
+                                    fontFamily: 'inherit',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                  }}
+                                >
+                                  <span>
+                                    {organization.reopenPrice
+                                      ? `₪${organization.reopenPrice} (מחיר ספציפי)`
+                                      : `ברירת מחדל (₪${paymentConfig.reopenPrice})`}
+                                  </span>
+                                  <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>✏️</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                         </>

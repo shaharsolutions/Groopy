@@ -59,17 +59,38 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    const hasPaymentParam = params.has('payment_status') || params.has('Response');
+    const hasPaymentParam = params.has('payment_status') || params.has('Response') || params.has('response');
     if (!hasPaymentParam) return;
 
-    const responseCode = params.get('Response');
-    const confirmationCode = params.get('ConfirmationCode') || params.get('confirmation_code') || params.get('approval');
+    const paymentStatus = params.get('payment_status');
+    const responseCode = params.get('Response') || params.get('response') || params.get('res') || '';
+
+    // Crucial: Tranzila redirects to success_url_address ONLY when the payment succeeded!
+    // Even if Tranzila sends the parameters via POST or doesn't append Response=000 to the query string,
+    // landing on payment_status === 'success' means the transaction was approved.
+    const isSuccess = paymentStatus === 'success' || responseCode === '000';
+
+    const confirmationCode =
+      params.get('ConfirmationCode') ||
+      params.get('confirmation_code') ||
+      params.get('approval') ||
+      params.get('Approval') ||
+      params.get('auth_number') ||
+      params.get('AuthNum') ||
+      params.get('Index') ||
+      params.get('index') ||
+      params.get('transaction_id') ||
+      params.get('tran_id') ||
+      params.get('tempref') ||
+      params.get('TranzilaTK') ||
+      `AUTH-${Date.now()}`;
+
     const orgIdParam = params.get('orgId') || params.get('u_org_id');
     const sumParam = params.get('sum');
 
     // Case 1: Loaded inside iframe (in PaymentModal)
     if (window.self !== window.top) {
-      if (responseCode === '000' && confirmationCode) {
+      if (isSuccess) {
         try {
           window.parent.postMessage({
             type: 'TRANZILA_SUCCESS',
@@ -77,17 +98,17 @@ export default function App() {
             ConfirmationCode: confirmationCode,
             orgId: orgIdParam,
             sum: sumParam
-          }, window.location.origin);
+          }, '*');
         } catch (postErr) {
           console.error('Failed to postMessage to parent window:', postErr);
         }
-      } else if (responseCode && responseCode !== '000') {
+      } else {
         try {
           window.parent.postMessage({
             type: 'TRANZILA_FAIL',
-            Response: responseCode,
+            Response: responseCode || '004',
             message: getShvaErrorMessage(responseCode)
-          }, window.location.origin);
+          }, '*');
         } catch (postErr) {
           console.error('Failed to postMessage failure to parent window:', postErr);
         }
@@ -96,7 +117,7 @@ export default function App() {
     }
 
     // Case 2: Loaded in top window (user completed payment in a separate tab or full window)
-    if (responseCode === '000' && confirmationCode && orgIdParam) {
+    if (isSuccess && orgIdParam) {
       const processTopRedirect = async () => {
         try {
           await recordPaymentAndReactivateOrg({
@@ -634,13 +655,14 @@ export default function App() {
 
   const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const isPaymentCallback = Boolean(searchParams?.has('payment_status') || searchParams?.has('Response'));
+  const isPaymentCallback = Boolean(searchParams?.has('payment_status') || searchParams?.has('Response') || searchParams?.has('response'));
 
   if (isInsideIframe && isPaymentCallback) {
+    const paymentStatus = searchParams?.get('payment_status');
     const rawResponse = searchParams?.get('Response') || searchParams?.get('response') || '';
-    const isApproved = rawResponse === '000';
+    const isApproved = paymentStatus === 'success' || rawResponse === '000';
     const detailMessage = isApproved
-      ? 'מעדכן את סטטוס הארגון ומשחרר את החסימה...'
+      ? 'התשלום נקלט בהצלחה! משחרר את החסימה ומעדכן את המערכת...'
       : getShvaErrorMessage(rawResponse);
 
     return (

@@ -386,7 +386,7 @@ export default function PaymentModal({
                       הוראת קבע חודשית מתחדשת
                     </div>
                     <div style={{ color: '#15803d', fontSize: '0.8rem', marginTop: '2px' }}>
-                      חיוב ראשון: ₪{paymentAmount} (מיידי) • חיוב שוטף: ₪{paymentAmount} בכל חודש
+                      חיוב ראשון: ₪{paymentAmount} (מיידי) • חיוב חודשי: ₪{paymentAmount}
                     </div>
                   </div>
                 </div>
@@ -400,9 +400,6 @@ export default function PaymentModal({
                   <div style={{ fontWeight: '800', color: '#15803d', fontSize: '1.05rem' }}>
                     ₪{paymentAmount}
                     <span style={{ fontSize: '0.78rem', fontWeight: '500', color: '#166534' }}> / חודש</span>
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#16a34a' }}>
-                    הוראת קבע שוטפת
                   </div>
                 </div>
               </div>

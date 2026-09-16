@@ -802,6 +802,10 @@ export default function App() {
           user={auth.currentUser}
           organization={suspendedOrgInfo || { id: effectiveOrganizationId, name: effectiveOrganizationName }}
           onLogout={handleLogout}
+          onReactivated={() => {
+            setIsOrgSuspended(false);
+            setSuspendedOrgInfo(null);
+          }}
         />
       </Suspense>
     );

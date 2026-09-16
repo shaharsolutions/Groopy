@@ -11,7 +11,7 @@ import { getPaymentConfig, TRANZILA_DEFAULT_CONFIG } from '../utils/paymentConfi
  * while allowing the user to export and download ONLY their personal content (Excel / JSON)
  * and safely log out.
  */
-export default function OrganizationSuspendedView({ user, organization, onLogout }) {
+export default function OrganizationSuspendedView({ user, organization, onLogout, onReactivated }) {
   const [downloadingFormat, setDownloadingFormat] = useState(null); // 'excel' | 'json' | null
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message: string, stats?: object }
   const [reopenPrice, setReopenPrice] = useState(TRANZILA_DEFAULT_CONFIG.defaultReopenPrice);
@@ -576,6 +576,9 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
         amount={reopenPrice}
         onPaymentSuccess={() => {
           setPaymentSuccessNotice(true);
+          if (onReactivated) {
+            onReactivated();
+          }
         }}
       />
     </div>

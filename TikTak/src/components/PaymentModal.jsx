@@ -350,6 +350,63 @@ export default function PaymentModal({
                 </div>
               )}
 
+              {/* Billing Breakdown Card */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      backgroundColor: '#dcfce7',
+                      color: '#15803d',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.2rem',
+                      flexShrink: 0
+                    }}
+                  >
+                    🔄
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: '700', color: '#166534', fontSize: '0.92rem' }}>
+                      הוראת קבע חודשית מתחדשת
+                    </div>
+                    <div style={{ color: '#15803d', fontSize: '0.8rem', marginTop: '2px' }}>
+                      חיוב ראשון: ₪{paymentAmount} (מיידי) • חיוב שוטף: ₪{paymentAmount} בכל חודש
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    textAlign: 'left',
+                    flexShrink: 0
+                  }}
+                >
+                  <div style={{ fontWeight: '800', color: '#15803d', fontSize: '1.05rem' }}>
+                    ₪{paymentAmount}
+                    <span style={{ fontSize: '0.78rem', fontWeight: '500', color: '#166534' }}> / חודש</span>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#16a34a' }}>
+                    הוראת קבע שוטפת
+                  </div>
+                </div>
+              </div>
+
               {/* Tranzila Iframe Container */}
               <div
                 style={{

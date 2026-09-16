@@ -157,7 +157,8 @@ export const buildTranzilaPaymentUrl = ({
     params.set('contact', userEmail);
   }
 
-  const pdesc = `${description}${orgName ? ` - ${orgName}` : ''}`;
+  const recurringNote = isRecurring ? ` (מנוי חודשי מתחדש ₪${cleanSum}/חודש)` : '';
+  const pdesc = `${description}${recurringNote}${orgName ? ` - ${orgName}` : ''}`;
   params.set('pdesc', pdesc);
 
   if (orgId) {

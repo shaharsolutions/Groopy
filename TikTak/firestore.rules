@@ -403,7 +403,14 @@ service cloud.firestore {
 
     match /organizations/{organizationId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && !isAnonymousViewer();
+      allow create: if isAuthenticated() && !isAnonymousViewer();
+      allow update: if isAuthenticated() && !isAnonymousViewer() && (
+        isAdmin() ||
+        (
+          canAccessOrganization(organizationId) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active', 'subscription', 'lastPayment', 'suspendedAt'])
+        )
+      );
       allow delete: if isAdmin();
     }
 
@@ -427,11 +434,13 @@ service cloud.firestore {
       allow create, update: if isAuthenticated() && !isAnonymousViewer();
     }
 
-    // Payments Collection Rules
+    // Payments Collection Rules: Creation and modifications are restricted to Admin/Server only
     match /payments/{paymentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && !isAnonymousViewer();
-      allow update, delete: if isAdmin();
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (resource.data.organizationId is string && canAccessOrganization(resource.data.organizationId))
+      );
+      allow create, update, delete: if isAdmin();
     }
 
     // Activity Log Rules

@@ -106,9 +106,9 @@ export const calculateNextBillingDate = () => {
   return `${nextMonth.getFullYear()}-${pad(nextMonth.getMonth() + 1)}-${pad(nextMonth.getDate())}`;
 };
 
-export const fetchTranzilaHandshakeToken = async ({ sum, supplier = TRANZILA_DEFAULT_CONFIG.mainTerminal }) => {
+export const fetchTranzilaHandshakeToken = async ({ sum, supplier = TRANZILA_DEFAULT_CONFIG.mainTerminal, orgId = '' }) => {
   try {
-    const url = `https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tiktak-handshake?sum=${encodeURIComponent(sum)}&supplier=${encodeURIComponent(supplier)}`;
+    const url = `https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tiktak-handshake?sum=${encodeURIComponent(sum)}&supplier=${encodeURIComponent(supplier)}${orgId ? `&orgId=${encodeURIComponent(orgId)}` : ''}`;
     const response = await fetch(url, { method: 'GET' });
     if (response.ok) {
       const data = await response.json();
@@ -142,7 +142,7 @@ export const buildTranzilaPaymentUrl = ({
   const cleanSum = Number(sum) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
   // Initial payment is processed on the main terminal (shaher1)
   const terminalName = terminal || TRANZILA_DEFAULT_CONFIG.mainTerminal;
-  const baseUrl = `https://direct.tranzila.com/${encodeURIComponent(terminalName)}/iframenew.php`;
+  const baseUrl = `https://directng.tranzila.com/${encodeURIComponent(terminalName)}/iframenew.php`;
 
   const recurStartDate = calculateNextBillingDate();
 
@@ -150,11 +150,11 @@ export const buildTranzilaPaymentUrl = ({
   params.set('sum', cleanSum.toString());
   params.set('currency', '1'); // 1 = ILS (₪)
   params.set('lang', 'il'); // Hebrew RTL
+  params.set('Ilang', 'HEB');
   params.set('cred_type', '1'); // Regular one-time charge for initial payment
   params.set('tranmode', 'A'); // Automatic settlement/charge
 
   if (thtk) {
-    params.set('new_process', '1');
     params.set('thtk', thtk);
   }
 
@@ -163,8 +163,6 @@ export const buildTranzilaPaymentUrl = ({
     params.set('recur_transaction', '4_approved'); // Monthly recurring locked
     params.set('recur_sum', cleanSum.toString()); // Recurring monthly charge
     params.set('recur_start_date', recurStartDate); // Start date of next charge (YYYY-MM-DD)
-    // Note: recur_payments is omitted so Tranzila treats it as continuous subscription
-    // and avoids displaying the confusing 'ל-0 חודשים'.
   }
 
   if (orgName) {
@@ -179,27 +177,90 @@ export const buildTranzilaPaymentUrl = ({
     params.set('contact', userEmail);
   }
 
-  const recurringNote = isRecurring ? ` (מנוי חודשי מתחדש ₪${cleanSum}/חודש)` : '';
-  const pdesc = `${description}${recurringNote}${orgName ? ` - ${orgName}` : ''}`;
+  const cleanDescription = (description || TRANZILA_DEFAULT_CONFIG.defaultDescription).replace(/[₪]/g, 'שח');
+  const recurringNote = isRecurring ? ` (מנוי חודשי ${cleanSum} שח לחודש)` : '';
+  const pdesc = `TikTak - ${cleanDescription}${recurringNote}${orgName ? ` - ${orgName}` : ''}`;
   params.set('pdesc', pdesc);
+  params.set('remarks', `TIKTAK:${orgId || 'unknown'}`);
 
   if (orgId) {
     params.set('u_org_id', orgId);
   }
 
-  // Set return URLs if provided
-  if (successUrl) {
-    params.set('success_url_address', successUrl);
-  }
-  if (failUrl) {
-    params.set('fail_url_address', failUrl);
-  }
+  // Server webhook address for Tranzila notifications (server-to-server)
+  const notifyWebhookUrl = 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/webhook?system=tiktak';
+  params.set('notify_url_address', notifyWebhookUrl);
+
+  params.set('success_url_address', successUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/success');
+  params.set('fail_url_address', failUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/failed');
 
   return `${baseUrl}?${params.toString()}`;
 };
 
 /**
- * Record a successful payment and reactivate the organization with recurring subscription
+ * Generate field mapping for HTTP POST submission directly into the Tranzila iFrame.
+ * Matches Pawza's production integration model.
+ */
+export const buildTranzilaPaymentFields = ({
+  sum,
+  orgId = '',
+  orgName = '',
+  userEmail = '',
+  contactName = '',
+  terminal = '',
+  description = TRANZILA_DEFAULT_CONFIG.defaultDescription,
+  successUrl = '',
+  failUrl = '',
+  isRecurring = true,
+  thtk = ''
+}) => {
+  const cleanSum = Number(sum) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
+  const terminalName = terminal || TRANZILA_DEFAULT_CONFIG.mainTerminal;
+  const recurStartDate = calculateNextBillingDate();
+
+  const cleanDescription = (description || TRANZILA_DEFAULT_CONFIG.defaultDescription).replace(/[₪]/g, 'שח');
+  const recurringNote = isRecurring ? ` (מנוי חודשי ${cleanSum} שח לחודש)` : '';
+  const pdesc = `TikTak - ${cleanDescription}${recurringNote}${orgName ? ` - ${orgName}` : ''}`;
+
+  const fields = {
+    sum: cleanSum.toString(),
+    currency: '1',
+    lang: 'il',
+    Ilang: 'HEB',
+    cred_type: '1',
+    tranmode: 'A',
+    thtk: thtk || '',
+    contact: contactName || userEmail || '',
+    company: orgName || orgId || '',
+    email: userEmail || '',
+    pdesc: pdesc,
+    remarks: `TIKTAK:${orgId || 'unknown'}`,
+    u_org_id: orgId || '',
+    json_purchase_data: JSON.stringify([{
+      product_name: pdesc,
+      product_quantity: 1,
+      product_price: cleanSum
+    }]),
+    notify_url_address: 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/webhook?system=tiktak',
+    success_url_address: successUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/success',
+    fail_url_address: failUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/failed'
+  };
+
+  if (isRecurring) {
+    fields.recur_transaction = '4_approved';
+    fields.recur_sum = cleanSum.toString();
+    fields.recur_start_date = recurStartDate;
+  }
+
+  return {
+    actionUrl: `https://directng.tranzila.com/${encodeURIComponent(terminalName)}/iframenew.php`,
+    fields
+  };
+};
+
+/**
+ * Verify payment and ensure organization activation via server-side verification.
+ * Client does NOT write active:true directly; server webhook is the authority.
  */
 export const recordPaymentAndReactivateOrg = async ({
   organizationId,
@@ -210,7 +271,7 @@ export const recordPaymentAndReactivateOrg = async ({
   transactionId = '',
   confirmationCode = '',
   method = 'tranzila_recurring',
-  terminal = TRANZILA_DEFAULT_CONFIG.tokenTerminal
+  terminal = TRANZILA_DEFAULT_CONFIG.mainTerminal
 }) => {
   if (!organizationId) {
     throw new Error('חסר מזהה ארגון להפעלת תשלום');
@@ -221,86 +282,75 @@ export const recordPaymentAndReactivateOrg = async ({
     throw new Error('לא ניתן להפעיל ארגון ללא מספר אישור עסקה מאומת מטרנזילה');
   }
 
-  const now = new Date().toISOString();
-  const nextBillingDate = calculateNextBillingDate();
-  const cleanAmount = Number(amount) || 0;
+  const orgRef = doc(db, ORGANIZATIONS_COLLECTION, organizationId);
 
-  const paymentRecord = {
-    organizationId,
-    organizationName: organizationName || organizationId,
-    userId: userId || '',
-    userEmail: userEmail || '',
-    amount: cleanAmount,
-    currency: 'ILS',
-    billingType: 'recurring_monthly',
-    recurringFrequency: 'monthly',
-    nextBillingDate,
-    terminal,
-    status: 'completed',
-    transactionId: transactionId || `TRZ-${cleanCode}`,
-    confirmationCode: cleanCode,
-    method,
-    createdAt: now
-  };
-
-  // 1. Save payment record
-  let paymentDocRef = null;
+  // 1. Check if the server webhook already activated the organization
   try {
-    paymentDocRef = await addDoc(collection(db, PAYMENTS_COLLECTION), paymentRecord);
+    const orgSnap = await getDoc(orgRef);
+    if (orgSnap.exists() && orgSnap.data()?.active === true) {
+      return {
+        success: true,
+        alreadyActive: true,
+        paymentRecord: orgSnap.data()?.lastPayment || {
+          organizationId,
+          transactionId: transactionId || `TRZ-${cleanCode}`,
+          confirmationCode: cleanCode,
+          amount
+        }
+      };
+    }
   } catch (err) {
-    console.error('Failed to create payment document in payments collection:', err);
+    console.warn('Initial org check warning:', err);
   }
 
-  // 2. Reactivate organization & record subscription details
-  const orgRef = doc(db, ORGANIZATIONS_COLLECTION, organizationId);
-  await updateDoc(orgRef, {
-    active: true,
-    updatedAt: now,
-    subscription: {
-      type: 'monthly',
-      status: 'active',
-      startDate: now,
-      nextBillingDate,
-      amount: cleanAmount,
-      currency: 'ILS',
-      terminal
-    },
-    lastPayment: {
-      amount: cleanAmount,
-      date: now,
-      userId,
-      userEmail,
-      transactionId: paymentRecord.transactionId,
-      paymentId: paymentDocRef?.id || '',
-      billingType: 'recurring_monthly'
-    }
-  });
-
-  // 3. Log activity
+  // 2. Trigger server verification endpoint as fallback if webhook hasn't finished yet
   try {
-    await recordActivity({
-      action: 'ORGANIZATION_REACTIVATED_BY_PAYMENT',
-      actionLabel: 'הפעלת מנוי חודשי ופתיחת ארגון',
-      targetType: 'organization',
-      targetId: organizationId,
-      targetLabel: organizationName || organizationId,
-      details: `הופעל מנוי חודשי (הוראת קבע) בסך ₪${cleanAmount}/חודש עבור פתיחת הארגון`,
-      metadata: {
-        amount: cleanAmount,
-        billingType: 'recurring_monthly',
-        nextBillingDate,
-        transactionId: paymentRecord.transactionId,
-        userEmail
-      },
-      organizationId
+    const payload = new URLSearchParams({
+      supplier: terminal || TRANZILA_DEFAULT_CONFIG.mainTerminal,
+      sum: String(amount || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice),
+      Response: '000',
+      ConfirmationCode: cleanCode,
+      u_org_id: organizationId,
+      index: transactionId || cleanCode,
+      email: userEmail
     });
-  } catch (logErr) {
-    console.warn('Could not record activity log for reactivation payment:', logErr);
+
+    const verifyRes = await fetch('https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tiktak-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload.toString()
+    });
+
+    if (verifyRes.ok) {
+      const data = await verifyRes.json();
+      if (data.success) {
+        return {
+          success: true,
+          paymentRecord: {
+            organizationId,
+            transactionId: transactionId || `TRZ-${cleanCode}`,
+            confirmationCode: cleanCode,
+            amount
+          }
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Server webhook fallback trigger error:', err);
+  }
+
+  // 3. Final verification of organization status in Firestore
+  const finalSnap = await getDoc(orgRef);
+  if (finalSnap.exists() && finalSnap.data()?.active === true) {
+    return {
+      success: true,
+      paymentRecord: finalSnap.data()?.lastPayment || {}
+    };
   }
 
   return {
-    success: true,
-    paymentRecord
+    success: false,
+    message: 'התשלום התקבל ומאומת ברקע על ידי השרת'
   };
 };
 

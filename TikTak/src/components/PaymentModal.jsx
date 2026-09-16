@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseDb';
 import {
+  buildTranzilaPaymentFields,
   buildTranzilaPaymentUrl,
   fetchTranzilaHandshakeToken,
   recordPaymentAndReactivateOrg,
@@ -24,6 +25,9 @@ export default function PaymentModal({
   const [handshakeToken, setHandshakeToken] = useState('');
   const [isHandshakeLoading, setIsHandshakeLoading] = useState(true);
 
+  const formRef = useRef(null);
+  const iframeRef = useRef(null);
+
   const orgId = organization?.id || '';
   const orgName = organization?.name || 'הארגון שלך';
   const userEmail = user?.email || '';
@@ -37,15 +41,21 @@ export default function PaymentModal({
     try {
       const token = await fetchTranzilaHandshakeToken({
         sum: paymentAmount,
-        supplier: TRANZILA_DEFAULT_CONFIG.mainTerminal
+        supplier: TRANZILA_DEFAULT_CONFIG.mainTerminal,
+        orgId
       });
-      if (token) setHandshakeToken(token);
+      if (token) {
+        setHandshakeToken(token);
+      } else {
+        setErrorMessage('לא ניתן להשיג מפתח הצפנה מאובטח מחברת הסליקה (Handshake failed). אנא נסו לרענן או פנו לתמיכה.');
+      }
     } catch (err) {
       console.warn('Could not fetch Handshake token:', err);
+      setErrorMessage('שגיאה בחיבור למערכת הסליקה. אנא נסו שוב.');
     } finally {
       setIsHandshakeLoading(false);
     }
-  }, [paymentAmount]);
+  }, [paymentAmount, orgId]);
 
   // Fetch Handshake token on open
   useEffect(() => {
@@ -62,27 +72,31 @@ export default function PaymentModal({
     }
   }, [isOpen, refreshHandshakeToken]);
 
-  // Build the payment URL with handshake token
-  const paymentUrl = useMemo(() => {
-    if (!isOpen || isHandshakeLoading) return '';
-    const successReturnUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/?payment_status=success&orgId=${encodeURIComponent(orgId)}`
-      : '';
-    const failReturnUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/?payment_status=fail&orgId=${encodeURIComponent(orgId)}`
-      : '';
-
-    return buildTranzilaPaymentUrl({
+  // Build the payment fields for secure HTTP POST submission
+  const paymentData = useMemo(() => {
+    if (!isOpen || !handshakeToken) return null;
+    return buildTranzilaPaymentFields({
       sum: paymentAmount,
       orgId,
       orgName,
       userEmail,
       contactName,
-      successUrl: successReturnUrl,
-      failUrl: failReturnUrl,
       thtk: handshakeToken
     });
-  }, [isOpen, isHandshakeLoading, handshakeToken, paymentAmount, orgId, orgName, userEmail, contactName]);
+  }, [isOpen, handshakeToken, paymentAmount, orgId, orgName, userEmail, contactName]);
+
+  // Automatically submit the form to the iframe once paymentData is prepared
+  useEffect(() => {
+    if (isOpen && paymentData && formRef.current) {
+      setIframeLoading(true);
+      const timer = setTimeout(() => {
+        if (formRef.current) {
+          formRef.current.submit();
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, paymentData]);
 
   // Real-time Firestore listener: when the organization is reactivated upon verified payment
   useEffect(() => {
@@ -111,8 +125,22 @@ export default function PaymentModal({
 
     const handleMessage = async (event) => {
       const data = event?.data;
+      if (data?.source === 'pawza-tranzila' || data?.source === 'tiktak-tranzila') {
+        if (data.status === 'processing' || data.status === 'success') {
+          setIsProcessing(true);
+        } else if (data.status === 'failed') {
+          setIsProcessing(false);
+          setErrorMessage('התשלום לא הושלם. אנא ודאו את פרטי הכרטיס או נסו שוב.');
+        }
+        return;
+      }
       if (data?.type === 'TRANZILA_RETRY') {
         refreshHandshakeToken();
+        return;
+      }
+      if (data?.type === 'TRANZILA_FAIL') {
+        setIsProcessing(false);
+        setErrorMessage(data.message || 'התשלום לא הושלם. אנא ודאו את פרטי הכרטיס או נסו שוב.');
         return;
       }
       // Strictly require TRANZILA_SUCCESS with Response === '000' and a non-empty ConfirmationCode
@@ -346,24 +374,34 @@ export default function PaymentModal({
                   <span>🔒</span>
                   <span>הוראת קבע חודשית מאובטחת בתקן <strong>PCI-DSS Level 1</strong> באמצעות Tranzila</span>
                 </div>
-                <a
-                  href={paymentUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (formRef.current) {
+                      const prevTarget = formRef.current.target;
+                      formRef.current.target = '_blank';
+                      formRef.current.submit();
+                      formRef.current.target = prevTarget;
+                    }
+                  }}
+                  disabled={!paymentData || isHandshakeLoading}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '4px',
                     color: '#2563eb',
-                    textDecoration: 'none',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: (!paymentData || isHandshakeLoading) ? 'not-allowed' : 'pointer',
                     fontWeight: '600',
-                    fontSize: '0.76rem'
+                    fontSize: '0.76rem',
+                    padding: 0
                   }}
                   title="פתיחה בלשונית נפרדת"
                 >
                   <span>חלון מלא</span>
                   <span>↗</span>
-                </a>
+                </button>
               </div>
 
               {errorMessage && (
@@ -449,6 +487,40 @@ export default function PaymentModal({
                   backgroundColor: '#ffffff'
                 }}
               >
+                {isProcessing && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      zIndex: 10,
+                      gap: '14px',
+                      color: '#0f172a',
+                      fontSize: '0.95rem',
+                      fontWeight: '600'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        border: '4px solid #e2e8f0',
+                        borderTopColor: '#16a34a',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite'
+                      }}
+                    />
+                    <span>מאמת את התשלום ומפעיל את המנוי...</span>
+                    <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: '400' }}>
+                      אנא המתינו מספר שניות
+                    </span>
+                  </div>
+                )}
+
                 {(iframeLoading || isHandshakeLoading) && (
                   <div
                     style={{
@@ -479,20 +551,38 @@ export default function PaymentModal({
                   </div>
                 )}
 
-                {paymentUrl && (
-                  <iframe
-                    src={paymentUrl}
-                    title="Tranzila Payment"
-                    allow="payment"
-                    onLoad={() => setIframeLoading(false)}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      border: 'none',
-                      display: 'block'
-                    }}
-                  />
+                {paymentData && (
+                  <form
+                    ref={formRef}
+                    method="POST"
+                    action={paymentData.actionUrl}
+                    target="tiktakTranzilaFrame"
+                    style={{ display: 'none' }}
+                  >
+                    {Object.entries(paymentData.fields).map(([name, value]) => (
+                      <input key={name} type="hidden" name={name} value={String(value ?? '')} />
+                    ))}
+                  </form>
                 )}
+
+                <iframe
+                  ref={iframeRef}
+                  id="tiktakTranzilaFrame"
+                  name="tiktakTranzilaFrame"
+                  title="TikTak Tranzila Payment"
+                  allow="payment"
+                  onLoad={() => {
+                    if (handshakeToken) {
+                      setIframeLoading(false);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    display: 'block'
+                  }}
+                />
               </div>
 
               {/* Secure status footer - no manual bypass */}

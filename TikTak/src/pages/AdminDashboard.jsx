@@ -261,6 +261,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [isAddBoardModalOpen, setIsAddBoardModalOpen] = useState(false);
   const [newBoardName, setNewBoardName] = useState('');
   const [newBoardIcon, setNewBoardIcon] = useState('📁');
+  const [newBoardSubtitle, setNewBoardSubtitle] = useState('');
   const [newBoardIsShared, setNewBoardIsShared] = useState(true);
   const [newBoardSharedEmails, setNewBoardSharedEmails] = useState([]);
   const [newBoardEmailInput, setNewBoardEmailInput] = useState('');
@@ -269,6 +270,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [activeBoardMenuId, setActiveBoardMenuId] = useState(null);
   const [draggedBoardId, setDraggedBoardId] = useState(null);
   const [dragOverBoardId, setDragOverBoardId] = useState(null);
+
+  // Board subtitle editing state (v2)
+  const [isEditingBoardSubtitle, setIsEditingBoardSubtitle] = useState(false);
+  const [boardSubtitleValue, setBoardSubtitleValue] = useState('');
+  const [isSavingBoardSubtitle, setIsSavingBoardSubtitle] = useState(false);
 
   // Auto-redirect if current workspaceView board is not accessible
   useEffect(() => {
@@ -296,9 +302,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [showCompletedThisWeekSubtasks, setShowCompletedThisWeekSubtasks] = useState(false);
   const [filterSubtasksBySelectedBoard, setFilterSubtasksBySelectedBoard] = useState(false);
 
-  // Reset status filter when switching boards
+  // Reset status filter and board subtitle edit mode when switching boards
   useEffect(() => {
     setStatusFilter('');
+    setIsEditingBoardSubtitle(false);
   }, [workspaceView]);
 
   // Fallback to 'active' if stored custom board was deleted
@@ -382,6 +389,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       id: 'board_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
       name: nameTrimmed,
       icon: newBoardIcon || '📁',
+      subtitle: (newBoardSubtitle || '').trim(),
       isSharedWithOrg: Boolean(newBoardIsShared),
       createdBy: userId || '',
       creatorEmail: userEmail || '',
@@ -405,6 +413,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       });
       setNewBoardName('');
       setNewBoardIcon('📁');
+      setNewBoardSubtitle('');
       setNewBoardIsShared(true);
       setNewBoardSharedEmails([]);
       setNewBoardEmailInput('');
@@ -426,6 +435,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           ...settings,
           boardTitle: editingBoard.name.trim(),
           boardIcon: editingBoard.icon || '📋',
+          boardSubtitle: (editingBoard.subtitle || '').trim(),
           activeBoardIsShared: editingBoard.isSharedWithOrg !== false,
           activeBoardCreatedBy: editingBoard.isSharedWithOrg !== false ? '' : (settings?.activeBoardCreatedBy || userId || ''),
           activeBoardCreatorEmail: editingBoard.isSharedWithOrg !== false ? '' : (settings?.activeBoardCreatorEmail || userEmail || ''),
@@ -447,6 +457,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             ...b,
             name: editingBoard.name.trim(),
             icon: editingBoard.icon || '📁',
+            subtitle: (editingBoard.subtitle || '').trim(),
             isSharedWithOrg: editingBoard.isSharedWithOrg !== false,
             sharedEmails: editingBoard.isSharedWithOrg !== false ? [] : (Array.isArray(editingBoard.sharedEmails) ? editingBoard.sharedEmails : []),
             createdBy: b.createdBy || userId || '',
@@ -465,6 +476,52 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     } catch (err) {
       console.error('Failed to update board', err);
       alert('שגיאה בעדכון הלוח. נסי שוב.');
+    }
+  };
+
+  // Inline editing handlers for current board subtitle
+  const startEditingBoardSubtitle = () => {
+    setBoardSubtitleValue(currentBoardSubtitle);
+    setIsEditingBoardSubtitle(true);
+  };
+
+  const cancelEditingBoardSubtitle = () => {
+    setIsEditingBoardSubtitle(false);
+    setBoardSubtitleValue('');
+  };
+
+  const handleSaveBoardSubtitle = async (newValue) => {
+    const trimmedVal = typeof newValue === 'string' ? newValue.trim() : '';
+    if (trimmedVal === currentBoardSubtitle) {
+      setIsEditingBoardSubtitle(false);
+      return;
+    }
+
+    setIsSavingBoardSubtitle(true);
+    try {
+      if (workspaceView === 'active') {
+        await onSaveSettings({
+          ...settings,
+          boardSubtitle: trimmedVal
+        });
+      } else {
+        const currentBoards = Array.isArray(settings?.boards) ? settings.boards : [];
+        const updatedBoards = currentBoards.map(b => (
+          b && b.id === workspaceView
+            ? { ...b, subtitle: trimmedVal }
+            : b
+        ));
+        await onSaveSettings({
+          ...settings,
+          boards: updatedBoards
+        });
+      }
+      setIsEditingBoardSubtitle(false);
+    } catch (err) {
+      console.error('Failed to save board subtitle', err);
+      alert('שגיאה בשמירת תת-הכותרת של הלוח. נסי שוב.');
+    } finally {
+      setIsSavingBoardSubtitle(false);
     }
   };
 
@@ -792,6 +849,13 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     const custom = customBoards.find(b => b.id === workspaceView);
     return custom ? `${custom.icon ? custom.icon + ' ' : ''}${custom.name}` : `${defaultBoardIcon} ${defaultBoardName}`;
   }, [workspaceView, defaultBoardName, defaultBoardIcon, customBoards]);
+
+  const currentBoardSubtitle = useMemo(() => {
+    if (workspaceView === 'trash') return '';
+    if (workspaceView === 'active') return settings?.boardSubtitle || '';
+    const custom = customBoards.find(b => b.id === workspaceView);
+    return custom ? (custom.subtitle || '') : '';
+  }, [workspaceView, settings?.boardSubtitle, customBoards]);
 
   // Filter and sort tasks whenever data or controls change
   const filteredTasks = useMemo(() => {
@@ -1679,9 +1743,90 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     <main className="dashboard-container">
 
       {/* Upper Actions Panel */}
-      <div className="flex-between" style={{ marginBottom: '24px' }}>
-        <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>{currentBoardName}</h2>
+      <div className="flex-between" style={{ marginBottom: '24px', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0, marginInlineEnd: '16px' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: 0, lineHeight: 1.2 }}>{currentBoardName}</h2>
+          {flags.isV2 && workspaceView !== 'trash' && (
+            <div className="board-subtitle-container">
+              {isEditingBoardSubtitle ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    className="form-control board-subtitle-input"
+                    value={boardSubtitleValue}
+                    onChange={(e) => setBoardSubtitleValue(e.target.value)}
+                    onBlur={() => handleSaveBoardSubtitle(boardSubtitleValue)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveBoardSubtitle(boardSubtitleValue);
+                      } else if (e.key === 'Escape') {
+                        cancelEditingBoardSubtitle();
+                      }
+                    }}
+                    placeholder="הזן תת-כותרת או קישור ללוח..."
+                    autoFocus
+                    disabled={isSavingBoardSubtitle}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    style={{ padding: '4px 10px', height: '32px', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSaveBoardSubtitle(boardSubtitleValue);
+                    }}
+                    disabled={isSavingBoardSubtitle}
+                    title="שמור תת-כותרת (Enter)"
+                  >
+                    {isSavingBoardSubtitle ? 'שומר...' : 'שמור'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '4px 10px', height: '32px', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      cancelEditingBoardSubtitle();
+                    }}
+                    disabled={isSavingBoardSubtitle}
+                    title="ביטול (Esc)"
+                  >
+                    ביטול
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '100%' }}>
+                  <div
+                    className="board-subtitle-wrapper editable-cell"
+                    onClick={() => startEditingBoardSubtitle()}
+                    title="לחץ לעריכת תת-הכותרת"
+                  >
+                    {currentBoardSubtitle ? (
+                      <LinkifiedText text={currentBoardSubtitle} />
+                    ) : (
+                      <span className="board-subtitle-placeholder">
+                        ➕ הוספת תת-כותרת או קישור ללוח...
+                      </span>
+                    )}
+                  </div>
+                  {Boolean(currentBoardSubtitle) && (
+                    <button
+                      type="button"
+                      className="btn-board-subtitle-edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditingBoardSubtitle();
+                      }}
+                      title="עריכת תת-כותרת"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {flags.isLegacy && workspaceView !== 'trash' && (
           <button
@@ -1789,6 +1934,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                           id: board.id,
                           name: boardName,
                           icon: boardIcon,
+                          subtitle: isDefault ? (settings?.boardSubtitle || '') : (board.subtitle || ''),
                           isSharedWithOrg: isShared,
                           sharedEmails: isDefault ? (Array.isArray(settings?.activeBoardSharedEmails) ? settings.activeBoardSharedEmails : []) : (Array.isArray(board.sharedEmails) ? board.sharedEmails : []),
                           createdBy: isDefault ? (settings?.activeBoardCreatedBy || '') : (board.createdBy || ''),
@@ -2673,6 +2819,16 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">תת-כותרת / תיאור הלוח (אופציונלי)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="הזן תת-כותרת או קישור..."
+                    value={newBoardSubtitle}
+                    onChange={e => setNewBoardSubtitle(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">אייקון לוח</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {PRESET_BOARD_ICONS.map(icon => (
@@ -2839,6 +2995,16 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     onChange={e => setEditingBoard({ ...editingBoard, name: e.target.value })}
                     autoFocus
                     required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">תת-כותרת / תיאור הלוח (אופציונלי)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="הזן תת-כותרת או קישור..."
+                    value={editingBoard.subtitle || ''}
+                    onChange={e => setEditingBoard({ ...editingBoard, subtitle: e.target.value })}
                   />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>

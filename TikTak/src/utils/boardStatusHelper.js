@@ -236,6 +236,7 @@ export function getOrderedBoards(settings, {
     id: 'active',
     name: settings?.boardTitle || (isLegacy ? 'עבודות פעילות' : 'פרויקטים פעילים'),
     icon: settings?.boardIcon || (isLegacy ? '📁' : '📋'),
+    subtitle: settings?.boardSubtitle || '',
     isDefault: true,
     isSharedWithOrg: settings?.activeBoardIsShared !== false,
     createdBy: settings?.activeBoardCreatedBy || settings?.organizationId || '',
@@ -248,6 +249,7 @@ export function getOrderedBoards(settings, {
     .filter(b => b && b.id && b.id !== 'active' && b.name?.trim() !== 'בדיקה')
     .map(b => ({
       ...b,
+      subtitle: b.subtitle || '',
       isDefault: false,
       isSharedWithOrg: b.isSharedWithOrg !== false,
       sharedEmails: Array.isArray(b.sharedEmails) ? b.sharedEmails : [],

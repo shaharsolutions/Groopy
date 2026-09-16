@@ -4919,3 +4919,57 @@ select.badge:focus, select.priority-badge:focus {
   font-size: 0.82rem !important;
 }
 
+/* Board Subtitle (v2) */
+.board-subtitle-container {
+  margin-top: 4px;
+  max-width: 720px;
+}
+
+.board-subtitle-wrapper {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  max-width: 100%;
+  word-break: break-word;
+  line-height: 1.45;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.board-subtitle-placeholder {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.88rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.board-subtitle-input {
+  max-width: 520px;
+  height: 32px !important;
+  font-size: 0.9rem !important;
+}
+
+.btn-board-subtitle-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 5px;
+  font-size: 0.85rem;
+  opacity: 0.5;
+  line-height: 1;
+  border-radius: 4px;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-board-subtitle-edit:hover {
+  opacity: 1;
+  background-color: rgba(67, 97, 238, 0.1);
+}
+

@@ -50,12 +50,14 @@ export default function SettingsPage({
 
   // Inputs for boards
   const [newBoardName, setNewBoardName] = useState('');
+  const [newBoardSubtitle, setNewBoardSubtitle] = useState('');
   const [newBoardIcon, setNewBoardIcon] = useState('📁');
   const [newBoardIsShared, setNewBoardIsShared] = useState(true);
   const [newBoardSharedEmails, setNewBoardSharedEmails] = useState([]);
   const [newBoardEmailInput, setNewBoardEmailInput] = useState('');
   const [editingBoardId, setEditingBoardId] = useState(null);
   const [editingBoardName, setEditingBoardName] = useState('');
+  const [editingBoardSubtitle, setEditingBoardSubtitle] = useState('');
   const [editingBoardIcon, setEditingBoardIcon] = useState('📁');
   const [editingBoardIsShared, setEditingBoardIsShared] = useState(true);
   const [editingBoardSharedEmails, setEditingBoardSharedEmails] = useState([]);
@@ -383,6 +385,7 @@ export default function SettingsPage({
       id: 'board_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
       name: nameTrimmed,
       icon: newBoardIcon || '📁',
+      subtitle: newBoardSubtitle.trim(),
       isSharedWithOrg: Boolean(newBoardIsShared),
       createdBy: userId || '',
       creatorEmail: userEmail || '',
@@ -399,6 +402,7 @@ export default function SettingsPage({
       boardOrder: updatedBoardOrder
     });
     setNewBoardName('');
+    setNewBoardSubtitle('');
     setNewBoardIsShared(true);
     setNewBoardSharedEmails([]);
     setNewBoardEmailInput('');
@@ -468,6 +472,7 @@ export default function SettingsPage({
     const isDefault = board.id === 'active';
     setEditingBoardId(board.id);
     setEditingBoardName(board.name);
+    setEditingBoardSubtitle(isDefault ? (localSettings.boardSubtitle || '') : (board.subtitle || ''));
     setEditingBoardIcon(board.icon || '📁');
     setEditingBoardIsShared(isDefault ? isBoardSharedWithOrg(localSettings, 'active') : isBoardSharedWithOrg(localSettings, board.id));
     setEditingBoardSharedEmails(isDefault ? (Array.isArray(localSettings.activeBoardSharedEmails) ? localSettings.activeBoardSharedEmails : []) : (Array.isArray(board.sharedEmails) ? board.sharedEmails : []));
@@ -482,6 +487,7 @@ export default function SettingsPage({
       setLocalSettings({
         ...localSettings,
         boardTitle: nameTrimmed,
+        boardSubtitle: editingBoardSubtitle.trim(),
         boardIcon: editingBoardIcon || '📋',
         activeBoardIsShared: editingBoardIsShared !== false,
         activeBoardCreatedBy: editingBoardIsShared !== false ? '' : (localSettings.activeBoardCreatedBy || userId || ''),
@@ -500,6 +506,7 @@ export default function SettingsPage({
       boards: existingBoards.map(b => (b.id === boardId ? {
         ...b,
         name: nameTrimmed,
+        subtitle: editingBoardSubtitle.trim(),
         icon: editingBoardIcon || '📁',
         isSharedWithOrg: editingBoardIsShared !== false,
         sharedEmails: editingBoardIsShared !== false ? [] : (Array.isArray(editingBoardSharedEmails) ? editingBoardSharedEmails : []),
@@ -870,6 +877,19 @@ export default function SettingsPage({
               onChange={(e) => setLocalSettings({ ...localSettings, boardTitle: e.target.value })}
             />
           </div>
+
+          {flags.isV2 && (
+            <div className="form-group" style={{ maxWidth: '500px', marginTop: '12px' }}>
+              <label className="form-label">תת-כותרת ללוח ברירת המחדל (ניתן לכלול קישור)</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="הזן תת-כותרת או קישור..."
+                value={localSettings.boardSubtitle || ''}
+                onChange={(e) => setLocalSettings({ ...localSettings, boardSubtitle: e.target.value })}
+              />
+            </div>
+          )}
 
           <div className="form-group" style={{ marginTop: '16px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '500' }}>
@@ -1549,6 +1569,18 @@ export default function SettingsPage({
                                   ביטול
                                 </button>
                               </div>
+                              <input
+                                type="text"
+                                className="form-control"
+                                placeholder="תת-כותרת / קישור ללוח (אופציונלי)"
+                                value={editingBoardSubtitle}
+                                onChange={e => setEditingBoardSubtitle(e.target.value)}
+                                style={{ fontSize: '0.82rem', padding: '3px 8px' }}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveEditedBoard(board.id);
+                                  if (e.key === 'Escape') setEditingBoardId(null);
+                                }}
+                              />
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.8rem' }}>
                                   <input
                                     type="checkbox"
@@ -1658,7 +1690,14 @@ export default function SettingsPage({
                                 )}
                               </div>
                             ) : (
-                            <span>{boardName} {isDefault ? '(ברירת מחדל)' : ''}</span>
+                            <div>
+                              <div>{boardName} {isDefault ? '(ברירת מחדל)' : ''}</div>
+                              {(isDefault ? localSettings.boardSubtitle : board.subtitle) && (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '400', marginTop: '2px' }}>
+                                  {isDefault ? localSettings.boardSubtitle : board.subtitle}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td>
@@ -1753,6 +1792,16 @@ export default function SettingsPage({
                     </button>
                   </div>
                 </div>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>תת-כותרת / קישור ללוח (אופציונלי)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="הזן תת-כותרת או קישור..."
+                  value={newBoardSubtitle}
+                  onChange={e => setNewBoardSubtitle(e.target.value)}
+                />
               </div>
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>

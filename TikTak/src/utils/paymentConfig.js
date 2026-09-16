@@ -242,8 +242,8 @@ export const buildTranzilaPaymentFields = ({
       product_price: cleanSum
     }]),
     notify_url_address: 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/webhook?system=tiktak',
-    success_url_address: successUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/success',
-    fail_url_address: failUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/failed'
+    success_url_address: successUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/success?system=tiktak',
+    fail_url_address: failUrl || 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tranzila-billing/failed?system=tiktak'
   };
 
   if (isRecurring) {

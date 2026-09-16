@@ -108,11 +108,15 @@ export default function PaymentModal({
         if (data.active === true && !isSuccess) {
           setIsSuccess(true);
           if (onPaymentSuccess) {
-            onPaymentSuccess(data.lastPayment || {});
+            onPaymentSuccess(data.lastPayment || {
+              organizationName: orgName,
+              organizationId: orgId,
+              amount: paymentAmount
+            });
           }
           setTimeout(() => {
             onClose();
-          }, 2200);
+          }, 400);
         }
       }
     });
@@ -185,11 +189,16 @@ export default function PaymentModal({
       if (res.success) {
         setIsSuccess(true);
         if (onPaymentSuccess) {
-          onPaymentSuccess(res.paymentRecord);
+          onPaymentSuccess(res.paymentRecord || {
+            organizationName: orgName,
+            organizationId: orgId,
+            amount: paymentAmount,
+            confirmationCode: cleanCode
+          });
         }
         setTimeout(() => {
           onClose();
-        }, 2200);
+        }, 400);
       }
     } catch (err) {
       console.error('Reactivation after payment failed:', err);

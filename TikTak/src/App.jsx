@@ -18,6 +18,7 @@ const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'));
 const SearchModal = lazy(() => import('./components/SearchModal'));
 const Login = lazy(() => import('./pages/Login'));
 const OrganizationSuspendedView = lazy(() => import('./pages/OrganizationSuspendedView'));
+const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
 
 import './App.css';
 
@@ -35,6 +36,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isOrgSuspended, setIsOrgSuspended] = useState(false);
   const [suspendedOrgInfo, setSuspendedOrgInfo] = useState(null);
+  const [paymentSuccessInfo, setPaymentSuccessInfo] = useState(null);
 
   // Global search states
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -118,6 +120,15 @@ export default function App() {
 
     // Case 2: Loaded in top window (user completed payment in a separate tab or full window)
     if (isSuccess && orgIdParam) {
+      setPaymentSuccessInfo({
+        organizationId: orgIdParam,
+        amount: Number(sumParam) || 0,
+        confirmationCode,
+        transactionId: `TRZ-${confirmationCode}`
+      });
+      setCurrentView('thank_you');
+      setIsOrgSuspended(false);
+
       const processTopRedirect = async () => {
         try {
           await recordPaymentAndReactivateOrg({
@@ -129,12 +140,15 @@ export default function App() {
           });
         } catch (err) {
           console.error('Failed to reactivate org from redirect:', err);
-        } finally {
-          const cleanUrl = window.location.origin + window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
         }
       };
       processTopRedirect();
+      return;
+    }
+
+    if (params.get('view') === 'thank_you') {
+      setCurrentView('thank_you');
+      setIsOrgSuspended(false);
     }
   }, []);
 
@@ -784,6 +798,42 @@ export default function App() {
     );
   }
 
+  if (currentView === 'thank_you') {
+    return (
+      <Suspense fallback={
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          fontFamily: 'Rubik, sans-serif',
+          color: 'var(--text-muted)'
+        }}>
+          טוען תוכן...
+        </div>
+      }>
+        <ThankYouPage
+          organizationName={paymentSuccessInfo?.organizationName || effectiveOrganizationName}
+          organizationId={paymentSuccessInfo?.organizationId || effectiveOrganizationId}
+          amount={paymentSuccessInfo?.amount || 0}
+          confirmationCode={paymentSuccessInfo?.confirmationCode || ''}
+          transactionId={paymentSuccessInfo?.transactionId || ''}
+          userEmail={effectiveUserEmail}
+          onEnterSystem={() => {
+            setIsOrgSuspended(false);
+            setSuspendedOrgInfo(null);
+            setPaymentSuccessInfo(null);
+            setCurrentView('dashboard');
+            if (typeof window !== 'undefined') {
+              const cleanUrl = window.location.origin + window.location.pathname;
+              window.history.replaceState({}, document.title, cleanUrl);
+            }
+          }}
+        />
+      </Suspense>
+    );
+  }
+
   if (isOrgSuspended && !effectiveIsSystemAdmin) {
     return (
       <Suspense fallback={
@@ -802,7 +852,11 @@ export default function App() {
           user={auth.currentUser}
           organization={suspendedOrgInfo || { id: effectiveOrganizationId, name: effectiveOrganizationName }}
           onLogout={handleLogout}
-          onReactivated={() => {
+          onReactivated={(paymentRecord) => {
+            if (paymentRecord) {
+              setPaymentSuccessInfo(paymentRecord);
+              setCurrentView('thank_you');
+            }
             setIsOrgSuspended(false);
             setSuspendedOrgInfo(null);
           }}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { exportPersonalBackupExcel, exportPersonalBackupJson } from '../utils/personalBackupHelper';
 import PaymentModal from '../components/PaymentModal';
+import ThankYouPage from './ThankYouPage';
 import { getPaymentConfig, TRANZILA_DEFAULT_CONFIG } from '../utils/paymentConfig';
 
 /**
@@ -17,6 +18,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
   const [reopenPrice, setReopenPrice] = useState(TRANZILA_DEFAULT_CONFIG.defaultReopenPrice);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentSuccessNotice, setPaymentSuccessNotice] = useState(false);
+  const [paymentCompletedData, setPaymentCompletedData] = useState(null);
 
   const organizationName = organization?.name || organization?.id || 'ארגון ללא שם';
   const userEmail = user?.email || user?.uid || '';
@@ -119,6 +121,24 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
       setDownloadingFormat(null);
     }
   };
+
+  if (paymentCompletedData) {
+    return (
+      <ThankYouPage
+        organizationName={paymentCompletedData.organizationName || organizationName}
+        organizationId={paymentCompletedData.organizationId || organization?.id}
+        amount={paymentCompletedData.amount || reopenPrice}
+        confirmationCode={paymentCompletedData.confirmationCode || ''}
+        transactionId={paymentCompletedData.transactionId || ''}
+        userEmail={userEmail}
+        onEnterSystem={() => {
+          if (onReactivated) {
+            onReactivated(paymentCompletedData);
+          }
+        }}
+      />
+    );
+  }
 
   return (
     <div style={{
@@ -573,12 +593,13 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
         onClose={() => setIsPaymentModalOpen(false)}
         organization={organization}
         user={user}
-        amount={reopenPrice}
-        onPaymentSuccess={() => {
-          setPaymentSuccessNotice(true);
-          if (onReactivated) {
-            onReactivated();
-          }
+        onPaymentSuccess={(paymentRecord) => {
+          setIsPaymentModalOpen(false);
+          setPaymentCompletedData(paymentRecord || {
+            organizationName,
+            organizationId: organization?.id,
+            amount: reopenPrice
+          });
         }}
       />
     </div>

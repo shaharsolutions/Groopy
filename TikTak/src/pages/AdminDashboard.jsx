@@ -49,6 +49,56 @@ const isDateInCurrentWeek = (dateValue) => {
   return date >= weekStart && date < nextWeekStart;
 };
 
+const formatCompletedDate = (isoString) => {
+  if (!isoString) return 'השבוע';
+  try {
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return 'השבוע';
+
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    const formattedDate = date.toLocaleDateString('he-IL', {
+      day: '2-digit',
+      month: '2-digit'
+    });
+
+    if (isToday) {
+      return `היום (${formattedDate})`;
+    }
+    if (isYesterday) {
+      return `אתמול (${formattedDate})`;
+    }
+
+    const dayName = date.toLocaleDateString('he-IL', { weekday: 'short' });
+    return `${dayName} (${formattedDate})`;
+  } catch {
+    return 'השבוע';
+  }
+};
+
+const formatFullDateTime = (isoString) => {
+  if (!isoString) return '';
+  try {
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('he-IL', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return isoString;
+  }
+};
+
+
 const normalizeProjectSubtasks = (task) => {
   if (!Array.isArray(task?.subtasks)) return [];
   return task.subtasks
@@ -873,32 +923,38 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           boardName,
           boardIcon
         }));
-      })
-      .sort((a, b) => {
-        if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        return (Date.parse(b.createdAt) || Date.parse(b.projectUpdatedAt) || 0) - (Date.parse(a.createdAt) || Date.parse(a.projectUpdatedAt) || 0);
       });
   }, [candidateSubtaskTasks, boardsMap, defaultBoardName, defaultBoardIcon]);
 
+  const openProjectSubtasks = useMemo(() => (
+    allProjectSubtasks
+      .filter(item => !item.completed)
+      .sort((a, b) => (Date.parse(b.createdAt) || Date.parse(b.projectUpdatedAt) || 0) - (Date.parse(a.createdAt) || Date.parse(a.projectUpdatedAt) || 0))
+  ), [allProjectSubtasks]);
+
   const completedThisWeekProjectSubtasks = useMemo(() => (
-    allProjectSubtasks.filter(item => item.completed && isDateInCurrentWeek(item.completedAt))
+    allProjectSubtasks
+      .filter(item => item.completed && isDateInCurrentWeek(item.completedAt))
+      .sort((a, b) => (Date.parse(b.completedAt) || Date.parse(b.updatedAt) || Date.parse(b.createdAt) || 0) - (Date.parse(a.completedAt) || Date.parse(a.updatedAt) || Date.parse(a.createdAt) || 0))
   ), [allProjectSubtasks]);
 
-  const completedThisWeekSubtaskKeys = useMemo(() => (
-    new Set(completedThisWeekProjectSubtasks.map(item => getProjectSubtaskKey(item.taskId, item.id)))
-  ), [completedThisWeekProjectSubtasks]);
+  const recentlyCompletedProjectSubtasks = useMemo(() => (
+    allProjectSubtasks
+      .filter(item => item.completed && recentlyCompletedSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id)))
+      .sort((a, b) => (Date.parse(b.completedAt) || 0) - (Date.parse(a.completedAt) || 0))
+  ), [allProjectSubtasks, recentlyCompletedSubtaskKeys]);
 
-  const visibleProjectSubtasks = useMemo(() => {
-    return allProjectSubtasks.filter(item => (
-      (showCompletedThisWeekSubtasks && completedThisWeekSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id))) ||
-      !item.completed || recentlyCompletedSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id))
-    ));
-  }, [allProjectSubtasks, completedThisWeekSubtaskKeys, recentlyCompletedSubtaskKeys, showCompletedThisWeekSubtasks]);
+  const visibleOpenProjectSubtasks = useMemo(() => {
+    if (showCompletedThisWeekSubtasks) {
+      return openProjectSubtasks;
+    }
+    const recentExtra = recentlyCompletedProjectSubtasks.filter(
+      r => !openProjectSubtasks.some(o => o.taskId === r.taskId && o.id === r.id)
+    );
+    return [...openProjectSubtasks, ...recentExtra];
+  }, [openProjectSubtasks, recentlyCompletedProjectSubtasks, showCompletedThisWeekSubtasks]);
 
-  const openProjectSubtasksCount = useMemo(() => (
-    allProjectSubtasks.filter(item => !item.completed).length
-  ), [allProjectSubtasks]);
-
+  const openProjectSubtasksCount = openProjectSubtasks.length;
   const completedThisWeekProjectSubtasksCount = completedThisWeekProjectSubtasks.length;
 
   const handleToggleProjectSubtask = async (taskId, subtaskId) => {
@@ -1537,6 +1593,88 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
     );
   };
 
+  const renderDashboardSubtaskCard = (item) => {
+    const isCompleted = Boolean(item.completed);
+    const completedDateFormatted = isCompleted
+      ? formatCompletedDate(item.completedAt || item.updatedAt || item.createdAt)
+      : null;
+    const fullDateTime = isCompleted
+      ? formatFullDateTime(item.completedAt || item.updatedAt || item.createdAt)
+      : null;
+
+    return (
+      <article
+        className={`dashboard-subtask-item ${isCompleted ? 'completed' : ''}`}
+        key={`${item.taskId}-${item.id}`}
+      >
+        <div className="dashboard-subtask-top">
+          <label className="dashboard-subtask-main">
+            <input
+              type="checkbox"
+              className="dashboard-subtask-checkbox"
+              checked={isCompleted}
+              onChange={() => handleToggleProjectSubtask(item.taskId, item.id)}
+            />
+            <span
+              className={`dashboard-subtask-text ${isCompleted ? 'completed' : ''}`}
+              title={item.text}
+            >
+              {item.text}
+            </span>
+          </label>
+        </div>
+
+        <div className="dashboard-subtask-meta">
+          {isCompleted && completedDateFormatted && (
+            <span
+              className="dashboard-subtask-completed-date"
+              title={fullDateTime ? `הושלם בתאריך: ${fullDateTime}` : `הושלם השבוע`}
+            >
+              <span className="subtask-check-icon" aria-hidden="true">✓</span>
+              <span>הושלם {completedDateFormatted}</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            className="dashboard-subtask-project"
+            onClick={() => {
+              const project = tasks.find(task => task.id === item.taskId);
+              if (project) {
+                if (project.boardId) {
+                  setWorkspaceView(project.boardId);
+                } else {
+                  setWorkspaceView('active');
+                }
+                setViewingTask(project);
+              }
+            }}
+            title={`פתיחת הפרויקט: ${item.projectTitle}`}
+          >
+            <span className="subtask-chip-icon" aria-hidden="true">📁</span>
+            <span className="subtask-chip-text">{item.projectTitle}</span>
+          </button>
+
+          {flags.isV2 && item.boardName && (
+            <button
+              type="button"
+              className="dashboard-subtask-board-badge"
+              onClick={(e) => {
+                e.stopPropagation();
+                setWorkspaceView(item.boardId);
+                setFilterSubtasksBySelectedBoard(true);
+              }}
+              title={`מעבר ללוח ${item.boardName} וסינון לפיו`}
+            >
+              <span className="subtask-chip-icon" aria-hidden="true">{item.boardIcon}</span>
+              <span className="subtask-chip-text">{item.boardName}</span>
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  };
+
   return (
     <main className="dashboard-container">
 
@@ -1898,15 +2036,23 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
       <section className="dashboard-subtasks-overview" aria-labelledby="dashboard-subtasks-title">
         <div className="dashboard-subtasks-header">
           <div>
-            <h3 id="dashboard-subtasks-title">משימות פתוחות</h3>
+            <h3 id="dashboard-subtasks-title">
+              {openProjectSubtasksCount === 0 && showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0
+                ? 'משימות שהושלמו השבוע 🎉'
+                : openProjectSubtasksCount === 0
+                  ? 'משימות בפרויקטים'
+                  : showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0
+                    ? 'משימות בפרויקטים'
+                    : 'משימות פתוחות'}
+            </h3>
             <p>
-              {visibleProjectSubtasks.length > 0
-                ? showCompletedThisWeekSubtasks
-                  ? `${openProjectSubtasksCount} פתוחות, ${completedThisWeekProjectSubtasksCount} הושלמו השבוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
-                  : `${openProjectSubtasksCount} פתוחות מתוך ${visibleProjectSubtasks.length}${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
-                : allProjectSubtasks.length > 0
+              {openProjectSubtasksCount === 0 && showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0
+                ? `כל המשימות הפתוחות הושלמו! מציג ${completedThisWeekProjectSubtasksCount} משימות שהושלמו השבוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
+                : openProjectSubtasksCount === 0
                   ? (filterSubtasksBySelectedBoard ? `אין משימות פתוחות בלוח ${currentBoardName}` : 'אין משימות פתוחות כרגע')
-                  : (filterSubtasksBySelectedBoard ? `אין משימות בלוח ${currentBoardName}` : 'אין עדיין משימות בפרויקטים')}
+                  : showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0
+                    ? `${openProjectSubtasksCount} פתוחות לביצוע, ${completedThisWeekProjectSubtasksCount} הושלמו השבוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
+                    : `${openProjectSubtasksCount} משימות פתוחות לביצוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`}
             </p>
           </div>
           <div className="dashboard-subtasks-actions">
@@ -1945,11 +2091,21 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
           </div>
         </div>
 
-        {visibleProjectSubtasks.length === 0 ? (
+        {openProjectSubtasksCount === 0 && (!showCompletedThisWeekSubtasks || completedThisWeekProjectSubtasksCount === 0) ? (
           <div className="dashboard-subtasks-empty">
             {filterSubtasksBySelectedBoard ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                 <span>אין משימות פתוחות בלוח "{currentBoardName}".</span>
+                {completedThisWeekProjectSubtasksCount > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.85rem', padding: '6px 14px' }}
+                    onClick={() => setShowCompletedThisWeekSubtasks(true)}
+                  >
+                    🎉 הצגת {completedThisWeekProjectSubtasksCount} משימות שהושלמו השבוע
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -1960,71 +2116,69 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                 </button>
               </div>
             ) : allProjectSubtasks.length > 0 ? (
-              'כל המשימות בפרויקטים סומנו כבוצעו.'
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <span>כל המשימות בפרויקטים סומנו כבוצעו! 🎉</span>
+                {completedThisWeekProjectSubtasksCount > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.85rem', padding: '6px 14px' }}
+                    onClick={() => setShowCompletedThisWeekSubtasks(true)}
+                  >
+                    צפייה ב-{completedThisWeekProjectSubtasksCount} משימות שהושלמו השבוע
+                  </button>
+                )}
+              </div>
             ) : (
               'הוסיפי משימות מתוך אזור הערות ועדכוני פרויקט, והן יופיעו כאן.'
             )}
           </div>
         ) : (
-          <div className="dashboard-subtasks-list">
-            {visibleProjectSubtasks.map(item => (
-              <article
-                className={`dashboard-subtask-item ${item.completed ? 'completed' : ''}`}
-                key={`${item.taskId}-${item.id}`}
-              >
-                <label className="dashboard-subtask-main">
-                  <input
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={() => handleToggleProjectSubtask(item.taskId, item.id)}
-                  />
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                    <span className={`dashboard-subtask-text ${item.completed ? 'completed' : ''}`} title={item.text}>
-                      {item.text}
+          <div className="dashboard-subtasks-content">
+            {/* Open tasks group (if any) */}
+            {visibleOpenProjectSubtasks.length > 0 && (
+              <div className="dashboard-subtasks-group">
+                {showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0 && (
+                  <div className="dashboard-subtasks-group-header">
+                    <span className="dashboard-subtasks-group-title">
+                      📌 משימות פתוחות לביצוע ({openProjectSubtasksCount})
                     </span>
-                    {item.completed && (
-                      <span className="dashboard-subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.updatedAt || item.createdAt)}`}>
-                        הושלם ב-{formatDate(item.completedAt || item.updatedAt || item.createdAt)}
-                      </span>
-                    )}
                   </div>
-                </label>
-                <div className="dashboard-subtask-meta">
-                  {flags.isV2 && item.boardName && (
-                    <button
-                      type="button"
-                      className="dashboard-subtask-board-badge"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setWorkspaceView(item.boardId);
-                        setFilterSubtasksBySelectedBoard(true);
-                      }}
-                      title={`מעבר ללוח ${item.boardName} וסינון לפיו`}
-                    >
-                      {item.boardIcon} {item.boardName}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="dashboard-subtask-project"
-                    onClick={() => {
-                      const project = tasks.find(task => task.id === item.taskId);
-                      if (project) {
-                        if (project.boardId) {
-                          setWorkspaceView(project.boardId);
-                        } else {
-                          setWorkspaceView('active');
-                        }
-                        setViewingTask(project);
-                      }
-                    }}
-                    title="פתיחת הפרויקט"
-                  >
-                    {item.projectTitle}
-                  </button>
+                )}
+                <div className="dashboard-subtasks-list">
+                  {visibleOpenProjectSubtasks.map(renderDashboardSubtaskCard)}
                 </div>
-              </article>
-            ))}
+              </div>
+            )}
+
+            {/* If 0 open tasks and showing completed tasks (matches user's screenshot), show celebratory banner */}
+            {openProjectSubtasksCount === 0 && showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0 && (
+              <div className="dashboard-subtasks-completed-banner">
+                <div className="completed-banner-icon">🎉</div>
+                <div className="completed-banner-content">
+                  <div className="completed-banner-title">כל המשימות הפתוחות הושלמו!</div>
+                  <div className="completed-banner-subtitle">
+                    מעולה! כל הכבוד על ההספק השבוע. להלן {completedThisWeekProjectSubtasksCount} משימות שהושלמו:
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Completed tasks this week group */}
+            {showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasks.length > 0 && (
+              <div className="dashboard-subtasks-group dashboard-subtasks-group-completed">
+                {visibleOpenProjectSubtasks.length > 0 && (
+                  <div className="dashboard-subtasks-group-header">
+                    <span className="dashboard-subtasks-group-title completed">
+                      ✅ הושלמו השבוע ({completedThisWeekProjectSubtasksCount})
+                    </span>
+                  </div>
+                )}
+                <div className="dashboard-subtasks-list">
+                  {completedThisWeekProjectSubtasks.map(renderDashboardSubtaskCard)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>

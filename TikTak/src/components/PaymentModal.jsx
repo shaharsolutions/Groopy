@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseDb';
 import {
@@ -25,10 +25,27 @@ export default function PaymentModal({
   const [isHandshakeLoading, setIsHandshakeLoading] = useState(true);
 
   const orgId = organization?.id || '';
-  const orgName = organization?.name || organization?.id || 'ארגון';
-  const userEmail = user?.email || user?.uid || '';
+  const orgName = organization?.name || 'הארגון שלך';
+  const userEmail = user?.email || '';
   const contactName = user?.displayName || userEmail;
   const paymentAmount = Number(amount) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
+
+  const refreshHandshakeToken = useCallback(async () => {
+    setIsHandshakeLoading(true);
+    setIframeLoading(true);
+    setErrorMessage('');
+    try {
+      const token = await fetchTranzilaHandshakeToken({
+        sum: paymentAmount,
+        supplier: TRANZILA_DEFAULT_CONFIG.mainTerminal
+      });
+      if (token) setHandshakeToken(token);
+    } catch (err) {
+      console.warn('Could not fetch Handshake token:', err);
+    } finally {
+      setIsHandshakeLoading(false);
+    }
+  }, [paymentAmount]);
 
   // Fetch Handshake token on open
   useEffect(() => {
@@ -38,30 +55,12 @@ export default function PaymentModal({
       setIsSuccess(false);
       setErrorMessage('');
       setCustomTxId('');
-      setIsHandshakeLoading(true);
-
-      let isMounted = true;
-      fetchTranzilaHandshakeToken({
-        sum: paymentAmount,
-        supplier: TRANZILA_DEFAULT_CONFIG.mainTerminal
-      }).then(token => {
-        if (isMounted) {
-          if (token) setHandshakeToken(token);
-          setIsHandshakeLoading(false);
-        }
-      }).catch(err => {
-        console.warn('Could not fetch Handshake token:', err);
-        if (isMounted) setIsHandshakeLoading(false);
-      });
-
-      return () => {
-        isMounted = false;
-      };
+      refreshHandshakeToken();
     } else {
       setHandshakeToken('');
       setIsHandshakeLoading(true);
     }
-  }, [isOpen, paymentAmount]);
+  }, [isOpen, refreshHandshakeToken]);
 
   // Build the payment URL with handshake token
   const paymentUrl = useMemo(() => {
@@ -112,6 +111,10 @@ export default function PaymentModal({
 
     const handleMessage = async (event) => {
       const data = event?.data;
+      if (data?.type === 'TRANZILA_RETRY') {
+        refreshHandshakeToken();
+        return;
+      }
       // Strictly require TRANZILA_SUCCESS with Response === '000' and a non-empty ConfirmationCode
       if (
         data &&
@@ -125,7 +128,7 @@ export default function PaymentModal({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOpen, orgId, orgName, userEmail, paymentAmount]);
+  }, [isOpen, refreshHandshakeToken, orgId, orgName, userEmail, paymentAmount]);
 
   const handleCompleteReactivation = async (confirmationCode = '') => {
     if (isProcessing) return;

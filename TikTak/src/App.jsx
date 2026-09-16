@@ -5,6 +5,7 @@ import Header from './components/Header';
 import { DEFAULT_NEW_TASK_FIELDS } from './data/taskFieldConfig';
 import { getFeatureFlags, DEFAULT_APP_VERSION, APP_VERSIONS } from './utils/featureFlags';
 import { isSystemAdminEmail } from './utils/storage';
+import { getShvaErrorMessage, recordPaymentAndReactivateOrg } from './utils/paymentConfig';
 
 // Lazy loading pages for better initial load performance
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -85,7 +86,7 @@ export default function App() {
           window.parent.postMessage({
             type: 'TRANZILA_FAIL',
             Response: responseCode,
-            message: 'העסקה לא אושרה על ידי חברת האשראי'
+            message: getShvaErrorMessage(responseCode)
           }, window.location.origin);
         } catch (postErr) {
           console.error('Failed to postMessage failure to parent window:', postErr);
@@ -98,7 +99,6 @@ export default function App() {
     if (responseCode === '000' && confirmationCode && orgIdParam) {
       const processTopRedirect = async () => {
         try {
-          const { recordPaymentAndReactivateOrg } = await import('./utils/paymentConfig');
           await recordPaymentAndReactivateOrg({
             organizationId: orgIdParam,
             amount: Number(sumParam) || 0,
@@ -637,7 +637,12 @@ export default function App() {
   const isPaymentCallback = Boolean(searchParams?.has('payment_status') || searchParams?.has('Response'));
 
   if (isInsideIframe && isPaymentCallback) {
-    const isApproved = searchParams?.get('Response') === '000';
+    const rawResponse = searchParams?.get('Response') || searchParams?.get('response') || '';
+    const isApproved = rawResponse === '000';
+    const detailMessage = isApproved
+      ? 'מעדכן את סטטוס הארגון ומשחרר את החסימה...'
+      : getShvaErrorMessage(rawResponse);
+
     return (
       <div style={{
         display: 'flex',
@@ -668,9 +673,39 @@ export default function App() {
         <h3 style={{ margin: 0, fontSize: '1.25rem', color: isApproved ? '#14532d' : '#991b1b', fontWeight: '800' }}>
           {isApproved ? 'התשלום אושר בהצלחה!' : 'העסקה לא אושרה על ידי חברת האשראי'}
         </h3>
-        <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '6px' }}>
-          {isApproved ? 'מעדכן את סטטוס הארגון ומשחרר את החסימה...' : 'אנא נסו שנית או השתמשו בכרטיס אחר.'}
+        <p style={{ color: '#64748b', fontSize: '0.92rem', marginTop: '10px', maxWidth: '400px', lineHeight: '1.5' }}>
+          {detailMessage}
         </p>
+        {!isApproved && (
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                window.parent.postMessage({ type: 'TRANZILA_RETRY' }, '*');
+              } catch (e) {
+                console.error('Error sending TRANZILA_RETRY:', e);
+              }
+            }}
+            style={{
+              marginTop: '18px',
+              padding: '10px 22px',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '0.95rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontFamily: 'Rubik, sans-serif',
+              boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)'
+            }}
+          >
+            <span>🔄</span> נסו שוב עם כרטיס אחר
+          </button>
+        )}
       </div>
     );
   }

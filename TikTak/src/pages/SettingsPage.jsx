@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebaseDb';
+import { cancelSubscriptionAndRecurringOrder, TRANZILA_DEFAULT_CONFIG } from '../utils/paymentConfig';
+import PaymentModal from '../components/PaymentModal';
 import {
   FIELD_TYPES,
   NEW_TASK_FIELD_STYLES,
@@ -85,6 +89,70 @@ export default function SettingsPage({
 
   // Modal state for deleting a field
   const [fieldToDelete, setFieldToDelete] = useState(null);
+
+  // Real-time organization data for subscription & standing order management
+  const [orgData, setOrgData] = useState(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isRenewPaymentModalOpen, setIsRenewPaymentModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    const orgDocRef = doc(db, 'organizations', organizationId);
+    const unsubscribe = onSnapshot(orgDocRef, (snap) => {
+      if (snap.exists()) {
+        setOrgData({ id: organizationId, ...snap.data() });
+      }
+    }, (err) => {
+      console.warn('SettingsPage org listener warning:', err);
+    });
+    return () => unsubscribe();
+  }, [organizationId]);
+
+  const subscription = orgData?.subscription;
+  const isSubCancelled = subscription?.status === 'cancelled';
+  const isSubActive = !isSubCancelled && (subscription?.status === 'active' || (orgData?.active === true && subscription));
+  const monthlyPrice = Number(subscription?.amount || orgData?.reopenPrice) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
+  const effectiveOrgName = orgData?.name || organizationName || organizationId;
+  const confirmationCode = subscription?.confirmationCode || orgData?.lastPayment?.confirmationCode || '';
+
+  const formattedNextBilling = subscription?.nextBillingDate
+    ? new Intl.DateTimeFormat('he-IL', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(subscription.nextBillingDate))
+    : null;
+
+  const formattedLastPayment = subscription?.lastPaymentDate
+    ? new Intl.DateTimeFormat('he-IL', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(subscription.lastPaymentDate))
+    : null;
+
+  const formattedCancelledAt = subscription?.cancelledAt
+    ? new Intl.DateTimeFormat('he-IL', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(subscription.cancelledAt))
+    : null;
+
+  const accessUntilFormatted = subscription?.accessUntil
+    ? new Intl.DateTimeFormat('he-IL', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(subscription.accessUntil))
+    : formattedNextBilling;
+
+  const handleConfirmCancelSubscription = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    try {
+      await cancelSubscriptionAndRecurringOrder({
+        organizationId,
+        userEmail,
+        userId,
+        reason: cancelReason.trim()
+      });
+      setIsCancelModalOpen(false);
+      setCancelReason('');
+      showMsg('המנוי והוראת הקבע בוטלו בהצלחה. לא יבוצעו חיובים נוספים.', 'success');
+    } catch (err) {
+      console.error('Failed to cancel subscription:', err);
+      showMsg(`שגיאה בביטול המנוי: ${err.message || 'אנא נסו שנית או פנו לתמיכה'}`, 'danger');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const showMsg = (text, type = 'success') => {
     setMessage({ text, type });
@@ -763,6 +831,265 @@ export default function SettingsPage({
 
       {/* Settings Sections */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+        {/* Section: Subscription & Standing Order Management */}
+        <div
+          className="filter-panel"
+          style={{
+            border: isSubActive ? '1px solid #bbf7d0' : isSubCancelled ? '1px solid #fed7aa' : '1px solid #e2e8f0',
+            background: isSubActive
+              ? 'linear-gradient(145deg, #f0fdf4 0%, #ffffff 100%)'
+              : isSubCancelled
+                ? 'linear-gradient(145deg, #fffbeb 0%, #ffffff 100%)'
+                : '#ffffff',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 4px 15px -3px rgba(0, 0, 0, 0.05)'
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.6rem' }}>💳</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: '#0f172a' }}>
+                  ניהול מנוי והוראת קבע
+                </h3>
+                <span style={{ fontSize: '0.84rem', color: '#64748b' }}>
+                  מנוי חודשי עבור ארגון: <strong style={{ color: '#1e293b' }}>{effectiveOrgName}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Status Badge */}
+            {isSubActive ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                  backgroundColor: '#dcfce7',
+                  color: '#15803d',
+                  fontSize: '0.88rem',
+                  fontWeight: '800',
+                  border: '1px solid #86efac'
+                }}
+              >
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16a34a' }} />
+                מנוי פעיל 🟢
+              </span>
+            ) : isSubCancelled ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                  backgroundColor: '#ffedd5',
+                  color: '#c2410c',
+                  fontSize: '0.88rem',
+                  fontWeight: '800',
+                  border: '1px solid #fdba74'
+                }}
+              >
+                <span>⏸️</span>
+                מנוי מבוטל (הוראת הקבע הופסקה)
+              </span>
+            ) : (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  fontSize: '0.88rem',
+                  fontWeight: '700'
+                }}
+              >
+                לא פעיל
+              </span>
+            )}
+          </div>
+
+          {/* Details & Actions based on status */}
+          {isSubActive ? (
+            <div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: '#334155', lineHeight: '1.5' }}>
+                הוראת קבע חודשית מאובטחת פעילה במערכת Tranzila. החיוב החודשי מתבצע אוטומטית ומאפשר גישה רציפה לכל יכולות TikTak ולוחות העבודה של הארגון.
+              </p>
+
+              {/* Data Grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '12px',
+                  backgroundColor: '#ffffff',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: '20px'
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block' }}>עלות מנוי חודשי:</span>
+                  <strong style={{ fontSize: '1.15rem', color: '#15803d' }}>₪{monthlyPrice} / חודש</strong>
+                </div>
+
+                {formattedNextBilling && (
+                  <div>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block' }}>מועד חיוב הבא:</span>
+                    <strong style={{ fontSize: '1rem', color: '#0f172a' }}>{formattedNextBilling}</strong>
+                  </div>
+                )}
+
+                {formattedLastPayment && (
+                  <div>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block' }}>תשלום אחרון שבוצע:</span>
+                    <strong style={{ fontSize: '0.92rem', color: '#334155' }}>{formattedLastPayment}</strong>
+                  </div>
+                )}
+
+                {confirmationCode && (
+                  <div>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block' }}>מספר אישור עסקה:</span>
+                    <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#475569', fontSize: '0.9rem' }}>
+                      {confirmationCode}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                  🔒 ביטול המנוי יבטל מיידית את הוראת הקבע בחברת הסליקה Tranzila
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCancelModalOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 18px',
+                    backgroundColor: '#fff1f2',
+                    color: '#be123c',
+                    border: '1px solid #fecdd3',
+                    borderRadius: '10px',
+                    fontWeight: '700',
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#ffe4e6';
+                    e.currentTarget.style.borderColor = '#fda4af';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#fff1f2';
+                    e.currentTarget.style.borderColor = '#fecdd3';
+                  }}
+                >
+                  <span>❌</span>
+                  <span>ביטול מנוי והוראת קבע</span>
+                </button>
+              </div>
+            </div>
+          ) : isSubCancelled ? (
+            <div>
+              <div
+                style={{
+                  padding: '14px 18px',
+                  borderRadius: '12px',
+                  backgroundColor: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  marginBottom: '16px',
+                  fontSize: '0.88rem',
+                  color: '#92400e',
+                  lineHeight: '1.5'
+                }}
+              >
+                <div style={{ fontWeight: '700', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>ℹ️</span>
+                  <span>הוראת הקבע בוטלה — לא יבוצעו חיובים נוספים בכרטיס האשראי</span>
+                </div>
+                <div>
+                  {accessUntilFormatted ? (
+                    <span>
+                      הגישה למערכת תישאר פעילה עד תום התקופה שכבר שולמה ({accessUntilFormatted}). לאחר מכן המערכת תיחסם עד לחידוש המנוי.
+                    </span>
+                  ) : (
+                    <span>הוראת הקבע הופסקה.</span>
+                  )}
+                  {formattedCancelledAt && (
+                    <span style={{ display: 'block', marginTop: '6px', fontSize: '0.8rem', color: '#b45309' }}>
+                      בוטל בתאריך: {formattedCancelledAt} {subscription?.cancelledBy ? `על ידי ${subscription.cancelledBy}` : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsRenewPaymentModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontWeight: '700',
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <span>🔄</span>
+                <span>חידוש מנוי חודשי</span>
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p style={{ margin: '0 0 14px 0', fontSize: '0.88rem', color: '#64748b' }}>
+                לא נמצא מנוי חודשי פעיל עבור ארגון זה.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsRenewPaymentModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 18px',
+                  backgroundColor: '#16a34a',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontWeight: '700',
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <span>💳</span>
+                <span>הפעלת מנוי חודשי (₪{monthlyPrice}/חודש)</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Section 0: Organization App Version / Feature Flags */}
         <div className="filter-panel" style={{ border: flags.isV2 ? '1px solid #bfdbfe' : '1px solid #fde68a', background: flags.isV2 ? '#f8faff' : '#fffbeb' }}>
@@ -2204,6 +2531,201 @@ export default function SettingsPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Cancellation Confirmation Modal */}
+      {isCancelModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            direction: 'rtl',
+            fontFamily: 'Rubik, sans-serif'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isCancelling) {
+              setIsCancelModalOpen(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              maxWidth: '520px',
+              width: '100%',
+              padding: '28px 24px',
+              textAlign: 'right',
+              boxSizing: 'border-box',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#fee2e2',
+                  color: '#dc2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.4rem',
+                  flexShrink: 0
+                }}
+              >
+                ⚠️
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>
+                  ביטול מנוי והוראת קבע
+                </h3>
+                <span style={{ fontSize: '0.84rem', color: '#64748b' }}>
+                  עבור ארגון: <strong style={{ color: '#1e293b' }}>{effectiveOrgName}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Warning Details */}
+            <div
+              style={{
+                backgroundColor: '#fff1f2',
+                border: '1px solid #fecdd3',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                marginBottom: '18px',
+                color: '#9f1239',
+                fontSize: '0.88rem',
+                lineHeight: '1.5'
+              }}
+            >
+              <div style={{ fontWeight: '700', marginBottom: '6px' }}>
+                שימו לב למשמעות הביטול:
+              </div>
+              <ul style={{ margin: 0, paddingRight: '18px' }}>
+                <li>הוראת הקבע החודשית ב־Tranzila <strong>תבוטל מיידית</strong> ולא יבוצעו חיובים נוספים בכרטיס האשראי.</li>
+                <li>
+                  הגישה ללוחות העבודה של TikTak תישאר פתוחה עד תום התקופה שכבר שולמה ({accessUntilFormatted || 'סוף החודש'}).
+                </li>
+                <li>בתום התקופה, הגישה תיחסם עד להפעלת מנוי מחדש.</li>
+              </ul>
+            </div>
+
+            {/* Optional Reason Input */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>
+                סיבת הביטול (אופציונלי):
+              </label>
+              <input
+                type="text"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="למשל: סיום פרויקט, הפסקה זמנית וכו'"
+                disabled={isCancelling}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '0.9rem',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            {/* Modal Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setIsCancelModalOpen(false)}
+                disabled={isCancelling}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#f8fafc',
+                  color: '#475569',
+                  fontWeight: '600',
+                  fontSize: '0.9rem',
+                  cursor: isCancelling ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit'
+                }}
+              >
+                חזרה להגדרות (אל תבטל)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmCancelSubscription}
+                disabled={isCancelling}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '0.92rem',
+                  cursor: isCancelling ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)',
+                  fontFamily: 'inherit'
+                }}
+              >
+                {isCancelling ? (
+                  <>
+                    <span
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid #ffffff',
+                        borderTopColor: 'transparent',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite'
+                      }}
+                    />
+                    <span>מבטל הוראת קבע בטרנזילה...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🗑️</span>
+                    <span>כן, בטל את המנוי והוראת הקבע</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Renew / Reactivate Payment Modal */}
+      {isRenewPaymentModalOpen && (
+        <PaymentModal
+          isOpen={isRenewPaymentModalOpen}
+          onClose={() => setIsRenewPaymentModalOpen(false)}
+          organization={orgData || { id: organizationId, name: effectiveOrgName, reopenPrice: monthlyPrice }}
+          user={{ uid: userId, email: userEmail }}
+          amount={monthlyPrice}
+          onPaymentSuccess={() => {
+            setIsRenewPaymentModalOpen(false);
+            showMsg('המנוי חודש בהצלחה!', 'success');
+          }}
+        />
       )}
 
     </main>

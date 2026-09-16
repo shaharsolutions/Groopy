@@ -295,7 +295,11 @@ export default function App() {
             console.error("Failed to register login profile or check organization", regError);
           }
 
-          if (!isSysAdmin && userOrg && userOrg.active === false) {
+          const isCancelledAndExpired = userOrg?.subscription?.status === 'cancelled' &&
+            userOrg?.subscription?.accessUntil &&
+            new Date(userOrg.subscription.accessUntil).getTime() < Date.now();
+
+          if (!isSysAdmin && userOrg && (userOrg.active === false || isCancelledAndExpired)) {
             let contactMethod = userOrg.suspendedContactMethod;
             if (!contactMethod || contactMethod === 'default') {
               try {
@@ -422,7 +426,10 @@ export default function App() {
           if (cancelled) return;
           if (snap.exists()) {
             const orgData = snap.data();
-            const isActive = orgData.active !== false;
+            const isCancelledAndExpired = orgData.subscription?.status === 'cancelled' &&
+              orgData.subscription?.accessUntil &&
+              new Date(orgData.subscription.accessUntil).getTime() < Date.now();
+            const isActive = orgData.active !== false && !isCancelledAndExpired;
             if (!isActive) {
               let contactMethod = orgData.suspendedContactMethod;
               if (!contactMethod || contactMethod === 'default') {

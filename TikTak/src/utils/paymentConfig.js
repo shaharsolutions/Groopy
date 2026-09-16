@@ -421,3 +421,38 @@ export const getShvaErrorMessage = (responseCode) => {
   }
   return `העסקה נדחתה על ידי חברת האשראי (קוד תגובה: ${code}). אנא נסו שנית או השתמשו בכרטיס אחר.`;
 };
+
+/**
+ * Cancel recurring subscription and standing order in Tranzila and Firestore.
+ * Implements Option 1: Deactivates recurring standing order in Tranzila immediately,
+ * marks subscription as cancelled, and preserves access until period end.
+ */
+export const cancelSubscriptionAndRecurringOrder = async ({
+  organizationId,
+  userEmail = '',
+  userId = '',
+  reason = ''
+}) => {
+  if (!organizationId) {
+    throw new Error('חסר מזהה ארגון לביטול מנוי');
+  }
+
+  const endpoint = 'https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tiktak-cancel-subscription';
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      organizationId,
+      userEmail,
+      userId,
+      reason
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || errorData.message || 'שגיאה בביטול המנוי מול שרת הסליקה');
+  }
+
+  return await response.json();
+};

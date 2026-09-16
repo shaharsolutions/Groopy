@@ -852,13 +852,10 @@ export default function App() {
           user={auth.currentUser}
           organization={suspendedOrgInfo || { id: effectiveOrganizationId, name: effectiveOrganizationName }}
           onLogout={handleLogout}
-          onReactivated={(paymentRecord) => {
-            if (paymentRecord) {
-              setPaymentSuccessInfo(paymentRecord);
-              setCurrentView('thank_you');
-            }
+          onReactivated={() => {
             setIsOrgSuspended(false);
             setSuspendedOrgInfo(null);
+            setCurrentView('dashboard');
           }}
         />
       </Suspense>

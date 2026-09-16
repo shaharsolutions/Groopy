@@ -593,13 +593,12 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
         onClose={() => setIsPaymentModalOpen(false)}
         organization={organization}
         user={user}
+        amount={reopenPrice}
         onPaymentSuccess={(paymentRecord) => {
           setIsPaymentModalOpen(false);
-          setPaymentCompletedData(paymentRecord || {
-            organizationName,
-            organizationId: organization?.id,
-            amount: reopenPrice
-          });
+          if (onReactivated) {
+            onReactivated(paymentRecord);
+          }
         }}
       />
     </div>

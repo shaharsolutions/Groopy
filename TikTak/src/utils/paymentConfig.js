@@ -106,6 +106,22 @@ export const calculateNextBillingDate = () => {
   return `${nextMonth.getFullYear()}-${pad(nextMonth.getMonth() + 1)}-${pad(nextMonth.getDate())}`;
 };
 
+export const fetchTranzilaHandshakeToken = async ({ sum, supplier = TRANZILA_DEFAULT_CONFIG.mainTerminal }) => {
+  try {
+    const url = `https://smzgfffeehrozxsqtgqa.supabase.co/functions/v1/tiktak-handshake?sum=${encodeURIComponent(sum)}&supplier=${encodeURIComponent(supplier)}`;
+    const response = await fetch(url, { method: 'GET' });
+    if (response.ok) {
+      const data = await response.json();
+      if (data?.thtk) {
+        return data.thtk;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to obtain Tranzila Handshake token:', err);
+  }
+  return null;
+};
+
 /**
  * Generate a secure Tranzila Payment URL for direct iframe or redirect.
  * Supports recurring monthly subscription (הוראת קבע) using the token terminal.
@@ -120,7 +136,8 @@ export const buildTranzilaPaymentUrl = ({
   description = TRANZILA_DEFAULT_CONFIG.defaultDescription,
   successUrl = '',
   failUrl = '',
-  isRecurring = true
+  isRecurring = true,
+  thtk = ''
 }) => {
   const cleanSum = Number(sum) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
   // Initial payment is processed on the main terminal (shaher1)
@@ -135,6 +152,11 @@ export const buildTranzilaPaymentUrl = ({
   params.set('lang', 'il'); // Hebrew RTL
   params.set('cred_type', '1'); // Regular one-time charge for initial payment
   params.set('tranmode', 'A'); // Automatic settlement/charge
+
+  if (thtk) {
+    params.set('new_process', '1');
+    params.set('thtk', thtk);
+  }
 
   if (isRecurring) {
     // Tranzila recurring payment parameters (הוראת קבע חודשית)

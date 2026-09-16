@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseDb';
-import { buildTranzilaPaymentUrl, recordPaymentAndReactivateOrg, TRANZILA_DEFAULT_CONFIG } from '../utils/paymentConfig';
+import {
+  buildTranzilaPaymentUrl,
+  fetchTranzilaHandshakeToken,
+  recordPaymentAndReactivateOrg,
+  TRANZILA_DEFAULT_CONFIG
+} from '../utils/paymentConfig';
 
 export default function PaymentModal({
   isOpen,
@@ -16,6 +21,8 @@ export default function PaymentModal({
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [customTxId, setCustomTxId] = useState('');
+  const [handshakeToken, setHandshakeToken] = useState('');
+  const [isHandshakeLoading, setIsHandshakeLoading] = useState(true);
 
   const orgId = organization?.id || '';
   const orgName = organization?.name || organization?.id || 'ארגון';
@@ -23,9 +30,42 @@ export default function PaymentModal({
   const contactName = user?.displayName || userEmail;
   const paymentAmount = Number(amount) || TRANZILA_DEFAULT_CONFIG.defaultReopenPrice;
 
-  // Build the payment URL
+  // Fetch Handshake token on open
+  useEffect(() => {
+    if (isOpen) {
+      setIframeLoading(true);
+      setIsProcessing(false);
+      setIsSuccess(false);
+      setErrorMessage('');
+      setCustomTxId('');
+      setIsHandshakeLoading(true);
+
+      let isMounted = true;
+      fetchTranzilaHandshakeToken({
+        sum: paymentAmount,
+        supplier: TRANZILA_DEFAULT_CONFIG.mainTerminal
+      }).then(token => {
+        if (isMounted) {
+          if (token) setHandshakeToken(token);
+          setIsHandshakeLoading(false);
+        }
+      }).catch(err => {
+        console.warn('Could not fetch Handshake token:', err);
+        if (isMounted) setIsHandshakeLoading(false);
+      });
+
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setHandshakeToken('');
+      setIsHandshakeLoading(true);
+    }
+  }, [isOpen, paymentAmount]);
+
+  // Build the payment URL with handshake token
   const paymentUrl = useMemo(() => {
-    if (!isOpen) return '';
+    if (!isOpen || isHandshakeLoading) return '';
     const successReturnUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/?payment_status=success&orgId=${encodeURIComponent(orgId)}`
       : '';
@@ -40,20 +80,10 @@ export default function PaymentModal({
       userEmail,
       contactName,
       successUrl: successReturnUrl,
-      failUrl: failReturnUrl
+      failUrl: failReturnUrl,
+      thtk: handshakeToken
     });
-  }, [isOpen, paymentAmount, orgId, orgName, userEmail, contactName]);
-
-  // Reset state when opening modal
-  useEffect(() => {
-    if (isOpen) {
-      setIframeLoading(true);
-      setIsProcessing(false);
-      setIsSuccess(false);
-      setErrorMessage('');
-      setCustomTxId('');
-    }
-  }, [isOpen]);
+  }, [isOpen, isHandshakeLoading, handshakeToken, paymentAmount, orgId, orgName, userEmail, contactName]);
 
   // Real-time Firestore listener: when the organization is reactivated upon verified payment
   useEffect(() => {
@@ -416,7 +446,7 @@ export default function PaymentModal({
                   backgroundColor: '#ffffff'
                 }}
               >
-                {iframeLoading && (
+                {(iframeLoading || isHandshakeLoading) && (
                   <div
                     style={{
                       position: 'absolute',
@@ -446,18 +476,20 @@ export default function PaymentModal({
                   </div>
                 )}
 
-                <iframe
-                  src={paymentUrl}
-                  title="Tranzila Payment"
-                  allow="payment"
-                  onLoad={() => setIframeLoading(false)}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    display: 'block'
-                  }}
-                />
+                {paymentUrl && (
+                  <iframe
+                    src={paymentUrl}
+                    title="Tranzila Payment"
+                    allow="payment"
+                    onLoad={() => setIframeLoading(false)}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                      display: 'block'
+                    }}
+                  />
+                )}
               </div>
 
               {/* Secure status footer - no manual bypass */}

@@ -357,7 +357,7 @@ export const recordPaymentAndReactivateOrg = async ({
 /**
  * Fetch recent payments for admin dashboard
  */
-export const getPaymentRecords = async (maxRecords = 50) => {
+export const getPaymentRecords = async (maxRecords = 200) => {
   try {
     const q = query(
       collection(db, PAYMENTS_COLLECTION),

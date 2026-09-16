@@ -125,6 +125,23 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingPaymentRecords, setLoadingPaymentRecords] = useState(true);
   const [clearingPayments, setClearingPayments] = useState(false);
+  const [showClearPaymentsModal, setShowClearPaymentsModal] = useState(false);
+  const [clearPaymentsError, setClearPaymentsError] = useState('');
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const PAYMENTS_PER_PAGE = 10;
+
+  const totalPaymentPages = Math.max(1, Math.ceil(paymentRecords.length / PAYMENTS_PER_PAGE));
+  const paginatedPaymentRecords = useMemo(() => {
+    const startIndex = (paymentsPage - 1) * PAYMENTS_PER_PAGE;
+    return paymentRecords.slice(startIndex, startIndex + PAYMENTS_PER_PAGE);
+  }, [paymentRecords, paymentsPage]);
+
+  useEffect(() => {
+    if (paymentsPage > totalPaymentPages) {
+      setPaymentsPage(Math.max(1, totalPaymentPages));
+    }
+  }, [paymentRecords.length, totalPaymentPages, paymentsPage]);
+
   const [testPaymentOrg, setTestPaymentOrg] = useState(null);
   const [copiedPaymentOrgId, setCopiedPaymentOrgId] = useState('');
   const [editingPriceOrgId, setEditingPriceOrgId] = useState('');
@@ -135,7 +152,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
       setLoadingPaymentRecords(true);
       const [config, records] = await Promise.all([
         getPaymentConfig(),
-        getPaymentRecords(50)
+        getPaymentRecords(200)
       ]);
       if (config) {
         setPaymentConfig(config);
@@ -151,22 +168,49 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     }
   };
 
-  const handleClearPayments = async () => {
+  const handleOpenClearPaymentsModal = () => {
     if (paymentRecords.length === 0) return;
-    const confirmReset = window.confirm('האם אתה בטוח שברצונך לאפס ולמחוק את כל הרשומות מיומן התשלומים?');
-    if (!confirmReset) return;
+    setClearPaymentsError('');
+    setShowClearPaymentsModal(true);
+  };
+
+  const handleCloseClearPaymentsModal = () => {
+    if (clearingPayments) return;
+    setShowClearPaymentsModal(false);
+    setClearPaymentsError('');
+  };
+
+  const handleConfirmClearPayments = async () => {
+    if (paymentRecords.length === 0) {
+      setShowClearPaymentsModal(false);
+      return;
+    }
 
     try {
       setClearingPayments(true);
+      setClearPaymentsError('');
       await clearAllPaymentRecords();
       setPaymentRecords([]);
+      setPaymentsPage(1);
+      setShowClearPaymentsModal(false);
     } catch (err) {
       console.error('Failed to clear payments:', err);
-      alert('שגיאה באיפוס יומן התשלומים: ' + (err.message || 'אנא נסה שוב'));
+      setClearPaymentsError('שגיאה באיפוס יומן התשלומים: ' + (err.message || 'אנא נסה שוב'));
     } finally {
       setClearingPayments(false);
     }
   };
+
+  useEffect(() => {
+    if (!showClearPaymentsModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !clearingPayments) {
+        setShowClearPaymentsModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showClearPaymentsModal, clearingPayments]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -174,7 +218,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
       try {
         const [config, records] = await Promise.all([
           getPaymentConfig(),
-          getPaymentRecords(50)
+          getPaymentRecords(200)
         ]);
         if (!isCancelled) {
           if (config) {
@@ -1589,13 +1633,18 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
               <span style={{ fontSize: '1.1rem' }}>🧾</span>
               <strong style={{ color: '#1e293b', fontSize: '0.94rem' }}>
                 יומן תשלומי פתיחת גישה ({paymentRecords.length})
+                {totalPaymentPages > 1 && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: '500', color: '#64748b', marginRight: '6px' }}>
+                    • עמוד {paymentsPage} מתוך {totalPaymentPages}
+                  </span>
+                )}
               </strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {paymentRecords.length > 0 && (
                 <button
                   type="button"
-                  onClick={handleClearPayments}
+                  onClick={handleOpenClearPaymentsModal}
                   disabled={clearingPayments}
                   style={{
                     display: 'inline-flex',
@@ -1618,7 +1667,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   <span>{clearingPayments ? 'מאפס...' : 'איפוס יומן'}</span>
                 </button>
               )}
-              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>עסקאות אחרונות</span>
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>10 בעמוד</span>
             </div>
           </div>
 
@@ -1631,56 +1680,194 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
               טרם בוצעו תשלומים לפתיחת ארגונים במערכת.
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'right' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '10px 14px' }}>תאריך ושעה</th>
-                    <th style={{ padding: '10px 14px' }}>שם ארגון</th>
-                    <th style={{ padding: '10px 14px' }}>משתמש משלם</th>
-                    <th style={{ padding: '10px 14px' }}>סכום</th>
-                    <th style={{ padding: '10px 14px' }}>מזהה עסקה</th>
-                    <th style={{ padding: '10px 14px' }}>סטטוס</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentRecords.map((item) => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '10px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
-                        {item.createdAt ? new Date(item.createdAt).toLocaleString('he-IL') : '-'}
-                      </td>
-                      <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0f172a' }}>
-                        {item.organizationName || item.organizationId}
-                      </td>
-                      <td style={{ padding: '10px 14px', color: '#475569', direction: 'ltr', textAlign: 'right' }}>
-                        {item.userEmail || '-'}
-                      </td>
-                      <td style={{ padding: '10px 14px', fontWeight: '800', color: '#15803d' }}>
-                        ₪{item.amount}
-                      </td>
-                      <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b' }}>
-                        {item.confirmationCode || item.transactionId || '-'}
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '2px 8px',
-                          borderRadius: '999px',
-                          backgroundColor: '#dcfce7',
-                          color: '#15803d',
-                          fontSize: '0.74rem',
-                          fontWeight: '800'
-                        }}>
-                          ✓ הושלם
-                        </span>
-                      </td>
+            <>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'right' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ padding: '10px 14px' }}>תאריך ושעה</th>
+                      <th style={{ padding: '10px 14px' }}>שם ארגון</th>
+                      <th style={{ padding: '10px 14px' }}>משתמש משלם</th>
+                      <th style={{ padding: '10px 14px' }}>סכום</th>
+                      <th style={{ padding: '10px 14px' }}>מזהה עסקה</th>
+                      <th style={{ padding: '10px 14px' }}>סטטוס</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {paginatedPaymentRecords.map((item) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '10px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                          {item.createdAt ? new Date(item.createdAt).toLocaleString('he-IL') : '-'}
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0f172a' }}>
+                          {item.organizationName || item.organizationId}
+                        </td>
+                        <td style={{ padding: '10px 14px', color: '#475569', direction: 'ltr', textAlign: 'right' }}>
+                          {item.userEmail || '-'}
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: '800', color: '#15803d' }}>
+                          ₪{item.amount}
+                        </td>
+                        <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b' }}>
+                          {item.confirmationCode || item.transactionId || '-'}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            backgroundColor: '#dcfce7',
+                            color: '#15803d',
+                            fontSize: '0.74rem',
+                            fontWeight: '800'
+                          }}>
+                            ✓ הושלם
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                fontSize: '0.85rem'
+              }}>
+                <div style={{ color: '#64748b' }}>
+                  מציג רשומות <strong>{(paymentsPage - 1) * PAYMENTS_PER_PAGE + 1}–{Math.min(paymentRecords.length, paymentsPage * PAYMENTS_PER_PAGE)}</strong> מתוך <strong>{paymentRecords.length}</strong>
+                </div>
+
+                {totalPaymentPages > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <button
+                      type="button"
+                      disabled={paymentsPage === 1}
+                      onClick={() => setPaymentsPage(1)}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: paymentsPage === 1 ? '#f1f5f9' : '#ffffff',
+                        color: paymentsPage === 1 ? '#94a3b8' : '#334155',
+                        cursor: paymentsPage === 1 ? 'not-allowed' : 'pointer',
+                        fontWeight: '600',
+                        fontFamily: 'inherit',
+                        fontSize: '0.8rem'
+                      }}
+                      title="לעמוד הראשון"
+                    >
+                      ראשון
+                    </button>
+                    <button
+                      type="button"
+                      disabled={paymentsPage === 1}
+                      onClick={() => setPaymentsPage(prev => Math.max(1, prev - 1))}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: paymentsPage === 1 ? '#f1f5f9' : '#ffffff',
+                        color: paymentsPage === 1 ? '#94a3b8' : '#334155',
+                        cursor: paymentsPage === 1 ? 'not-allowed' : 'pointer',
+                        fontWeight: '600',
+                        fontFamily: 'inherit',
+                        fontSize: '0.8rem'
+                      }}
+                      title="לעמוד הקודם"
+                    >
+                      הקודם
+                    </button>
+
+                    {Array.from({ length: totalPaymentPages }, (_, i) => i + 1)
+                      .filter(page => page === 1 || page === totalPaymentPages || Math.abs(page - paymentsPage) <= 1)
+                      .reduce((acc, page, idx, arr) => {
+                        if (idx > 0 && page - arr[idx - 1] > 1) {
+                          acc.push('ellipsis-' + page);
+                        }
+                        acc.push(page);
+                        return acc;
+                      }, [])
+                      .map(item => {
+                        if (typeof item === 'string') {
+                          return <span key={item} style={{ color: '#94a3b8', padding: '0 3px' }}>...</span>;
+                        }
+                        const isActive = item === paymentsPage;
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => setPaymentsPage(item)}
+                            style={{
+                              padding: '4px 9px',
+                              minWidth: '30px',
+                              borderRadius: '6px',
+                              border: isActive ? '1px solid #4338ca' : '1px solid #cbd5e1',
+                              background: isActive ? '#4f46e5' : '#ffffff',
+                              color: isActive ? '#ffffff' : '#334155',
+                              cursor: 'pointer',
+                              fontWeight: isActive ? '700' : '500',
+                              fontFamily: 'inherit',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            {item}
+                          </button>
+                        );
+                      })}
+
+                    <button
+                      type="button"
+                      disabled={paymentsPage === totalPaymentPages}
+                      onClick={() => setPaymentsPage(prev => Math.min(totalPaymentPages, prev + 1))}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: paymentsPage === totalPaymentPages ? '#f1f5f9' : '#ffffff',
+                        color: paymentsPage === totalPaymentPages ? '#94a3b8' : '#334155',
+                        cursor: paymentsPage === totalPaymentPages ? 'not-allowed' : 'pointer',
+                        fontWeight: '600',
+                        fontFamily: 'inherit',
+                        fontSize: '0.8rem'
+                      }}
+                      title="לעמוד הבא"
+                    >
+                      הבא
+                    </button>
+                    <button
+                      type="button"
+                      disabled={paymentsPage === totalPaymentPages}
+                      onClick={() => setPaymentsPage(totalPaymentPages)}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: paymentsPage === totalPaymentPages ? '#f1f5f9' : '#ffffff',
+                        color: paymentsPage === totalPaymentPages ? '#94a3b8' : '#334155',
+                        cursor: paymentsPage === totalPaymentPages ? 'not-allowed' : 'pointer',
+                        fontWeight: '600',
+                        fontFamily: 'inherit',
+                        fontSize: '0.8rem'
+                      }}
+                      title="לעמוד האחרון"
+                    >
+                      אחרון
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </section>
@@ -2897,6 +3084,188 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
             loadPayments();
           }}
         />
+      )}
+
+      {/* Reset Payment Log Confirmation Modal (HTML Modal) */}
+      {showClearPaymentsModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10000,
+            padding: '20px',
+            direction: 'rtl',
+            fontFamily: 'Rubik, sans-serif'
+          }}
+          onClick={handleCloseClearPaymentsModal}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '500px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '2px solid #fda4af',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)',
+              padding: '18px 24px',
+              borderBottom: '1px solid #fecdd3',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.4rem',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 10px rgba(220, 38, 38, 0.25)'
+                }}>
+                  🗑️
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, color: '#991b1b', fontSize: '1.24rem', fontWeight: '800' }}>
+                    איפוס יומן תשלומים
+                  </h3>
+                  <p style={{ margin: '3px 0 0', color: '#b91c1c', fontSize: '0.84rem' }}>
+                    מחיקת היסטוריית עסקאות מהמערכת
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseClearPaymentsModal}
+                disabled={clearingPayments}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.6rem',
+                  cursor: clearingPayments ? 'not-allowed' : 'pointer',
+                  color: '#991b1b',
+                  lineHeight: 1,
+                  padding: '4px 8px',
+                  borderRadius: '6px'
+                }}
+                title="סגור חלון"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              <div style={{
+                background: '#fff5f5',
+                border: '1px solid #fed7d7',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '18px',
+                color: '#9b2c2c',
+                fontSize: '0.92rem',
+                lineHeight: '1.6'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: '800', fontSize: '1rem', color: '#991b1b' }}>
+                  <span>⚠️</span>
+                  <span>האם אתה בטוח שברצונך לאפס את יומן התשלומים?</span>
+                </div>
+                <p style={{ margin: '0 0 10px 0' }}>
+                  פעולה זו תמחק לצמיתות את כל <strong>{paymentRecords.length}</strong> הרשומות מיומן התשלומים.
+                </p>
+                <div style={{
+                  padding: '8px 12px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  borderRadius: '8px',
+                  fontSize: '0.84rem',
+                  color: '#b91c1c'
+                }}>
+                  🚨 <strong>שים/י לב:</strong> פעולה זו הינה בלתי הפיכה. נתוני התשלומים, מספרי העסקאות וקודי האישור יימחקו ממאגר הנתונים ולא יהיו ניתנים לשחזור.
+                </div>
+              </div>
+
+              {clearPaymentsError && (
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: '#fee2e2',
+                  color: '#991b1b',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  marginBottom: '14px',
+                  border: '1px solid #f87171'
+                }}>
+                  {clearPaymentsError}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              background: '#f8fafc',
+              padding: '16px 24px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCloseClearPaymentsModal}
+                disabled={clearingPayments}
+                style={{ minWidth: '100px', padding: '10px 18px', fontWeight: '600' }}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearPayments}
+                disabled={clearingPayments}
+                style={{
+                  minWidth: '160px',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  background: clearingPayments ? '#fca5a5' : '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: '700',
+                  fontSize: '0.95rem',
+                  cursor: clearingPayments ? 'not-allowed' : 'pointer',
+                  boxShadow: clearingPayments ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.35)',
+                  fontFamily: 'inherit',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {clearingPayments ? '⏳ מאפס יומן...' : '🗑️ כן, אפס יומן'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

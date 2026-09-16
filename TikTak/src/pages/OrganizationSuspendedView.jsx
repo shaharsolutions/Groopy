@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebaseDb';
 import { exportPersonalBackupExcel, exportPersonalBackupJson } from '../utils/personalBackupHelper';
 import PaymentModal from '../components/PaymentModal';
 import ThankYouPage from './ThankYouPage';
@@ -70,6 +72,26 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
     loadPrice();
     return () => { isCancelled = true; };
   }, [organization?.reopenPrice]);
+
+  // Real-time listener: if the organization is reactivated while user is viewing suspended view
+  useEffect(() => {
+    const orgId = organization?.id;
+    if (!orgId) return;
+    const orgDocRef = doc(db, 'organizations', orgId);
+    const unsubscribe = onSnapshot(orgDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        // If active in Firestore and user does NOT have PaymentModal open:
+        // (e.g. another admin or user reactivated the org) -> unblock smoothly!
+        if (data.active === true && !isPaymentModalOpen) {
+          if (onReactivated) {
+            onReactivated();
+          }
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [organization?.id, isPaymentModalOpen, onReactivated]);
 
   const whatsappMessage = encodeURIComponent(`שלום, אני פונה בנוגע להשבתת הארגון "${organizationName}" במערכת תיקתק.\nמשתמש: ${userEmail}`);
   const whatsappUrl = `https://wa.me/972528366744?text=${whatsappMessage}`;

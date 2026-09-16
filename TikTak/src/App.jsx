@@ -440,8 +440,15 @@ export default function App() {
                 suspendedContactMethod: contactMethod
               });
             } else {
-              setIsOrgSuspended(false);
-              setSuspendedOrgInfo(null);
+              // If the organization is active in Firestore:
+              // If the user is currently on the suspended view, do NOT abruptly unmount it!
+              // The user might be in PaymentModal completing payment and needs to see the
+              // Thank You modal overlay and click "כניסה למערכת TikTak".
+              // OrganizationSuspendedView will call onReactivated() when the user clicks the button.
+              setIsOrgSuspended((prev) => {
+                if (!prev) return false;
+                return true;
+              });
             }
           }
         }, (listenerErr) => {

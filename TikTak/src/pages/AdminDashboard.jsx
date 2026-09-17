@@ -1090,7 +1090,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   };
 
   const renderSortableHeader = (column, label) => (
-    <th aria-sort={getAriaSort(column)}>
+    <th key={column} aria-sort={getAriaSort(column)}>
       <button
         type="button"
         className={`sortable-header ${sortMode === column ? 'active' : ''}`}
@@ -2383,10 +2383,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   <tr>
                     {renderSortableHeader('title', `שם ה${flags.terms.item}`)}
                     {projectFields.map(field => {
+                      const displayLabel = field.icon ? `${field.icon} ${field.label}` : field.label;
                       if (field.type === 'file') {
-                        return <th key={field.key}>{field.label}</th>;
+                        return <th key={field.key}>{displayLabel}</th>;
                       }
-                      return renderSortableHeader(field.key, field.label);
+                      return renderSortableHeader(field.key, displayLabel);
                     })}
                     {renderSortableHeader('updatedAt', 'עודכן ב')}
                     <th>פעולות</th>

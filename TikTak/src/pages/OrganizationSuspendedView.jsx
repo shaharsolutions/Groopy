@@ -211,8 +211,8 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
             fontWeight: '700',
             marginBottom: '12px'
           }}>
-            <span>🔒</span>
-            <span>ארגון מושבת</span>
+            <span>{organization?.isTrialExpired ? '⏰' : '🔒'}</span>
+            <span>{organization?.isTrialExpired ? 'הסתיימה תקופת הניסיון' : 'ארגון מושבת'}</span>
           </div>
 
           <h1 style={{
@@ -222,7 +222,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
             margin: '0 0 8px 0',
             lineHeight: '1.3'
           }}>
-            הגישה למערכת חסומה
+            {organization?.isTrialExpired ? 'תקופת הניסיון החינמית הסתיימה' : 'הגישה למערכת חסומה'}
           </h1>
 
           <p style={{
@@ -231,7 +231,11 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
             margin: 0,
             lineHeight: '1.5'
           }}>
-            הארגון <strong style={{ color: '#1e293b' }}>{organizationName}</strong> הושבת על ידי מנהל המערכת.
+            {organization?.isTrialExpired ? (
+              <>הסתיימו 30 ימי הניסיון החינם עבור הארגון <strong style={{ color: '#1e293b' }}>{organizationName}</strong>. כדי להמשיך לעבוד במערכת ללא הפרעה, אנא הפעילו מנוי חודשי.</>
+            ) : (
+              <>הארגון <strong style={{ color: '#1e293b' }}>{organizationName}</strong> הושבת על ידי מנהל המערכת.</>
+            )}
           </p>
         </div>
 

@@ -19,6 +19,7 @@ const SearchModal = lazy(() => import('./components/SearchModal'));
 const Login = lazy(() => import('./pages/Login'));
 const OrganizationSuspendedView = lazy(() => import('./pages/OrganizationSuspendedView'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
+const OrganizationSetupPage = lazy(() => import('./pages/OrganizationSetupPage'));
 
 import './App.css';
 
@@ -288,18 +289,29 @@ export default function App() {
             if (resolvedOrgId) {
               userOrg = await storageApi.getUserOrganization(user.uid);
               if (userOrg?.name) setOrganizationName(userOrg.name);
+              if (userOrg?.setupCompleted === false && !isSysAdmin) {
+                setCurrentView('org_setup');
+              }
             } else if (isSysAdmin) {
               setCurrentView('users');
+            } else {
+              setCurrentView('org_setup');
             }
           } catch (regError) {
             console.error("Failed to register login profile or check organization", regError);
           }
 
+          const isTrialExpired = Boolean(
+            userOrg?.trialEndsAt &&
+            (!userOrg.subscription || userOrg.subscription.status === 'trial') &&
+            new Date(userOrg.trialEndsAt).getTime() < Date.now()
+          );
+
           const isCancelledAndExpired = userOrg?.subscription?.status === 'cancelled' &&
             userOrg?.subscription?.accessUntil &&
             new Date(userOrg.subscription.accessUntil).getTime() < Date.now();
 
-          if (!isSysAdmin && userOrg && (userOrg.active === false || isCancelledAndExpired)) {
+          if (!isSysAdmin && userOrg && (userOrg.active === false || isCancelledAndExpired || isTrialExpired)) {
             let contactMethod = userOrg.suspendedContactMethod;
             if (!contactMethod || contactMethod === 'default') {
               try {
@@ -313,7 +325,8 @@ export default function App() {
               ...userOrg,
               id: userOrg.id || resolvedOrgId,
               name: userOrg.name || resolvedOrgId,
-              suspendedContactMethod: contactMethod
+              suspendedContactMethod: contactMethod,
+              isTrialExpired
             });
             setInitializing(false);
             return;
@@ -426,10 +439,15 @@ export default function App() {
           if (cancelled) return;
           if (snap.exists()) {
             const orgData = snap.data();
+            const isTrialExpired = Boolean(
+              orgData.trialEndsAt &&
+              (!orgData.subscription || orgData.subscription.status === 'trial') &&
+              new Date(orgData.trialEndsAt).getTime() < Date.now()
+            );
             const isCancelledAndExpired = orgData.subscription?.status === 'cancelled' &&
               orgData.subscription?.accessUntil &&
               new Date(orgData.subscription.accessUntil).getTime() < Date.now();
-            const isActive = orgData.active !== false && !isCancelledAndExpired;
+            const isActive = orgData.active !== false && !isCancelledAndExpired && !isTrialExpired;
             if (!isActive) {
               let contactMethod = orgData.suspendedContactMethod;
               if (!contactMethod || contactMethod === 'default') {
@@ -444,7 +462,8 @@ export default function App() {
                 ...orgData,
                 id: organizationId,
                 name: orgData.name || organizationName || organizationId,
-                suspendedContactMethod: contactMethod
+                suspendedContactMethod: contactMethod,
+                isTrialExpired
               });
             } else {
               // If the organization is active in Firestore:
@@ -878,43 +897,33 @@ export default function App() {
 
   if (!effectiveIsSystemAdmin && !effectiveOrganizationId) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: 'Rubik, sans-serif',
-        padding: '24px',
-        direction: 'rtl',
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
-      }}>
+      <Suspense fallback={
         <div style={{
-          background: '#ffffff',
-          borderRadius: '16px',
-          padding: '36px',
-          maxWidth: '480px',
-          width: '100%',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-          textAlign: 'center',
-          border: '1px solid #e2e8f0'
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          fontFamily: 'Rubik, sans-serif',
+          color: 'var(--text-muted)'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🏢</div>
-          <h2 style={{ fontSize: '1.4rem', color: '#1e293b', marginBottom: '12px' }}>החשבון ממתין לשיוך לארגון</h2>
-          <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '24px' }}>
-            שלום <strong>{auth.currentUser?.displayName || auth.currentUser?.email}</strong>,<br />
-            החשבון שלך נוצר בהצלחה אך טרם שויך לארגון פעיל במערכת.<br />
-            אנא פנה/י למנהל המערכת על מנת שישייך אותך לארגון המתאים.
-          </p>
-          <button
-            onClick={handleLogout}
-            className="btn btn-secondary"
-            style={{ width: '100%', padding: '10px', fontWeight: '600' }}
-          >
-            🚪 התנתקות
-          </button>
+          טוען נתונים...
         </div>
-      </div>
+      }>
+        <OrganizationSetupPage
+          organizationId=""
+          initialOrganizationName=""
+          userEmail={auth.currentUser?.email || effectiveUserEmail || ''}
+          userName={auth.currentUser?.displayName || ''}
+          initialSettings={settings}
+          onLogout={handleLogout}
+          onComplete={(newOrgId, newOrgName, newSettings) => {
+            setOrganizationId(newOrgId);
+            setOrganizationName(newOrgName);
+            if (newSettings) setSettings(newSettings);
+            setCurrentView('dashboard');
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -958,22 +967,24 @@ export default function App() {
           </button>
         </div>
       )}
-      <Header
-        userRole={userRole}
-        onChangeRole={handleRoleChange}
-        showSwitcher={!isSharedLink && auth.currentUser && !auth.currentUser.isAnonymous}
-        currentView={currentView}
-        onViewChange={setCurrentView}
-        onLogout={handleLogout}
-        userId={effectiveUserId}
-        organizationId={effectiveOrganizationId}
-        userEmail={effectiveUserEmail}
-        isSystemAdmin={isSystemAdmin}
-        onSearchTrigger={() => setIsSearchOpen(true)}
-        onOpenTask={(taskId) => setAutoOpenTaskId(taskId)}
-        settings={settings}
-        organizationName={effectiveOrganizationName}
-      />
+      {currentView !== 'org_setup' && (
+        <Header
+          userRole={userRole}
+          onChangeRole={handleRoleChange}
+          showSwitcher={!isSharedLink && auth.currentUser && !auth.currentUser.isAnonymous}
+          currentView={currentView}
+          onViewChange={setCurrentView}
+          onLogout={handleLogout}
+          userId={effectiveUserId}
+          organizationId={effectiveOrganizationId}
+          userEmail={effectiveUserEmail}
+          isSystemAdmin={isSystemAdmin}
+          onSearchTrigger={() => setIsSearchOpen(true)}
+          onOpenTask={(taskId) => setAutoOpenTaskId(taskId)}
+          settings={settings}
+          organizationName={effectiveOrganizationName}
+        />
+      )}
       <Suspense fallback={
         <div style={{
           display: 'flex',
@@ -987,7 +998,22 @@ export default function App() {
         </div>
       }>
         {userRole === 'admin' ? (
-          currentView === 'users' ? (
+          currentView === 'org_setup' ? (
+            <OrganizationSetupPage
+              organizationId={effectiveOrganizationId}
+              initialOrganizationName={effectiveOrganizationName}
+              userEmail={effectiveUserEmail}
+              userName={auth.currentUser?.displayName || ''}
+              initialSettings={settings}
+              onLogout={handleLogout}
+              onComplete={(newOrgId, newOrgName, newSettings) => {
+                setOrganizationId(newOrgId);
+                setOrganizationName(newOrgName);
+                if (newSettings) setSettings(newSettings);
+                setCurrentView('dashboard');
+              }}
+            />
+          ) : currentView === 'users' ? (
             <UsersManagement
               onImpersonate={handleImpersonate}
               onManageOrganization={handleManageOrganizationSettings}

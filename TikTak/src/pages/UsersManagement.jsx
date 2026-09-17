@@ -1930,6 +1930,17 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                             <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '999px', background: isActive ? '#dcfce7' : '#e2e8f0', color: isActive ? '#166534' : '#475569', fontSize: '0.77rem', fontWeight: '800' }}>
                               {isActive ? 'ארגון פעיל' : 'ארגון לא פעיל'}
                             </span>
+                            {organization.trialEndsAt && (!organization.subscription || organization.subscription.status === 'trial') && (
+                              new Date(organization.trialEndsAt).getTime() >= Date.now() ? (
+                                <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '0.77rem', fontWeight: '800' }}>
+                                  🎁 ניסיון ({Math.max(0, Math.ceil((new Date(organization.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} ימים)
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '999px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', fontSize: '0.77rem', fontWeight: '800' }}>
+                                  ⏰ תם הניסיון
+                                </span>
+                              )
+                            )}
                             <button
                               type="button"
                               onClick={() => handleToggleOrganizationVersion(organization)}

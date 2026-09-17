@@ -13,6 +13,7 @@ import {
 import { APP_VERSIONS, getFeatureFlags } from '../utils/featureFlags';
 import { isBoardSharedWithOrg, isBoardAccessibleToUser, getOrderedBoards } from '../utils/boardStatusHelper';
 import { exportAllUserDataToExcel } from '../utils/excelExportHelper';
+import IconPickerModal from '../components/IconPickerModal';
 
 const PRESET_COLORS = [
   { value: 'badge-new', label: 'כחול עדין', previewClass: 'badge-new' },
@@ -86,6 +87,30 @@ export default function SettingsPage({
   const [newFieldStyle, setNewFieldStyle] = useState('standard');
   const [newFieldOptions, setNewFieldOptions] = useState('');
   const [newFieldDefaultValue, setNewFieldDefaultValue] = useState('');
+  const [newFieldIcon, setNewFieldIcon] = useState('✨');
+
+  // Icon Picker Modal State
+  const [iconPickerState, setIconPickerState] = useState({
+    isOpen: false,
+    title: 'בחירת אייקון',
+    currentIcon: '📋',
+    defaultIcon: '📋',
+    onSelect: null
+  });
+
+  const openIconPicker = ({ title, currentIcon, defaultIcon, onSelect }) => {
+    setIconPickerState({
+      isOpen: true,
+      title: title || 'בחירת אייקון',
+      currentIcon: currentIcon || '📋',
+      defaultIcon: defaultIcon || currentIcon || '📋',
+      onSelect
+    });
+  };
+
+  const closeIconPicker = () => {
+    setIconPickerState(prev => ({ ...prev, isOpen: false }));
+  };
 
   // Modal state for deleting a field
   const [fieldToDelete, setFieldToDelete] = useState(null);
@@ -132,6 +157,19 @@ export default function SettingsPage({
   const accessUntilFormatted = subscription?.accessUntil
     ? new Intl.DateTimeFormat('he-IL', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(subscription.accessUntil))
     : formattedNextBilling;
+
+  const trialEndsAt = orgData?.trialEndsAt;
+  const isTrialActive = Boolean(
+    trialEndsAt &&
+    (!subscription || subscription.status === 'trial') &&
+    new Date(trialEndsAt).getTime() >= Date.now()
+  );
+  const remainingTrialDays = isTrialActive
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const formattedTrialEndsAt = trialEndsAt
+    ? new Intl.DateTimeFormat('he-IL', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(trialEndsAt))
+    : null;
 
   const handleConfirmCancelSubscription = async () => {
     if (isCancelling) return;
@@ -674,7 +712,8 @@ export default function SettingsPage({
       type: newFieldType,
       style: newFieldStyle,
       options,
-      defaultValue: newFieldDefaultValue
+      defaultValue: newFieldDefaultValue,
+      icon: newFieldIcon || '✨'
     });
     const currentFields = normalizeNewTaskFields(localSettings.newTaskFields, { includeDeleted: true });
     const currentOrder = localSettings.taskFieldOrder && Array.isArray(localSettings.taskFieldOrder)
@@ -701,6 +740,7 @@ export default function SettingsPage({
     setNewFieldStyle('standard');
     setNewFieldOptions('');
     setNewFieldDefaultValue('');
+    setNewFieldIcon('✨');
     showMsg(`השדה "${customField.label}" נוסף בהצלחה לרשימת השדות.`);
   };
 
@@ -1063,58 +1103,111 @@ export default function SettingsPage({
             </div>
           ) : (
             <div>
-              <p style={{ margin: '0 0 14px 0', fontSize: '0.88rem', color: '#64748b' }}>
-                לא נמצא מנוי חודשי פעיל עבור ארגון זה.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsRenewPaymentModalOpen(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 18px',
-                  backgroundColor: '#16a34a',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontWeight: '700',
-                  fontSize: '0.92rem',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit'
-                }}
-              >
-                <span>💳</span>
-                <span>הפעלת מנוי חודשי (₪{monthlyPrice}/חודש)</span>
-              </button>
+              {isTrialActive ? (
+                <div style={{
+                  padding: '14px 18px',
+                  borderRadius: '12px',
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  marginBottom: '16px',
+                  fontSize: '0.9rem',
+                  color: '#1e40af',
+                  lineHeight: '1.5'
+                }}>
+                  <div style={{ fontWeight: '800', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.98rem' }}>
+                    <span>🎁</span>
+                    <span>חודש ניסיון חינם פעיל!</span>
+                    <span style={{
+                      backgroundColor: '#dbeafe',
+                      color: '#1e40af',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontSize: '0.8rem',
+                      fontWeight: '700'
+                    }}>
+                      נותרו עוד {remainingTrialDays} ימים
+                    </span>
+                  </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    הארגון שלך נהנה מגישה מלאה לכל יכולות המערכת ללא עלות עד תאריך <strong>{formattedTrialEndsAt}</strong>.
+                    באפשרותך להפעיל מנוי חודשי קבוע בכל עת כדי להבטיח עבודה רציפה.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsRenewPaymentModalOpen(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 16px',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: '700',
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    <span>💳</span>
+                    <span>הפעלת מנוי חודשי (₪{monthlyPrice}/חודש)</span>
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p style={{ margin: '0 0 14px 0', fontSize: '0.88rem', color: '#64748b' }}>
+                    לא נמצא מנוי חודשי פעיל עבור ארגון זה.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsRenewPaymentModalOpen(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 18px',
+                      backgroundColor: '#16a34a',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      fontWeight: '700',
+                      fontSize: '0.92rem',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    <span>💳</span>
+                    <span>הפעלת מנוי חודשי (₪{monthlyPrice}/חודש)</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Section 0: Organization App Version / Feature Flags */}
-        <div className="filter-panel" style={{ border: flags.isV2 ? '1px solid #bfdbfe' : '1px solid #fde68a', background: flags.isV2 ? '#f8faff' : '#fffbeb' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
-            <h4 className="detail-section-title" style={{ margin: 0 }}>
-              🚀 גרסת מערכת לארגון (Feature Flags)
-            </h4>
-            <span style={{
-              padding: '4px 10px',
-              borderRadius: '999px',
-              fontWeight: '800',
-              fontSize: '0.8rem',
-              background: flags.isV2 ? '#dbeafe' : '#fef3c7',
-              color: flags.isV2 ? '#1e40af' : '#92400e'
-            }}>
-              {flags.isV2 ? '✨ גרסה 2 (חדשה)' : '🏛️ גרסה קלאסית (Legacy)'}
-            </span>
-          </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '14px' }}>
-            {isSystemAdmin 
-              ? 'קביעת גרסת המערכת והפיצ\'רים שיוצגו לכלל משתמשי הארגון. ארגוני Legacy רואים את הממשק הקלאסי (לוח יחיד, מינוח עבודות).'
-              : 'גרסת המערכת הפעילה נקבעת ומנוהלת על ידי הנהלת המערכת.'}
-          </p>
+        {/* Section 0: Organization App Version / Feature Flags (System Admin ONLY) */}
+        {isSystemAdmin && (
+          <div className="filter-panel" style={{ border: flags.isV2 ? '1px solid #bfdbfe' : '1px solid #fde68a', background: flags.isV2 ? '#f8faff' : '#fffbeb' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
+              <h4 className="detail-section-title" style={{ margin: 0 }}>
+                🚀 גרסת מערכת לארגון (Feature Flags)
+              </h4>
+              <span style={{
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontWeight: '800',
+                fontSize: '0.8rem',
+                background: flags.isV2 ? '#dbeafe' : '#fef3c7',
+                color: flags.isV2 ? '#1e40af' : '#92400e'
+              }}>
+                {flags.isV2 ? '✨ גרסה 2 (חדשה)' : '🏛️ גרסה קלאסית (Legacy)'}
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '14px' }}>
+              קביעת גרסת המערכת והפיצ'רים שיוצגו לכלל משתמשי הארגון. ארגוני Legacy רואים את הממשק הקלאסי (לוח יחיד, מינוח עבודות).
+            </p>
 
-          {isSystemAdmin ? (
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <label style={{
                 display: 'flex',
@@ -1166,27 +1259,8 @@ export default function SettingsPage({
                 </div>
               </label>
             </div>
-          ) : (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '12px 16px',
-              backgroundColor: '#ffffff',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              fontSize: '0.9rem'
-            }}>
-              <span style={{ fontSize: '1.2rem' }}>{flags.isV2 ? '✨' : '🏛️'}</span>
-              <div>
-                <strong>{flags.isV2 ? 'גרסה 2 (חדשה)' : 'גרסה קלאסית (Legacy)'}</strong>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block' }}>
-                  {flags.isV2 ? 'לוחות פרויקטים מרובים, עיצוב מודרני ומינוח פרויקטים' : 'לוח יחיד, ממשק קלאסי ומינוח עבודות'}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Section 1: Dashboard Details */}
         <div className="filter-panel">
@@ -1304,6 +1378,38 @@ export default function SettingsPage({
                       />
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 'bold' }}>#{index + 1}</span>
+                        {!flags.isLegacy && (
+                          <button
+                            type="button"
+                            disabled={config.enabled === false}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openIconPicker({
+                                title: `בחירת אייקון עבור שדה "${config.label || field.label}"`,
+                                currentIcon: config.icon || field.icon || '📌',
+                                defaultIcon: field.icon || '📌',
+                                onSelect: (newIcon) => handleTaskFieldConfigChange(field.key, { icon: newIcon })
+                              });
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              backgroundColor: '#ffffff',
+                              cursor: config.enabled === false ? 'default' : 'pointer',
+                              fontSize: '1.15rem',
+                              padding: 0
+                            }}
+                            title="לחצו להחלפת אייקון מתוך מאגר אייקונים נרחב"
+                          >
+                            {config.icon || field.icon || '📌'}
+                          </button>
+                        )}
                         <strong style={{ color: '#1e293b', fontSize: '0.95rem' }}>{config.label || field.label}</strong>
                         {isLockedLegacy && (
                           <span style={{ fontSize: '0.75rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
@@ -2383,16 +2489,46 @@ export default function SettingsPage({
             <form onSubmit={handleAddNewCustomField}>
               <div className="modal-body" style={{ display: 'grid', gap: '14px', padding: '20px' }}>
                 <div className="form-group">
-                  <label className="form-label" style={{ fontWeight: '700' }}>שם השדה (תווית) *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="לדוגמה: ברקוד, מחלקה, תאריך יעד, הערות ספק..."
-                    value={newFieldLabel}
-                    onChange={(e) => setNewFieldLabel(e.target.value)}
-                    autoFocus
-                    required
-                  />
+                  <label className="form-label" style={{ fontWeight: '700' }}>שם השדה ואייקון *</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openIconPicker({
+                          title: 'בחירת אייקון לשדה החדש',
+                          currentIcon: newFieldIcon,
+                          defaultIcon: '✨',
+                          onSelect: (selectedIcon) => setNewFieldIcon(selectedIcon)
+                        });
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        fontSize: '1.3rem',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      title="בחירת אייקון מתוך מאגר אייקונים נרחב"
+                    >
+                      {newFieldIcon}
+                    </button>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="לדוגמה: ברקוד, מחלקה, תאריך יעד, הערות ספק..."
+                      value={newFieldLabel}
+                      onChange={(e) => setNewFieldLabel(e.target.value)}
+                      autoFocus
+                      required
+                      style={{ flex: 1 }}
+                    />
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -2727,6 +2863,21 @@ export default function SettingsPage({
           }}
         />
       )}
+
+      {/* Extensive Icon Picker Modal */}
+      <IconPickerModal
+        isOpen={iconPickerState.isOpen}
+        title={iconPickerState.title}
+        currentIcon={iconPickerState.currentIcon}
+        defaultIcon={iconPickerState.defaultIcon}
+        onSelectIcon={(selectedIcon) => {
+          if (iconPickerState.onSelect) {
+            iconPickerState.onSelect(selectedIcon);
+          }
+          closeIconPicker();
+        }}
+        onClose={closeIconPicker}
+      />
 
     </main>
   );

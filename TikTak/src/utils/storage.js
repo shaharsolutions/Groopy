@@ -26,6 +26,7 @@ import {
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { INITIAL_TASKS } from '../data/mockData';
 import { APP_VERSIONS, DEFAULT_APP_VERSION } from './featureFlags';
+import { DEFAULT_NEW_TASK_FIELDS } from '../data/taskFieldConfig';
 
 const assertSystemManagerSession = () => {
   const user = auth.currentUser;
@@ -1544,6 +1545,12 @@ export const getUserOrganization = async (userId) => {
   let organizationName = organizationId;
   let active = true;
   let suspendedContactMethod = null;
+  let trialEndsAt = null;
+  let trialStartedAt = null;
+  let subscription = null;
+  let setupCompleted = true;
+  let appVersion = DEFAULT_APP_VERSION;
+  let reopenPrice = null;
   try {
     const organizationSnap = await getDoc(doc(db, 'organizations', organizationId));
     if (organizationSnap.exists()) {
@@ -1555,6 +1562,12 @@ export const getUserOrganization = async (userId) => {
       if (data.suspendedContactMethod) {
         suspendedContactMethod = data.suspendedContactMethod;
       }
+      trialEndsAt = data.trialEndsAt || null;
+      trialStartedAt = data.trialStartedAt || null;
+      subscription = data.subscription || null;
+      setupCompleted = data.setupCompleted !== false;
+      appVersion = data.appVersion || DEFAULT_APP_VERSION;
+      reopenPrice = data.reopenPrice || null;
     }
   } catch {
     try {
@@ -1567,6 +1580,11 @@ export const getUserOrganization = async (userId) => {
       if (registryOrganization?.suspendedContactMethod) {
         suspendedContactMethod = registryOrganization.suspendedContactMethod;
       }
+      trialEndsAt = registryOrganization?.trialEndsAt || null;
+      trialStartedAt = registryOrganization?.trialStartedAt || null;
+      subscription = registryOrganization?.subscription || null;
+      setupCompleted = registryOrganization?.setupCompleted !== false;
+      appVersion = registryOrganization?.appVersion || DEFAULT_APP_VERSION;
     } catch {
       // Keep a stable fallback name when organization metadata is not readable.
     }
@@ -1575,7 +1593,13 @@ export const getUserOrganization = async (userId) => {
     id: organizationId,
     name: organizationName,
     active,
-    suspendedContactMethod
+    suspendedContactMethod,
+    trialEndsAt,
+    trialStartedAt,
+    subscription,
+    setupCompleted,
+    appVersion,
+    reopenPrice
   };
 };
 
@@ -1716,19 +1740,29 @@ export const createOrganization = async (name, options = {}) => {
   const normalizedName = String(name || '').trim();
   if (!normalizedName) throw new Error('יש להזין שם ארגון');
   const organizationRef = doc(collection(db, 'organizations'));
+  const now = new Date();
+  const trialEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days trial
   const organization = {
     id: organizationRef.id,
     name: normalizedName,
     active: true,
-    appVersion: options.appVersion || DEFAULT_APP_VERSION,
+    appVersion: options.appVersion || APP_VERSIONS.V2,
     suspendedContactMethod: options.suspendedContactMethod || 'default',
-    createdAt: new Date().toISOString()
+    createdAt: now.toISOString(),
+    trialStartedAt: now.toISOString(),
+    trialEndsAt: options.trialEndsAt || trialEndDate.toISOString(),
+    subscription: options.subscription || {
+      status: 'trial',
+      isTrial: true,
+      trialEndsAt: trialEndDate.toISOString()
+    },
+    setupCompleted: options.setupCompleted !== undefined ? options.setupCompleted : false
   };
   try {
     await setDoc(organizationRef, organization);
     await setDoc(doc(db, 'settings', organization.id), {
       appVersion: organization.appVersion,
-      updatedAt: new Date().toISOString()
+      updatedAt: now.toISOString()
     }, { merge: true });
   } catch (error) {
     console.warn('Saving organization in compatibility registry', error);
@@ -1736,6 +1770,137 @@ export const createOrganization = async (name, options = {}) => {
     await saveOrganizationRegistry([...organizations, organization]);
   }
   return organization;
+};
+
+/**
+ * Registers a new organization for a newly signed up user with V2 and 1-month free trial.
+ */
+export const registerNewOrganizationAndUser = async ({
+  user,
+  organizationName,
+  displayName = '',
+  contactName = '',
+  contactPhone = '',
+  setupCompleted = false,
+  initialSettings = null
+}) => {
+  if (!user || !user.uid) throw new Error('משתמש לא מזוהה');
+  const normalizedOrgName = String(organizationName || '').trim();
+  if (!normalizedOrgName) throw new Error('יש להזין שם ארגון');
+
+  const now = new Date();
+  const trialEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const organizationRef = doc(collection(db, 'organizations'));
+  const orgId = organizationRef.id;
+
+  const organization = {
+    id: orgId,
+    name: normalizedOrgName,
+    active: true,
+    appVersion: APP_VERSIONS.V2,
+    suspendedContactMethod: 'default',
+    createdAt: now.toISOString(),
+    trialStartedAt: now.toISOString(),
+    trialEndsAt: trialEndDate.toISOString(),
+    subscription: {
+      status: 'trial',
+      isTrial: true,
+      trialEndsAt: trialEndDate.toISOString()
+    },
+    ownerUid: user.uid,
+    ownerEmail: user.email || '',
+    setupCompleted: Boolean(setupCompleted),
+    ...(contactName ? { contactName: String(contactName).trim() } : {}),
+    ...(contactPhone ? { contactPhone: String(contactPhone).trim() } : {})
+  };
+
+  // 1. Create organization in Firestore
+  await setDoc(organizationRef, organization);
+
+  // 2. Update user document first so security rules recognize user's organizationId
+  const userRef = doc(db, 'users', user.uid);
+  await setDoc(userRef, {
+    uid: user.uid,
+    email: user.email,
+    displayName: displayName || user.displayName || '',
+    organizationId: orgId,
+    lastLogin: now.toISOString(),
+    createdAt: now.toISOString()
+  }, { merge: true });
+
+  // 3. Create organization default settings in Firestore with V2 defaults
+  const defaultSettings = {
+    statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
+    defaultStatus: 'חדש',
+    statusColors: {
+      'חדש': 'badge-new',
+      'בטיפול': 'badge-in-progress',
+      'נשלח לספק': 'badge-waiting-approval',
+      'אושר לספק': 'badge-approved',
+      'ארכיון': 'badge-archive'
+    },
+    newTaskFields: DEFAULT_NEW_TASK_FIELDS,
+    hideWeeklyHours: false,
+    autoArchiveInactiveDays: 45,
+    boards: [],
+    boardOrder: [],
+    appVersion: APP_VERSIONS.V2,
+    updatedAt: now.toISOString(),
+    ...(initialSettings || {})
+  };
+  await setDoc(doc(db, SETTINGS_COLLECTION, orgId), defaultSettings);
+
+  // 4. Set active organization context
+  setActiveOrganizationContext(orgId);
+
+  // 5. Record activity log
+  try {
+    await recordActivity({
+      action: 'organization.created',
+      actionLabel: 'הקמת ארגון חדש',
+      targetType: 'organization',
+      targetId: orgId,
+      targetLabel: normalizedOrgName,
+      targetUserId: user.uid,
+      organizationId: orgId,
+      details: `הוקם ארגון חדש "${normalizedOrgName}" עם גרסה V2 וחודש ניסיון חינם`,
+      metadata: { appVersion: APP_VERSIONS.V2, trialEndsAt: trialEndDate.toISOString() }
+    });
+  } catch (actErr) {
+    console.warn('Could not record activity on org creation:', actErr);
+  }
+
+  return { organization, settings: defaultSettings };
+};
+
+/**
+ * Completes onboarding setup for an organization.
+ */
+export const completeOrganizationSetup = async (organizationId, { organizationName, settings: newSettings, contactName, contactPhone }) => {
+  if (!organizationId) throw new Error('חסר מזהה ארגון');
+  const orgRef = doc(db, 'organizations', organizationId);
+  const orgUpdates = {
+    setupCompleted: true,
+    updatedAt: new Date().toISOString()
+  };
+  if (organizationName && organizationName.trim()) {
+    orgUpdates.name = organizationName.trim();
+  }
+  if (contactName) orgUpdates.contactName = contactName.trim();
+  if (contactPhone) orgUpdates.contactPhone = contactPhone.trim();
+
+  await updateDoc(orgRef, orgUpdates);
+
+  if (newSettings) {
+    const settingsRef = doc(db, SETTINGS_COLLECTION, organizationId);
+    await setDoc(settingsRef, {
+      ...newSettings,
+      appVersion: APP_VERSIONS.V2, // Guarantee V2
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  }
+
+  return true;
 };
 
 export const updateOrganization = async (organizationId, updates = {}) => {
@@ -1766,6 +1931,18 @@ export const updateOrganization = async (organizationId, updates = {}) => {
     allowedUpdates.reopenPrice = (updates.reopenPrice === null || updates.reopenPrice === '' || updates.reopenPrice === undefined)
       ? null
       : (Number(updates.reopenPrice) > 0 ? Number(updates.reopenPrice) : null);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'setupCompleted')) {
+    allowedUpdates.setupCompleted = Boolean(updates.setupCompleted);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'trialEndsAt')) {
+    allowedUpdates.trialEndsAt = updates.trialEndsAt;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'contactName')) {
+    allowedUpdates.contactName = String(updates.contactName || '').trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'contactPhone')) {
+    allowedUpdates.contactPhone = String(updates.contactPhone || '').trim();
   }
   if (Object.keys(allowedUpdates).length === 0) return true;
   try {

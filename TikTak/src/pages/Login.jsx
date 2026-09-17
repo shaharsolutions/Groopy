@@ -26,6 +26,8 @@ export default function Login() {
     return localStorage.getItem('rememberMe') === 'true' ? (localStorage.getItem('rememberedPassword') || '') : '';
   });
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [signUpOrgName, setSignUpOrgName] = useState('');
+  const [signUpDisplayName, setSignUpDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -89,6 +91,11 @@ export default function Login() {
     e.preventDefault();
     setError('');
     
+    if (!signUpOrgName.trim()) {
+      setError('אנא הזינו את שם הארגון או העסק.');
+      return;
+    }
+
     if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
       setError('אנא מלאו את כל השדות.');
       return;
@@ -101,7 +108,23 @@ export default function Login() {
     
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      if (signUpDisplayName.trim()) {
+        try {
+          const { updateProfile } = await import('firebase/auth');
+          await updateProfile(userCredential.user, { displayName: signUpDisplayName.trim() });
+        } catch (profErr) {
+          console.warn('Could not update display name:', profErr);
+        }
+      }
+
+      // Create new organization with V2 and 1-month trial
+      const { registerNewOrganizationAndUser } = await import('../utils/storage');
+      await registerNewOrganizationAndUser({
+        user: userCredential.user,
+        organizationName: signUpOrgName.trim(),
+        displayName: signUpDisplayName.trim()
+      });
     } catch (signUpError) {
       console.error("Registration failed:", signUpError);
       if (signUpError.code === 'auth/email-already-in-use') {
@@ -286,8 +309,53 @@ export default function Login() {
               </>
             ) : (
               <form onSubmit={handleSignUpSubmit}>
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label className="form-label" htmlFor="signup-email">אימייל להרשמה</label>
+                <div style={{
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  marginBottom: '18px',
+                  fontSize: '0.85rem',
+                  color: '#1e40af',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ fontSize: '1.4rem' }}>🎁</span>
+                  <div>
+                    <strong style={{ display: 'block', color: '#1e3a8a', fontSize: '0.88rem' }}>חודש ניסיון חינם מופעל בהרשמה!</strong>
+                    <span style={{ fontSize: '0.78rem', color: '#3b82f6' }}>גישה מלאה לכל פיצ'רי המערכת ללא צורך בכרטיס אשראי.</span>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label className="form-label" htmlFor="signup-org-name">שם הארגון / עסק / סטודיו *</label>
+                  <input
+                    id="signup-org-name"
+                    type="text"
+                    className="form-control"
+                    placeholder="לדוגמה: סטודיו גרינברג"
+                    value={signUpOrgName}
+                    onChange={(e) => setSignUpOrgName(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label className="form-label" htmlFor="signup-display-name">שם מלא / מנהל</label>
+                  <input
+                    id="signup-display-name"
+                    type="text"
+                    className="form-control"
+                    placeholder="לדוגמה: שחר כהן"
+                    value={signUpDisplayName}
+                    onChange={(e) => setSignUpDisplayName(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label className="form-label" htmlFor="signup-email">אימייל להרשמה *</label>
                   <input
                     id="signup-email"
                     type="email"
@@ -299,8 +367,8 @@ export default function Login() {
                   />
                 </div>
 
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label className="form-label" htmlFor="signup-password">סיסמה</label>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label className="form-label" htmlFor="signup-password">סיסמה *</label>
                   <div className="password-wrapper">
                     <input
                       id="signup-password"
@@ -322,8 +390,8 @@ export default function Login() {
                   </div>
                 </div>
 
-                <div className="form-group" style={{ marginBottom: '24px' }}>
-                  <label className="form-label" htmlFor="signup-confirm-password">אימות סיסמה</label>
+                <div className="form-group" style={{ marginBottom: '20px' }}>
+                  <label className="form-label" htmlFor="signup-confirm-password">אימות סיסמה *</label>
                   <input
                     id="signup-confirm-password"
                     type={showPassword ? 'text' : 'password'}

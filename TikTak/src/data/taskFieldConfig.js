@@ -14,27 +14,28 @@ export const NEW_TASK_FIELD_STYLES = [
 ];
 
 export const DEFAULT_NEW_TASK_FIELDS = {
-  status: { enabled: true, label: 'סטטוס', type: 'select', style: 'standard', isCustom: false },
-  contactPerson: { enabled: true, label: 'איש קשר', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
-  supplierContactEmail: { enabled: true, label: 'אימייל איש קשר', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
-  contactPhone: { enabled: true, label: 'טלפון איש קשר', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
-  standardsInstituteRequired: { enabled: true, label: 'דרישות מכון תקנים', type: 'select', style: 'standard', options: ['לא', 'כן'], defaultValue: 'לא', isCustom: false },
-  diecutsStatus: { enabled: true, label: 'דייקאטים', type: 'select', style: 'standard', options: ['אין', 'יש', 'חלקי'], defaultValue: 'אין', isCustom: false },
-  imagesStatus: { enabled: true, label: 'תמונות', type: 'select', style: 'standard', options: ['אין', 'יש', 'חלקי'], defaultValue: 'אין', isCustom: false },
-  description: { enabled: true, label: 'תיאור ופרטים נוספים', type: 'textarea', style: 'standard', isCustom: false },
-  internalNotes: { enabled: true, label: 'הערות פנימיות', type: 'textarea', style: 'standard', isCustom: false },
-  workOrderFiles: { enabled: true, label: 'הזמנת עבודה', type: 'file', style: 'standard', isCustom: false },
-  planogramFile: { enabled: true, label: 'פלנוגרמה', type: 'file', style: 'standard', isCustom: false }
+  status: { enabled: true, label: 'סטטוס', icon: '📊', type: 'select', style: 'standard', isCustom: false },
+  contactPerson: { enabled: true, label: 'איש קשר', icon: '👤', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
+  supplierContactEmail: { enabled: true, label: 'אימייל איש קשר', icon: '✉️', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
+  contactPhone: { enabled: true, label: 'טלפון איש קשר', icon: '📞', type: 'text', style: 'standard', options: [], defaultValue: '', isCustom: false },
+  standardsInstituteRequired: { enabled: true, label: 'דרישות מכון תקנים', icon: '🏛️', type: 'select', style: 'standard', options: ['לא', 'כן'], defaultValue: 'לא', isCustom: false },
+  diecutsStatus: { enabled: true, label: 'דייקאטים', icon: '📐', type: 'select', style: 'standard', options: ['אין', 'יש', 'חלקי'], defaultValue: 'אין', isCustom: false },
+  imagesStatus: { enabled: true, label: 'תמונות', icon: '🖼️', type: 'select', style: 'standard', options: ['אין', 'יש', 'חלקי'], defaultValue: 'אין', isCustom: false },
+  description: { enabled: true, label: 'תיאור ופרטים נוספים', icon: '📝', type: 'textarea', style: 'standard', isCustom: false },
+  internalNotes: { enabled: true, label: 'הערות פנימיות', icon: '🔒', type: 'textarea', style: 'standard', isCustom: false },
+  workOrderFiles: { enabled: true, label: 'הזמנת עבודה', icon: '📋', type: 'file', style: 'standard', isCustom: false },
+  planogramFile: { enabled: true, label: 'פלנוגרמה', icon: '🗺️', type: 'file', style: 'standard', isCustom: false }
 };
 
 export const NEW_TASK_FIELD_DEFINITIONS = [
-  { key: 'status', label: 'סטטוס', type: 'select', description: 'רשימת הסטטוסים מנוהלת בהמשך עמוד ההגדרות', isCustom: false },
-  { key: 'contactPerson', label: 'איש קשר', type: 'text', options: [], isCustom: false },
-  { key: 'supplierContactEmail', label: 'אימייל איש קשר', type: 'text', options: [], isCustom: false },
-  { key: 'contactPhone', label: 'טלפון איש קשר', type: 'text', options: [], isCustom: false },
+  { key: 'status', label: 'סטטוס', icon: '📊', type: 'select', description: 'רשימת הסטטוסים מנוהלת בהמשך עמוד ההגדרות', isCustom: false },
+  { key: 'contactPerson', label: 'איש קשר', icon: '👤', type: 'text', options: [], isCustom: false },
+  { key: 'supplierContactEmail', label: 'אימייל איש קשר', icon: '✉️', type: 'text', options: [], isCustom: false },
+  { key: 'contactPhone', label: 'טלפון איש קשר', icon: '📞', type: 'text', options: [], isCustom: false },
   {
     key: 'standardsInstituteRequired',
     label: 'דרישות מכון תקנים',
+    icon: '🏛️',
     type: 'select',
     options: ['לא', 'כן'],
     isCustom: false
@@ -42,6 +43,7 @@ export const NEW_TASK_FIELD_DEFINITIONS = [
   {
     key: 'diecutsStatus',
     label: 'דייקאטים',
+    icon: '📐',
     type: 'select',
     options: ['אין', 'יש', 'חלקי'],
     isCustom: false
@@ -49,29 +51,32 @@ export const NEW_TASK_FIELD_DEFINITIONS = [
   {
     key: 'imagesStatus',
     label: 'תמונות',
+    icon: '🖼️',
     type: 'select',
     options: ['אין', 'יש', 'חלקי'],
     isCustom: false
   },
-  { key: 'description', label: 'תיאור ופרטים נוספים', type: 'textarea', isCustom: false },
-  { key: 'internalNotes', label: 'הערות פנימיות', type: 'textarea', isCustom: false },
+  { key: 'description', label: 'תיאור ופרטים נוספים', icon: '📝', type: 'textarea', isCustom: false },
+  { key: 'internalNotes', label: 'הערות פנימיות', icon: '🔒', type: 'textarea', isCustom: false },
   {
     key: 'workOrderFiles',
     label: 'הזמנת עבודה',
+    icon: '📋',
     type: 'file',
     description: 'קבצי הזמנת עבודה ומסמכים מצורפים',
     isCustom: false
   },
-  { key: 'planogramFile', label: 'פלנוגרמה', type: 'file', description: 'קובץ פלנוגרמה (תמונה או PDF)', isCustom: false }
+  { key: 'planogramFile', label: 'פלנוגרמה', icon: '🗺️', type: 'file', description: 'קובץ פלנוגרמה (תמונה או PDF)', isCustom: false }
 ];
 
-export const createCustomFieldConfig = ({ label, type = 'text', style = 'standard', options = [], defaultValue = '' }) => {
+export const createCustomFieldConfig = ({ label, icon = '✨', type = 'text', style = 'standard', options = [], defaultValue = '' }) => {
   const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).substring(2, 6);
   const key = `custom_${timestamp}_${randomSuffix}`;
   return {
     key,
     label: label.trim() || 'שדה חדש',
+    icon: icon || '✨',
     type,
     style,
     options: Array.isArray(options) ? options : [],
@@ -110,33 +115,21 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false, is
     }
 
     let label = String(customOverride?.label || defaults.label).trim() || defaults.label;
-    if (label === 'איש קשר אצל הספק') label = 'איש קשר';
-    if (label === 'מייל איש קשר ספק' || label === 'אימייל ספק') label = 'אימייל איש קשר';
-    if (label === 'טלפון ספק' || label === 'טלפון איש קשר ספק' || label === 'טלפון') label = 'טלפון איש קשר';
-    if (key === 'planogramFile') {
-      if (
-        isLegacy ||
-        label === 'הזמנת עבודה / פלנוגרמה' ||
-        label === 'העלאת פלנוגרמה' ||
-        label.includes('הזמנת עבודה') ||
-        label.includes('/')
-      ) {
+    if (isLegacy) {
+      if (label === 'איש קשר אצל הספק') label = 'איש קשר';
+      if (label === 'מייל איש קשר ספק' || label === 'אימייל ספק') label = 'אימייל איש קשר';
+      if (label === 'טלפון ספק' || label === 'טלפון איש קשר ספק' || label === 'טלפון') label = 'טלפון איש קשר';
+      if (key === 'planogramFile') {
         label = 'פלנוגרמה';
       }
-    }
-    if (key === 'workOrderFiles') {
-      if (
-        isLegacy ||
-        label.includes('קבצים מצורפים') ||
-        label.includes('תעודות') ||
-        label.includes('הוראות עבודה') ||
-        label.includes('PDF') ||
-        label.includes('pdf') ||
-        label.includes('הזמנת עבודה / פלנוגרמה') ||
-        label.startsWith('הזמנת עבודה (') ||
-        label.includes('(') ||
-        label === 'קבצים מצורפים'
-      ) {
+      if (key === 'workOrderFiles') {
+        label = 'הזמנת עבודה';
+      }
+    } else if (!customOverride?.label) {
+      if (key === 'planogramFile' && (label.includes('הזמנת עבודה') || label.includes('/'))) {
+        label = 'פלנוגרמה';
+      }
+      if (key === 'workOrderFiles' && (label.includes('הזמנת עבודה / פלנוגרמה') || label.startsWith('הזמנת עבודה ('))) {
         label = 'הזמנת עבודה';
       }
     }
@@ -151,6 +144,7 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false, is
       label,
       type: merged.type || defaults.type || 'text',
       style: NEW_TASK_FIELD_STYLES.some(style => style.value === merged.style) ? merged.style : 'standard',
+      icon: merged.icon || defaults.icon || '📌',
       enabled,
       deleted,
       isCustom: false,
@@ -184,6 +178,7 @@ export const normalizeNewTaskFields = (fields = {}, { includeDeleted = false, is
         label: String(fieldConfig.label || 'שדה מותאם').trim(),
         type: FIELD_TYPES.some(t => t.value === fieldConfig.type) ? fieldConfig.type : 'text',
         style: NEW_TASK_FIELD_STYLES.some(s => s.value === fieldConfig.style) ? fieldConfig.style : 'standard',
+        icon: fieldConfig.icon || '✨',
         enabled: isDeleted ? false : fieldConfig.enabled !== false,
         deleted: isDeleted,
         isCustom: true,

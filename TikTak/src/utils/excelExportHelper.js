@@ -228,6 +228,7 @@ export const exportAllUserDataToExcel = async ({
   organizationId,
   organizationName = '',
   userEmail = '',
+  isSystemAdmin = false,
   settings = {},
   suppliers = [],
   contacts = [],
@@ -681,7 +682,7 @@ export const exportAllUserDataToExcel = async ({
     ['סה״כ תתי-משימות', subtaskRows.length],
     ['סה״כ ספקים', (suppliers || []).length],
     ['סה״כ אנשי קשר', (contacts || []).length],
-    ['גרסת מערכת', flags.isV2 ? 'גרסה 2 (חדשה)' : 'גרסה קלאסית (Legacy)'],
+    ...(isSystemAdmin ? [['גרסת מערכת', flags.isV2 ? 'גרסה 2 (חדשה)' : 'גרסה קלאסית (Legacy)']] : []),
     [
       'לוחות מוגדרים',
       (settings?.boards || [])

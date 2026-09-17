@@ -340,11 +340,17 @@ service cloud.firestore {
       allow read: if (isViewer() && viewerOrganizationId() != '' && documentId == viewerOrganizationId()) ||
                      documentId == request.auth.uid ||
                      (currentOrganizationId() != '' && documentId == currentOrganizationId()) ||
+                     (exists(/databases/$(database)/documents/organizations/$(documentId)) &&
+                      ('ownerUid' in get(/databases/$(database)/documents/organizations/$(documentId)).data) &&
+                      get(/databases/$(database)/documents/organizations/$(documentId)).data.ownerUid == request.auth.uid) ||
                      isAdmin();
       allow write: if isAuthenticated() && !isAnonymousViewer() && (
         isAdmin() ||
         (currentOrganizationId() != '' && documentId == currentOrganizationId()) ||
-        documentId == request.auth.uid
+        documentId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/organizations/$(documentId)) &&
+         ('ownerUid' in get(/databases/$(database)/documents/organizations/$(documentId)).data) &&
+         get(/databases/$(database)/documents/organizations/$(documentId)).data.ownerUid == request.auth.uid)
       );
     }
 
@@ -387,14 +393,20 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        (request.auth.uid == userId && canAccessOrganization(request.resource.data.organizationId))
+        request.auth.uid == userId
       );
       allow update: if isAuthenticated() && (
         isAdmin() ||
         (
           request.auth.uid == userId &&
           (
-            request.resource.data.organizationId == resource.data.organizationId
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organizationId']) ||
+            (!('organizationId' in resource.data) || resource.data.organizationId == '' || resource.data.organizationId == null) ||
+            request.resource.data.organizationId == resource.data.organizationId ||
+            canAccessOrganization(request.resource.data.organizationId) ||
+            (exists(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)) &&
+             ('ownerUid' in get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data) &&
+             get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.ownerUid == request.auth.uid)
           )
         )
       );
@@ -407,7 +419,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() && !isAnonymousViewer() && (
         isAdmin() ||
         (
-          canAccessOrganization(organizationId) &&
+          (canAccessOrganization(organizationId) || ('ownerUid' in resource.data && resource.data.ownerUid == request.auth.uid)) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active', 'subscription', 'lastPayment', 'suspendedAt'])
         )
       );
@@ -446,10 +458,13 @@ service cloud.firestore {
     // Activity Log Rules
     match /activityLogs/{activityLogId} {
       allow read: if isAuthenticated() && (resource.data.actorUid == request.auth.uid || canAccessOrganization(resource.data.organizationId) || isAdmin());
-      allow create: if isAuthenticated() && !isAnonymousViewer() && isValidActivityLog(request.resource.data) && canAccessOrganization(request.resource.data.organizationId);
+      allow create: if isAuthenticated() && !isAnonymousViewer() && isValidActivityLog(request.resource.data) && (
+        canAccessOrganization(request.resource.data.organizationId) ||
+        request.resource.data.actorUid == request.auth.uid
+      );
       allow update: if isAuthenticated() &&
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['organizationId']) &&
-                    (isAdmin() || (resource.data.actorUid == request.auth.uid && !('organizationId' in resource.data)));
+                    (isAdmin() || (resource.data.actorUid == request.auth.uid && (!('organizationId' in resource.data) || resource.data.organizationId == '')));
       allow delete: if false;
     }
   }

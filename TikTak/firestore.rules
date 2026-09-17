@@ -464,7 +464,7 @@ service cloud.firestore {
       );
       allow update: if isAuthenticated() &&
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['organizationId']) &&
-                    (isAdmin() || (resource.data.actorUid == request.auth.uid && (!('organizationId' in resource.data) || resource.data.organizationId == '')));
+                    (isAdmin() || resource.data.actorUid == request.auth.uid);
       allow delete: if false;
     }
   }

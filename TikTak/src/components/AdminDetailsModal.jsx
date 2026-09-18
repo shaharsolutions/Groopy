@@ -803,11 +803,13 @@ export default function AdminDetailsModal({
     const changedAt = new Date().toISOString();
     setSavingStatus(true);
     try {
+      const isCompleted = newStatus === 'אושר' || newStatus === 'אושר לספק' || newStatus === 'ארכיון';
+      const completedAt = isCompleted ? (task?.completedAt || changedAt) : null;
       if (onStatusChange) {
         const saved = await onStatusChange(task.id, newStatus);
         if (!saved) return;
       } else {
-        await updateTask(task.id, { status: newStatus });
+        await updateTask(task.id, { status: newStatus, completedAt });
       }
       setQuickStatus(newStatus);
       const fetchedComments = await getCommentsForTask(task.id, userId, organizationId);
@@ -816,7 +818,7 @@ export default function AdminDetailsModal({
         await onRefresh();
       }
       if (onTaskUpdated) {
-        onTaskUpdated(task.id, { status: newStatus, updatedAt: changedAt });
+        onTaskUpdated(task.id, { status: newStatus, completedAt, updatedAt: changedAt });
       }
     } catch (err) {
       console.error("Failed to update status", err);
@@ -3165,7 +3167,7 @@ export default function AdminDetailsModal({
                             );
                           })}
                         </div>
-                        {(quickStatus === 'אושר לספק' || quickStatus === 'ארכיון' || task?.completedAt) && (
+                        {(quickStatus === 'אושר' || quickStatus === 'אושר לספק' || quickStatus === 'ארכיון' || task?.completedAt) && (
                           <div className="task-completed-date-badge" style={{ marginTop: '8px', textAlign: 'center' }}>
                             הושלם ב-{formatDate(task?.completedAt || task?.updatedAt)}
                           </div>

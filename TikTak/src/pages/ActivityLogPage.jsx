@@ -128,6 +128,8 @@ export default function ActivityLogPage({ currentUserId, currentUserEmail, organ
             urgent: 'דחופה',
             new: 'חדש',
             'in progress': 'בטיפול',
+            sent: 'נשלח',
+            approved: 'אושר',
             'sent to supplier': 'נשלח לספק',
             'approved by supplier': 'אושר לספק',
             archive: 'ארכיון',

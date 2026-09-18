@@ -179,11 +179,13 @@ export default function App() {
 
   // Dynamic application settings
   const [settings, setSettings] = useState({
-    statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
+    statuses: ['חדש', 'בטיפול', 'נשלח', 'אושר', 'ארכיון'],
     defaultStatus: 'חדש',
     statusColors: {
       'חדש': 'badge-new',
       'בטיפול': 'badge-in-progress',
+      'נשלח': 'badge-waiting-approval',
+      'אושר': 'badge-approved',
       'נשלח לספק': 'badge-waiting-approval',
       'אושר לספק': 'badge-approved',
       'ארכיון': 'badge-archive'
@@ -355,11 +357,13 @@ export default function App() {
               const userSettings = await storageApi.getGlobalSettings(resolvedOrgId);
               if (!userSettings && isSystemAdminEmail(user.email)) {
                 const defaultSettings = {
-                  statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
+                  statuses: ['חדש', 'בטיפול', 'נשלח', 'אושר', 'ארכיון'],
                   defaultStatus: 'חדש',
                   statusColors: {
                     'חדש': 'badge-new',
                     'בטיפול': 'badge-in-progress',
+                    'נשלח': 'badge-waiting-approval',
+                    'אושר': 'badge-approved',
                     'נשלח לספק': 'badge-waiting-approval',
                     'אושר לספק': 'badge-approved',
                     'ארכיון': 'badge-archive'
@@ -511,16 +515,22 @@ export default function App() {
       // Listen to settings in real time from Firestore
       const settingsDocRef = doc(db, 'settings', effectiveOrganizationId);
       unsubscribeSettings = onSnapshot(settingsDocRef, (docSnap) => {
-      const defaultStatuses = ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'];
+        const dbSettingsData = docSnap.exists() ? docSnap.data() : null;
+        const isLegacyOrg = dbSettingsData?.appVersion === APP_VERSIONS.V1 || dbSettingsData?.isLegacy === true;
+      const defaultStatuses = isLegacyOrg
+        ? ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון']
+        : ['חדש', 'בטיפול', 'נשלח', 'אושר', 'ארכיון'];
       const defaultStatusColors = {
         'חדש': 'badge-new',
         'בטיפול': 'badge-in-progress',
+        'נשלח': 'badge-waiting-approval',
+        'אושר': 'badge-approved',
         'נשלח לספק': 'badge-waiting-approval',
         'אושר לספק': 'badge-approved',
         'ארכיון': 'badge-archive'
       };
       if (docSnap.exists()) {
-        const dbSettings = docSnap.data();
+        const dbSettings = dbSettingsData;
         let sanitizedBoards = Array.isArray(dbSettings.boards) ? dbSettings.boards : [];
         let sanitizedBoardOrder = Array.isArray(dbSettings.boardOrder) ? dbSettings.boardOrder : [];
 

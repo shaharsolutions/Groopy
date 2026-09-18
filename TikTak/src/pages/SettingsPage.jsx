@@ -445,11 +445,14 @@ export default function SettingsPage({
     if (isDefaultBoard) return;
     const existingBoards = Array.isArray(localSettings.boards) ? localSettings.boards : [];
     if (enable) {
+      const fallbackDefaultStatuses = flags.isLegacy
+        ? ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון']
+        : ['חדש', 'בטיפול', 'נשלח', 'אושר', 'ארכיון'];
       setLocalSettings({
         ...localSettings,
         boards: existingBoards.map(b => (b.id === selectedStatusBoardId ? {
           ...b,
-          statuses: [...(localSettings.statuses || ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'])],
+          statuses: [...(localSettings.statuses || fallbackDefaultStatuses)],
           statusColors: { ...(localSettings.statusColors || {}) },
           defaultStatus: localSettings.defaultStatus || 'חדש'
         } : b))

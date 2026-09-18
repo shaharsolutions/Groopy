@@ -1830,11 +1830,13 @@ export const registerNewOrganizationAndUser = async ({
 
   // 3. Create organization default settings in Firestore with V2 defaults
   const defaultSettings = {
-    statuses: ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'],
+    statuses: ['חדש', 'בטיפול', 'נשלח', 'אושר', 'ארכיון'],
     defaultStatus: 'חדש',
     statusColors: {
       'חדש': 'badge-new',
       'בטיפול': 'badge-in-progress',
+      'נשלח': 'badge-waiting-approval',
+      'אושר': 'badge-approved',
       'נשלח לספק': 'badge-waiting-approval',
       'אושר לספק': 'badge-approved',
       'ארכיון': 'badge-archive'

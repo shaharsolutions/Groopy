@@ -106,7 +106,10 @@ export default function ViewerSettingsPage({ settings, organizationName, onBack 
     }
   };
 
-  const statuses = Array.isArray(settings?.statuses) ? settings.statuses : ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון'];
+  const fallbackStatuses = flags?.isLegacy
+    ? ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון']
+    : ['חדש', 'בטיפול', 'נשלח', 'אושר', 'ארכיון'];
+  const statuses = Array.isArray(settings?.statuses) ? settings.statuses : fallbackStatuses;
   const statusColors = settings?.statusColors || {};
 
   return (

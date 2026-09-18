@@ -58,11 +58,13 @@ export default function OrganizationSetupPage({
   const [newExtraBoardIcon, setNewExtraBoardIcon] = useState('📁');
 
   // Statuses
-  const [statuses, setStatuses] = useState(initialSettings?.statuses || ['חדש', 'בטיפול', 'נשלח לספק', 'אושר לספק', 'ארכיון']);
+  const [statuses, setStatuses] = useState(initialSettings?.statuses || ['חדש', 'בטיפול', 'נשלח', 'אושר', 'ארכיון']);
   const [defaultStatus, setDefaultStatus] = useState(initialSettings?.defaultStatus || 'חדש');
   const [statusColors, setStatusColors] = useState(initialSettings?.statusColors || {
     'חדש': 'badge-new',
     'בטיפול': 'badge-in-progress',
+    'נשלח': 'badge-waiting-approval',
+    'אושר': 'badge-approved',
     'נשלח לספק': 'badge-waiting-approval',
     'אושר לספק': 'badge-approved',
     'ארכיון': 'badge-archive'
@@ -731,10 +733,6 @@ export default function OrganizationSetupPage({
                       פרטים אלו משמשים לזיהוי הארגון, להגדרת משתמש הניהול הראשי ומופיעים בחתימת הודעות וקבצי אקסל המופקים מהמערכת.
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.84rem', color: '#334155' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ color: '#16a34a' }}>✓</span>
-                        <span>ארגון חדש נוצר אוטומטית בגרסה המתקדמת V2.</span>
-                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ color: '#16a34a' }}>✓</span>
                         <span>תוכלו לעדכן פרטים אלו בכל עת מעמוד ההגדרות.</span>

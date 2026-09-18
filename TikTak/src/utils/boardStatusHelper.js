@@ -11,9 +11,19 @@ export const DEFAULT_BOARD_STATUSES = [
   'ארכיון'
 ];
 
+export const DEFAULT_BOARD_STATUSES_V2 = [
+  'חדש',
+  'בטיפול',
+  'נשלח',
+  'אושר',
+  'ארכיון'
+];
+
 export const DEFAULT_STATUS_COLORS = {
   'חדש': 'badge-new',
   'בטיפול': 'badge-in-progress',
+  'נשלח': 'badge-waiting-approval',
+  'אושר': 'badge-approved',
   'נשלח לספק': 'badge-waiting-approval',
   'אושר לספק': 'badge-approved',
   'ארכיון': 'badge-archive'
@@ -29,9 +39,12 @@ export const DEFAULT_BOARD_STATUS = 'חדש';
  * @returns {{ statuses: string[], statusColors: Record<string, string>, defaultStatus: string }}
  */
 export function getBoardStatusConfig(settings, boardId) {
+  const isLegacy = settings?.appVersion === 'v1' || settings?.isLegacy === true;
+  const fallbackStatuses = isLegacy ? DEFAULT_BOARD_STATUSES : DEFAULT_BOARD_STATUSES_V2;
+
   const globalStatuses = Array.isArray(settings?.statuses) && settings.statuses.length > 0
     ? settings.statuses
-    : DEFAULT_BOARD_STATUSES;
+    : fallbackStatuses;
 
   const globalColors = settings?.statusColors && typeof settings.statusColors === 'object'
     ? settings.statusColors

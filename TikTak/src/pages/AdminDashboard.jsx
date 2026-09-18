@@ -1107,7 +1107,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
   const handleStatusChange = async (taskId, newStatus) => {
     const changedAt = new Date().toISOString();
-    const isCompleted = newStatus === 'אושר לספק' || newStatus === 'ארכיון';
+    const isCompleted = newStatus === 'אושר' || newStatus === 'אושר לספק' || newStatus === 'ארכיון';
     const targetTask = tasks.find(t => t.id === taskId);
     const completedAt = isCompleted ? (targetTask?.completedAt || changedAt) : null;
 
@@ -1357,7 +1357,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
             onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
             disabled={savingStatusIds.has(task.id)}
           />
-          {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+          {(task.status === 'אושר' || task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
             <div className="task-completed-date-badge">
               הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
             </div>
@@ -2525,7 +2525,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                               onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
                               disabled={savingStatusIds.has(task.id)}
                             />
-                            {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                            {(task.status === 'אושר' || task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
                               <div className="task-completed-date-badge">
                                 הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
                               </div>
@@ -2671,7 +2671,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                         onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
                         disabled={savingStatusIds.has(task.id)}
                       />
-                      {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                      {(task.status === 'אושר' || task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
                         <div className="task-completed-date-badge">
                           הושלם ב-{formatDate(task.completedAt || task.updatedAt)}
                         </div>
@@ -2690,7 +2690,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                           <span className="meta-label">עודכן ב</span>
                           <span className="meta-value">{formatDate(task.updatedAt)}</span>
                         </div>
-                        {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                        {(task.status === 'אושר' || task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
                           <div className="meta-item">
                             <span className="meta-label">תאריך השלמה</span>
                             <span className="meta-value completed-date-highlight">{formatDate(task.completedAt || task.updatedAt)}</span>
@@ -2729,7 +2729,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                           <span className="meta-label">עודכן ב</span>
                           <span className="meta-value">{formatDate(task.updatedAt)}</span>
                         </div>
-                        {(task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
+                        {(task.status === 'אושר' || task.status === 'אושר לספק' || task.status === 'ארכיון' || task.completedAt) && (
                           <div className="meta-item">
                             <span className="meta-label">תאריך השלמה</span>
                             <span className="meta-value completed-date-highlight">{formatDate(task.completedAt || task.updatedAt)}</span>

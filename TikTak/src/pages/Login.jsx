@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword 
@@ -32,18 +34,78 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    // Check if user just returned from a Google full-page redirect login
+    let isCancelled = false;
+    getRedirectResult(auth)
+      .then((result) => {
+        if (!isCancelled && result?.user) {
+          // Handled automatically by App.jsx onAuthStateChanged
+        }
+      })
+      .catch((err) => {
+        if (isCancelled) return;
+        console.error("Google redirect result error:", err);
+        if (err.code === 'auth/unauthorized-domain') {
+          setError('הדומיין הנוכחי אינו מורשה בהגדרות מערכת Firebase.');
+        } else if (err.code && err.code !== 'auth/popup-closed-by-user') {
+          setError(`שגיאה בהתחברות עם גוגל: ${err.message || err.code}`);
+        }
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const createGoogleProvider = () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return provider;
+  };
+
+  const handleGoogleRedirectLogin = async () => {
+    setError('');
+    setLoading(true);
+    const provider = createGoogleProvider();
+    try {
+      await signInWithRedirect(auth, provider);
+    } catch (err) {
+      console.error("Google Redirect Error:", err);
+      if (err.code === 'auth/unauthorized-domain') {
+        setError('הדומיין הנוכחי אינו מורשה בהגדרות מערכת Firebase.');
+      } else {
+        setError(`שגיאה בהפניה לגוגל: ${err.message || err.code}`);
+      }
+      setLoading(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
-    const provider = new GoogleAuthProvider();
+    const provider = createGoogleProvider();
     try {
       await signInWithPopup(auth, provider);
     } catch (err) {
       console.error("Google Sign-In Error:", err);
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setError('שגיאה בהתחברות עם גוגל. נסה שנית.');
+      if (
+        err.code === 'auth/popup-blocked' ||
+        err.code === 'auth/popup-closed-by-user' ||
+        err.code === 'auth/cancelled-popup-request'
+      ) {
+        // Automatically attempt redirect or offer direct redirect button
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectErr) {
+          console.error("Fallback to redirect failed:", redirectErr);
+          setError('החלון הקופץ נחסם על ידי הדפדפן. לחצו על הקישור למטה להתחברות ישירה בעמוד מלא.');
+        }
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('הדומיין הנוכחי אינו מורשה בהגדרות מערכת Firebase.');
+      } else {
+        setError(`שגיאה בהתחברות עם גוגל: ${err.message || err.code}`);
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -211,6 +273,26 @@ export default function Login() {
                   </svg>
                   התחברות מהירה עם Google
                 </button>
+
+                <div style={{ textAlign: 'center', marginTop: '-10px', marginBottom: '2px' }}>
+                  <button
+                    type="button"
+                    onClick={handleGoogleRedirectLogin}
+                    disabled={loading}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--primary, #2563eb)',
+                      fontSize: '0.78rem',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      padding: '2px 6px',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    החלון הקופץ לא נפתח או נסגר? לחצו להתחברות בעמוד מלא
+                  </button>
+                </div>
 
                 <div style={{
                   display: 'flex',

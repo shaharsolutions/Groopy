@@ -2805,6 +2805,7 @@ export default function AdminDetailsModal({
                         <textarea
                           className="form-control"
                           rows="2"
+                          placeholder="כתוב הערה..."
                           value={commentText}
                           onChange={(e) => setCommentText(e.target.value)}
                         />

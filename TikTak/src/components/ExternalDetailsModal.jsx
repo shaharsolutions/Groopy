@@ -754,6 +754,7 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                       id={`external-comment-text-${task.id}`}
                       className="form-control"
                       rows="2"
+                      placeholder="כתוב הערה..."
                       value={commentText}
                       onChange={(e) => {
                         setCommentText(e.target.value);

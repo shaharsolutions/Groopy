@@ -6,6 +6,8 @@ import {
   getPaymentConfig,
   savePaymentConfig,
   getPaymentRecords,
+  archivePaymentRecords,
+  restorePaymentRecords,
   deletePaymentRecords,
   buildTranzilaPaymentUrl,
   TRANZILA_DEFAULT_CONFIG
@@ -124,19 +126,36 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [reopenPriceSuccess, setReopenPriceSuccess] = useState('');
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingPaymentRecords, setLoadingPaymentRecords] = useState(true);
+  const [paymentsTab, setPaymentsTab] = useState('active'); // 'active' | 'archive'
   const [selectedPaymentIds, setSelectedPaymentIds] = useState([]);
-  const [paymentIdsToDelete, setPaymentIdsToDelete] = useState([]);
-  const [deletingPayments, setDeletingPayments] = useState(false);
-  const [showDeletePaymentsModal, setShowDeletePaymentsModal] = useState(false);
-  const [deletePaymentsError, setDeletePaymentsError] = useState('');
   const [paymentsPage, setPaymentsPage] = useState(1);
   const PAYMENTS_PER_PAGE = 10;
 
-  const totalPaymentPages = Math.max(1, Math.ceil(paymentRecords.length / PAYMENTS_PER_PAGE));
+  // Archive Modal States
+  const [paymentIdsToArchive, setPaymentIdsToArchive] = useState([]);
+  const [archivingPayments, setArchivingPayments] = useState(false);
+  const [showArchivePaymentsModal, setShowArchivePaymentsModal] = useState(false);
+  const [archivePaymentsError, setArchivePaymentsError] = useState('');
+
+  // Permanent Delete Modal States (from Archive)
+  const [paymentIdsToDeletePermanently, setPaymentIdsToDeletePermanently] = useState([]);
+  const [deletingPermanently, setDeletingPermanently] = useState(false);
+  const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
+  const [permanentDeleteError, setPermanentDeleteError] = useState('');
+
+  // Restore State
+  const [restoringPayments, setRestoringPayments] = useState(false);
+
+  // Split Active vs Archived Records
+  const activePaymentRecords = useMemo(() => paymentRecords.filter(r => !r.archived), [paymentRecords]);
+  const archivedPaymentRecords = useMemo(() => paymentRecords.filter(r => r.archived === true), [paymentRecords]);
+  const currentTabRecords = paymentsTab === 'active' ? activePaymentRecords : archivedPaymentRecords;
+
+  const totalPaymentPages = Math.max(1, Math.ceil(currentTabRecords.length / PAYMENTS_PER_PAGE));
   const paginatedPaymentRecords = useMemo(() => {
     const startIndex = (paymentsPage - 1) * PAYMENTS_PER_PAGE;
-    return paymentRecords.slice(startIndex, startIndex + PAYMENTS_PER_PAGE);
-  }, [paymentRecords, paymentsPage]);
+    return currentTabRecords.slice(startIndex, startIndex + PAYMENTS_PER_PAGE);
+  }, [currentTabRecords, paymentsPage]);
 
   const currentPagePaymentIds = useMemo(() => paginatedPaymentRecords.map(r => r.id), [paginatedPaymentRecords]);
   const isAllCurrentPageSelected = currentPagePaymentIds.length > 0 && currentPagePaymentIds.every(id => selectedPaymentIds.includes(id));
@@ -146,7 +165,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     if (paymentsPage > totalPaymentPages) {
       setPaymentsPage(Math.max(1, totalPaymentPages));
     }
-  }, [paymentRecords.length, totalPaymentPages, paymentsPage]);
+  }, [currentTabRecords.length, totalPaymentPages, paymentsPage]);
 
   const [testPaymentOrg, setTestPaymentOrg] = useState(null);
   const [copiedPaymentOrgId, setCopiedPaymentOrgId] = useState('');
@@ -189,61 +208,136 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     }
   };
 
-  const handleInitiateDeleteSelected = () => {
+  // Archive Handlers (Moving active charges to archive)
+  const handleInitiateArchiveSelected = () => {
     if (selectedPaymentIds.length === 0) return;
-    setPaymentIdsToDelete(selectedPaymentIds);
-    setDeletePaymentsError('');
-    setShowDeletePaymentsModal(true);
+    setPaymentIdsToArchive(selectedPaymentIds);
+    setArchivePaymentsError('');
+    setShowArchivePaymentsModal(true);
   };
 
-  const handleInitiateDeleteSingle = (paymentId) => {
-    setPaymentIdsToDelete([paymentId]);
-    setDeletePaymentsError('');
-    setShowDeletePaymentsModal(true);
+  const handleInitiateArchiveSingle = (paymentId) => {
+    setPaymentIdsToArchive([paymentId]);
+    setArchivePaymentsError('');
+    setShowArchivePaymentsModal(true);
   };
 
-  const handleCloseDeletePaymentsModal = () => {
-    if (deletingPayments) return;
-    setShowDeletePaymentsModal(false);
-    setPaymentIdsToDelete([]);
-    setDeletePaymentsError('');
+  const handleCloseArchivePaymentsModal = () => {
+    if (archivingPayments) return;
+    setShowArchivePaymentsModal(false);
+    setPaymentIdsToArchive([]);
+    setArchivePaymentsError('');
   };
 
-  const handleConfirmDeletePayments = async () => {
-    if (paymentIdsToDelete.length === 0) {
-      setShowDeletePaymentsModal(false);
+  const handleConfirmArchivePayments = async () => {
+    if (paymentIdsToArchive.length === 0) {
+      setShowArchivePaymentsModal(false);
       return;
     }
 
     try {
-      setDeletingPayments(true);
-      setDeletePaymentsError('');
-      await deletePaymentRecords(paymentIdsToDelete);
+      setArchivingPayments(true);
+      setArchivePaymentsError('');
+      await archivePaymentRecords(paymentIdsToArchive);
 
-      const deletedSet = new Set(paymentIdsToDelete);
+      const archivedIdsSet = new Set(paymentIdsToArchive);
+      const nowIso = new Date().toISOString();
+      setPaymentRecords(prev => prev.map(r =>
+        archivedIdsSet.has(r.id) ? { ...r, archived: true, archivedAt: nowIso } : r
+      ));
+      setSelectedPaymentIds(prev => prev.filter(id => !archivedIdsSet.has(id)));
+      setPaymentIdsToArchive([]);
+      setShowArchivePaymentsModal(false);
+    } catch (err) {
+      console.error('Failed to archive payment records:', err);
+      setArchivePaymentsError('שגיאה בהעברת חיובים לארכיון: ' + (err.message || 'אנא נסה שוב'));
+    } finally {
+      setArchivingPayments(false);
+    }
+  };
+
+  // Restore Handlers (Moving archived charges back to active log)
+  const handleRestorePayments = async (idsToRestore) => {
+    if (!idsToRestore || idsToRestore.length === 0) return;
+    try {
+      setRestoringPayments(true);
+      await restorePaymentRecords(idsToRestore);
+      const restoredIdsSet = new Set(idsToRestore);
+      const nowIso = new Date().toISOString();
+      setPaymentRecords(prev => prev.map(r =>
+        restoredIdsSet.has(r.id) ? { ...r, archived: false, restoredAt: nowIso } : r
+      ));
+      setSelectedPaymentIds(prev => prev.filter(id => !restoredIdsSet.has(id)));
+    } catch (err) {
+      console.error('Failed to restore payment records:', err);
+      alert('שגיאה בשחזור חיובים מהארכיון: ' + (err.message || 'אנא נסה שוב'));
+    } finally {
+      setRestoringPayments(false);
+    }
+  };
+
+  // Permanent Delete Handlers (From Archive)
+  const handleInitiatePermanentDeleteSelected = () => {
+    if (selectedPaymentIds.length === 0) return;
+    setPaymentIdsToDeletePermanently(selectedPaymentIds);
+    setPermanentDeleteError('');
+    setShowPermanentDeleteModal(true);
+  };
+
+  const handleInitiatePermanentDeleteSingle = (paymentId) => {
+    setPaymentIdsToDeletePermanently([paymentId]);
+    setPermanentDeleteError('');
+    setShowPermanentDeleteModal(true);
+  };
+
+  const handleClosePermanentDeleteModal = () => {
+    if (deletingPermanently) return;
+    setShowPermanentDeleteModal(false);
+    setPaymentIdsToDeletePermanently([]);
+    setPermanentDeleteError('');
+  };
+
+  const handleConfirmPermanentDelete = async () => {
+    if (paymentIdsToDeletePermanently.length === 0) {
+      setShowPermanentDeleteModal(false);
+      return;
+    }
+
+    try {
+      setDeletingPermanently(true);
+      setPermanentDeleteError('');
+      await deletePaymentRecords(paymentIdsToDeletePermanently);
+
+      const deletedSet = new Set(paymentIdsToDeletePermanently);
       setPaymentRecords(prev => prev.filter(r => !deletedSet.has(r.id)));
       setSelectedPaymentIds(prev => prev.filter(id => !deletedSet.has(id)));
-      setPaymentIdsToDelete([]);
-      setShowDeletePaymentsModal(false);
+      setPaymentIdsToDeletePermanently([]);
+      setShowPermanentDeleteModal(false);
     } catch (err) {
-      console.error('Failed to delete payments:', err);
-      setDeletePaymentsError('שגיאה במחיקת רשומות התשלום: ' + (err.message || 'אנא נסה שוב'));
+      console.error('Failed to permanently delete payments:', err);
+      setPermanentDeleteError('שגיאה במחיקת חיובים לצמיתות: ' + (err.message || 'אנא נסה שוב'));
     } finally {
-      setDeletingPayments(false);
+      setDeletingPermanently(false);
     }
   };
 
   useEffect(() => {
-    if (!showDeletePaymentsModal) return;
+    if (!showArchivePaymentsModal && !showPermanentDeleteModal) return;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && !deletingPayments) {
-        setShowDeletePaymentsModal(false);
-        setPaymentIdsToDelete([]);
+      if (e.key === 'Escape') {
+        if (showArchivePaymentsModal && !archivingPayments) {
+          setShowArchivePaymentsModal(false);
+          setPaymentIdsToArchive([]);
+        }
+        if (showPermanentDeleteModal && !deletingPermanently) {
+          setShowPermanentDeleteModal(false);
+          setPaymentIdsToDeletePermanently([]);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showDeletePaymentsModal, deletingPayments]);
+  }, [showArchivePaymentsModal, archivingPayments, showPermanentDeleteModal, deletingPermanently]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1647,17 +1741,99 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           )}
         </div>
 
-        {/* Transactions / Payment Records Log */}
+        {/* Transactions / Payment Records Log with Archive Support */}
         <div style={{
           border: '1px solid #e2e8f0',
           borderRadius: '12px',
           overflow: 'hidden',
           backgroundColor: '#ffffff'
         }}>
+          {/* Top Tabs: Active Log vs Charges Archive */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            borderBottom: '1px solid #e2e8f0',
+            backgroundColor: '#f8fafc',
+            padding: '0 12px'
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                setPaymentsTab('active');
+                setSelectedPaymentIds([]);
+                setPaymentsPage(1);
+              }}
+              style={{
+                padding: '12px 18px',
+                border: 'none',
+                borderBottom: paymentsTab === 'active' ? '3px solid #4f46e5' : '3px solid transparent',
+                background: 'transparent',
+                color: paymentsTab === 'active' ? '#4f46e5' : '#64748b',
+                fontWeight: paymentsTab === 'active' ? '800' : '600',
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontFamily: 'inherit',
+                transition: 'all 0.15s'
+              }}
+            >
+              <span>💳 יומן חיובים פעיל</span>
+              <span style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                fontSize: '0.75rem',
+                backgroundColor: paymentsTab === 'active' ? '#e0e7ff' : '#e2e8f0',
+                color: paymentsTab === 'active' ? '#4338ca' : '#475569',
+                fontWeight: '700'
+              }}>
+                {activePaymentRecords.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPaymentsTab('archive');
+                setSelectedPaymentIds([]);
+                setPaymentsPage(1);
+              }}
+              style={{
+                padding: '12px 18px',
+                border: 'none',
+                borderBottom: paymentsTab === 'archive' ? '3px solid #334155' : '3px solid transparent',
+                background: 'transparent',
+                color: paymentsTab === 'archive' ? '#0f172a' : '#64748b',
+                fontWeight: paymentsTab === 'archive' ? '800' : '600',
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontFamily: 'inherit',
+                transition: 'all 0.15s'
+              }}
+            >
+              <span>📦 ארכיון חיובים</span>
+              <span style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                fontSize: '0.75rem',
+                backgroundColor: paymentsTab === 'archive' ? '#334155' : '#e2e8f0',
+                color: paymentsTab === 'archive' ? '#ffffff' : '#475569',
+                fontWeight: '700'
+              }}>
+                {archivedPaymentRecords.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Sub-Header / Bulk Action Toolbar */}
           <div style={{
             padding: '12px 16px',
-            backgroundColor: selectedPaymentIds.length > 0 ? '#fff1f2' : '#f8fafc',
-            borderBottom: '1px solid ' + (selectedPaymentIds.length > 0 ? '#fecdd3' : '#e2e8f0'),
+            backgroundColor: selectedPaymentIds.length > 0 ? (paymentsTab === 'active' ? '#fff1f2' : '#f0fdf4') : '#ffffff',
+            borderBottom: '1px solid ' + (selectedPaymentIds.length > 0 ? (paymentsTab === 'active' ? '#fecdd3' : '#bbf7d0') : '#e2e8f0'),
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -1666,9 +1842,11 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
             transition: 'background-color 0.2s, border-color 0.2s'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '1.1rem' }}>🧾</span>
+              <span style={{ fontSize: '1.1rem' }}>{paymentsTab === 'active' ? '🧾' : '📦'}</span>
               <strong style={{ color: '#1e293b', fontSize: '0.94rem' }}>
-                יומן תשלומי פתיחת גישה ({paymentRecords.length})
+                {paymentsTab === 'active'
+                  ? `יומן תשלומי פתיחת גישה (${activePaymentRecords.length})`
+                  : `רשומות בארכיון החיובים (${archivedPaymentRecords.length})`}
                 {totalPaymentPages > 1 && (
                   <span style={{ fontSize: '0.8rem', fontWeight: '500', color: '#64748b', marginRight: '6px' }}>
                     • עמוד {paymentsPage} מתוך {totalPaymentPages}
@@ -1681,23 +1859,24 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   alignItems: 'center',
                   padding: '2px 9px',
                   borderRadius: '999px',
-                  backgroundColor: '#fee2e2',
-                  color: '#b91c1c',
+                  backgroundColor: paymentsTab === 'active' ? '#fee2e2' : '#dcfce7',
+                  color: paymentsTab === 'active' ? '#b91c1c' : '#15803d',
                   fontSize: '0.78rem',
                   fontWeight: '700',
-                  border: '1px solid #fca5a5'
+                  border: paymentsTab === 'active' ? '1px solid #fca5a5' : '1px solid #86efac'
                 }}>
                   נבחרו {selectedPaymentIds.length}
                 </span>
               )}
             </div>
+
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               {selectedPaymentIds.length > 0 && (
                 <>
-                  {paymentRecords.length > paginatedPaymentRecords.length && selectedPaymentIds.length < paymentRecords.length && (
+                  {currentTabRecords.length > paginatedPaymentRecords.length && selectedPaymentIds.length < currentTabRecords.length && (
                     <button
                       type="button"
-                      onClick={() => setSelectedPaymentIds(paymentRecords.map(r => r.id))}
+                      onClick={() => setSelectedPaymentIds(currentTabRecords.map(r => r.id))}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -1710,7 +1889,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                         fontFamily: 'inherit'
                       }}
                     >
-                      בחר את כל ה-{paymentRecords.length}
+                      בחר את כל ה-{currentTabRecords.length}
                     </button>
                   )}
                   <button
@@ -1730,32 +1909,90 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   >
                     בטל בחירה
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleInitiateDeleteSelected}
-                    disabled={deletingPayments}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      padding: '4px 12px',
-                      borderRadius: '6px',
-                      backgroundColor: '#dc2626',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: '0.8rem',
-                      fontWeight: '700',
-                      cursor: deletingPayments ? 'not-allowed' : 'pointer',
-                      opacity: deletingPayments ? 0.6 : 1,
-                      fontFamily: 'inherit',
-                      boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)',
-                      transition: 'all 0.15s'
-                    }}
-                    title="מחיקת הרשומות שנבחרו"
-                  >
-                    <span>🗑️</span>
-                    <span>{deletingPayments ? 'מוחק...' : `מחק נבחרים (${selectedPaymentIds.length})`}</span>
-                  </button>
+
+                  {paymentsTab === 'active' ? (
+                    <button
+                      type="button"
+                      onClick={handleInitiateArchiveSelected}
+                      disabled={archivingPayments}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        backgroundColor: '#dc2626',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        cursor: archivingPayments ? 'not-allowed' : 'pointer',
+                        opacity: archivingPayments ? 0.6 : 1,
+                        fontFamily: 'inherit',
+                        boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)',
+                        transition: 'all 0.15s'
+                      }}
+                      title="העבר לארכיון חיובים"
+                    >
+                      <span>📦</span>
+                      <span>{archivingPayments ? 'מעביר לארכיון...' : `העבר לארכיון (${selectedPaymentIds.length})`}</span>
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRestorePayments(selectedPaymentIds)}
+                        disabled={restoringPayments}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: '#16a34a',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: '0.8rem',
+                          fontWeight: '700',
+                          cursor: restoringPayments ? 'not-allowed' : 'pointer',
+                          opacity: restoringPayments ? 0.6 : 1,
+                          fontFamily: 'inherit',
+                          boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)',
+                          transition: 'all 0.15s'
+                        }}
+                        title="שחזר חיובים ליומן הפעיל"
+                      >
+                        <span>🔄</span>
+                        <span>{restoringPayments ? 'משחזר...' : `שחזר ליומן (${selectedPaymentIds.length})`}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleInitiatePermanentDeleteSelected}
+                        disabled={deletingPermanently}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: '0.8rem',
+                          fontWeight: '700',
+                          cursor: deletingPermanently ? 'not-allowed' : 'pointer',
+                          opacity: deletingPermanently ? 0.6 : 1,
+                          fontFamily: 'inherit',
+                          boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)',
+                          transition: 'all 0.15s'
+                        }}
+                        title="מחיקה סופית לצמיתות ממאגר הנתונים"
+                      >
+                        <span>🗑️</span>
+                        <span>{deletingPermanently ? 'מוחק...' : `מחק לצמיתות (${selectedPaymentIds.length})`}</span>
+                      </button>
+                    </>
+                  )}
                 </>
               )}
               <span style={{ fontSize: '0.8rem', color: '#64748b' }}>10 בעמוד</span>
@@ -1763,12 +2000,14 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
           </div>
 
           {loadingPaymentRecords ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.88rem' }}>
-              טוען יומן תשלומים...
+            <div style={{ padding: '28px', textAlign: 'center', color: '#64748b', fontSize: '0.88rem' }}>
+              טוען נתונים...
             </div>
-          ) : paymentRecords.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem' }}>
-              טרם בוצעו תשלומים לפתיחת ארגונים במערכת.
+          ) : currentTabRecords.length === 0 ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
+              {paymentsTab === 'active'
+                ? 'טרם בוצעו תשלומים לפתיחת ארגונים במערכת.'
+                : 'ארכיון החיובים ריק. חיובים שיועברו לארכיון יוצגו כאן.'}
             </div>
           ) : (
             <>
@@ -1786,7 +2025,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                           onChange={handleToggleSelectAllCurrentPage}
                           style={{
                             cursor: 'pointer',
-                            accentColor: '#dc2626',
+                            accentColor: paymentsTab === 'active' ? '#dc2626' : '#16a34a',
                             width: '16px',
                             height: '16px',
                             verticalAlign: 'middle'
@@ -1796,12 +2035,15 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                         />
                       </th>
                       <th style={{ padding: '10px 14px' }}>תאריך ושעה</th>
+                      {paymentsTab === 'archive' && (
+                        <th style={{ padding: '10px 14px' }}>תאריך ארכוב</th>
+                      )}
                       <th style={{ padding: '10px 14px' }}>שם ארגון</th>
                       <th style={{ padding: '10px 14px' }}>משתמש משלם</th>
                       <th style={{ padding: '10px 14px' }}>סכום</th>
                       <th style={{ padding: '10px 14px' }}>מזהה עסקה</th>
                       <th style={{ padding: '10px 14px' }}>סטטוס</th>
-                      <th style={{ padding: '10px 14px', width: '60px', textAlign: 'center' }}>פעולות</th>
+                      <th style={{ padding: '10px 14px', width: paymentsTab === 'archive' ? '80px' : '60px', textAlign: 'center' }}>פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1812,7 +2054,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                           key={item.id}
                           style={{
                             borderBottom: '1px solid #f1f5f9',
-                            backgroundColor: isSelected ? '#fef2f2' : 'transparent',
+                            backgroundColor: isSelected ? (paymentsTab === 'active' ? '#fef2f2' : '#f0fdf4') : 'transparent',
                             transition: 'background-color 0.15s'
                           }}
                         >
@@ -1823,7 +2065,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                               onChange={() => handleToggleSelectPayment(item.id)}
                               style={{
                                 cursor: 'pointer',
-                                accentColor: '#dc2626',
+                                accentColor: paymentsTab === 'active' ? '#dc2626' : '#16a34a',
                                 width: '16px',
                                 height: '16px',
                                 verticalAlign: 'middle'
@@ -1835,61 +2077,139 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                           <td style={{ padding: '10px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
                             {item.createdAt ? new Date(item.createdAt).toLocaleString('he-IL') : '-'}
                           </td>
+                          {paymentsTab === 'archive' && (
+                            <td style={{ padding: '10px 14px', color: '#94a3b8', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                              {item.archivedAt ? new Date(item.archivedAt).toLocaleString('he-IL') : '-'}
+                            </td>
+                          )}
                           <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0f172a' }}>
                             {item.organizationName || item.organizationId}
                           </td>
                           <td style={{ padding: '10px 14px', color: '#475569', direction: 'ltr', textAlign: 'right' }}>
                             {item.userEmail || '-'}
                           </td>
-                          <td style={{ padding: '10px 14px', fontWeight: '800', color: '#15803d' }}>
+                          <td style={{ padding: '10px 14px', fontWeight: '800', color: paymentsTab === 'archive' ? '#64748b' : '#15803d' }}>
                             ₪{item.amount}
                           </td>
                           <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b' }}>
                             {item.confirmationCode || item.transactionId || '-'}
                           </td>
                           <td style={{ padding: '10px 14px' }}>
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '2px 8px',
-                              borderRadius: '999px',
-                              backgroundColor: '#dcfce7',
-                              color: '#15803d',
-                              fontSize: '0.74rem',
-                              fontWeight: '800'
-                            }}>
-                              ✓ הושלם
-                            </span>
+                            {paymentsTab === 'active' ? (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                backgroundColor: '#dcfce7',
+                                color: '#15803d',
+                                fontSize: '0.74rem',
+                                fontWeight: '800'
+                              }}>
+                                ✓ הושלם
+                              </span>
+                            ) : (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                backgroundColor: '#f1f5f9',
+                                color: '#475569',
+                                fontSize: '0.74rem',
+                                fontWeight: '700'
+                              }}>
+                                📦 בארכיון
+                              </span>
+                            )}
                           </td>
                           <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleInitiateDeleteSingle(item.id)}
-                              disabled={deletingPayments}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: deletingPayments ? 'not-allowed' : 'pointer',
-                                color: '#94a3b8',
-                                fontSize: '0.95rem',
-                                padding: '4px 6px',
-                                borderRadius: '4px',
-                                transition: 'all 0.15s'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#dc2626';
-                                e.currentTarget.style.backgroundColor = '#fee2e2';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#94a3b8';
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }}
-                              title="מחק רשומה זו"
-                              aria-label={`מחק תשלום ${item.organizationName || item.id}`}
-                            >
-                              🗑️
-                            </button>
+                            {paymentsTab === 'active' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleInitiateArchiveSingle(item.id)}
+                                disabled={archivingPayments}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: archivingPayments ? 'not-allowed' : 'pointer',
+                                  color: '#94a3b8',
+                                  fontSize: '0.95rem',
+                                  padding: '4px 6px',
+                                  borderRadius: '4px',
+                                  transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#dc2626';
+                                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = '#94a3b8';
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title="העבר חיוב זה לארכיון"
+                                aria-label={`העבר תשלום ${item.organizationName || item.id} לארכיון`}
+                              >
+                                🗑️
+                              </button>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestorePayments([item.id])}
+                                  disabled={restoringPayments}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: restoringPayments ? 'not-allowed' : 'pointer',
+                                    color: '#16a34a',
+                                    fontSize: '0.95rem',
+                                    padding: '4px 6px',
+                                    borderRadius: '4px',
+                                    transition: 'all 0.15s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#dcfce7';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  title="שחזר ליומן הפעיל"
+                                  aria-label={`שחזר תשלום ${item.organizationName || item.id}`}
+                                >
+                                  🔄
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleInitiatePermanentDeleteSingle(item.id)}
+                                  disabled={deletingPermanently}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: deletingPermanently ? 'not-allowed' : 'pointer',
+                                    color: '#94a3b8',
+                                    fontSize: '0.95rem',
+                                    padding: '4px 6px',
+                                    borderRadius: '4px',
+                                    transition: 'all 0.15s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = '#dc2626';
+                                    e.currentTarget.style.backgroundColor = '#fee2e2';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = '#94a3b8';
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  title="מחק לצמיתות ממאגר הנתונים"
+                                  aria-label={`מחק לצמיתות תשלום ${item.organizationName || item.id}`}
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1911,7 +2231,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                 fontSize: '0.85rem'
               }}>
                 <div style={{ color: '#64748b' }}>
-                  מציג רשומות <strong>{(paymentsPage - 1) * PAYMENTS_PER_PAGE + 1}–{Math.min(paymentRecords.length, paymentsPage * PAYMENTS_PER_PAGE)}</strong> מתוך <strong>{paymentRecords.length}</strong>
+                  מציג רשומות <strong>{(paymentsPage - 1) * PAYMENTS_PER_PAGE + 1}–{Math.min(currentTabRecords.length, paymentsPage * PAYMENTS_PER_PAGE)}</strong> מתוך <strong>{currentTabRecords.length}</strong>
                 </div>
 
                 {totalPaymentPages > 1 && (
@@ -3263,8 +3583,8 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
         />
       )}
 
-      {/* Delete Selected Payment Records Confirmation Modal (HTML Modal) */}
-      {showDeletePaymentsModal && (
+      {/* Archive Payment Records Confirmation Modal (HTML Modal) */}
+      {showArchivePaymentsModal && (
         <div
           style={{
             position: 'fixed',
@@ -3282,7 +3602,199 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
             direction: 'rtl',
             fontFamily: 'Rubik, sans-serif'
           }}
-          onClick={handleCloseDeletePaymentsModal}
+          onClick={handleCloseArchivePaymentsModal}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '500px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '2px solid #fed7aa',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+              padding: '18px 24px',
+              borderBottom: '1px solid #fde68a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: '#d97706',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.4rem',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 10px rgba(217, 119, 6, 0.25)'
+                }}>
+                  📦
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, color: '#92400e', fontSize: '1.24rem', fontWeight: '800' }}>
+                    {paymentIdsToArchive.length === 1 ? 'העברת חיוב לארכיון' : 'העברת חיובים לארכיון'}
+                  </h3>
+                  <p style={{ margin: '3px 0 0', color: '#b45309', fontSize: '0.84rem' }}>
+                    {paymentIdsToArchive.length === 1
+                      ? 'העברת רשומה אחת לארכיון החיובים'
+                      : `העברת ${paymentIdsToArchive.length} רשומות לארכיון החיובים`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseArchivePaymentsModal}
+                disabled={archivingPayments}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.6rem',
+                  cursor: archivingPayments ? 'not-allowed' : 'pointer',
+                  color: '#92400e',
+                  lineHeight: 1,
+                  padding: '4px 8px',
+                  borderRadius: '6px'
+                }}
+                title="סגור חלון"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              <div style={{
+                background: '#fffbeb',
+                border: '1px solid #fef3c7',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '18px',
+                color: '#92400e',
+                fontSize: '0.92rem',
+                lineHeight: '1.6'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: '800', fontSize: '1rem', color: '#92400e' }}>
+                  <span>📦</span>
+                  <span>
+                    {paymentIdsToArchive.length === 1
+                      ? 'האם להעביר רשומת חיוב זו לארכיון?'
+                      : `האם להעביר ${paymentIdsToArchive.length} רשומות חיוב לארכיון?`}
+                  </span>
+                </div>
+                <p style={{ margin: '0 0 10px 0', color: '#78350f' }}>
+                  {paymentIdsToArchive.length === 1
+                    ? 'הרשומה תוסר מיומן החיובים הפעיל ותישמר בלשונית ״ארכיון חיובים״.'
+                    : `${paymentIdsToArchive.length} הרשומות יוסרו מיומן החיובים הפעיל ויישמרו בלשונית ״ארכיון חיובים״.`}
+                </p>
+                <div style={{
+                  padding: '8px 12px',
+                  backgroundColor: 'rgba(217, 119, 6, 0.08)',
+                  borderRadius: '8px',
+                  fontSize: '0.84rem',
+                  color: '#b45309'
+                }}>
+                  💡 <strong>הערה:</strong> הרשומות לא יימחקו מהמערכת! תוכל לצפות בהן ולשחזר אותן ליומן הפעיל בכל עת מתוך לשונית ״ארכיון חיובים״.
+                </div>
+              </div>
+
+              {archivePaymentsError && (
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: '#fee2e2',
+                  color: '#991b1b',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  marginBottom: '14px',
+                  border: '1px solid #f87171'
+                }}>
+                  {archivePaymentsError}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              background: '#f8fafc',
+              padding: '16px 24px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCloseArchivePaymentsModal}
+                disabled={archivingPayments}
+                style={{ minWidth: '100px', padding: '10px 18px', fontWeight: '600' }}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmArchivePayments}
+                disabled={archivingPayments}
+                style={{
+                  minWidth: '160px',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  background: archivingPayments ? '#fcd34d' : '#d97706',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: '700',
+                  fontSize: '0.95rem',
+                  cursor: archivingPayments ? 'not-allowed' : 'pointer',
+                  boxShadow: archivingPayments ? 'none' : '0 4px 12px rgba(217, 119, 6, 0.35)',
+                  fontFamily: 'inherit',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {archivingPayments
+                  ? '⏳ מעביר לארכיון...'
+                  : `📦 כן, העבר ${paymentIdsToArchive.length === 1 ? 'רשומה' : `${paymentIdsToArchive.length} רשומות`}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Confirmation Modal (HTML Modal) */}
+      {showPermanentDeleteModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10000,
+            padding: '20px',
+            direction: 'rtl',
+            fontFamily: 'Rubik, sans-serif'
+          }}
+          onClick={handleClosePermanentDeleteModal}
         >
           <div
             style={{
@@ -3324,24 +3836,22 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                 </div>
                 <div>
                   <h3 style={{ margin: 0, color: '#991b1b', fontSize: '1.24rem', fontWeight: '800' }}>
-                    {paymentIdsToDelete.length === 1 ? 'מחיקת רשומת תשלום' : 'מחיקת תשלומים נבחרים'}
+                    {paymentIdsToDeletePermanently.length === 1 ? 'מחיקה לצמיתות' : 'מחיקת חיובים לצמיתות'}
                   </h3>
                   <p style={{ margin: '3px 0 0', color: '#b91c1c', fontSize: '0.84rem' }}>
-                    {paymentIdsToDelete.length === 1
-                      ? 'הסרת רשומה מיומן התשלומים'
-                      : `הסרת ${paymentIdsToDelete.length} רשומות מיומן התשלומים`}
+                    הסרה סופית ממאגר הנתונים
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={handleCloseDeletePaymentsModal}
-                disabled={deletingPayments}
+                onClick={handleClosePermanentDeleteModal}
+                disabled={deletingPermanently}
                 style={{
                   background: 'none',
                   border: 'none',
                   fontSize: '1.6rem',
-                  cursor: deletingPayments ? 'not-allowed' : 'pointer',
+                  cursor: deletingPermanently ? 'not-allowed' : 'pointer',
                   color: '#991b1b',
                   lineHeight: 1,
                   padding: '4px 8px',
@@ -3368,15 +3878,15 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: '800', fontSize: '1rem', color: '#991b1b' }}>
                   <span>⚠️</span>
                   <span>
-                    {paymentIdsToDelete.length === 1
-                      ? 'האם אתה בטוח שברצונך למחוק רשומה זו?'
-                      : `האם אתה בטוח שברצונך למחוק ${paymentIdsToDelete.length} רשומות שנבחרו?`}
+                    {paymentIdsToDeletePermanently.length === 1
+                      ? 'האם למחוק רשומה זו לצמיתות?'
+                      : `האם למחוק ${paymentIdsToDeletePermanently.length} רשומות לצמיתות?`}
                   </span>
                 </div>
                 <p style={{ margin: '0 0 10px 0' }}>
-                  {paymentIdsToDelete.length === 1
-                    ? 'פעולה זו תמחק לצמיתות את רשומת התשלום שנבחרה מיומן התשלומים.'
-                    : `פעולה זו תמחק לצמיתות את ${paymentIdsToDelete.length} רשומות התשלום שנבחרו מיומן התשלומים.`}
+                  {paymentIdsToDeletePermanently.length === 1
+                    ? 'פעולה זו תמחק לצמיתות את רשומת החיוב ממאגר הנתונים.'
+                    : `פעולה זו תמחק לצמיתות ${paymentIdsToDeletePermanently.length} רשומות חיוב ממאגר הנתונים.`}
                 </p>
                 <div style={{
                   padding: '8px 12px',
@@ -3385,11 +3895,11 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   fontSize: '0.84rem',
                   color: '#b91c1c'
                 }}>
-                  🚨 <strong>שים/י לב:</strong> פעולה זו הינה בלתי הפיכה והרשומות שיימחקו לא יהיו ניתנות לשחזור.
+                  🚨 <strong>שים/י לב:</strong> פעולה זו הינה סופית ובלתי הפיכה. הנתונים לא יהיו ניתנים לשחזור.
                 </div>
               </div>
 
-              {deletePaymentsError && (
+              {permanentDeleteError && (
                 <div style={{
                   padding: '10px 14px',
                   borderRadius: '8px',
@@ -3400,7 +3910,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   marginBottom: '14px',
                   border: '1px solid #f87171'
                 }}>
-                  {deletePaymentsError}
+                  {permanentDeleteError}
                 </div>
               )}
             </div>
@@ -3417,27 +3927,27 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={handleCloseDeletePaymentsModal}
-                disabled={deletingPayments}
+                onClick={handleClosePermanentDeleteModal}
+                disabled={deletingPermanently}
                 style={{ minWidth: '100px', padding: '10px 18px', fontWeight: '600' }}
               >
                 ביטול
               </button>
               <button
                 type="button"
-                onClick={handleConfirmDeletePayments}
-                disabled={deletingPayments}
+                onClick={handleConfirmPermanentDelete}
+                disabled={deletingPermanently}
                 style={{
                   minWidth: '160px',
                   padding: '10px 20px',
                   borderRadius: '8px',
-                  background: deletingPayments ? '#fca5a5' : '#dc2626',
+                  background: deletingPermanently ? '#fca5a5' : '#dc2626',
                   color: '#ffffff',
                   border: 'none',
                   fontWeight: '700',
                   fontSize: '0.95rem',
-                  cursor: deletingPayments ? 'not-allowed' : 'pointer',
-                  boxShadow: deletingPayments ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.35)',
+                  cursor: deletingPermanently ? 'not-allowed' : 'pointer',
+                  boxShadow: deletingPermanently ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.35)',
                   fontFamily: 'inherit',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -3446,9 +3956,9 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   transition: 'all 0.2s'
                 }}
               >
-                {deletingPayments
-                  ? '⏳ מוחק...'
-                  : `🗑️ כן, מחק ${paymentIdsToDelete.length === 1 ? 'רשומה' : `${paymentIdsToDelete.length} רשומות`}`}
+                {deletingPermanently
+                  ? '⏳ מוחק לצמיתות...'
+                  : `🗑️ כן, מחק ${paymentIdsToDeletePermanently.length === 1 ? 'רשומה' : `${paymentIdsToDeletePermanently.length} רשומות`}`}
               </button>
             </div>
           </div>

@@ -393,7 +393,53 @@ export const clearAllPaymentRecords = async () => {
 };
 
 /**
- * Delete specific payment records from Firestore (Admin only)
+ * Move specific payment records to archive in Firestore (Admin only)
+ * @param {string[]} recordIds - List of payment document IDs to archive
+ */
+export const archivePaymentRecords = async (recordIds = []) => {
+  if (!recordIds || recordIds.length === 0) {
+    return { success: true, count: 0 };
+  }
+  try {
+    const archivePromises = recordIds.map(id =>
+      updateDoc(doc(db, PAYMENTS_COLLECTION, id), {
+        archived: true,
+        archivedAt: new Date().toISOString()
+      })
+    );
+    await Promise.all(archivePromises);
+    return { success: true, count: recordIds.length };
+  } catch (err) {
+    console.error('Failed to archive payment records in Firestore:', err);
+    throw err;
+  }
+};
+
+/**
+ * Restore specific payment records from archive in Firestore (Admin only)
+ * @param {string[]} recordIds - List of payment document IDs to restore
+ */
+export const restorePaymentRecords = async (recordIds = []) => {
+  if (!recordIds || recordIds.length === 0) {
+    return { success: true, count: 0 };
+  }
+  try {
+    const restorePromises = recordIds.map(id =>
+      updateDoc(doc(db, PAYMENTS_COLLECTION, id), {
+        archived: false,
+        restoredAt: new Date().toISOString()
+      })
+    );
+    await Promise.all(restorePromises);
+    return { success: true, count: recordIds.length };
+  } catch (err) {
+    console.error('Failed to restore payment records in Firestore:', err);
+    throw err;
+  }
+};
+
+/**
+ * Permanently delete specific payment records from Firestore (Admin only)
  * @param {string[]} recordIds - List of payment document IDs to delete
  */
 export const deletePaymentRecords = async (recordIds = []) => {

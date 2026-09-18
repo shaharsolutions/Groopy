@@ -11,6 +11,7 @@ import PlanogramIndicator from './PlanogramIndicator';
 import WorkOrderIndicator from './WorkOrderIndicator';
 import { hasWorkOrder } from '../utils/workOrderHelper';
 import { resolveContactDetails } from '../utils/contactUtils';
+import { copyToClipboard } from '../utils/clipboardHelper';
 import LinkifiedText from './LinkifiedText';
 
 function getSundayOfWeek(date) {
@@ -228,6 +229,18 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
   }, [isSingleProjectView, onClose]);
 
   const [copiedEmail, setCopiedEmail] = useState(false);
+  const [copiedCommentId, setCopiedCommentId] = useState(null);
+
+  const handleCopyComment = async (text, commentId) => {
+    if (!text) return;
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedCommentId(commentId);
+      setTimeout(() => {
+        setCopiedCommentId(prev => (prev === commentId ? null : prev));
+      }, 2000);
+    }
+  };
 
   const handleCopyTaskLink = () => {
     if (!task) return;
@@ -703,6 +716,26 @@ export default function ExternalDetailsModal({ task, settings, onClose, isSingle
                               <span className="comment-author">{c.authorName}</span>
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(c.createdAt)}</span>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyComment(c.text, c.id)}
+                              title={copiedCommentId === c.id ? "הועתק!" : "העתקת הערה"}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                fontSize: '1rem',
+                                color: 'var(--text-muted)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                transition: 'background-color 0.2s'
+                              }}
+                            >
+                              {copiedCommentId === c.id ? '✔️' : '📋'}
+                            </button>
                           </div>
                           <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>
                             <LinkifiedText text={c.text} />

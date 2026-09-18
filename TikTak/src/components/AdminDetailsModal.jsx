@@ -11,6 +11,7 @@ import { normalizeNewTaskFields, getAllTaskFieldDefinitions } from '../data/task
 import { getBoardStatusConfig, getOrderedBoards } from '../utils/boardStatusHelper';
 import { getFeatureFlags } from '../utils/featureFlags';
 import { resolveContactDetails } from '../utils/contactUtils';
+import { copyToClipboard } from '../utils/clipboardHelper';
 import LinkifiedText from './LinkifiedText';
 
 function getSundayOfWeek(date) {
@@ -279,6 +280,7 @@ export default function AdminDetailsModal({
 
   // View state: comments
   const [comments, setComments] = useState([]);
+  const [copiedCommentId, setCopiedCommentId] = useState(null);
   const [commentToDelete, setCommentToDelete] = useState(null);
   const [showPlanogramDeleteConfirm, setShowPlanogramDeleteConfirm] = useState(false);
   const [showWorkOrderDeleteConfirm, setShowWorkOrderDeleteConfirm] = useState(false);
@@ -953,6 +955,17 @@ export default function AdminDetailsModal({
   const handleDeleteSubtask = async (subtaskId) => {
     const nextSubtasks = subtasksDraft.filter(item => item.id !== subtaskId);
     await persistSubtasks(nextSubtasks, subtasksDraft);
+  };
+
+  const handleCopyComment = async (text, commentId) => {
+    if (!text) return;
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedCommentId(commentId);
+      setTimeout(() => {
+        setCopiedCommentId(prev => (prev === commentId ? null : prev));
+      }, 2000);
+    }
   };
 
   const handleDeleteComment = (commentId) => {
@@ -2706,26 +2719,48 @@ export default function AdminDetailsModal({
                                   <span className="comment-author">{c.authorName}</span>
                                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(c.createdAt)}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteComment(c.id)}
-                                  title="מחיקת הערה"
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '2px 6px',
-                                    fontSize: '1rem',
-                                    color: 'var(--priority-urgent-text)',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderRadius: '4px',
-                                    transition: 'background-color 0.2s'
-                                  }}
-                                >
-                                  🗑️
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyComment(c.text, c.id)}
+                                    title={copiedCommentId === c.id ? "הועתק!" : "העתקת הערה"}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      padding: '2px 6px',
+                                      fontSize: '1rem',
+                                      color: 'var(--text-muted)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      borderRadius: '4px',
+                                      transition: 'background-color 0.2s'
+                                    }}
+                                  >
+                                    {copiedCommentId === c.id ? '✔️' : '📋'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteComment(c.id)}
+                                    title="מחיקת הערה"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      padding: '2px 6px',
+                                      fontSize: '1rem',
+                                      color: 'var(--priority-urgent-text)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      borderRadius: '4px',
+                                      transition: 'background-color 0.2s'
+                                    }}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
                               </div>
                               <div className="comment-text" style={{ whiteSpace: 'pre-wrap' }}>
                                 <LinkifiedText text={c.text} />

@@ -710,6 +710,10 @@ export default function SettingsPage({
     const options = newFieldType === 'select'
       ? newFieldOptions.split(',').map(o => o.trim()).filter(Boolean)
       : [];
+    if (newFieldType === 'select' && options.length === 0) {
+      showMsg('בשדה מסוג בחירה מרשימה (Dropdown), יש להזין לפחות אפשרות אחת (מופרדות בפסיקים)', 'danger');
+      return;
+    }
     const customField = createCustomFieldConfig({
       label: newFieldLabel.trim(),
       type: newFieldType,
@@ -1526,7 +1530,7 @@ export default function SettingsPage({
 
                     {hasOptions && (
                       <label style={{ color: '#475569', fontSize: '0.82rem', fontWeight: '700' }}>
-                        אפשרויות בחירה
+                        אפשרויות בחירה (מופרדות בפסיק ,)
                         <input
                           className="form-control"
                           value={taskFieldOptionDrafts[field.key] ?? (config.options || field.options || []).join(', ')}
@@ -1535,6 +1539,15 @@ export default function SettingsPage({
                           style={{ marginTop: '5px' }}
                           placeholder="הפרדה באמצעות פסיק"
                         />
+                        {Array.isArray(config.options) && config.options.length > 0 && (
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            {config.options.map((opt, oi) => (
+                              <span key={oi} style={{ fontSize: '0.74rem', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                🏷️ {opt}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </label>
                     )}
 
@@ -2561,6 +2574,27 @@ export default function SettingsPage({
                       onChange={(e) => setNewFieldOptions(e.target.value)}
                     />
                     <small style={{ color: 'var(--text-muted)' }}>הזינו את הערכים מופרדים בפסיק (,)</small>
+                    {newFieldOptions.trim() && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                        <span style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: '600' }}>תצוגה מקדימה:</span>
+                        {newFieldOptions.split(',').map(o => o.trim()).filter(Boolean).map((opt, i) => (
+                          <span
+                            key={i}
+                            style={{
+                              backgroundColor: '#eef2ff',
+                              color: '#3730a3',
+                              border: '1px solid #c7d2fe',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              fontWeight: '600'
+                            }}
+                          >
+                            🏷️ {opt}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

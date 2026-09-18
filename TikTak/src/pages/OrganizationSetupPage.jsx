@@ -81,6 +81,7 @@ export default function OrganizationSetupPage({
   const [newCustomFieldName, setNewCustomFieldName] = useState('');
   const [newCustomFieldType, setNewCustomFieldType] = useState('text');
   const [newCustomFieldIcon, setNewCustomFieldIcon] = useState('✨');
+  const [newCustomFieldOptions, setNewCustomFieldOptions] = useState('');
 
   // Icon Picker State
   const [iconPickerState, setIconPickerState] = useState({
@@ -239,20 +240,53 @@ export default function OrganizationSetupPage({
     }));
   };
 
+  const handleFieldOptionsChange = (fieldKey, optionsString) => {
+    const parsedOptions = optionsString.split(',').map(o => o.trim()).filter(Boolean);
+    setFields(prev => ({
+      ...prev,
+      [fieldKey]: {
+        ...(prev[fieldKey] || {}),
+        options: parsedOptions,
+        optionsDraft: optionsString,
+        defaultValue: prev[fieldKey]?.defaultValue && parsedOptions.includes(prev[fieldKey].defaultValue)
+          ? prev[fieldKey].defaultValue
+          : (parsedOptions[0] || '')
+      }
+    }));
+  };
+
   const handleAddCustomField = () => {
     const trimmed = newCustomFieldName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      alert('יש להזין שם עבור השדה החדש.');
+      return;
+    }
+
+    const options = newCustomFieldType === 'select'
+      ? newCustomFieldOptions.split(',').map(o => o.trim()).filter(Boolean)
+      : [];
+
+    if (newCustomFieldType === 'select' && options.length === 0) {
+      alert('בשדה מסוג בחירה מרשימה (Dropdown), יש להזין לפחות אפשרות אחת (מופרדות בפסיקים).');
+      return;
+    }
+
     const newField = createCustomFieldConfig({
       label: trimmed,
       type: newCustomFieldType,
-      icon: newCustomFieldIcon || '✨'
+      icon: newCustomFieldIcon || '✨',
+      options,
+      defaultValue: options[0] || ''
     });
+
     setFields(prev => ({
       ...prev,
       [newField.key]: newField
     }));
     setNewCustomFieldName('');
     setNewCustomFieldIcon('✨');
+    setNewCustomFieldOptions('');
+    setNewCustomFieldType('text');
   };
 
   const handleRemoveCustomField = (fieldKey) => {
@@ -1530,6 +1564,38 @@ export default function OrganizationSetupPage({
                             }}
                           />
                         </div>
+                        {customField.type === 'select' && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <label style={{ fontSize: '0.78rem', color: '#475569', fontWeight: '600' }}>
+                                אפשרויות ברשימה (מופרדות בפסיק ,):
+                              </label>
+                              <span style={{ fontSize: '0.72rem', color: '#6366f1', fontWeight: '600' }}>Dropdown</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={customField.optionsDraft !== undefined ? customField.optionsDraft : (customField.options || []).join(', ')}
+                              onChange={(e) => handleFieldOptionsChange(key, e.target.value)}
+                              placeholder="לדוגמה: אפשרות 1, אפשרות 2, אפשרות 3"
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '0.84rem',
+                                backgroundColor: '#ffffff'
+                              }}
+                            />
+                            {Array.isArray(customField.options) && customField.options.length > 0 && (
+                              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '3px' }}>
+                                {customField.options.map((opt, oi) => (
+                                  <span key={oi} style={{ fontSize: '0.74rem', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                    🏷️ {opt}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1538,82 +1604,163 @@ export default function OrganizationSetupPage({
 
               {/* Add Custom Field Section */}
               <div style={{
-                display: 'flex',
-                gap: '10px',
-                alignItems: 'center',
-                padding: '14px 18px',
+                padding: '16px 20px',
                 backgroundColor: '#f8fafc',
                 borderRadius: '12px',
                 border: '1.5px dashed #cbd5e1',
                 marginBottom: '24px',
-                flexWrap: 'wrap'
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
               }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#334155' }}>
-                  ➕ הוספת שדה חדש:
-                </span>
-                <button
-                  type="button"
-                  className="icon-hover-btn"
-                  onClick={() => {
-                    openIconPicker({
-                      title: 'בחירת אייקון לשדה החדש',
-                      currentIcon: newCustomFieldIcon,
-                      defaultIcon: '✨',
-                      onSelect: (newIcon) => setNewCustomFieldIcon(newIcon)
-                    });
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.92rem', fontWeight: '700', color: '#1e293b' }}>
+                    ➕ הוספת שדה חדש:
+                  </span>
+                  <button
+                    type="button"
+                    className="icon-hover-btn"
+                    onClick={() => {
+                      openIconPicker({
+                        title: 'בחירת אייקון לשדה החדש',
+                        currentIcon: newCustomFieldIcon,
+                        defaultIcon: '✨',
+                        onSelect: (newIcon) => setNewCustomFieldIcon(newIcon)
+                      });
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      fontSize: '1.25rem',
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                    title="בחירת אייקון מתוך מאגר אייקונים נרחב"
+                  >
+                    {newCustomFieldIcon}
+                  </button>
+                  <input
+                    type="text"
+                    className="setup-input"
+                    value={newCustomFieldName}
+                    onChange={(e) => setNewCustomFieldName(e.target.value)}
+                    placeholder="שם שדה חדש (למשל: ספק, תאריך יעד, סניף)..."
+                    onKeyDown={(e) => { if (e.key === 'Enter' && newCustomFieldType !== 'select') { e.preventDefault(); handleAddCustomField(); } }}
+                    style={{ flex: 1, minWidth: '200px' }}
+                  />
+                  <select
+                    value={newCustomFieldType}
+                    onChange={(e) => {
+                      setNewCustomFieldType(e.target.value);
+                      if (e.target.value !== 'select') setNewCustomFieldOptions('');
+                    }}
+                    style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.86rem', fontWeight: '500' }}
+                  >
+                    {FIELD_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  {newCustomFieldType !== 'select' && (
+                    <button
+                      type="button"
+                      onClick={handleAddCustomField}
+                      style={{
+                        padding: '9px 18px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #2563eb',
+                        color: '#2563eb',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        fontSize: '0.88rem',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      + הוסף שדה
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown Options Configuration */}
+                {newCustomFieldType === 'select' && (
+                  <div style={{
+                    padding: '14px 16px',
                     backgroundColor: '#ffffff',
-                    fontSize: '1.25rem',
-                    cursor: 'pointer',
-                    padding: 0
-                  }}
-                  title="בחירת אייקון מתוך מאגר אייקונים נרחב"
-                >
-                  {newCustomFieldIcon}
-                </button>
-                <input
-                  type="text"
-                  className="setup-input"
-                  value={newCustomFieldName}
-                  onChange={(e) => setNewCustomFieldName(e.target.value)}
-                  placeholder="שם שדה חדש (למשל: ספק, תאריך יעד, סניף)..."
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomField(); } }}
-                  style={{ flex: 1, minWidth: '200px' }}
-                />
-                <select
-                  value={newCustomFieldType}
-                  onChange={(e) => setNewCustomFieldType(e.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.86rem', fontWeight: '500' }}
-                >
-                  {FIELD_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleAddCustomField}
-                  style={{
-                    padding: '9px 18px',
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #2563eb',
-                    color: '#2563eb',
-                    borderRadius: '8px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    fontSize: '0.88rem',
-                    fontFamily: 'inherit'
-                  }}
-                >
-                  + הוסף שדה
-                </button>
+                    borderRadius: '10px',
+                    border: '1px solid #c7d2fe',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <label style={{ fontSize: '0.86rem', fontWeight: '700', color: '#3730a3', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>📋</span>
+                        <span>הגדרת אפשרויות לרשימה (מופרדות בפסיק ,) *</span>
+                      </label>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                        הקלידו את האפשרויות ברצף עם פסיק מפריד
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        className="setup-input"
+                        value={newCustomFieldOptions}
+                        onChange={(e) => setNewCustomFieldOptions(e.target.value)}
+                        placeholder="לדוגמה: אופציה 1, אופציה 2, אופציה 3..."
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomField(); } }}
+                        style={{ flex: 1, minWidth: '220px' }}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomField}
+                        style={{
+                          padding: '9px 18px',
+                          backgroundColor: '#2563eb',
+                          border: 'none',
+                          color: '#ffffff',
+                          borderRadius: '8px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          fontSize: '0.88rem',
+                          fontFamily: 'inherit'
+                        }}
+                      >
+                        + הוסף שדה רשימה
+                      </button>
+                    </div>
+                    {/* Live Option Badges Preview */}
+                    {newCustomFieldOptions.trim() && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                        <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>תצוגה מקדימה של אפשרויות:</span>
+                        {newCustomFieldOptions.split(',').map(o => o.trim()).filter(Boolean).map((opt, i) => (
+                          <span
+                            key={i}
+                            style={{
+                              backgroundColor: '#eef2ff',
+                              color: '#3730a3',
+                              border: '1px solid #c7d2fe',
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '0.8rem',
+                              fontWeight: '600'
+                            }}
+                          >
+                            🏷️ {opt}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Weekly Hours Option */}

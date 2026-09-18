@@ -3,6 +3,7 @@ import { completeOrganizationSetup } from '../utils/storage';
 import { APP_VERSIONS } from '../utils/featureFlags';
 import { DEFAULT_NEW_TASK_FIELDS, normalizeNewTaskFields, createCustomFieldConfig, FIELD_TYPES } from '../data/taskFieldConfig';
 import IconPickerModal from '../components/IconPickerModal';
+import Footer from '../components/Footer';
 
 const POPULAR_BOARD_ICONS = ['📋', '📁', '🚀', '🎨', '🏷️', '💡', '🏗️', '📦', '💻', '🎯', '⭐', '⚡'];
 
@@ -1951,6 +1952,8 @@ export default function OrganizationSetupPage({
           </button>
         </div>
       </div>
+
+      <Footer transparent style={{ marginTop: '32px' }} />
 
       {/* Extensive Icon Picker Modal */}
       <IconPickerModal

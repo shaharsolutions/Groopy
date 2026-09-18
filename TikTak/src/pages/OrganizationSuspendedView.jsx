@@ -4,6 +4,7 @@ import { db } from '../firebaseDb';
 import { exportPersonalBackupExcel, exportPersonalBackupJson } from '../utils/personalBackupHelper';
 import PaymentModal from '../components/PaymentModal';
 import ThankYouPage from './ThankYouPage';
+import Footer from '../components/Footer';
 import { getPaymentConfig, TRANZILA_DEFAULT_CONFIG } from '../utils/paymentConfig';
 
 /**
@@ -167,6 +168,7 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
       minHeight: '100vh',
       backgroundColor: '#f1f5f9',
       display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px 16px',
@@ -605,6 +607,8 @@ export default function OrganizationSuspendedView({ user, organization, onLogout
           </span>
         </div>
       </main>
+
+      <Footer transparent style={{ marginTop: '24px' }} />
 
       {/* Floating Contact Button if configured */}
       <FloatingContactButton

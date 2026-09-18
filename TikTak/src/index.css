@@ -106,6 +106,50 @@ button, input, select, textarea {
   flex-direction: column;
 }
 
+/* App Footer */
+.app-footer {
+  margin-top: auto;
+  background-color: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.app-footer a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.app-footer a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.app-footer--transparent {
+  background-color: transparent;
+  border-top: none;
+  padding: 20px 16px 16px;
+}
+
+@media (max-width: 600px) {
+  .app-footer {
+    padding: 14px 16px;
+    font-size: 0.8125rem;
+  }
+}
+
 /* Developer Security Banner */
 .dev-banner {
   background: linear-gradient(90deg, #d97706, #b91c1c);
@@ -989,11 +1033,12 @@ button.directory-project-chip:active {
 
 /* Login Page */
 .login-container {
-  flex: 1;
+  min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
+  justify-content: space-between;
+  padding: 32px 20px 16px;
   background: linear-gradient(135deg, hsl(var(--primary-hue), 30%, 95%), hsl(260, 30%, 95%));
 }
 
@@ -1005,6 +1050,7 @@ button.directory-project-chip:active {
   max-width: 480px;
   padding: 40px 32px;
   border: 1px solid var(--border);
+  margin: auto 0;
 }
 
 .login-header {

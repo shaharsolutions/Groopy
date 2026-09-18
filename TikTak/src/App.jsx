@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy } from 'react';
 import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Header from './components/Header';
+import Footer from './components/Footer';
 import { DEFAULT_NEW_TASK_FIELDS } from './data/taskFieldConfig';
 import { getFeatureFlags, DEFAULT_APP_VERSION, APP_VERSIONS } from './utils/featureFlags';
 import { isSystemAdminEmail } from './utils/storage';
@@ -1124,6 +1125,7 @@ export default function App() {
           />
         </Suspense>
       )}
+      <Footer />
     </div>
   );
 }

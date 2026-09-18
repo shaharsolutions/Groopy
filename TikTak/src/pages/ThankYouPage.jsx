@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Footer from '../components/Footer';
 
 /**
  * ThankYouPage
@@ -40,6 +41,7 @@ export default function ThankYouPage({
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 50%, #f8fafc 100%)',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '32px 16px',
@@ -333,6 +335,7 @@ export default function ThankYouPage({
           <span>הסליקה מבוצעת ומאובטחת על ידי Tranzila בתקן PCI-DSS Level 1</span>
         </div>
       </main>
+      <Footer transparent style={{ marginTop: '20px' }} />
     </div>
   );
 }

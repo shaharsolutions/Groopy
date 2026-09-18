@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword 
 } from 'firebase/auth';
 import { auth } from '../firebase';
+import Footer from '../components/Footer';
 
 /**
  * Login Component - Groopy Work Manager
@@ -533,6 +534,7 @@ export default function Login() {
           </div>
         )}
       </div>
+      <Footer transparent />
     </div>
   );
 }

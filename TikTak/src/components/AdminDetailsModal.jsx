@@ -843,7 +843,8 @@ export default function AdminDetailsModal({
             id: `legacy-${index}-${item}`,
             text: item,
             completed: false,
-            createdAt: task?.createdAt || new Date().toISOString()
+            createdAt: task?.createdAt || new Date().toISOString(),
+            hiddenFromOpenTasks: false
           };
         }
         return {
@@ -851,7 +852,8 @@ export default function AdminDetailsModal({
           text: item.text || '',
           completed: Boolean(item.completed),
           createdAt: item.createdAt || task?.createdAt || new Date().toISOString(),
-          completedAt: item.completedAt || (item.completed ? (item.createdAt || task?.createdAt || new Date().toISOString()) : null)
+          completedAt: item.completedAt || (item.completed ? (item.createdAt || task?.createdAt || new Date().toISOString()) : null),
+          hiddenFromOpenTasks: Boolean(item.hiddenFromOpenTasks)
         };
       })
       .filter(item => item.text.trim());
@@ -931,7 +933,8 @@ export default function AdminDetailsModal({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         text,
         completed: false,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        hiddenFromOpenTasks: false
       }
     ];
 
@@ -947,6 +950,17 @@ export default function AdminDetailsModal({
         ...item,
         completed,
         completedAt: completed ? (item.completedAt || new Date().toISOString()) : null
+      };
+    });
+    await persistSubtasks(nextSubtasks, subtasksDraft);
+  };
+
+  const handleToggleHideSubtask = async (subtaskId) => {
+    const nextSubtasks = subtasksDraft.map(item => {
+      if (item.id !== subtaskId) return item;
+      return {
+        ...item,
+        hiddenFromOpenTasks: !item.hiddenFromOpenTasks
       };
     });
     await persistSubtasks(nextSubtasks, subtasksDraft);
@@ -2608,7 +2622,7 @@ export default function AdminDetailsModal({
                       const openSubtasks = subtasks.filter(item => !item.completed);
                       const completedSubtasks = subtasks.filter(item => item.completed);
                       const renderSubtaskItem = (item) => (
-                        <div className="subtask-item" key={item.id}>
+                        <div className={`subtask-item ${item.hiddenFromOpenTasks ? 'is-hidden-from-board' : ''}`} key={item.id}>
                           <label className="subtask-main">
                             <input
                               type="checkbox"
@@ -2618,9 +2632,16 @@ export default function AdminDetailsModal({
                               onChange={() => handleToggleSubtask(item.id)}
                             />
                             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                              <span className={`subtask-text ${item.completed ? 'completed' : ''}`} title={item.text}>
-                                {item.text}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span className={`subtask-text ${item.completed ? 'completed' : ''}`} title={item.text}>
+                                  {item.text}
+                                </span>
+                                {item.hiddenFromOpenTasks && !item.completed && (
+                                  <span className="subtask-hidden-badge" title="משימה זו מוסתרת מלוח המשימות הפתוחות">
+                                    מוסתר מהלוח
+                                  </span>
+                                )}
+                              </div>
                               {item.completed && (
                                 <span className="subtask-completed-date" title={`הושלם ב-${formatDate(item.completedAt || item.createdAt || task?.createdAt)}`}>
                                   הושלם ב-{formatDate(item.completedAt || item.createdAt || task?.createdAt)}
@@ -2628,15 +2649,27 @@ export default function AdminDetailsModal({
                               )}
                             </div>
                           </label>
-                          <button
-                            type="button"
-                            className="subtask-delete-btn"
-                            title="מחיקת משימה"
-                            disabled={savingSubtasks}
-                            onClick={() => handleDeleteSubtask(item.id)}
-                          >
-                            🗑️
-                          </button>
+                          <div className="subtask-actions">
+                            <button
+                              type="button"
+                              className={`subtask-hide-btn ${item.hiddenFromOpenTasks ? 'is-hidden' : ''}`}
+                              title={item.hiddenFromOpenTasks ? 'הצגת משימה בלוח המשימות הפתוחות' : 'הסתרת משימה מלוח המשימות הפתוחות'}
+                              disabled={savingSubtasks}
+                              onClick={() => handleToggleHideSubtask(item.id)}
+                              aria-label={item.hiddenFromOpenTasks ? 'הצגת משימה בלוח המשימות הפתוחות' : 'הסתרת משימה מלוח המשימות הפתוחות'}
+                            >
+                              {item.hiddenFromOpenTasks ? '🙈' : '👁️'}
+                            </button>
+                            <button
+                              type="button"
+                              className="subtask-delete-btn"
+                              title="מחיקת משימה"
+                              disabled={savingSubtasks}
+                              onClick={() => handleDeleteSubtask(item.id)}
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       );
 

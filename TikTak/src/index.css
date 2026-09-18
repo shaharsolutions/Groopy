@@ -2885,6 +2885,16 @@ select.badge:focus, select.priority-badge:focus {
   border-color: var(--primary-light);
 }
 
+.subtask-item.is-hidden-from-board {
+  background-color: #fffdf5;
+  border-color: #fde68a;
+}
+
+.subtask-item.is-hidden-from-board:hover {
+  background-color: #fef9c3;
+  border-color: #facc15;
+}
+
 .subtask-main {
   display: flex;
   align-items: center;
@@ -2974,6 +2984,50 @@ select.badge:focus, select.priority-badge:focus {
   display: inline-block;
   direction: rtl;
   unicode-bidi: isolate;
+}
+
+.subtask-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.subtask-hide-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 0.9rem;
+  opacity: 0.55;
+  transition: opacity 0.15s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.subtask-hide-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.subtask-hide-btn.is-hidden {
+  opacity: 0.95;
+}
+
+.subtask-hidden-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #92400e;
+  background-color: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 9999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .subtask-delete-btn {

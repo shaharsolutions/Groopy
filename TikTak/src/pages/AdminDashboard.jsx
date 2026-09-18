@@ -108,7 +108,8 @@ const normalizeProjectSubtasks = (task) => {
           id: `legacy-${index}-${item}`,
           text: item,
           completed: false,
-          createdAt: task.createdAt || ''
+          createdAt: task.createdAt || '',
+          hiddenFromOpenTasks: false
         };
       }
       return {
@@ -116,7 +117,8 @@ const normalizeProjectSubtasks = (task) => {
         text: item.text || '',
         completed: Boolean(item.completed),
         createdAt: item.createdAt || task.createdAt || '',
-        completedAt: item.completedAt || (item.completed ? (item.updatedAt || task.updatedAt || task.createdAt) : null)
+        completedAt: item.completedAt || (item.completed ? (item.updatedAt || task.updatedAt || task.createdAt) : null),
+        hiddenFromOpenTasks: Boolean(item.hiddenFromOpenTasks)
       };
     })
     .filter(item => item.text.trim());
@@ -992,19 +994,19 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
 
   const openProjectSubtasks = useMemo(() => (
     allProjectSubtasks
-      .filter(item => !item.completed)
+      .filter(item => !item.completed && !item.hiddenFromOpenTasks)
       .sort((a, b) => (Date.parse(b.createdAt) || Date.parse(b.projectUpdatedAt) || 0) - (Date.parse(a.createdAt) || Date.parse(a.projectUpdatedAt) || 0))
   ), [allProjectSubtasks]);
 
   const completedThisWeekProjectSubtasks = useMemo(() => (
     allProjectSubtasks
-      .filter(item => item.completed && isDateInCurrentWeek(item.completedAt))
+      .filter(item => item.completed && !item.hiddenFromOpenTasks && isDateInCurrentWeek(item.completedAt))
       .sort((a, b) => (Date.parse(b.completedAt) || Date.parse(b.updatedAt) || Date.parse(b.createdAt) || 0) - (Date.parse(a.completedAt) || Date.parse(a.updatedAt) || Date.parse(a.createdAt) || 0))
   ), [allProjectSubtasks]);
 
   const recentlyCompletedProjectSubtasks = useMemo(() => (
     allProjectSubtasks
-      .filter(item => item.completed && recentlyCompletedSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id)))
+      .filter(item => item.completed && !item.hiddenFromOpenTasks && recentlyCompletedSubtaskKeys.has(getProjectSubtaskKey(item.taskId, item.id)))
       .sort((a, b) => (Date.parse(b.completedAt) || 0) - (Date.parse(a.completedAt) || 0))
   ), [allProjectSubtasks, recentlyCompletedSubtaskKeys]);
 
@@ -2195,7 +2197,11 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               {openProjectSubtasksCount === 0 && showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0
                 ? `כל המשימות הפתוחות הושלמו! מציג ${completedThisWeekProjectSubtasksCount} משימות שהושלמו השבוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
                 : openProjectSubtasksCount === 0
-                  ? (filterSubtasksBySelectedBoard ? `אין משימות פתוחות בלוח ${currentBoardName}` : 'אין משימות פתוחות כרגע')
+                  ? (filterSubtasksBySelectedBoard
+                      ? `אין משימות פתוחות בלוח ${currentBoardName}`
+                      : (allProjectSubtasks.some(item => !item.completed && item.hiddenFromOpenTasks)
+                          ? 'כל המשימות הפתוחות מוסתרות כרגע'
+                          : 'אין משימות פתוחות כרגע'))
                   : showCompletedThisWeekSubtasks && completedThisWeekProjectSubtasksCount > 0
                     ? `${openProjectSubtasksCount} פתוחות לביצוע, ${completedThisWeekProjectSubtasksCount} הושלמו השבוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`
                     : `${openProjectSubtasksCount} משימות פתוחות לביצוע${flags.isV2 ? (filterSubtasksBySelectedBoard ? ` (${currentBoardName})` : ' (מכל הלוחות)') : ''}`}
@@ -2261,7 +2267,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   🌐 הצג משימות מכל הלוחות
                 </button>
               </div>
-            ) : allProjectSubtasks.length > 0 ? (
+            ) : allProjectSubtasks.some(item => item.completed) ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                 <span>כל המשימות בפרויקטים סומנו כבוצעו! 🎉</span>
                 {completedThisWeekProjectSubtasksCount > 0 && (
@@ -2274,6 +2280,10 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                     צפייה ב-{completedThisWeekProjectSubtasksCount} משימות שהושלמו השבוע
                   </button>
                 )}
+              </div>
+            ) : allProjectSubtasks.some(item => !item.completed && item.hiddenFromOpenTasks) ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <span>כל המשימות הפתוחות מוסתרות כרגע מלוח המשימות.</span>
               </div>
             ) : (
               'הוסיפי משימות מתוך אזור הערות ועדכוני פרויקט, והן יופיעו כאן.'

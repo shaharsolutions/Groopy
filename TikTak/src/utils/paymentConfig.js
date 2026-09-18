@@ -377,6 +377,7 @@ export const getPaymentRecords = async (maxRecords = 200) => {
 
 /**
  * Clear/reset all payment records from Firestore (Admin only)
+ * @deprecated Prefer deleting selected payment records instead
  */
 export const clearAllPaymentRecords = async () => {
   try {
@@ -390,6 +391,25 @@ export const clearAllPaymentRecords = async () => {
     throw err;
   }
 };
+
+/**
+ * Delete specific payment records from Firestore (Admin only)
+ * @param {string[]} recordIds - List of payment document IDs to delete
+ */
+export const deletePaymentRecords = async (recordIds = []) => {
+  if (!recordIds || recordIds.length === 0) {
+    return { success: true, count: 0 };
+  }
+  try {
+    const deletePromises = recordIds.map(id => deleteDoc(doc(db, PAYMENTS_COLLECTION, id)));
+    await Promise.all(deletePromises);
+    return { success: true, count: recordIds.length };
+  } catch (err) {
+    console.error('Failed to delete payment records from Firestore:', err);
+    throw err;
+  }
+};
+
 
 /**
  * Common Shva / Tranzila response codes and readable Hebrew explanations

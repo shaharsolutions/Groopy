@@ -6,7 +6,7 @@ import {
   getPaymentConfig,
   savePaymentConfig,
   getPaymentRecords,
-  clearAllPaymentRecords,
+  deletePaymentRecords,
   buildTranzilaPaymentUrl,
   TRANZILA_DEFAULT_CONFIG
 } from '../utils/paymentConfig';
@@ -124,9 +124,11 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
   const [reopenPriceSuccess, setReopenPriceSuccess] = useState('');
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingPaymentRecords, setLoadingPaymentRecords] = useState(true);
-  const [clearingPayments, setClearingPayments] = useState(false);
-  const [showClearPaymentsModal, setShowClearPaymentsModal] = useState(false);
-  const [clearPaymentsError, setClearPaymentsError] = useState('');
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState([]);
+  const [paymentIdsToDelete, setPaymentIdsToDelete] = useState([]);
+  const [deletingPayments, setDeletingPayments] = useState(false);
+  const [showDeletePaymentsModal, setShowDeletePaymentsModal] = useState(false);
+  const [deletePaymentsError, setDeletePaymentsError] = useState('');
   const [paymentsPage, setPaymentsPage] = useState(1);
   const PAYMENTS_PER_PAGE = 10;
 
@@ -135,6 +137,10 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     const startIndex = (paymentsPage - 1) * PAYMENTS_PER_PAGE;
     return paymentRecords.slice(startIndex, startIndex + PAYMENTS_PER_PAGE);
   }, [paymentRecords, paymentsPage]);
+
+  const currentPagePaymentIds = useMemo(() => paginatedPaymentRecords.map(r => r.id), [paginatedPaymentRecords]);
+  const isAllCurrentPageSelected = currentPagePaymentIds.length > 0 && currentPagePaymentIds.every(id => selectedPaymentIds.includes(id));
+  const isSomeCurrentPageSelected = currentPagePaymentIds.some(id => selectedPaymentIds.includes(id));
 
   useEffect(() => {
     if (paymentsPage > totalPaymentPages) {
@@ -160,6 +166,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
       }
       if (records) {
         setPaymentRecords(records);
+        setSelectedPaymentIds(prev => prev.filter(id => records.some(r => r.id === id)));
       }
     } catch (err) {
       console.warn('Failed to load payments data in UsersManagement:', err);
@@ -168,49 +175,75 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
     }
   };
 
-  const handleOpenClearPaymentsModal = () => {
-    if (paymentRecords.length === 0) return;
-    setClearPaymentsError('');
-    setShowClearPaymentsModal(true);
+  const handleToggleSelectPayment = (paymentId) => {
+    setSelectedPaymentIds(prev =>
+      prev.includes(paymentId) ? prev.filter(id => id !== paymentId) : [...prev, paymentId]
+    );
   };
 
-  const handleCloseClearPaymentsModal = () => {
-    if (clearingPayments) return;
-    setShowClearPaymentsModal(false);
-    setClearPaymentsError('');
+  const handleToggleSelectAllCurrentPage = () => {
+    if (isAllCurrentPageSelected) {
+      setSelectedPaymentIds(prev => prev.filter(id => !currentPagePaymentIds.includes(id)));
+    } else {
+      setSelectedPaymentIds(prev => Array.from(new Set([...prev, ...currentPagePaymentIds])));
+    }
   };
 
-  const handleConfirmClearPayments = async () => {
-    if (paymentRecords.length === 0) {
-      setShowClearPaymentsModal(false);
+  const handleInitiateDeleteSelected = () => {
+    if (selectedPaymentIds.length === 0) return;
+    setPaymentIdsToDelete(selectedPaymentIds);
+    setDeletePaymentsError('');
+    setShowDeletePaymentsModal(true);
+  };
+
+  const handleInitiateDeleteSingle = (paymentId) => {
+    setPaymentIdsToDelete([paymentId]);
+    setDeletePaymentsError('');
+    setShowDeletePaymentsModal(true);
+  };
+
+  const handleCloseDeletePaymentsModal = () => {
+    if (deletingPayments) return;
+    setShowDeletePaymentsModal(false);
+    setPaymentIdsToDelete([]);
+    setDeletePaymentsError('');
+  };
+
+  const handleConfirmDeletePayments = async () => {
+    if (paymentIdsToDelete.length === 0) {
+      setShowDeletePaymentsModal(false);
       return;
     }
 
     try {
-      setClearingPayments(true);
-      setClearPaymentsError('');
-      await clearAllPaymentRecords();
-      setPaymentRecords([]);
-      setPaymentsPage(1);
-      setShowClearPaymentsModal(false);
+      setDeletingPayments(true);
+      setDeletePaymentsError('');
+      await deletePaymentRecords(paymentIdsToDelete);
+
+      const deletedSet = new Set(paymentIdsToDelete);
+      setPaymentRecords(prev => prev.filter(r => !deletedSet.has(r.id)));
+      setSelectedPaymentIds(prev => prev.filter(id => !deletedSet.has(id)));
+      setPaymentIdsToDelete([]);
+      setShowDeletePaymentsModal(false);
     } catch (err) {
-      console.error('Failed to clear payments:', err);
-      setClearPaymentsError('שגיאה באיפוס יומן התשלומים: ' + (err.message || 'אנא נסה שוב'));
+      console.error('Failed to delete payments:', err);
+      setDeletePaymentsError('שגיאה במחיקת רשומות התשלום: ' + (err.message || 'אנא נסה שוב'));
     } finally {
-      setClearingPayments(false);
+      setDeletingPayments(false);
     }
   };
 
   useEffect(() => {
-    if (!showClearPaymentsModal) return;
+    if (!showDeletePaymentsModal) return;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && !clearingPayments) {
-        setShowClearPaymentsModal(false);
+      if (e.key === 'Escape' && !deletingPayments) {
+        setShowDeletePaymentsModal(false);
+        setPaymentIdsToDelete([]);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showClearPaymentsModal, clearingPayments]);
+  }, [showDeletePaymentsModal, deletingPayments]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1623,13 +1656,16 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
         }}>
           <div style={{
             padding: '12px 16px',
-            backgroundColor: '#f8fafc',
-            borderBottom: '1px solid #e2e8f0',
+            backgroundColor: selectedPaymentIds.length > 0 ? '#fff1f2' : '#f8fafc',
+            borderBottom: '1px solid ' + (selectedPaymentIds.length > 0 ? '#fecdd3' : '#e2e8f0'),
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px',
+            transition: 'background-color 0.2s, border-color 0.2s'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '1.1rem' }}>🧾</span>
               <strong style={{ color: '#1e293b', fontSize: '0.94rem' }}>
                 יומן תשלומי פתיחת גישה ({paymentRecords.length})
@@ -1639,33 +1675,88 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   </span>
                 )}
               </strong>
+              {selectedPaymentIds.length > 0 && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '2px 9px',
+                  borderRadius: '999px',
+                  backgroundColor: '#fee2e2',
+                  color: '#b91c1c',
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  border: '1px solid #fca5a5'
+                }}>
+                  נבחרו {selectedPaymentIds.length}
+                </span>
+              )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {paymentRecords.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleOpenClearPaymentsModal}
-                  disabled={clearingPayments}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    backgroundColor: '#fee2e2',
-                    color: '#b91c1c',
-                    border: '1px solid #fca5a5',
-                    fontSize: '0.78rem',
-                    fontWeight: '700',
-                    cursor: clearingPayments ? 'not-allowed' : 'pointer',
-                    opacity: clearingPayments ? 0.6 : 1,
-                    fontFamily: 'inherit'
-                  }}
-                  title="איפוס ומחיקת כל רשומות יומן התשלומים"
-                >
-                  <span>🗑️</span>
-                  <span>{clearingPayments ? 'מאפס...' : 'איפוס יומן'}</span>
-                </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {selectedPaymentIds.length > 0 && (
+                <>
+                  {paymentRecords.length > paginatedPaymentRecords.length && selectedPaymentIds.length < paymentRecords.length && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentIds(paymentRecords.map(r => r.id))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#4f46e5',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: '3px 6px',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      בחר את כל ה-{paymentRecords.length}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentIds([])}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#64748b',
+                      fontSize: '0.78rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      padding: '3px 6px',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    בטל בחירה
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleInitiateDeleteSelected}
+                    disabled={deletingPayments}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '4px 12px',
+                      borderRadius: '6px',
+                      backgroundColor: '#dc2626',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '0.8rem',
+                      fontWeight: '700',
+                      cursor: deletingPayments ? 'not-allowed' : 'pointer',
+                      opacity: deletingPayments ? 0.6 : 1,
+                      fontFamily: 'inherit',
+                      boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)',
+                      transition: 'all 0.15s'
+                    }}
+                    title="מחיקת הרשומות שנבחרו"
+                  >
+                    <span>🗑️</span>
+                    <span>{deletingPayments ? 'מוחק...' : `מחק נבחרים (${selectedPaymentIds.length})`}</span>
+                  </button>
+                </>
               )}
               <span style={{ fontSize: '0.8rem', color: '#64748b' }}>10 בעמוד</span>
             </div>
@@ -1685,49 +1776,124 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'right' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ padding: '10px 14px', width: '42px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isAllCurrentPageSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isSomeCurrentPageSelected && !isAllCurrentPageSelected;
+                          }}
+                          onChange={handleToggleSelectAllCurrentPage}
+                          style={{
+                            cursor: 'pointer',
+                            accentColor: '#dc2626',
+                            width: '16px',
+                            height: '16px',
+                            verticalAlign: 'middle'
+                          }}
+                          title={isAllCurrentPageSelected ? 'בטל בחירת הכל בעמוד' : 'בחר הכל בעמוד'}
+                          aria-label="בחר את כל הרשומות בעמוד"
+                        />
+                      </th>
                       <th style={{ padding: '10px 14px' }}>תאריך ושעה</th>
                       <th style={{ padding: '10px 14px' }}>שם ארגון</th>
                       <th style={{ padding: '10px 14px' }}>משתמש משלם</th>
                       <th style={{ padding: '10px 14px' }}>סכום</th>
                       <th style={{ padding: '10px 14px' }}>מזהה עסקה</th>
                       <th style={{ padding: '10px 14px' }}>סטטוס</th>
+                      <th style={{ padding: '10px 14px', width: '60px', textAlign: 'center' }}>פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedPaymentRecords.map((item) => (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '10px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
-                          {item.createdAt ? new Date(item.createdAt).toLocaleString('he-IL') : '-'}
-                        </td>
-                        <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0f172a' }}>
-                          {item.organizationName || item.organizationId}
-                        </td>
-                        <td style={{ padding: '10px 14px', color: '#475569', direction: 'ltr', textAlign: 'right' }}>
-                          {item.userEmail || '-'}
-                        </td>
-                        <td style={{ padding: '10px 14px', fontWeight: '800', color: '#15803d' }}>
-                          ₪{item.amount}
-                        </td>
-                        <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b' }}>
-                          {item.confirmationCode || item.transactionId || '-'}
-                        </td>
-                        <td style={{ padding: '10px 14px' }}>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '2px 8px',
-                            borderRadius: '999px',
-                            backgroundColor: '#dcfce7',
-                            color: '#15803d',
-                            fontSize: '0.74rem',
-                            fontWeight: '800'
-                          }}>
-                            ✓ הושלם
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {paginatedPaymentRecords.map((item) => {
+                      const isSelected = selectedPaymentIds.includes(item.id);
+                      return (
+                        <tr
+                          key={item.id}
+                          style={{
+                            borderBottom: '1px solid #f1f5f9',
+                            backgroundColor: isSelected ? '#fef2f2' : 'transparent',
+                            transition: 'background-color 0.15s'
+                          }}
+                        >
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectPayment(item.id)}
+                              style={{
+                                cursor: 'pointer',
+                                accentColor: '#dc2626',
+                                width: '16px',
+                                height: '16px',
+                                verticalAlign: 'middle'
+                              }}
+                              title="סמן רשומה זו"
+                              aria-label={`בחר תשלום ${item.organizationName || item.id}`}
+                            />
+                          </td>
+                          <td style={{ padding: '10px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                            {item.createdAt ? new Date(item.createdAt).toLocaleString('he-IL') : '-'}
+                          </td>
+                          <td style={{ padding: '10px 14px', fontWeight: '700', color: '#0f172a' }}>
+                            {item.organizationName || item.organizationId}
+                          </td>
+                          <td style={{ padding: '10px 14px', color: '#475569', direction: 'ltr', textAlign: 'right' }}>
+                            {item.userEmail || '-'}
+                          </td>
+                          <td style={{ padding: '10px 14px', fontWeight: '800', color: '#15803d' }}>
+                            ₪{item.amount}
+                          </td>
+                          <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b' }}>
+                            {item.confirmationCode || item.transactionId || '-'}
+                          </td>
+                          <td style={{ padding: '10px 14px' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 8px',
+                              borderRadius: '999px',
+                              backgroundColor: '#dcfce7',
+                              color: '#15803d',
+                              fontSize: '0.74rem',
+                              fontWeight: '800'
+                            }}>
+                              ✓ הושלם
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleInitiateDeleteSingle(item.id)}
+                              disabled={deletingPayments}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: deletingPayments ? 'not-allowed' : 'pointer',
+                                color: '#94a3b8',
+                                fontSize: '0.95rem',
+                                padding: '4px 6px',
+                                borderRadius: '4px',
+                                transition: 'all 0.15s'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.color = '#dc2626';
+                                e.currentTarget.style.backgroundColor = '#fee2e2';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.color = '#94a3b8';
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }}
+                              title="מחק רשומה זו"
+                              aria-label={`מחק תשלום ${item.organizationName || item.id}`}
+                            >
+                              🗑️
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -3097,8 +3263,8 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
         />
       )}
 
-      {/* Reset Payment Log Confirmation Modal (HTML Modal) */}
-      {showClearPaymentsModal && (
+      {/* Delete Selected Payment Records Confirmation Modal (HTML Modal) */}
+      {showDeletePaymentsModal && (
         <div
           style={{
             position: 'fixed',
@@ -3116,7 +3282,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
             direction: 'rtl',
             fontFamily: 'Rubik, sans-serif'
           }}
-          onClick={handleCloseClearPaymentsModal}
+          onClick={handleCloseDeletePaymentsModal}
         >
           <div
             style={{
@@ -3158,22 +3324,24 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                 </div>
                 <div>
                   <h3 style={{ margin: 0, color: '#991b1b', fontSize: '1.24rem', fontWeight: '800' }}>
-                    איפוס יומן תשלומים
+                    {paymentIdsToDelete.length === 1 ? 'מחיקת רשומת תשלום' : 'מחיקת תשלומים נבחרים'}
                   </h3>
                   <p style={{ margin: '3px 0 0', color: '#b91c1c', fontSize: '0.84rem' }}>
-                    מחיקת היסטוריית עסקאות מהמערכת
+                    {paymentIdsToDelete.length === 1
+                      ? 'הסרת רשומה מיומן התשלומים'
+                      : `הסרת ${paymentIdsToDelete.length} רשומות מיומן התשלומים`}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={handleCloseClearPaymentsModal}
-                disabled={clearingPayments}
+                onClick={handleCloseDeletePaymentsModal}
+                disabled={deletingPayments}
                 style={{
                   background: 'none',
                   border: 'none',
                   fontSize: '1.6rem',
-                  cursor: clearingPayments ? 'not-allowed' : 'pointer',
+                  cursor: deletingPayments ? 'not-allowed' : 'pointer',
                   color: '#991b1b',
                   lineHeight: 1,
                   padding: '4px 8px',
@@ -3199,10 +3367,16 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: '800', fontSize: '1rem', color: '#991b1b' }}>
                   <span>⚠️</span>
-                  <span>האם אתה בטוח שברצונך לאפס את יומן התשלומים?</span>
+                  <span>
+                    {paymentIdsToDelete.length === 1
+                      ? 'האם אתה בטוח שברצונך למחוק רשומה זו?'
+                      : `האם אתה בטוח שברצונך למחוק ${paymentIdsToDelete.length} רשומות שנבחרו?`}
+                  </span>
                 </div>
                 <p style={{ margin: '0 0 10px 0' }}>
-                  פעולה זו תמחק לצמיתות את כל <strong>{paymentRecords.length}</strong> הרשומות מיומן התשלומים.
+                  {paymentIdsToDelete.length === 1
+                    ? 'פעולה זו תמחק לצמיתות את רשומת התשלום שנבחרה מיומן התשלומים.'
+                    : `פעולה זו תמחק לצמיתות את ${paymentIdsToDelete.length} רשומות התשלום שנבחרו מיומן התשלומים.`}
                 </p>
                 <div style={{
                   padding: '8px 12px',
@@ -3211,11 +3385,11 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   fontSize: '0.84rem',
                   color: '#b91c1c'
                 }}>
-                  🚨 <strong>שים/י לב:</strong> פעולה זו הינה בלתי הפיכה. נתוני התשלומים, מספרי העסקאות וקודי האישור יימחקו ממאגר הנתונים ולא יהיו ניתנים לשחזור.
+                  🚨 <strong>שים/י לב:</strong> פעולה זו הינה בלתי הפיכה והרשומות שיימחקו לא יהיו ניתנות לשחזור.
                 </div>
               </div>
 
-              {clearPaymentsError && (
+              {deletePaymentsError && (
                 <div style={{
                   padding: '10px 14px',
                   borderRadius: '8px',
@@ -3226,7 +3400,7 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   marginBottom: '14px',
                   border: '1px solid #f87171'
                 }}>
-                  {clearPaymentsError}
+                  {deletePaymentsError}
                 </div>
               )}
             </div>
@@ -3243,27 +3417,27 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={handleCloseClearPaymentsModal}
-                disabled={clearingPayments}
+                onClick={handleCloseDeletePaymentsModal}
+                disabled={deletingPayments}
                 style={{ minWidth: '100px', padding: '10px 18px', fontWeight: '600' }}
               >
                 ביטול
               </button>
               <button
                 type="button"
-                onClick={handleConfirmClearPayments}
-                disabled={clearingPayments}
+                onClick={handleConfirmDeletePayments}
+                disabled={deletingPayments}
                 style={{
                   minWidth: '160px',
                   padding: '10px 20px',
                   borderRadius: '8px',
-                  background: clearingPayments ? '#fca5a5' : '#dc2626',
+                  background: deletingPayments ? '#fca5a5' : '#dc2626',
                   color: '#ffffff',
                   border: 'none',
                   fontWeight: '700',
                   fontSize: '0.95rem',
-                  cursor: clearingPayments ? 'not-allowed' : 'pointer',
-                  boxShadow: clearingPayments ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.35)',
+                  cursor: deletingPayments ? 'not-allowed' : 'pointer',
+                  boxShadow: deletingPayments ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.35)',
                   fontFamily: 'inherit',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -3272,7 +3446,9 @@ export default function UsersManagement({ onImpersonate, onManageOrganization, o
                   transition: 'all 0.2s'
                 }}
               >
-                {clearingPayments ? '⏳ מאפס יומן...' : '🗑️ כן, אפס יומן'}
+                {deletingPayments
+                  ? '⏳ מוחק...'
+                  : `🗑️ כן, מחק ${paymentIdsToDelete.length === 1 ? 'רשומה' : `${paymentIdsToDelete.length} רשומות`}`}
               </button>
             </div>
           </div>

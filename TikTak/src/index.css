@@ -5041,6 +5041,20 @@ select.badge:focus, select.priority-badge:focus {
   transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.board-subtitle-wrapper[dir="ltr"],
+.board-subtitle-wrapper.is-ltr {
+  direction: ltr;
+  text-align: left;
+}
+
+.board-subtitle-wrapper[dir="ltr"] .linkified-text,
+.board-subtitle-wrapper.is-ltr .linkified-text,
+.board-subtitle-wrapper[dir="ltr"] .auto-link,
+.board-subtitle-wrapper.is-ltr .auto-link {
+  direction: ltr;
+  text-align: left;
+}
+
 .board-subtitle-placeholder {
   color: #94a3b8;
   font-style: italic;
@@ -5054,6 +5068,11 @@ select.badge:focus, select.priority-badge:focus {
   max-width: 520px;
   height: 32px !important;
   font-size: 0.9rem !important;
+}
+
+.board-subtitle-input[dir="ltr"] {
+  direction: ltr;
+  text-align: left;
 }
 
 .btn-board-subtitle-edit {

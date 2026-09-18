@@ -20,6 +20,10 @@ service cloud.firestore {
     //   - priority: string (required, must be one of the predefined priorities)
     //   - deadline: string (optional, 0-50 characters)
     //   - driveLink: string (optional, 0-500 characters)
+    //   - phone: string (optional, 0-100 characters)
+    //   - contactPhone: string (optional, 0-100 characters)
+    //   - supplierPhone: string (optional, 0-100 characters)
+    //   - supplierContactPhone: string (optional, 0-100 characters)
     //   - jobNumber: string (required, format GP-XXXX)
     //   - createdAt: string (required, ISO 8601 format)
     //   - updatedAt: string (required, ISO 8601 format)
@@ -132,6 +136,8 @@ service cloud.firestore {
         'planogramFile', 'workOrderFiles', 'deletedAt', 'expiresAt', 'userId', 'organizationId', 'weeklyHours',
         'boardId', 'customFields', 'excludedFields', 'completedAt',
         'supplierContactName', 'contactEmail', 'supplierEmail', 'email',
+        'phone', 'contactPhone', 'supplierPhone', 'supplierContactPhone',
+        'creatorEmail', 'userEmail', 'privateNotes',
         'workOrderFile', 'planogram', 'notes', 'internalNotes', 'commentsCount',
         'archiveStatus', 'archivedAt'
       ];
@@ -160,7 +166,7 @@ service cloud.firestore {
              (!('driveLink' in data) || isValidUrl(data.driveLink)) &&
              (!('attachments' in data) || data.attachments is list) &&
              (!('subtasks' in data) || data.subtasks is list) &&
-             (!('supplierContactEmail' in data) || data.supplierContactEmail is string) &&
+             (!('supplierContactEmail' in data) || data.supplierContactEmail == null || data.supplierContactEmail is string) &&
              (!('diecutsStatus' in data) || data.diecutsStatus is string) &&
              (!('imagesStatus' in data) || data.imagesStatus is string) &&
              (!('standardsInstituteRequired' in data) || data.standardsInstituteRequired is string) &&
@@ -173,14 +179,21 @@ service cloud.firestore {
              (!('completedAt' in data) || data.completedAt == null || data.completedAt is string) &&
              (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is string) &&
              (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt is string) &&
-             (!('supplierContactName' in data) || data.supplierContactName is string) &&
-             (!('contactEmail' in data) || data.contactEmail is string) &&
-             (!('supplierEmail' in data) || data.supplierEmail is string) &&
-             (!('email' in data) || data.email is string) &&
+             (!('supplierContactName' in data) || data.supplierContactName == null || data.supplierContactName is string) &&
+             (!('contactEmail' in data) || data.contactEmail == null || data.contactEmail is string) &&
+             (!('supplierEmail' in data) || data.supplierEmail == null || data.supplierEmail is string) &&
+             (!('email' in data) || data.email == null || data.email is string) &&
+             (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 100)) &&
+             (!('contactPhone' in data) || data.contactPhone == null || (data.contactPhone is string && data.contactPhone.size() <= 100)) &&
+             (!('supplierPhone' in data) || data.supplierPhone == null || (data.supplierPhone is string && data.supplierPhone.size() <= 100)) &&
+             (!('supplierContactPhone' in data) || data.supplierContactPhone == null || (data.supplierContactPhone is string && data.supplierContactPhone.size() <= 100)) &&
+             (!('creatorEmail' in data) || data.creatorEmail == null || (data.creatorEmail is string && data.creatorEmail.size() <= 200)) &&
+             (!('userEmail' in data) || data.userEmail == null || (data.userEmail is string && data.userEmail.size() <= 200)) &&
+             (!('privateNotes' in data) || data.privateNotes == null || (data.privateNotes is string && data.privateNotes.size() <= 10000)) &&
              (!('workOrderFile' in data) || data.workOrderFile == null || data.workOrderFile is map || data.workOrderFile is string || data.workOrderFile is list) &&
              (!('planogram' in data) || data.planogram == null || data.planogram is map || data.planogram is string) &&
-             (!('notes' in data) || data.notes is string) &&
-             (!('internalNotes' in data) || data.internalNotes is string) &&
+             (!('notes' in data) || data.notes == null || data.notes is string) &&
+             (!('internalNotes' in data) || data.internalNotes == null || data.internalNotes is string) &&
              (!('commentsCount' in data) || data.commentsCount is number) &&
              (!('archiveStatus' in data) || data.archiveStatus is string) &&
              (!('archivedAt' in data) || data.archivedAt == null || data.archivedAt is string);

@@ -8,7 +8,7 @@ import StatusPicker from '../components/StatusPicker';
 import PlanogramIndicator from '../components/PlanogramIndicator';
 import WorkOrderIndicator from '../components/WorkOrderIndicator';
 import { hasWorkOrder } from '../utils/workOrderHelper';
-import LinkifiedText from '../components/LinkifiedText';
+import LinkifiedText, { isEnglishOnly } from '../components/LinkifiedText';
 
 const PENDING_STATUSES_KEY = 'tiktak_pending_status_updates';
 const SORT_PREFERENCE_KEY = 'tiktak_admin_sort_preference';
@@ -1755,6 +1755,8 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   <input
                     type="text"
                     className="form-control board-subtitle-input"
+                    dir={isEnglishOnly(boardSubtitleValue) ? 'ltr' : 'rtl'}
+                    style={isEnglishOnly(boardSubtitleValue) ? { direction: 'ltr', textAlign: 'left' } : {}}
                     value={boardSubtitleValue}
                     onChange={(e) => setBoardSubtitleValue(e.target.value)}
                     onBlur={() => handleSaveBoardSubtitle(boardSubtitleValue)}
@@ -1800,7 +1802,9 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
               ) : (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '100%' }}>
                   <div
-                    className="board-subtitle-wrapper editable-cell"
+                    className={`board-subtitle-wrapper editable-cell ${isEnglishOnly(currentBoardSubtitle) ? 'is-ltr' : ''}`.trim()}
+                    dir={isEnglishOnly(currentBoardSubtitle) ? 'ltr' : 'rtl'}
+                    style={isEnglishOnly(currentBoardSubtitle) ? { direction: 'ltr', textAlign: 'left' } : {}}
                     onClick={() => startEditingBoardSubtitle()}
                     title="לחץ לעריכת תת-הכותרת"
                   >
@@ -2834,6 +2838,7 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
                   <input
                     type="text"
                     className="form-control"
+                    dir={isEnglishOnly(newBoardSubtitle) ? 'ltr' : 'rtl'}
                     placeholder="הזן תת-כותרת או קישור..."
                     value={newBoardSubtitle}
                     onChange={e => setNewBoardSubtitle(e.target.value)}

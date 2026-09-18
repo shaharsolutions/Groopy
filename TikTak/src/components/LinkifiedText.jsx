@@ -1,7 +1,7 @@
 import React from 'react';
-import { parseLinks, truncateSegments } from '../utils/linkUtils';
+import { parseLinks, truncateSegments, isEnglishOnly } from '../utils/linkUtils';
 
-export { parseLinks, truncateSegments };
+export { parseLinks, truncateSegments, isEnglishOnly };
 
 /**
  * Component that turns any URL / link in text into a clickable link.

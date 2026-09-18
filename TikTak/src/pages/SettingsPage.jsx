@@ -13,6 +13,7 @@ import {
 import { APP_VERSIONS, getFeatureFlags } from '../utils/featureFlags';
 import { isBoardSharedWithOrg, isBoardAccessibleToUser, getOrderedBoards } from '../utils/boardStatusHelper';
 import { exportAllUserDataToExcel } from '../utils/excelExportHelper';
+import { isEnglishOnly } from '../utils/linkUtils';
 import IconPickerModal from '../components/IconPickerModal';
 
 const PRESET_COLORS = [
@@ -2021,6 +2022,7 @@ export default function SettingsPage({
                               <input
                                 type="text"
                                 className="form-control"
+                                dir={isEnglishOnly(editingBoardSubtitle) ? 'ltr' : 'rtl'}
                                 placeholder="תת-כותרת / קישור ללוח (אופציונלי)"
                                 value={editingBoardSubtitle}
                                 onChange={e => setEditingBoardSubtitle(e.target.value)}
@@ -2142,7 +2144,17 @@ export default function SettingsPage({
                             <div>
                               <div>{boardName} {isDefault ? '(ברירת מחדל)' : ''}</div>
                               {(isDefault ? localSettings.boardSubtitle : board.subtitle) && (
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '400', marginTop: '2px' }}>
+                                <div
+                                  dir={isEnglishOnly(isDefault ? localSettings.boardSubtitle : board.subtitle) ? 'ltr' : 'rtl'}
+                                  style={{
+                                    fontSize: '0.8rem',
+                                    color: 'var(--text-muted)',
+                                    fontWeight: '400',
+                                    marginTop: '2px',
+                                    direction: isEnglishOnly(isDefault ? localSettings.boardSubtitle : board.subtitle) ? 'ltr' : 'rtl',
+                                    textAlign: isEnglishOnly(isDefault ? localSettings.boardSubtitle : board.subtitle) ? 'left' : 'right'
+                                  }}
+                                >
                                   {isDefault ? localSettings.boardSubtitle : board.subtitle}
                                 </div>
                               )}
@@ -2247,6 +2259,7 @@ export default function SettingsPage({
                 <input
                   type="text"
                   className="form-control"
+                  dir={isEnglishOnly(newBoardSubtitle) ? 'ltr' : 'rtl'}
                   placeholder="הזן תת-כותרת או קישור..."
                   value={newBoardSubtitle}
                   onChange={e => setNewBoardSubtitle(e.target.value)}

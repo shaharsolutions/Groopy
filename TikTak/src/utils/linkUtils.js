@@ -99,10 +99,21 @@ export function truncateSegments(segments, maxLength) {
         ...seg,
         value: seg.value.slice(0, remaining) + '...'
       });
-      currentLength += remaining;
       break;
     }
   }
 
   return result;
+}
+
+/**
+ * Checks if a string is written in English/Latin only (contains English/Latin letters and NO Hebrew characters).
+ */
+export function isEnglishOnly(text) {
+  if (!text || typeof text !== 'string') return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  const hasHebrew = /[\u0590-\u05FF]/.test(trimmed);
+  const hasEnglish = /[a-zA-Z]/.test(trimmed);
+  return !hasHebrew && hasEnglish;
 }

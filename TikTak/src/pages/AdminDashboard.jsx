@@ -302,12 +302,13 @@ export default function AdminDashboard({ settings, suppliers = [], contacts = []
   const [savingStatusIds, setSavingStatusIds] = useState(() => new Set());
   const [recentlyCompletedSubtaskKeys, setRecentlyCompletedSubtaskKeys] = useState(() => new Set());
   const [showCompletedThisWeekSubtasks, setShowCompletedThisWeekSubtasks] = useState(false);
-  const [filterSubtasksBySelectedBoard, setFilterSubtasksBySelectedBoard] = useState(false);
+  const [filterSubtasksBySelectedBoard, setFilterSubtasksBySelectedBoard] = useState(true);
 
-  // Reset status filter and board subtitle edit mode when switching boards
+  // Reset status filter, board subtitle edit mode, and reset subtasks board filter to default when switching boards
   useEffect(() => {
     setStatusFilter('');
     setIsEditingBoardSubtitle(false);
+    setFilterSubtasksBySelectedBoard(true);
   }, [workspaceView]);
 
   // Fallback to 'active' if stored custom board was deleted

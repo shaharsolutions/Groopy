@@ -10,7 +10,7 @@ import { hasWorkOrder } from '../utils/workOrderHelper';
 import { normalizeNewTaskFields, getAllTaskFieldDefinitions } from '../data/taskFieldConfig';
 import { getBoardStatusConfig, getOrderedBoards } from '../utils/boardStatusHelper';
 import { getFeatureFlags } from '../utils/featureFlags';
-import { resolveContactDetails } from '../utils/contactUtils';
+import { resolveContactDetails, formatWhatsAppUrl } from '../utils/contactUtils';
 import { copyToClipboard } from '../utils/clipboardHelper';
 import LinkifiedText from './LinkifiedText';
 
@@ -3101,10 +3101,11 @@ export default function AdminDetailsModal({
                                             {currentContactPhone}
                                           </a>
                                           <a
-                                            href={`https://wa.me/${currentContactPhone.replace(/[^0-9]/g, '')}`}
+                                            href={formatWhatsAppUrl(currentContactPhone) || `https://wa.me/${currentContactPhone.replace(/[^0-9]/g, '')}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             title="שליחת הודעת WhatsApp"
+                                            onClick={(e) => e.stopPropagation()}
                                             style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366', marginRight: '4px' }}
                                           >
                                             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -3564,10 +3565,11 @@ export default function AdminDetailsModal({
                         {f.value}
                       </a>
                       <a
-                        href={`https://wa.me/${f.value.replace(/[^0-9]/g, '')}`}
+                        href={formatWhatsAppUrl(f.value) || `https://wa.me/${f.value.replace(/[^0-9]/g, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         title="שליחת הודעת WhatsApp"
+                        onClick={(e) => e.stopPropagation()}
                         style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366' }}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -3577,6 +3579,19 @@ export default function AdminDetailsModal({
                     </div>
                   ) : f.type === 'email' && f.value ? (
                     <a href={`mailto:${f.value}`} className="direction-ltr text-left" style={{ fontSize: '0.9rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'underline' }}>
+                      {f.value}
+                    </a>
+                  ) : f.type === 'whatsapp' && f.value ? (
+                    <a
+                      href={formatWhatsAppUrl(f.value) || `https://wa.me/${f.value.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#10b981', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '4px' }}>
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
+                      </svg>
                       {f.value}
                     </a>
                   ) : (

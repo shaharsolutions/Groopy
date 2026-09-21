@@ -3920,6 +3920,8 @@ select.badge:focus, select.priority-badge:focus {
   border-radius: 6px;
   background-color: #ffffff;
   position: relative;
+  direction: ltr !important;
+  text-align: left !important;
 }
 
 .excel-table {
@@ -3928,7 +3930,7 @@ select.badge:focus, select.priority-badge:focus {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
   text-align: left;
-  direction: ltr;
+  direction: ltr !important;
 }
 
 .excel-table th {

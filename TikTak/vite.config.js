@@ -15,6 +15,7 @@ export default defineConfig({
           if (id.includes('/firebase/') || id.includes('@firebase/')) return 'firebase-core-vendor';
           if (id.includes('/react/') || id.includes('/react-dom/')) return 'react-vendor';
           if (id.includes('/xlsx/')) return 'xlsx-vendor';
+          if (id.includes('/jszip/') || id.includes('jszip')) return 'jszip-vendor';
           return 'vendor';
         }
       }

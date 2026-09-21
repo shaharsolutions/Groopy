@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { getFeatureFlags } from '../utils/featureFlags';
+import { formatWhatsAppUrl } from '../utils/contactUtils';
 
 const AdminDetailsModal = lazy(() => import('../components/AdminDetailsModal'));
 
@@ -627,7 +628,30 @@ export default function SuppliersContactsPage({
                         <td data-label={flags.terms.lastItem || `${flags.terms.item} אחרונה`}>{renderLastProject(lastSupplierProjects.get(normalizeSearch(supplier.name)))}</td>
                         <td data-label="תקשורת">
                           <div className="directory-contact-lines">
-                            {supplier.phone ? <a className="directory-phone-link direction-ltr" href={`tel:${supplier.phone.replace(/\s+/g, '')}`}>{supplier.phone}</a> : null}
+                            {supplier.phone ? (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <a className="directory-phone-link direction-ltr" href={`tel:${supplier.phone.replace(/\s+/g, '')}`}>
+                                  {supplier.phone}
+                                </a>
+                                {(() => {
+                                  const waUrl = formatWhatsAppUrl(supplier.phone);
+                                  return waUrl ? (
+                                    <a
+                                      href={waUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="שליחת הודעת WhatsApp"
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366' }}
+                                    >
+                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
+                                      </svg>
+                                    </a>
+                                  ) : null;
+                                })()}
+                              </div>
+                            ) : null}
                             {supplier.email ? <a className="direction-ltr" href={`mailto:${supplier.email}`}>{supplier.email}</a> : null}
                             {!supplier.phone && !supplier.email ? <span className="muted-text">אין פרטי התקשרות</span> : null}
                           </div>
@@ -726,7 +750,30 @@ export default function SuppliersContactsPage({
                           {isEditing ? (
                             <input type="text" className="form-control direction-ltr text-left directory-inline-input" value={editingContact.phone} onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })} />
                           ) : (
-                            contact.phone ? <a className="directory-phone-link direction-ltr" href={`tel:${contact.phone.replace(/\s+/g, '')}`}>{contact.phone}</a> : <span className="muted-text">לא הוגדר</span>
+                            contact.phone ? (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <a className="directory-phone-link direction-ltr" href={`tel:${contact.phone.replace(/\s+/g, '')}`}>
+                                  {contact.phone}
+                                </a>
+                                {(() => {
+                                  const waUrl = formatWhatsAppUrl(contact.phone);
+                                  return waUrl ? (
+                                    <a
+                                      href={waUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="שליחת הודעת WhatsApp"
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{ display: 'inline-flex', alignItems: 'center', color: '#25D366' }}
+                                    >
+                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.503-5.714-1.458L0 24zm6.59-1.859c1.6.953 3.41 1.456 5.29 1.457 5.833 0 10.581-4.75 10.584-10.586.002-2.828-1.095-5.485-3.091-7.483-1.996-1.998-4.654-3.093-7.487-3.094-5.838 0-10.584 4.747-10.588 10.585-.001 1.933.503 3.822 1.464 5.488L1.758 22.25l4.89-1.284z" />
+                                      </svg>
+                                    </a>
+                                  ) : null;
+                                })()}
+                              </div>
+                            ) : <span className="muted-text">לא הוגדר</span>
                           )}
                         </td>
                         <td data-label="אימייל">

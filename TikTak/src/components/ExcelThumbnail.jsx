@@ -209,25 +209,33 @@ export default function ExcelThumbnail({ url, name, fallback }) {
               >
                 {rowIdx + 1}
               </div>
-              {row.map((cellVal, colIdx) => (
-                <div 
-                  key={colIdx} 
-                  style={{ 
-                    flex: 1, 
-                    borderLeft: colIdx < colCount - 1 ? '1px solid #e2e8f0' : 'none', 
-                    padding: '2px 4px', 
-                    overflow: 'hidden', 
-                    textOverflow: 'ellipsis', 
-                    whiteSpace: 'nowrap',
-                    color: '#1e293b',
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontWeight: rowIdx === 0 ? '600' : '400'
-                  }}
-                >
-                  {cellVal !== null && cellVal !== undefined ? String(cellVal) : ''}
-                </div>
-              ))}
+              {row.map((cellVal, colIdx) => {
+                const strVal = cellVal !== null && cellVal !== undefined ? String(cellVal) : '';
+                const isImgCell = /^\s*=?\s*(?:IMAGE|DISPIMG)\s*\(/i.test(strVal) ||
+                  /^https?:\/\/.+\.(?:png|jpe?g|gif|webp|svg|bmp)(?:\?.*)?$/i.test(strVal) ||
+                  /^https?:\/\/firebasestorage\.googleapis\.com\/.*$/i.test(strVal);
+
+                return (
+                  <div 
+                    key={colIdx} 
+                    style={{ 
+                      flex: 1, 
+                      borderLeft: colIdx < colCount - 1 ? '1px solid #e2e8f0' : 'none', 
+                      padding: '2px 4px', 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis', 
+                      whiteSpace: 'nowrap', 
+                      color: isImgCell ? '#2563eb' : '#1e293b', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      fontWeight: rowIdx === 0 ? '600' : '400',
+                      fontSize: isImgCell ? '0.55rem' : undefined
+                    }}
+                  >
+                    {isImgCell ? '🖼️ תמונה' : strVal}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
